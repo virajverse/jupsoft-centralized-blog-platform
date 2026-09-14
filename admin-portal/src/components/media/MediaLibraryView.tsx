@@ -1,0 +1,440 @@
+'use client';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useBlogStore } from '../../store/useBlogStore';
+import { useQueryState } from '../../hooks/useQueryState';
+import { 
+  UploadCloud, 
+  Copy, 
+  Check, 
+  Trash2, 
+  Layers, 
+  Sparkles, 
+  FileCheck,
+  Image as ImageIcon,
+  X,
+  ExternalLink,
+  Maximize2,
+  RefreshCw
+} from 'lucide-react';
+import { MediaItem } from '../../types';
+import { apiClient } from '../../services/apiClient';
+
+export const MediaLibraryView: React.FC = () => {
+  const searchParams = useSearchParams();
+  const { setParam, setParams } = useQueryState();
+
+  const { 
+    media, 
+    activeWebsiteId, 
+    websites, 
+    addMediaItem, 
+    deleteMediaItem,
+    activeRole,
+    fetchMedia
+  } = useBlogStore();
+
+  useEffect(() => {
+    fetchMedia();
+  }, [activeWebsiteId, fetchMedia]);
+
+  const isAllSites = activeWebsiteId === 'all';
+  
+  // URL query state
+  const tenantParam = searchParams.get('tenant');
+  const viewParam = searchParams.get('view');
+
+  const defaultSiteId = isAllSites ? (tenantParam || websites[0]?.id) : activeWebsiteId;
+  const [targetSiteId, setTargetSiteId] = useState<string>(defaultSiteId);
+
+  useEffect(() => {
+    if (tenantParam && websites.some((w) => w.id === tenantParam)) {
+      setTargetSiteId(tenantParam);
+    }
+  }, [tenantParam, websites]);
+
+  const activeSite = websites.find((w) => w.id === (isAllSites ? targetSiteId : activeWebsiteId)) || websites[0];
+  const siteMedia = isAllSites 
+    ? (tenantParam ? media.filter((m) => m.websiteId === tenantParam) : media) 
+    : media.filter((m) => m.websiteId === activeWebsiteId);
+
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const inspectedItem = viewParam ? media.find((m) => m.id === viewParam) : null;
+
+  const copyCdnUrl = (id: string, url: string) => {
+    navigator.clipboard.writeText(url);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleSelectTenant = (id: string | null) => {
+    if (id) {
+      setTargetSiteId(id);
+      setParam('tenant', id);
+    } else {
+      setParam('tenant', null);
+    }
+  };
+
+  // TRD §10: Hybrid upload pipeline (Server-side sharp WebP with client-side canvas fallback)
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setProcessing(true);
+    const uploadSiteId = isAllSites ? targetSiteId : activeWebsiteId;
+    const uploadSite = websites.find((w) => w.id === uploadSiteId) || websites[0];
+    const cleanName = file.name.replace(/\.[^/.]+$/, '') + '.webp';
+
+    try {
+      // Step 1: Attempt server-side WebP pipeline via NestJS backend (TRD §10)
+      const res = await apiClient.uploadMedia(file, uploadSiteId, cleanName);
+      if (res && res.cdnUrl) {
+        const newItem: MediaItem = {
+          id: res.id || `med-${Date.now()}`,
+          websiteId: uploadSiteId,
+          fileName: res.fileName || cleanName,
+          fileType: 'image/webp',
+          fileSizeBytes: file.size,
+          s3Key: res.cdnUrl,
+          cdnUrl: res.cdnUrl,
+          altText: cleanName.replace(/[-_]/g, ' ').replace('.webp', ''),
+          dimensions: { width: 800, height: 600 },
+          uploadedBy: activeRole,
+          createdAt: new Date().toISOString(),
+        };
+        addMediaItem(newItem);
+        setParam('view', newItem.id);
+        setProcessing(false);
+        e.target.value = '';
+        return;
+      }
+    } catch (apiErr) {
+      console.warn('Backend media upload failed, falling back to browser canvas conversion:', apiErr);
+    }
+
+    // Step 2: Fallback to client-side canvas WebP conversion
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Create canvas for WebP conversion
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          // Real WebP encoding
+          const webpDataUrl = canvas.toDataURL('image/webp', 0.88);
+          const head = 'data:image/webp;base64,';
+          const sizeInBytes = Math.round((webpDataUrl.length - head.length) * 3 / 4);
+
+          const now = new Date();
+          const yyyy = now.getFullYear();
+          const mm = String(now.getMonth() + 1).padStart(2, '0');
+          const cleanName = file.name.replace(/\.[^/.]+$/, '') + '.webp';
+
+          const uploadSiteId = isAllSites ? targetSiteId : activeWebsiteId;
+          const uploadSite = websites.find((w) => w.id === uploadSiteId) || websites[0];
+
+          const newItem: MediaItem = {
+            id: `med-${Date.now()}`,
+            websiteId: uploadSiteId,
+            fileName: cleanName,
+            fileType: 'image/webp',
+            fileSizeBytes: sizeInBytes,
+            s3Key: `blogs/${uploadSite.s3Prefix}/${yyyy}/${mm}/${cleanName}`,
+            cdnUrl: webpDataUrl,
+            altText: cleanName.replace(/[-_]/g, ' ').replace('.webp', ''),
+            dimensions: { width: img.width, height: img.height },
+            uploadedBy: activeRole,
+            createdAt: new Date().toISOString(),
+          };
+
+          addMediaItem(newItem);
+          setParam('view', newItem.id);
+        }
+        setProcessing(false);
+      };
+      img.src = event.target?.result as string;
+    };
+
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  return (
+    <div className="p-6 sm:p-8 max-w-7xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+              Media Asset Manager
+            </h1>
+            <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700">
+              {isAllSites ? 'All Websites' : activeSite.name}
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Client-side WebP pipeline with S3 key prefix <code className="text-slate-700 dark:text-slate-300 font-mono">blogs/{activeSite.s3Prefix}/yyyy/mm/</code>.
+          </p>
+
+          {/* Tenant Selector Tabs if in All Websites mode */}
+          {isAllSites && (
+            <div className="flex flex-wrap items-center gap-1.5 mt-3 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg w-fit border border-slate-200 dark:border-slate-700">
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium px-2">Scope Filter:</span>
+              <button
+                onClick={() => handleSelectTenant(null)}
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+                  !tenantParam
+                    ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                All Sites ({media.length})
+              </button>
+              {websites.map((w) => (
+                <button
+                  key={w.id}
+                  onClick={() => handleSelectTenant(w.id)}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+                    tenantParam === w.id
+                      ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {w.name} ({media.filter((m) => m.websiteId === w.id).length})
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => fetchMedia()}
+            disabled={processing}
+            className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium text-xs transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+            title="Refresh media library from server"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${processing ? 'animate-spin' : ''}`} />
+            <span>Sync</span>
+          </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept="image/*"
+            className="hidden"
+          />
+          <button
+            disabled={processing}
+            onClick={() => fileInputRef.current?.click()}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 disabled:opacity-50 font-medium text-xs shadow-xs transition-colors cursor-pointer"
+          >
+            <UploadCloud className="w-4 h-4" />
+            <span>{processing ? 'Processing WebP...' : 'Upload Image File'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* S3 Pipeline Info Badges */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-xl p-4 flex items-center space-x-3.5 shadow-xs">
+          <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
+            <Sparkles className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-slate-900 dark:text-white">Client WebP Processing</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">Browser canvas compression</div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-xl p-4 flex items-center space-x-3.5 shadow-xs">
+          <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
+            <Layers className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-slate-900 dark:text-white">Persistent Storage</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">Retained in browser localStorage</div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-xl p-4 flex items-center space-x-3.5 shadow-xs">
+          <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
+            <FileCheck className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-slate-900 dark:text-white">Tenant Scoped</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">Isolated per website domain</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Media Grid or Real Empty State */}
+      {siteMedia.length === 0 ? (
+        <div className="bg-white dark:bg-[#0f172a] border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-16 text-center space-y-3 shadow-xs">
+          <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 mx-auto">
+            <ImageIcon className="w-6 h-6" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">No media uploaded yet for {activeSite.name}</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+              Upload images to convert them into high-performance WebP format automatically.
+            </p>
+          </div>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 text-xs font-medium shadow-xs cursor-pointer"
+          >
+            Select Image from PC
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {siteMedia.map((item) => {
+            const itemSite = websites.find((w) => w.id === item.websiteId);
+            return (
+              <div
+                key={item.id}
+                onClick={() => setParam('view', item.id)}
+                className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-hidden flex flex-col group shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all cursor-pointer"
+              >
+                <div className="aspect-video bg-slate-100 dark:bg-slate-900 relative overflow-hidden">
+                  <img
+                    src={item.cdnUrl}
+                    alt={item.altText}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/70 text-[10px] text-white font-mono font-medium">
+                    WebP
+                  </span>
+                  <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/70 text-[10px] text-slate-200 font-mono">
+                    {item.dimensions.width}&times;{item.dimensions.height}
+                  </span>
+                </div>
+
+                <div className="p-3.5 space-y-2 flex-1 flex flex-col justify-between">
+                  <div>
+                    {isAllSites && itemSite && (
+                      <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 inline-block mb-1">
+                        {itemSite.name}
+                      </span>
+                    )}
+                    <h4 className="text-xs font-semibold text-slate-900 dark:text-white truncate" title={item.fileName}>
+                      {item.fileName}
+                    </h4>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 italic truncate mt-0.5">
+                      &quot;{item.altText}&quot;
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                    <span className="font-mono">{(item.fileSizeBytes / 1024).toFixed(0)} KB</span>
+                    <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => copyCdnUrl(item.id, item.cdnUrl)}
+                        className="p-1 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                        title="Copy image URL"
+                      >
+                        {copiedId === item.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                      <button
+                        onClick={() => deleteMediaItem(item.id)}
+                        className="p-1 rounded-md text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                        title="Delete image"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Image Inspector Modal - URL bound (?view=[id]) */}
+      {inspectedItem && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-100">
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl animate-in zoom-in-95 duration-100">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-slate-500" />
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Media Asset Details</h3>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                  {inspectedItem.fileType}
+                </span>
+              </div>
+              <button
+                onClick={() => setParam('view', null)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 aspect-video flex items-center justify-center">
+                <img
+                  src={inspectedItem.cdnUrl}
+                  alt={inspectedItem.altText}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400 block font-medium">File Name</span>
+                  <div className="text-slate-900 dark:text-white font-semibold font-mono truncate">{inspectedItem.fileName}</div>
+                </div>
+
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400 block font-medium">Resolution &amp; Size</span>
+                  <div className="text-slate-900 dark:text-white font-mono">
+                    {inspectedItem.dimensions.width} &times; {inspectedItem.dimensions.height} px &middot; {(inspectedItem.fileSizeBytes / 1024).toFixed(1)} KB
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400 block font-medium">S3 Key Path</span>
+                  <div className="text-slate-700 dark:text-slate-300 font-mono text-[11px] break-all bg-slate-50 dark:bg-slate-900 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
+                    {inspectedItem.s3Key}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400 block font-medium mb-1">CDN Data URL</span>
+                  <button
+                    onClick={() => copyCdnUrl(inspectedItem.id, inspectedItem.cdnUrl)}
+                    className="w-full py-2 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1.5 transition-colors font-medium border border-slate-200 dark:border-slate-700 cursor-pointer"
+                  >
+                    {copiedId === inspectedItem.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedId === inspectedItem.id ? 'Copied to Clipboard' : 'Copy Image Link'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-slate-200 dark:border-slate-800">
+              <button
+                onClick={() => setParam('view', null)}
+                className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-semibold hover:bg-slate-800 cursor-pointer shadow-xs"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

@@ -1,0 +1,55 @@
+{
+  "family": "jupsoft-cms-backend",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/jupsoftCmsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "jupsoft-cms-backend",
+      "image": "ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/jupsoft-cms-backend:latest",
+      "portMappings": [
+        {
+          "containerPort": 4000,
+          "hostPort": 4000,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "environment": [
+        { "name": "NODE_ENV", "value": "production" },
+        { "name": "PORT", "value": "4000" }
+      ],
+      "secrets": [
+        { "name": "DATABASE_URL", "valueFrom": "arn:aws:ssm:ap-south-1:ACCOUNT_ID:parameter/jupsoft/DATABASE_URL" },
+        { "name": "REDIS_HOST", "valueFrom": "arn:aws:ssm:ap-south-1:ACCOUNT_ID:parameter/jupsoft/REDIS_HOST" },
+        { "name": "REDIS_PORT", "valueFrom": "arn:aws:ssm:ap-south-1:ACCOUNT_ID:parameter/jupsoft/REDIS_PORT" },
+        { "name": "JWT_SECRET", "valueFrom": "arn:aws:ssm:ap-south-1:ACCOUNT_ID:parameter/jupsoft/JWT_SECRET" },
+        { "name": "JWT_REFRESH_SECRET", "valueFrom": "arn:aws:ssm:ap-south-1:ACCOUNT_ID:parameter/jupsoft/JWT_REFRESH_SECRET" },
+        { "name": "AWS_REGION", "valueFrom": "arn:aws:ssm:ap-south-1:ACCOUNT_ID:parameter/jupsoft/AWS_REGION" },
+        { "name": "AWS_S3_BUCKET", "valueFrom": "arn:aws:ssm:ap-south-1:ACCOUNT_ID:parameter/jupsoft/AWS_S3_BUCKET" },
+        { "name": "CLOUDFRONT_DOMAIN", "valueFrom": "arn:aws:ssm:ap-south-1:ACCOUNT_ID:parameter/jupsoft/CLOUDFRONT_DOMAIN" },
+        { "name": "WEBHOOK_DEFAULT_SECRET", "valueFrom": "arn:aws:ssm:ap-south-1:ACCOUNT_ID:parameter/jupsoft/WEBHOOK_DEFAULT_SECRET" }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "wget -qO- http://localhost:4000/v1/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 20
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/jupsoft-cms-backend",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "readonlyRootFilesystem": false,
+      "stopTimeout": 30
+    }
+  ]
+}

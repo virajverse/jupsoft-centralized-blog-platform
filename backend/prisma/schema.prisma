@@ -1,0 +1,313 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Website {
+  id                   String                 @id
+  name                 String
+  domain               String                 @unique
+  logoUrl              String                 @default("")
+  description          String                 @default("")
+  apiKey               String                 @unique
+  s3Prefix             String
+  status               String                 @default("active") // active | inactive
+  defaultLanguage      String                 @default("en")
+  supportedLanguages   String[]               @default(["en", "hi", "fr", "ar"])
+  revalidateWebhookUrl String                 @default("")
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  blogs                Blog[]
+  categories           Category[]
+  tags                 Tag[]
+  mediaAssets          MediaAsset[]
+  redirects            Redirect[]
+  userRoleAssignments  UserRoleAssignment[]
+
+  @@map("websites")
+}
+
+model User {
+  id                   String                 @id @default(uuid())
+  email                String                 @unique
+  passwordHash         String
+  name                 String
+  avatar               String                 @default("")
+  status               String                 @default("active") // active | suspended
+  lastLoginIp          String                 @default("127.0.0.1")
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  roleAssignments      UserRoleAssignment[]
+  blogs                Blog[]
+
+  @@map("users")
+}
+
+model UserRoleAssignment {
+  id                   String                 @id @default(uuid())
+  userId               String
+  websiteId            String                 // specific website ID or 'all'
+  role                 String                 // Super Admin | Editor | Content Writer | Publisher | SEO Manager
+  createdAt            DateTime               @default(now())
+
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  website              Website?               @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, websiteId])
+  @@map("user_role_assignments")
+}
+
+model Blog {
+  id                   String                 @id @default(uuid())
+  websiteId            String
+  authorId             String
+  authorName           String
+  authorAvatar         String                 @default("")
+  featuredImage        String                 @default("")
+  featuredImageAlt     String                 @default("")
+  status               String                 @default("Draft") // Draft | Under Review | Approved | Scheduled | Published | Archived
+  publishDate          DateTime?
+  scheduledAt          DateTime?
+  publishedBy          String?
+  viewCount            Int                    @default(0)
+  readTimeMinutes      Int                    @default(3)
+  categoryIds          String[]               @default([])
+  tagIds               String[]               @default([])
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  website              Website                @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  author               User                   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  translations         BlogTranslation[]
+  workflowLogs         WorkflowLog[]
+  blogCategories       BlogCategory[]         // TRD §9: M:N via blog_categories
+  blogTags             BlogTag[]              // TRD §9: M:N via blog_tags
+
+  @@index([websiteId, status])
+  @@map("blogs")
+}
+
+model BlogTranslation {
+  id                   String                 @id @default(uuid())
+  blogId               String
+  lang                 String                 // en | hi | fr | ar
+  title                String
+  slug                 String
+  excerpt              String                 @default("") @db.Text
+  content              String                 @default("") @db.Text
+  
+  // SEO & Open Graph Metadata
+  metaTitle            String                 @default("")
+  metaDescription      String                 @default("")
+  metaKeywords         String                 @default("")
+  canonicalUrl         String                 @default("")
+  focusKeyword         String                 @default("")
+  robots               String                 @default("index, follow")
+  ogTitle              String                 @default("")
+  ogDescription        String                 @default("")
+  ogImage              String                 @default("")
+  twitterTitle         String                 @default("")
+  twitterDescription   String                 @default("")
+  twitterImage         String                 @default("")
+
+  blog                 Blog                   @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  @@unique([blogId, lang])
+  @@index([slug, lang])
+  @@map("blog_translations")
+}
+
+model Category {
+  id                   String                 @id @default(uuid())
+  websiteId            String
+  name                 String
+  slug                 String
+  parentId             String?
+  description          String?
+  count                Int                    @default(0)
+
+  website              Website                @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  blogCategories       BlogCategory[]         // TRD §9: M:N via blog_categories
+
+  @@unique([websiteId, slug])
+  @@map("categories")
+}
+
+model Tag {
+  id                   String                 @id @default(uuid())
+  websiteId            String
+  name                 String
+  slug                 String
+  count                Int                    @default(0)
+
+  website              Website                @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  blogTags             BlogTag[]              // TRD §9: M:N via blog_tags
+
+  @@unique([websiteId, slug])
+  @@map("tags")
+}
+
+model MediaAsset {
+  id                   String                 @id @default(uuid())
+  websiteId            String
+  fileName             String
+  fileType             String                 // image/webp, image/jpeg, etc.
+  fileSizeBytes        Int
+  s3Key                String
+  cdnUrl               String
+  altText              String                 @default("")
+  uploadedBy           String                 @default("")
+  createdAt            DateTime               @default(now())
+
+  website              Website                @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@index([websiteId])
+  @@map("media_assets")
+}
+
+model Redirect {
+  id                   String                 @id @default(uuid())
+  websiteId            String
+  fromSlug             String
+  toSlug               String
+  statusCode           Int                    @default(301)
+  hitCount             Int                    @default(0)
+  createdAt            DateTime               @default(now())
+
+  website              Website                @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([websiteId, fromSlug])
+  @@map("redirects")
+}
+
+model WorkflowLog {
+  id                   String                 @id @default(uuid())
+  blogId               String
+  fromStatus           String
+  toStatus             String
+  changedBy            String
+  role                 String
+  notes                String?
+  timestamp            DateTime               @default(now())
+
+  blog                 Blog                   @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  @@map("workflow_logs")
+}
+
+model SystemAuditLog {
+  id                   String                 @id @default(uuid())
+  timestamp            DateTime               @default(now())
+  userName             String
+  role                 String
+  websiteId            String
+  event                String
+  ipAddress            String
+  details              String                 @db.Text
+
+  @@index([websiteId, event])
+  @@map("audit_logs")
+}
+
+// ─── TRD §9: M:N join tables (blog_categories, blog_tags) ──────────────────
+
+model BlogCategory {
+  blogId               String
+  categoryId           String
+
+  blog                 Blog                   @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  category             Category               @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([blogId, categoryId])
+  @@map("blog_categories")
+}
+
+model BlogTag {
+  blogId               String
+  tagId                String
+
+  blog                 Blog                   @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  tag                  Tag                    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([blogId, tagId])
+  @@map("blog_tags")
+}
+
+// ─── TRD §17: analytics table ───────────────────────────────────────────────
+// TRD §14: "View events are recorded via a lightweight tracking endpoint and
+//            aggregated asynchronously so they never slow page delivery."
+
+model AnalyticsEvent {
+  id                   String                 @id @default(uuid())
+  blogId               String
+  websiteId            String
+  sessionId            String                 // for unique visitor dedup (TRD §14)
+  ipHash               String                 @default("") // hashed for privacy
+  country              String                 @default("")
+  referrer             String                 @default("")
+  readPercent          Int                    @default(0)  // avg read time proxy
+  event                String                 @default("page_view") // page_view | read_complete
+  timestamp            DateTime               @default(now())
+
+  @@index([blogId, websiteId])
+  @@index([websiteId, timestamp])
+  @@map("analytics")
+}
+
+// ─── TRD §17: api_logs table ─────────────────────────────────────────────────
+
+model ApiLog {
+  id                   String                 @id @default(uuid())
+  method               String
+  path                 String
+  statusCode           Int
+  websiteId            String                 @default("")
+  durationMs           Int                    @default(0)
+  timestamp            DateTime               @default(now())
+
+  @@index([websiteId, timestamp])
+  @@map("api_logs")
+}
+
+// ─── TRD §17: seo_audit_logs table ──────────────────────────────────────────
+// TRD §11: "Automated SEO Checks (score 0–100)"
+
+model SeoAuditLog {
+  id                   String                 @id @default(uuid())
+  blogId               String
+  websiteId            String
+  lang                 String                 @default("en")
+  score                Int                    // 0–100 (TRD §11)
+  checks               String                 @db.Text // JSON: { metaTitle: pass, focusKeyword: fail, ... }
+  checkedBy            String                 @default("")
+  timestamp            DateTime               @default(now())
+
+  @@index([blogId])
+  @@map("seo_audit_logs")
+}
+
+// ─── TRD §17: webhooks table ─────────────────────────────────────────────────
+// TRD §13: "On publish/update, a webhook triggers on-demand revalidation"
+// TRD §15: "HMAC-signed payloads, replay protection"
+
+model WebhookDeliveryLog {
+  id                   String                 @id @default(uuid())
+  websiteId            String
+  event                String                 // blog.published | blog.updated | blog.unpublished
+  slug                 String
+  targetUrl            String
+  statusCode           Int                    @default(0)
+  responseBody         String                 @default("") @db.Text
+  attempt              Int                    @default(1)
+  delivered            Boolean                @default(false)
+  timestamp            DateTime               @default(now())
+
+  @@index([websiteId, event])
+  @@map("webhooks")
+}

@@ -1,0 +1,10 @@
+packages:
+  - 'admin-portal'
+  - 'backend'
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  '@scarf/scarf': true
+  bcrypt: true
+  prisma: true
+  unrs-resolver: true

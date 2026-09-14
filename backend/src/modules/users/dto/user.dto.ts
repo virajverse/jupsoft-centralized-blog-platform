@@ -1,0 +1,35 @@
+import { IsNotEmpty, IsString, IsEmail, IsOptional } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+
+export class InviteUserDto {
+  @ApiProperty({ example: 'Rachel Green', description: 'User full name' })
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @ApiProperty({ example: 'rachel@jupsoft.com', description: 'User corporate email' })
+  @IsEmail()
+  email: string;
+
+  @ApiProperty({ example: 'web-1', description: 'Website tenant ID or "all"' })
+  @IsString()
+  @IsNotEmpty()
+  websiteId: string;
+
+  @ApiProperty({ example: 'Content Writer', enum: ['Super Admin', 'Editor', 'Content Writer', 'Publisher', 'SEO Manager'] })
+  @IsString()
+  @IsNotEmpty()
+  role: string;
+}
+
+export class UpdateUserRoleDto {
+  @ApiProperty({ example: 'web-1' })
+  @IsString()
+  @IsNotEmpty()
+  websiteId: string;
+
+  @ApiProperty({ example: 'Editor' })
+  @IsString()
+  @IsNotEmpty()
+  role: string;
+}
