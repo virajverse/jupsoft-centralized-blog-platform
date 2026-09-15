@@ -121,6 +121,11 @@ export class CreateBlogDto {
   @IsOptional()
   tagIds?: string[];
 
+  @ApiProperty({ example: 'Draft', required: false })
+  @IsString()
+  @IsOptional()
+  status?: string;
+
   @ApiProperty({ type: [BlogTranslationInputDto] })
   @IsArray()
   @ValidateNested({ each: true })
@@ -132,12 +137,22 @@ export class UpdateBlogDto {
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
+  websiteId?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
   featuredImage?: string;
 
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
   featuredImageAlt?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  status?: string;
 
   @ApiProperty({ required: false })
   @IsInt()

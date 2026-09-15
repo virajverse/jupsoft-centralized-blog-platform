@@ -1,0 +1,7 @@
+node_modules
+.git
+.pnpm-store
+admin-portal/node_modules
+admin-portal/.next
+backend/node_modules
+backend/dist

@@ -40,10 +40,31 @@ export class PublicV1Service {
     const cached = await this.redis.get<unknown>(cacheKey);
     if (cached) return cached;
 
-    const where: Record<string, unknown> = {
+    const where: any = {
       websiteId,
       status: 'Published',
     };
+
+    // Wire category filter — search in categoryIds array OR via blogCategories join table
+    if (category) {
+      where.OR = [
+        { categoryIds: { has: category } },
+        { blogCategories: { some: { category: { OR: [{ id: category }, { slug: category }] } } } },
+      ];
+    }
+
+    // Wire tag filter — search in tagIds array OR via blogTags join table
+    if (tag) {
+      where.AND = [
+        ...(where.AND || []),
+        {
+          OR: [
+            { tagIds: { has: tag } },
+            { blogTags: { some: { tag: { OR: [{ id: tag }, { slug: tag }] } } } },
+          ],
+        },
+      ];
+    }
 
     const [total, blogs] = await Promise.all([
       this.prisma.blog.count({ where }),
@@ -179,13 +200,14 @@ export class PublicV1Service {
   }
 
   // ─── TRD §13: key format cats:{website}
-  async getCategories(websiteId: string) {
-    const cacheKey = `cats:${websiteId}`;
+  async getCategories(websiteId?: string) {
+    const cacheKey = `cats:${websiteId || 'all'}`;
     const cached = await this.redis.get<unknown>(cacheKey);
     if (cached) return cached;
 
+    const where = websiteId && websiteId !== 'all' ? { websiteId } : {};
     const categories = await this.prisma.category.findMany({
-      where: { websiteId },
+      where,
       orderBy: { name: 'asc' },
     });
 
@@ -195,13 +217,14 @@ export class PublicV1Service {
   }
 
   // ─── TRD §13: key format tags:{website}
-  async getTags(websiteId: string) {
-    const cacheKey = `tags:${websiteId}`;
+  async getTags(websiteId?: string) {
+    const cacheKey = `tags:${websiteId || 'all'}`;
     const cached = await this.redis.get<unknown>(cacheKey);
     if (cached) return cached;
 
+    const where = websiteId && websiteId !== 'all' ? { websiteId } : {};
     const tags = await this.prisma.tag.findMany({
-      where: { websiteId },
+      where,
       orderBy: { name: 'asc' },
     });
 
@@ -210,44 +233,105 @@ export class PublicV1Service {
     return result;
   }
 
-  // ─── TRD §12: Full-text search — key format search:{website}:{q}:{lang}
+  // ─── TRD §4 + §12: PostgreSQL Full-Text Search — key format search:{website}:{q}:{lang}
+  // Uses tsvector generated column + GIN index (add_fts_search_vector.sql migration required)
+  // Falls back to ilike if FTS column is not yet available (zero-downtime migration window)
   async search(query: string, websiteId: string, lang = 'en', limit = 10) {
+    if (!query?.trim()) {
+      return { success: true, query, meta: { count: 0 }, data: [] };
+    }
+
     const cacheKey = `search:${websiteId}:${encodeURIComponent(query)}:${lang}`;
     const cached = await this.redis.get<unknown>(cacheKey);
     if (cached) return cached;
 
-    const matches = await this.prisma.blogTranslation.findMany({
-      where: {
-        lang,
-        blog: { websiteId, status: 'Published' },
-        OR: [
-          { title: { contains: query, mode: 'insensitive' } },
-          { excerpt: { contains: query, mode: 'insensitive' } },
-          { content: { contains: query, mode: 'insensitive' } },
-        ],
-      },
-      take: limit,
-      include: { blog: true },
-    });
+    let matches: any[] = [];
+
+    try {
+      // ── Primary: PostgreSQL FTS via tsvector + plainto_tsquery ──────────
+      // plainto_tsquery safely handles arbitrary user input (no injection risk)
+      // ts_rank_cd weights: {D=0.1, C=0.2, B=0.4, A=1.0} (title=A, excerpt=B, content=C)
+      matches = await this.prisma.$queryRaw<any[]>`
+        SELECT
+          bt.id,
+          bt.blog_id       AS "blogId",
+          bt.title,
+          bt.slug,
+          bt.excerpt,
+          bt.lang,
+          b.featured_image AS "featuredImage",
+          b.publish_date   AS "publishDate",
+          b.author_name    AS "authorName",
+          b.read_time_minutes AS "readTimeMinutes",
+          b.view_count     AS "viewCount",
+          ts_rank_cd(bt.search_vector, plainto_tsquery('english', ${query})) AS rank
+        FROM blog_translations bt
+        JOIN blogs b ON bt.blog_id = b.id
+        WHERE bt.lang           = ${lang}
+          AND b.website_id      = ${websiteId}
+          AND b.status          = 'Published'
+          AND bt.search_vector @@ plainto_tsquery('english', ${query})
+        ORDER BY rank DESC
+        LIMIT ${limit}
+      `;
+    } catch (ftsError: any) {
+      // FTS column not yet migrated — graceful fallback to ilike
+      if (
+        ftsError.message?.includes('search_vector') ||
+        ftsError.message?.includes('column') ||
+        ftsError.code === '42703'
+      ) {
+        this.prisma['logger']?.warn?.(
+          `FTS column not available, falling back to ilike search. Run: pnpm run fts:migrate`,
+        );
+        const fallback = await this.prisma.blogTranslation.findMany({
+          where: {
+            lang,
+            blog: { websiteId, status: 'Published' },
+            OR: [
+              { title:   { contains: query, mode: 'insensitive' } },
+              { excerpt: { contains: query, mode: 'insensitive' } },
+              { content: { contains: query, mode: 'insensitive' } },
+            ],
+          },
+          take: limit,
+          include: { blog: true },
+        });
+        matches = fallback.map((m) => ({
+          blogId: m.blogId,
+          title:  m.title,
+          slug:   m.slug,
+          excerpt: m.excerpt,
+          featuredImage: m.blog.featuredImage,
+          publishDate:   m.blog.publishDate?.toISOString(),
+          rank: 0,
+        }));
+      } else {
+        throw ftsError;
+      }
+    }
 
     const result = {
       success: true,
       query,
-      meta: { count: matches.length },
+      meta: { count: matches.length, engine: 'postgresql-fts' },
       data: matches.map((m) => ({
-        id: m.blogId,
-        title: m.title,
-        slug: m.slug,
-        excerpt: m.excerpt,
-        featuredImage: m.blog.featuredImage,
-        publishDate: m.blog.publishDate?.toISOString(),
+        id:           m.blogId,
+        title:        m.title,
+        slug:         m.slug,
+        excerpt:      m.excerpt,
+        featuredImage: m.featuredImage,
+        publishDate:  m.publishDate instanceof Date
+          ? m.publishDate.toISOString()
+          : m.publishDate,
+        rank: parseFloat(m.rank ?? '0'),
       })),
     };
 
-    // Short TTL for search — 60s
     await this.redis.set(cacheKey, result, 60);
     return result;
   }
+
 
   // ─── TRD §12: GET /blogs/latest?website= (Latest published articles)
   async getLatestBlogs(websiteId: string, lang = 'en', limit = 5) {

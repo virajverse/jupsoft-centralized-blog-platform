@@ -1,4 +1,11 @@
-export type UserRole = 'Super Admin' | 'Editor' | 'Content Writer' | 'Publisher' | 'SEO Manager';
+export type UserRole = 
+  | 'Super Admin' 
+  | 'Website Admin' 
+  | 'Role Admin' 
+  | 'Editor' 
+  | 'Content Writer' 
+  | 'Publisher' 
+  | 'SEO Manager';
 
 export type BlogStatus = 'Draft' | 'Under Review' | 'Approved' | 'Scheduled' | 'Published' | 'Archived';
 
@@ -153,6 +160,10 @@ export interface UserAccount {
   avatar: string;
   // Scoped per website tenant: websiteId -> UserRole
   roleAssignments: Record<string, UserRole>;
+  // For Role Admin: explicitly delegated roles they can invite and oversee
+  managedRoles?: UserRole[];
+  // Initial / temporary password for onboarding delivery (via Email or WhatsApp)
+  tempPassword?: string;
   status: 'active' | 'suspended';
   lastLoginIp: string;
   createdAt: string;

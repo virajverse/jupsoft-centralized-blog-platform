@@ -21,25 +21,22 @@ export class RedirectsService {
     });
   }
 
-  async create(dto: CreateRedirectDto, user: any) {
+  async create(dto: CreateRedirectDto, user: any, ipAddress?: string) {
     const cleanFrom = dto.fromSlug.trim().replace(/^\/+|\/+$/g, '');
     const cleanTo = dto.toSlug.trim().replace(/^\/+|\/+$/g, '');
 
-    const existing = await this.prisma.redirect.findUnique({
+    const redirect = await this.prisma.redirect.upsert({
       where: {
         websiteId_fromSlug: {
           websiteId: dto.websiteId,
           fromSlug: cleanFrom,
         },
       },
-    });
-
-    if (existing) {
-      throw new ConflictException(`A redirect rule already exists for /${cleanFrom}`);
-    }
-
-    const redirect = await this.prisma.redirect.create({
-      data: {
+      update: {
+        toSlug: cleanTo,
+        statusCode: dto.statusCode || 301,
+      },
+      create: {
         websiteId: dto.websiteId,
         fromSlug: cleanFrom,
         toSlug: cleanTo,
@@ -54,7 +51,7 @@ export class RedirectsService {
         role: user.roles[0] || 'User',
         websiteId: dto.websiteId,
         event: 'redirect.created',
-        ipAddress: '127.0.0.1',
+        ipAddress: ipAddress || '',
         details: `Created 301 rule: /${cleanFrom} → /${cleanTo}`,
       },
     });
@@ -62,7 +59,7 @@ export class RedirectsService {
     return redirect;
   }
 
-  async delete(id: string, user: any) {
+  async delete(id: string, user: any, ipAddress?: string) {
     const redirect = await this.prisma.redirect.findUnique({ where: { id } });
     if (!redirect) {
       throw new NotFoundException(`Redirect rule with ID "${id}" not found`);
@@ -76,7 +73,7 @@ export class RedirectsService {
         role: user.roles[0] || 'User',
         websiteId: redirect.websiteId,
         event: 'redirect.deleted',
-        ipAddress: '127.0.0.1',
+        ipAddress: ipAddress || '',
         details: `Deleted 301 redirect: /${redirect.fromSlug}`,
       },
     });

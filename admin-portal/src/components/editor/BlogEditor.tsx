@@ -7,6 +7,8 @@ import { useBlogStore } from '../../store/useBlogStore';
 import { useQueryState } from '../../hooks/useQueryState';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import Image from '@tiptap/extension-image';
+import TiptapLink from '@tiptap/extension-link';
 import { analyzeSEO } from '../../utils/seoAuditor';
 import { 
   ArrowLeft, 
@@ -32,7 +34,6 @@ import {
   RefreshCw,
   Share2,
   Copy,
-  Layers,
   Code2,
   Bot,
   Eye,
@@ -41,10 +42,12 @@ import {
   Smartphone,
   ExternalLink,
   Clock,
-  Globe
+  Globe,
+  ChevronRight
 } from 'lucide-react';
 import { LanguageCode, BlogStatus, Blog, BlogTranslation, BlogSEO } from '../../types';
 import { createEmptySEO } from '../../data/initialData';
+import { canPublish, canApprove } from '../../utils/permissions';
 
 interface BlogEditorProps {
   blogId?: string | null;
@@ -67,14 +70,35 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     showNotification,
     activeRole,
     addRedirect,
-    autoTranslateLocale
+    currentUser,
   } = useBlogStore();
 
   const targetBlogId = blogId !== undefined ? blogId : editingBlogId;
-  const activeSite = websites.find((w) => w.id === activeWebsiteId) || websites[0];
-  const siteCategories = categories[activeWebsiteId] || [];
-  const siteTags = tags[activeWebsiteId] || [];
-  const siteMedia = media.filter((m) => m.websiteId === activeWebsiteId);
+
+  // Find existing blog or initialize new draft
+  const existingBlog = useMemo(() => {
+    return targetBlogId ? blogs.find((b) => b.id === targetBlogId) : null;
+  }, [targetBlogId, blogs]);
+
+  // Target website selection: scoped to existing post's site or current filter or fallback to first site
+  const [selectedWebsiteId, setSelectedWebsiteId] = useState<string>(() => {
+    if (existingBlog?.websiteId) return existingBlog.websiteId;
+    if (activeWebsiteId && activeWebsiteId !== 'all') return activeWebsiteId;
+    return websites[0]?.id || 'site-cloud';
+  });
+
+  const activeSite = websites.find((w) => w.id === selectedWebsiteId) || websites[0] || { id: 'site-cloud', name: 'Jupsoft Cloud & ERP' };
+  const siteCategories = categories[selectedWebsiteId] || [];
+  const siteTags = tags[selectedWebsiteId] || [];
+  const siteMedia = useMemo(() => {
+    const raw = media.filter((m) => m.websiteId === selectedWebsiteId);
+    const seen = new Set<string>();
+    return raw.filter((m) => {
+      if (!m?.id || seen.has(m.id)) return false;
+      seen.add(m.id);
+      return true;
+    });
+  }, [media, selectedWebsiteId]);
 
   // URL query params for language, inspector tab, and status
   const urlLang = searchParams.get('lang') as LanguageCode;
@@ -86,40 +110,33 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   const urlStatus = searchParams.get('status') as BlogStatus;
   const validStatuses: BlogStatus[] = ['Draft', 'Under Review', 'Approved', 'Scheduled', 'Published', 'Archived'];
 
-  const [currentLang, setCurrentLang] = useState<LanguageCode>(validLang);
-  const [activeInspectorTab, setActiveInspectorTab] = useState<'seo' | 'social' | 'metadata' | 'media'>(validTab);
+  const currentLang = validLang;
+  const activeInspectorTab = validTab;
   const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
   const [copiedSchema, setCopiedSchema] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    if (urlLang && ['en', 'hi', 'fr', 'ar'].includes(urlLang)) {
-      setCurrentLang(urlLang);
-    }
-  }, [urlLang]);
-
-  useEffect(() => {
-    if (urlTab && ['seo', 'social', 'metadata', 'media'].includes(urlTab)) {
-      setActiveInspectorTab(urlTab);
-    }
-  }, [urlTab]);
-
   const handleLanguageTabClick = (lang: LanguageCode) => {
-    setCurrentLang(lang);
     setParam('lang', lang === 'en' ? null : lang);
   };
 
   const handleInspectorTabClick = (tab: 'seo' | 'social' | 'metadata' | 'media') => {
-    setActiveInspectorTab(tab);
     setParam('tab', tab === 'seo' ? null : tab);
   };
 
-  // Find existing blog or initialize new draft
-  const existingBlog = useMemo(() => {
-    return targetBlogId ? blogs.find((b) => b.id === targetBlogId) : null;
-  }, [targetBlogId, blogs]);
+  const allowedStatuses = useMemo(() => {
+    const list: BlogStatus[] = ['Draft', 'Under Review'];
+    if (canApprove(activeRole)) {
+      list.push('Approved', 'Archived');
+    }
+    if (canPublish(activeRole)) {
+      list.push('Scheduled', 'Published');
+      if (!list.includes('Archived')) list.push('Archived');
+    }
+    return list;
+  }, [activeRole]);
 
   // Working state for the post
   const [status, setStatus] = useState<BlogStatus>(
@@ -127,6 +144,10 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   );
 
   const handleStatusChange = (newStatus: BlogStatus) => {
+    if (!allowedStatuses.includes(newStatus)) {
+      showNotification(`Your role (${activeRole}) cannot transition article to "${newStatus}".`, 'warning');
+      return;
+    }
     setStatus(newStatus);
     setParam('status', newStatus === 'Draft' ? null : newStatus);
   };
@@ -170,7 +191,29 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
   // Tiptap Editor instance
   const editor = useEditor({
-    extensions: [StarterKit],
+    extensions: [
+      StarterKit.configure({
+        link: false,
+      }),
+      Image.configure({
+        inline: false,
+        allowBase64: false,
+        HTMLAttributes: {
+          class: 'rounded-xl my-4 max-w-full h-auto',
+          loading: 'lazy',
+        },
+      }),
+      TiptapLink.configure({
+        openOnClick: false,
+        autolink: true,
+        defaultProtocol: 'https',
+        HTMLAttributes: {
+          class: 'text-blue-600 underline hover:text-blue-800',
+          rel: 'noopener noreferrer',
+          target: '_blank',
+        },
+      }),
+    ],
     content: activeTrans.content,
     immediatelyRender: false,
     onUpdate: ({ editor }) => {
@@ -192,6 +235,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         editor.commands.setContent(activeTrans.content || '<p></p>');
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentLang, editor]);
 
   // Strictly typed helper functions
@@ -233,25 +277,37 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       .replace(/^-+|-+$/g, '');
   }
 
-  // Handle title change & auto-generate slug
+  // Handle title change & auto-generate slug atomically
   const handleTitleChange = (newTitle: string) => {
-    updateActiveTransField('title', newTitle);
-    if (!activeTrans.slug || activeTrans.slug === slugify(activeTrans.title)) {
-      const newSlug = slugify(newTitle);
-      updateActiveTransField('slug', newSlug);
-      if (!activeTrans.seo.canonicalUrl) {
-        updateActiveSeoField('canonicalUrl', `https://${activeSite.domain}/blog/${newSlug}`);
+    setTranslations((prev) => {
+      const current = prev[currentLang];
+      const shouldAutoSlug = !current.slug || current.slug === slugify(current.title || '');
+      const newSlug = shouldAutoSlug ? slugify(newTitle) : current.slug;
+
+      const updatedSeo = { ...current.seo };
+      if (!updatedSeo.metaTitle || updatedSeo.metaTitle === current.title) {
+        updatedSeo.metaTitle = newTitle;
       }
-    }
-    if (!activeTrans.seo.metaTitle) {
-      updateActiveSeoField('metaTitle', newTitle);
-    }
-    if (!activeTrans.seo.ogTitle) {
-      updateActiveSeoField('ogTitle', newTitle);
-    }
-    if (!activeTrans.seo.twitterTitle) {
-      updateActiveSeoField('twitterTitle', newTitle);
-    }
+      if (!updatedSeo.ogTitle || updatedSeo.ogTitle === current.title) {
+        updatedSeo.ogTitle = newTitle;
+      }
+      if (!updatedSeo.twitterTitle || updatedSeo.twitterTitle === current.title) {
+        updatedSeo.twitterTitle = newTitle;
+      }
+      if (shouldAutoSlug) {
+        updatedSeo.canonicalUrl = `https://${activeSite.domain}/blog/${newSlug}`;
+      }
+
+      return {
+        ...prev,
+        [currentLang]: {
+          ...current,
+          title: newTitle,
+          slug: newSlug,
+          seo: updatedSeo,
+        },
+      };
+    });
   };
 
   // Live SEO Analysis (TRD Section 11)
@@ -312,6 +368,13 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       showNotification('Please fill the English (EN) post title first.', 'warning');
       return;
     }
+    // FIX 12: Make clear this is a content scaffold, not real AI translation
+    showNotification(
+      `🚧 Translation Scaffold: Content copied from EN with language prefix. ` +
+      `Replace with real translation before publishing. ` +
+      `(AI translation API integration — Phase SaaS)`,
+      'warning',
+    );
     const prefixMap: Record<LanguageCode, { titlePrefix: string; bodyPrefix: string }> = {
       hi: { titlePrefix: '[हिंदी] ', bodyPrefix: '<p>इस लेख का हिंदी अनुवाद निम्नलिखित है: </p>' },
       fr: { titlePrefix: '[FR] ', bodyPrefix: '<p>Voici la traduction française de cet article: </p>' },
@@ -349,7 +412,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   // Insert image into editor canvas
   const handleInsertImageIntoEditor = (item: { cdnUrl: string; altText: string }) => {
     if (editor) {
-      editor.chain().focus().insertContent(`<p><img src="${item.cdnUrl}" alt="${item.altText}" class="rounded-xl my-4 max-w-full" /></p>`).run();
+      editor.chain().focus().setImage({ src: item.cdnUrl, alt: item.altText, title: item.altText }).run();
       setMediaPickerOpen(false);
       showNotification('Image inserted into content canvas', 'success');
     }
@@ -357,15 +420,25 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
   // Save handler with TRD 301 Permanent Redirect Guard
   const handleSave = async () => {
+    // 1. Validation: ensure primary title is provided
+    const currentTrans = translations[currentLang];
+    const enTrans = translations.en;
+    const effectiveTitle = currentTrans?.title?.trim() || enTrans?.title?.trim();
+    if (!effectiveTitle) {
+      showNotification('Please enter an article title before saving.', 'warning');
+      return;
+    }
+
+    const targetSiteId = selectedWebsiteId || (activeWebsiteId !== 'all' ? activeWebsiteId : 'site-cloud');
     const id = existingBlog?.id || `blog-${Date.now()}`;
     const oldSlug = existingBlog?.translations[currentLang]?.slug;
-    const newSlug = activeTrans.slug;
+    const newSlug = activeTrans.slug || slugify(effectiveTitle);
 
     // TRD Section 7: If published slug changed, auto-record 301 redirect
     if (existingBlog?.status === 'Published' && oldSlug && newSlug && oldSlug !== newSlug) {
       addRedirect({
         id: `red-${Date.now()}`,
-        websiteId: activeWebsiteId,
+        websiteId: targetSiteId,
         fromSlug: oldSlug,
         toSlug: newSlug,
         statusCode: 301,
@@ -374,30 +447,41 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       });
     }
 
+    // Ensure all authored translations have a valid slug
+    const cleanedTranslations = { ...translations };
+    for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
+      if (cleanedTranslations[l]?.title && !cleanedTranslations[l]?.slug) {
+        cleanedTranslations[l] = {
+          ...cleanedTranslations[l],
+          slug: slugify(cleanedTranslations[l].title),
+        };
+      }
+    }
+
     const newBlog: Blog = {
       id,
-      websiteId: activeWebsiteId,
-      authorId: existingBlog?.authorId || 'usr-1',
-      authorName: existingBlog?.authorName || 'Aarav Sharma',
-      authorAvatar: existingBlog?.authorAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=96&auto=format&fit=crop&q=80',
+      websiteId: targetSiteId,
+      authorId: currentUser?.id || existingBlog?.authorId || 'usr-superadmin',
+      authorName: currentUser?.name || existingBlog?.authorName || 'Aarav Sharma',
+      authorAvatar: currentUser?.avatar || existingBlog?.authorAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=96&auto=format&fit=crop&q=80',
       featuredImage,
       featuredImageAlt,
       status,
       publishDate: status === 'Published' && !existingBlog?.publishDate ? new Date().toISOString() : existingBlog?.publishDate,
       scheduledAt: scheduledAt || undefined,
-      publishedBy: status === 'Published' ? `User (${activeRole})` : existingBlog?.publishedBy,
+      publishedBy: status === 'Published' ? (currentUser?.name || `User (${activeRole})`) : existingBlog?.publishedBy,
       viewCount: existingBlog?.viewCount || 0,
       readTimeMinutes: Math.max(2, Math.round((editor?.getText().split(/\s+/).length || 200) / 180)),
       categoryIds: selectedCategories,
       tagIds: selectedTags,
-      translations,
+      translations: cleanedTranslations,
       workflowLogs: existingBlog?.workflowLogs || [
         {
           id: `wl-${Date.now()}`,
           blogId: id,
           fromStatus: 'Draft',
           toStatus: status,
-          changedBy: 'Current User',
+          changedBy: currentUser?.name || 'Current User',
           role: activeRole,
           notes: 'Blog created and saved in admin workspace.',
           timestamp: new Date().toISOString(),
@@ -410,12 +494,11 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     setIsSaving(true);
     try {
       await saveBlog(newBlog);
-      showNotification('Article saved successfully!', 'success');
-      router.push(`/blogs?site=${activeWebsiteId}`);
-    } catch (err) {
+      showNotification(status === 'Published' ? 'Article published successfully! 🎉' : 'Article saved successfully! ✅', 'success');
+      router.push(`/blogs?site=${targetSiteId}`);
+    } catch (err: any) {
       console.warn('saveBlog error:', err);
-      showNotification('Saved locally (API encountered an issue)', 'warning');
-      router.push(`/blogs?site=${activeWebsiteId}`);
+      showNotification(err?.message || 'Error saving article to database.', 'warning');
     } finally {
       setIsSaving(false);
     }
@@ -426,28 +509,29 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-transparent">
       {/* Editor Sub-Bar: Breadcrumb, language switcher, AI translate & save */}
-      <div className="h-12 bg-white dark:bg-[#0f172a] border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 flex items-center justify-between shrink-0">
-        <div className="flex items-center space-x-2.5 text-xs">
+      <div className="h-12 bg-white dark:bg-[#0f172a] border-b border-slate-200 dark:border-slate-800 px-3 sm:px-4 flex items-center justify-between shrink-0 gap-2 overflow-x-auto no-scrollbar">
+        {/* Left: Breadcrumbs with auto-truncation for long article titles */}
+        <div className="flex items-center space-x-1.5 text-xs min-w-0 max-w-[150px] sm:max-w-[220px] lg:max-w-[300px] shrink">
           <Link
-            href={`/blogs?site=${activeWebsiteId}`}
-            className="p-1 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            href={`/blogs?site=${selectedWebsiteId}`}
+            className="p-1 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
             title="Back to articles"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
           </Link>
-          <div className="flex items-center gap-1.5 font-medium">
-            <Link href={`/blogs?site=${activeWebsiteId}`} className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200">
+          <div className="flex items-center gap-1 font-medium min-w-0 truncate">
+            <Link href={`/blogs?site=${selectedWebsiteId}`} className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 shrink-0">
               Articles
             </Link>
-            <span className="text-slate-400">/</span>
-            <span className="text-slate-900 dark:text-white font-semibold">
+            <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
+            <span className="text-slate-900 dark:text-white font-semibold truncate" title={existingBlog ? (activeTrans.title || 'Edit Article') : 'New Article'}>
               {existingBlog ? (activeTrans.title || 'Edit Article') : 'New Article'}
             </span>
           </div>
         </div>
 
         {/* Center: Language Switcher Tabs & AI Assistant */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
             {(['en', 'hi', 'fr', 'ar'] as LanguageCode[]).map((lang) => {
               const hasTitle = Boolean(translations[lang]?.title);
@@ -456,7 +540,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 <button
                   key={lang}
                   onClick={() => handleLanguageTabClick(lang)}
-                  className={`px-2.5 py-0.5 rounded-md text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
+                  className={`px-2 py-0.5 rounded-md text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
                     isActive
                       ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-2xs'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -474,25 +558,44 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           {currentLang !== 'en' && (
             <button
               onClick={handleAITranslate}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 transition-colors cursor-pointer"
-              title="AI Auto-Translate English content into this locale"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 transition-colors cursor-pointer"
+              title="Translation Scaffold (copies EN content with language prefix)"
             >
               <Bot className="w-3 h-3" />
-              <span>Translate from EN</span>
+              <span className="hidden md:inline">Translate EN</span>
             </button>
           )}
         </div>
 
-        {/* Right: Status, Scheduled Date, Preview & Save */}
-        <div className="flex items-center space-x-2">
+        {/* Right: Target Website (Fully Clickable), Status, Preview & Save */}
+        <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
+          {/* Target Website Selector - Always Clickable & Interactive */}
+          <div
+            className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md px-2 py-1 hover:border-indigo-400 transition-colors cursor-pointer"
+            title="Switch Target Website"
+          >
+            <Globe className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+            <select
+              value={selectedWebsiteId}
+              onChange={(e) => setSelectedWebsiteId(e.target.value)}
+              className="bg-transparent text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer max-w-[105px] sm:max-w-[130px] truncate"
+            >
+              {websites.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {status === 'Scheduled' && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-xs text-purple-800 dark:text-purple-300">
-              <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+            <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-xs text-purple-800 dark:text-purple-300">
+              <Clock className="w-3 h-3 text-purple-600 dark:text-purple-400 shrink-0" />
               <input
                 type="datetime-local"
                 value={scheduledAt ? scheduledAt.substring(0, 16) : ''}
                 onChange={(e) => setScheduledAt(e.target.value ? new Date(e.target.value).toISOString() : '')}
-                className="bg-transparent text-[11px] font-mono focus:outline-none"
+                className="bg-transparent text-[10px] font-mono focus:outline-none max-w-[125px]"
                 title="Scheduled publication timestamp"
               />
             </div>
@@ -501,32 +604,31 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           <select
             value={status}
             onChange={(e) => handleStatusChange(e.target.value as BlogStatus)}
-            className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 rounded-md px-2 py-1 focus:outline-none cursor-pointer"
+            className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 rounded-md px-2 py-1 focus:outline-none cursor-pointer shrink-0"
           >
-            <option value="Draft">Draft</option>
-            <option value="Under Review">Under Review</option>
-            <option value="Approved">Approved</option>
-            <option value="Scheduled">Scheduled</option>
-            <option value="Published">Published</option>
-            <option value="Archived">Archived</option>
+            {allowedStatuses.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
           </select>
 
           <button
             type="button"
             onClick={() => setPreviewOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer shadow-2xs"
-            title="Preview article as rendered on consumer website"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer shadow-2xs shrink-0"
+            title="Preview article"
           >
             <Eye className="w-3.5 h-3.5 text-indigo-500" />
-            <span>Preview</span>
+            <span className="hidden sm:inline">Preview</span>
           </button>
 
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50 shrink-0"
           >
-            <Save className={`w-3 h-3 ${isSaving ? 'animate-spin' : ''}`} />
+            <Save className={`w-3.5 h-3.5 ${isSaving ? 'animate-spin' : ''}`} />
             <span>{isSaving ? 'Saving...' : 'Save'}</span>
           </button>
         </div>
@@ -541,7 +643,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
             <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3 flex items-center space-x-3 text-xs text-amber-800 dark:text-amber-300 shadow-xs">
               <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
               <span>
-                <strong>SEO Continuity Guard:</strong> This article is live. Any change to the URL slug will automatically create an HTTP 301 Permanent Redirect in PostgreSQL to preserve backlinks and SEO equity.
+                <strong>SEO Continuity:</strong> Article is published. Modifying the slug will automatically establish a 301 Permanent Redirect.
               </span>
             </div>
           )}
@@ -681,6 +783,26 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
               >
                 <Code className="w-3.5 h-3.5" />
               </button>
+              <button
+                onClick={() => {
+                  const url = window.prompt('Enter URL:');
+                  if (url) editor.chain().focus().setLink({ href: url }).run();
+                }}
+                title="Insert link"
+                className={`p-1.5 rounded hover:bg-gray-100 ${
+                  editor.isActive('link') ? 'bg-blue-100 text-blue-600' : 'text-gray-600'
+                }`}
+              >
+                <ExternalLink size={16} />
+              </button>
+              <button
+                onClick={() => editor.chain().focus().unsetLink().run()}
+                disabled={!editor.isActive('link')}
+                title="Remove link"
+                className="p-1.5 rounded hover:bg-gray-100 text-gray-600 disabled:opacity-30"
+              >
+                <X size={16} />
+              </button>
               <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1" />
               <button
                 type="button"
@@ -781,7 +903,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 {/* Score Gauge Card */}
                 <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center space-y-2">
                   <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Automated SEO Score (TRD Sec 11)
+                    Automated Content SEO Score
                   </div>
                   <div className="flex items-center justify-center py-2">
                     <div className="relative w-20 h-20 flex items-center justify-center">
@@ -811,7 +933,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                       </svg>
                       <div className="absolute flex flex-col items-center">
                         <span className="text-xl font-bold text-slate-900 dark:text-white">{seoResult.score}</span>
-                        <span className="text-[9px] uppercase font-semibold text-slate-400">/ 100</span>
+                        <span className="text-[9px] uppercase font-semibold text-slate-400">pts</span>
                       </div>
                     </div>
                   </div>
@@ -826,7 +948,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
                     <span>Target Focus Keyword</span>
-                    <span className="text-[10px] text-slate-500 font-mono">TRD Factor</span>
+                    <span className="text-[10px] text-slate-400">Target Keyword</span>
                   </label>
                   <input
                     type="text"
@@ -904,7 +1026,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 {/* Automated Checks List */}
                 <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                   <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Automated Rules (TRD Sec 11)
+                    SEO Verification Checklist
                   </div>
                   <div className="space-y-1.5">
                     {seoResult.checks.map((check) => (

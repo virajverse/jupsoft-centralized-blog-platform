@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useQueryState } from '../../hooks/useQueryState';
-import { UserAccount, UserRole } from '../../types';
+import { UserAccount, UserRole, Website } from '../../types';
+import { getAllowedInviteRoles, canManageUsers, isGlobalScopeRole } from '../../utils/permissions';
 import { 
   Users, 
   ShieldCheck, 
@@ -19,12 +20,33 @@ import {
   Trash2, 
   Edit3, 
   KeyRound,
-  Lock,
-  Layers
+  Shield,
+  Crown,
+  Network,
+  ChevronRight,
+  Building2,
+  ArrowUpRight,
+  Briefcase,
+  Share2,
+  MessageSquare,
+  Copy,
+  RefreshCw,
+  Eye,
+  EyeOff,
+  Send
 } from 'lucide-react';
+
+export const DELEGATABLE_ROLES: { role: UserRole; label: string; desc: string }[] = [
+  { role: 'Editor', label: 'Editor', desc: 'Reviews drafts, requests revisions & approves' },
+  { role: 'Content Writer', label: 'Content Writer', desc: 'Authors drafts and submits for review' },
+  { role: 'SEO Manager', label: 'SEO Manager', desc: 'Configures metadata, canonicals and tags' },
+  { role: 'Publisher', label: 'Publisher', desc: 'Releases approved articles live to CDN' },
+];
 
 const ALL_ROLES: UserRole[] = [
   'Super Admin',
+  'Website Admin',
+  'Role Admin',
   'Editor',
   'Content Writer',
   'Publisher',
@@ -43,51 +65,83 @@ const PERMISSIONS_MATRIX: RBACPermission[] = [
     id: 'blog.create',
     label: 'Create Draft Articles',
     description: 'Can initiate new article drafts in editor',
-    allowedRoles: ['Super Admin', 'Editor', 'Content Writer'],
+    allowedRoles: ['Super Admin', 'Website Admin', 'Role Admin', 'Editor', 'Content Writer'],
   },
   {
     id: 'blog.edit_own',
     label: 'Edit Own Drafts',
     description: 'Can edit content authored by self',
-    allowedRoles: ['Super Admin', 'Editor', 'Content Writer'],
+    allowedRoles: ['Super Admin', 'Website Admin', 'Role Admin', 'Editor', 'Content Writer'],
   },
   {
     id: 'blog.edit_assigned',
     label: 'Edit Any Article',
     description: 'Can edit posts written by any author across tenant',
-    allowedRoles: ['Super Admin', 'Editor'],
+    allowedRoles: ['Super Admin', 'Website Admin', 'Role Admin', 'Editor'],
   },
   {
     id: 'blog.review_approve',
     label: 'Review & Approve Posts',
     description: 'Can accept/reject drafts in workflow kanban',
-    allowedRoles: ['Super Admin', 'Editor'],
+    allowedRoles: ['Super Admin', 'Website Admin', 'Role Admin', 'Editor'],
   },
   {
     id: 'blog.publish_schedule',
     label: 'Publish & Schedule to Live CDN',
     description: 'Can trigger live publishing and dispatch ISR webhooks',
-    allowedRoles: ['Super Admin', 'Publisher'],
+    allowedRoles: ['Super Admin', 'Website Admin', 'Publisher'],
   },
   {
     id: 'seo.edit',
     label: 'Edit SEO & Social Studio',
     description: 'Can edit meta tags, canonicals, robots & Open Graph',
-    allowedRoles: ['Super Admin', 'Editor', 'SEO Manager'],
+    allowedRoles: ['Super Admin', 'Website Admin', 'Editor', 'SEO Manager'],
   },
   {
     id: 'site.manage',
     label: '301 Redirects & Taxonomy',
     description: 'Can add 301 redirects, categories, and tags',
-    allowedRoles: ['Super Admin', 'Publisher'],
+    allowedRoles: ['Super Admin', 'Website Admin', 'Publisher'],
   },
   {
     id: 'users.manage',
     label: 'Team & RBAC Management',
-    description: 'Can invite users, modify roles, and change system settings',
-    allowedRoles: ['Super Admin'],
+    description: 'Can invite users, modify roles, and change tenant settings',
+    allowedRoles: ['Super Admin', 'Website Admin', 'Role Admin'],
   },
 ];
+
+function generateStrongPassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const specials = '!@#$%&*';
+  let rand = '';
+  for (let i = 0; i < 4; i++) {
+    rand += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  const spec = specials.charAt(Math.floor(Math.random() * specials.length));
+  const num = Math.floor(1000 + Math.random() * 9000);
+  return `Jupsoft@${num}${spec}${rand}`;
+}
+
+function renderUserAvatar(avatar?: string | null, name?: string, sizeClasses = 'w-8 h-8 text-xs') {
+  if (avatar && avatar.trim() !== '') {
+    return (
+      <img
+        src={avatar}
+        alt={name || 'User avatar'}
+        className={`${sizeClasses} rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0`}
+      />
+    );
+  }
+  const initial = (name?.trim()?.charAt(0) || 'U').toUpperCase();
+  return (
+    <div
+      className={`${sizeClasses} rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-bold border border-indigo-200 dark:border-indigo-800 shrink-0 select-none`}
+    >
+      {initial}
+    </div>
+  );
+}
 
 export const UserManagementView: React.FC = () => {
   const searchParams = useSearchParams();
@@ -97,40 +151,110 @@ export const UserManagementView: React.FC = () => {
     users, 
     websites, 
     activeWebsiteId, 
+    activeRole,
+    currentUser,
+    fetchUsers,
     addUser, 
     updateUser, 
     deleteUser, 
     showNotification 
   } = useBlogStore();
 
-  const activeSite = websites.find((w) => w.id === activeWebsiteId) || websites[0];
-  const tabParam = (searchParams.get('tab') as 'users' | 'matrix') || 'users';
-  const [activeTab, setActiveTab] = useState<'users' | 'matrix'>(tabParam);
+  const isSuperAdmin = isGlobalScopeRole(activeRole);
+  const allowedRoles = getAllowedInviteRoles(activeRole);
+  const visibleWebsites = isSuperAdmin
+    ? websites
+    : websites.filter((w) => currentUser?.roleAssignments?.[w.id]);
+
+  React.useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  const tabParam = (searchParams.get('tab') as 'hierarchy' | 'directory' | 'matrix') || 'hierarchy';
+  const [activeTab, setActiveTab] = useState<'hierarchy' | 'directory' | 'matrix'>(tabParam);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isInviteOpen, setIsInviteOpen] = useState(false);
 
+  // Dedicated Website Admin Team Inspection Modal
+  const [inspectingWebsite, setInspectingWebsite] = useState<Website | null>(null);
+
+  const getInvitationText = (user: UserAccount, site?: Website, password?: string) => {
+    const websiteName = site?.name || 'Jupsoft Cloud & ERP';
+    const domain = site?.domain || 'cloud.jupsoft.com';
+    const roleName = user.roleAssignments[site?.id || ''] || user.roleAssignments['all'] || 'Team Member';
+    const managedScope = roleName === 'Role Admin' && user.managedRoles && user.managedRoles.length > 0
+      ? `\n🛡️ *Managed Roles Scope:* ${user.managedRoles.join(', ')}`
+      : '';
+    const portalUrl = typeof window !== 'undefined' ? `${window.location.origin}/login` : `https://${domain}/login`;
+    const pwd = password || user.tempPassword || 'Provided by Administrator';
+
+    return `🚀 *Welcome to Jupsoft CMS!*
+
+Your team account has been configured for *${websiteName}* (${domain}).
+
+🌐 *Login Portal:* ${portalUrl}
+📧 *User ID / Email:* ${user.email}
+🔑 *Temporary Password:* ${pwd}
+💼 *Role:* ${roleName}${managedScope}
+
+_Please log in and update your password on your first sign-in._`;
+  };
+
   // Invite Form state
+  const defaultInviteSite = activeWebsiteId !== 'all' ? activeWebsiteId : (visibleWebsites[0]?.id || websites[0]?.id || 'site-cloud');
   const [inviteName, setInviteName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteWebsiteId, setInviteWebsiteId] = useState<string>(activeWebsiteId === 'all' ? websites[0]?.id : activeWebsiteId);
-  const [inviteRole, setInviteRole] = useState<UserRole>('Content Writer');
+  const [inviteWebsiteId, setInviteWebsiteId] = useState<string>(defaultInviteSite);
+  const [inviteRole, setInviteRole] = useState<UserRole>(allowedRoles[0] || 'Content Writer');
+  const [inviteManagedRoles, setInviteManagedRoles] = useState<UserRole[]>(['Editor', 'Content Writer']);
+  const [invitePassword, setInvitePassword] = useState(() => generateStrongPassword());
+  const [showInvitePassword, setShowInvitePassword] = useState(false);
 
   // Edit User Form state
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
   const [editRole, setEditRole] = useState<UserRole>('Editor');
-  const [editWebsiteId, setEditWebsiteId] = useState<string>(activeWebsiteId === 'all' ? websites[0]?.id : activeWebsiteId);
+  const [editWebsiteId, setEditWebsiteId] = useState<string>(defaultInviteSite);
+  const [editManagedRoles, setEditManagedRoles] = useState<UserRole[]>(['Editor', 'Content Writer']);
   const [editStatus, setEditStatus] = useState<'active' | 'suspended'>('active');
 
-  const handleOpenEdit = (u: UserAccount) => {
+  // Share Credentials Modal (WhatsApp / Email / Copy)
+  const [shareModalData, setShareModalData] = useState<{ user: UserAccount; website?: Website; tempPassword?: string } | null>(null);
+  const [copiedShare, setCopiedShare] = useState(false);
+  const [showSharePassword, setShowSharePassword] = useState(true);
+
+  const handleShareWhatsApp = (user: UserAccount, site?: Website, password?: string) => {
+    const text = getInvitationText(user, site, password);
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
+  const handleShareEmail = (user: UserAccount, site?: Website, password?: string) => {
+    const websiteName = site?.name || 'Jupsoft Cloud & ERP';
+    const subject = `Your Jupsoft CMS Account Credentials - ${websiteName}`;
+    const text = getInvitationText(user, site, password).replace(/\*/g, '');
+    const url = `mailto:${encodeURIComponent(user.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
+  const handleCopyInvite = (user: UserAccount, site?: Website, password?: string) => {
+    const text = getInvitationText(user, site, password);
+    navigator.clipboard.writeText(text);
+    setCopiedShare(true);
+    setTimeout(() => setCopiedShare(false), 2500);
+  };
+
+  const handleOpenEdit = (u: UserAccount, preselectedWebsiteId?: string) => {
     setEditingUser(u);
-    const targetSiteId = activeWebsiteId === 'all' ? (websites[0]?.id || '') : activeWebsiteId;
+    const targetSiteId = preselectedWebsiteId || (activeWebsiteId === 'all' ? (visibleWebsites[0]?.id || websites[0]?.id || '') : activeWebsiteId);
     setEditWebsiteId(targetSiteId);
-    setEditRole((u.roleAssignments[targetSiteId] || u.roleAssignments['all'] || 'Content Writer') as UserRole);
+    const assigned = (u.roleAssignments[targetSiteId] || u.roleAssignments['all'] || allowedRoles[0] || 'Content Writer') as UserRole;
+    setEditRole(assigned);
+    setEditManagedRoles(u.managedRoles && u.managedRoles.length > 0 ? u.managedRoles : ['Editor', 'Content Writer']);
     setEditStatus(u.status);
   };
 
-  const handleSaveUserEdit = (e: React.FormEvent) => {
+  const handleSaveUserEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
 
@@ -139,26 +263,32 @@ export const UserManagementView: React.FC = () => {
       [editWebsiteId]: editRole,
     };
 
-    updateUser(editingUser.id, {
+    await updateUser(editingUser.id, {
       roleAssignments: updatedRoles,
+      managedRoles: editRole === 'Role Admin' ? (editManagedRoles.length > 0 ? editManagedRoles : (['Editor', 'Content Writer'] as UserRole[])) : undefined,
       status: editStatus,
     });
 
-    showNotification(`Updated role for ${editingUser.name} on ${websites.find(w => w.id === editWebsiteId)?.name || 'Network'}`, 'success');
+    showNotification(`Updated role for ${editingUser.name} on ${websites.find(w => w.id === editWebsiteId)?.name || 'Tenant'}`, 'success');
     setEditingUser(null);
   };
 
-  const handleTabChange = (tab: 'users' | 'matrix') => {
+  const handleTabChange = (tab: 'hierarchy' | 'directory' | 'matrix') => {
     setActiveTab(tab);
-    setParam('tab', tab === 'users' ? null : tab);
+    setParam('tab', tab === 'hierarchy' ? null : tab);
   };
 
-  const handleInviteSubmit = (e: React.FormEvent) => {
+  const handleInviteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteName.trim() || !inviteEmail.trim()) {
       showNotification('Please provide both name and email.', 'warning');
       return;
     }
+
+    const assignedTempPassword = invitePassword.trim() || generateStrongPassword();
+    const assignedManagedRoles: UserRole[] | undefined = inviteRole === 'Role Admin' 
+      ? (inviteManagedRoles.length > 0 ? inviteManagedRoles : (['Editor', 'Content Writer'] as UserRole[]))
+      : undefined;
 
     const newUser: UserAccount = {
       id: `usr-${Date.now()}`,
@@ -168,16 +298,30 @@ export const UserManagementView: React.FC = () => {
       roleAssignments: {
         [inviteWebsiteId]: inviteRole,
       },
+      managedRoles: assignedManagedRoles,
+      tempPassword: assignedTempPassword,
       status: 'active',
-      lastLoginIp: '192.168.1.105',
+      lastLoginIp: '',
       createdAt: new Date().toISOString(),
     };
 
-    addUser(newUser);
+    await addUser(newUser);
+    showNotification(`Created account for ${inviteName} as ${inviteRole}`, 'success');
     setIsInviteOpen(false);
+
+    // Immediately trigger Credentials Share Modal so admin can dispatch via WhatsApp or Email
+    const targetSite = websites.find((w) => w.id === inviteWebsiteId);
+    setShareModalData({
+      user: newUser,
+      website: targetSite,
+      tempPassword: assignedTempPassword,
+    });
+
+    // Reset inputs with freshly generated password for next action
     setInviteName('');
     setInviteEmail('');
-    showNotification(`Invitation sent to ${newUser.email} with role ${inviteRole}`, 'success');
+    setInvitePassword(generateStrongPassword());
+    setInviteManagedRoles(['Editor', 'Content Writer']);
   };
 
   const filteredUsers = users.filter((u) => {
@@ -186,116 +330,414 @@ export const UserManagementView: React.FC = () => {
     return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
   });
 
+  // Segregate Super Admins (Global Governance)
+  const superAdmins = users.filter((u) => 
+    Object.values(u.roleAssignments || {}).includes('Super Admin')
+  );
+
+  // Role Badge Color Mapping
+  const getRoleBadge = (role: UserRole) => {
+    switch (role) {
+      case 'Super Admin':
+        return 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800';
+      case 'Website Admin':
+        return 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800';
+      case 'Role Admin':
+        return 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800';
+      case 'Editor':
+        return 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800';
+      case 'Content Writer':
+        return 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800';
+      case 'Publisher':
+        return 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
+      case 'SEO Manager':
+        return 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800';
+      default:
+        return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700';
+    }
+  };
+
   return (
     <div className="p-6 sm:p-8 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
+      {/* Executive Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-              Team &amp; Access Control (RBAC)
-            </h1>
-            <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700">
-              TRD Section 7
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Granular role-based permissions scoped per website tenant. Manage invitations, status, and capabilities.
-          </p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+            Team &amp; Access Management
+          </h1>
         </div>
 
-        <button
-          onClick={() => setIsInviteOpen(true)}
-          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
-        >
-          <UserPlus className="w-3.5 h-3.5" />
-          <span>Invite Member</span>
-        </button>
+        {canManageUsers(activeRole) && (
+          <button
+            onClick={() => {
+              setInviteRole(allowedRoles[0] || 'Content Writer');
+              setInviteWebsiteId(defaultInviteSite);
+              setIsInviteOpen(true);
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            <span>Invite Team Member</span>
+          </button>
+        )}
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-center gap-1 bg-white dark:bg-[#0f172a] p-1 rounded-xl w-fit border border-slate-200 dark:border-slate-800 shadow-2xs">
-        <button
-          onClick={() => handleTabChange('users')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'users'
-              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <Users className="w-3.5 h-3.5" />
-          <span>Team Members ({users.length})</span>
-        </button>
+      {/* Primary Navigation Tabs */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl w-full sm:w-fit overflow-x-auto border border-slate-200/80 dark:border-slate-800">
+          <button
+            onClick={() => handleTabChange('hierarchy')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'hierarchy'
+                ? 'bg-white text-slate-900 dark:bg-slate-800 dark:text-white shadow-2xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Network className="w-3.5 h-3.5 text-indigo-500" />
+            <span>Team Hierarchy</span>
+          </button>
 
-        <button
-          onClick={() => handleTabChange('matrix')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'matrix'
-              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <ShieldCheck className="w-3.5 h-3.5" />
-          <span>RBAC Permissions Matrix</span>
-        </button>
+          <button
+            onClick={() => handleTabChange('directory')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'directory'
+                ? 'bg-white text-slate-900 dark:bg-slate-800 dark:text-white shadow-2xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>All Members ({users.length})</span>
+          </button>
+
+          <button
+            onClick={() => handleTabChange('matrix')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'matrix'
+                ? 'bg-white text-slate-900 dark:bg-slate-800 dark:text-white shadow-2xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Permissions Matrix</span>
+          </button>
+        </div>
+
+        {/* Global Search */}
+        <div className="relative w-full sm:w-64">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Search member by name or email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-2xs"
+          />
+        </div>
       </div>
 
-      {/* TAB 1: USERS LIST */}
-      {activeTab === 'users' && (
-        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs space-y-4">
-          <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* ===================================================================== */}
+      {/* TAB 1: 🌳 DELEGATED TEAM HIERARCHY (EXECUTIVE VIEW)                  */}
+      {/* ===================================================================== */}
+      {activeTab === 'hierarchy' && (
+        <div className="space-y-6">
+          {/* Super Administrators */}
+          {isSuperAdmin && (
+            <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-purple-600 text-white flex items-center justify-center shadow-xs">
+                    <Crown className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                      Super Administrators
+                    </h2>
+                  </div>
+                </div>
+                <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
+                  Global Scope
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {superAdmins.map((admin) => (
+                  <div 
+                    key={admin.id}
+                    className="bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3.5 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {renderUserAvatar(admin.avatar, admin.name, 'w-9 h-9 text-xs')}
+                      <div className="min-w-0">
+                        <div className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                          {admin.name}
+                        </div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono truncate">
+                          {admin.email}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shrink-0 ml-2">
+                      Super Admin
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Websites & Assigned Teams */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-indigo-500" />
+                  <span>Websites &amp; Assigned Teams</span>
+                </h2>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              {visibleWebsites.map((site) => {
+                // Find the Website Admin for this site
+                const websiteAdmin = users.find((u) => 
+                  u.roleAssignments[site.id] === 'Website Admin'
+                );
+
+                // Find all team members assigned under this site (excluding Super Admins & the Website Admin)
+                const teamMembers = users.filter((u) => 
+                  u.roleAssignments[site.id] && 
+                  u.roleAssignments[site.id] !== 'Website Admin' &&
+                  !Object.values(u.roleAssignments).includes('Super Admin')
+                );
+
+                return (
+                  <div 
+                    key={site.id}
+                    className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs flex flex-col justify-between transition-all hover:border-slate-300 dark:hover:border-slate-700"
+                  >
+                    {/* Tenant Header */}
+                    <div className="p-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-900/50">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                          <Globe className="w-3 h-3 text-indigo-500" />
+                          <span>{site.domain}</span>
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                          Active
+                        </span>
+                      </div>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                        {site.name}
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                        {site.description}
+                      </p>
+                    </div>
+
+                    {/* Website Admin (Lead Tier) */}
+                    <div className="p-4 border-b border-slate-100 dark:border-slate-800/60 bg-indigo-50/20 dark:bg-indigo-950/10">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-2 flex items-center justify-between">
+                        <span>Website Administrator</span>
+                        <Shield className="w-3 h-3" />
+                      </div>
+
+                      {websiteAdmin ? (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {renderUserAvatar(websiteAdmin.avatar, websiteAdmin.name, 'w-9 h-9 text-xs')}
+                            <div className="min-w-0">
+                              <div className="font-semibold text-xs text-slate-900 dark:text-white truncate">
+                                {websiteAdmin.name}
+                              </div>
+                              <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate">
+                                {websiteAdmin.email}
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => setInspectingWebsite(site)}
+                            className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-semibold transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-800/80 shrink-0 ml-2"
+                            title="Inspect & Manage Team"
+                          >
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="p-2.5 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
+                          No Website Admin assigned yet
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Delegated Team Roster Under This Website Admin */}
+                    <div className="p-4 flex-1 space-y-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-700 dark:text-slate-300">
+                          Assigned Team ({teamMembers.length})
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          Managed by {websiteAdmin ? websiteAdmin.name.split(' ')[0] : 'Admin'}
+                        </span>
+                      </div>
+
+                      {teamMembers.length === 0 ? (
+                        <div className="py-6 text-center text-xs text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+                          No editorial members assigned yet.
+                        </div>
+                      ) : (
+                        <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                          {teamMembers.map((member) => {
+                            const memberRole = member.roleAssignments[site.id];
+                            return (
+                              <div
+                                key={member.id}
+                                className="flex items-center justify-between p-2 rounded-xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800/60 text-xs hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  {renderUserAvatar(member.avatar, member.name, 'w-7 h-7 text-[10px]')}
+                                  <div className="min-w-0">
+                                    <div className="font-semibold text-slate-900 dark:text-white truncate text-[11px]">
+                                      {member.name}
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 font-mono truncate">
+                                      {member.email}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                  <div className="text-right">
+                                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${getRoleBadge(memberRole)}`}>
+                                      {memberRole}
+                                    </span>
+                                    {memberRole === 'Role Admin' && member.managedRoles && member.managedRoles.length > 0 && (
+                                      <div className="text-[9px] text-blue-600 dark:text-blue-400 font-medium mt-0.5">
+                                        Manages: {member.managedRoles.join(', ')}
+                                      </div>
+                                    )}
+                                  </div>
+                                  {canManageUsers(activeRole) && (
+                                    <>
+                                      <button
+                                        onClick={() => {
+                                          setShareModalData({
+                                            user: member,
+                                            website: site,
+                                            tempPassword: member.tempPassword || 'Jupsoft@2026!X',
+                                          });
+                                        }}
+                                        className="p-1 rounded-md text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors cursor-pointer"
+                                        title="Share Credentials via WhatsApp / Email"
+                                      >
+                                        <Share2 className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleOpenEdit(member, site.id)}
+                                        className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                                        title="Edit Member Role"
+                                      >
+                                        <Edit3 className="w-3 h-3" />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Card Footer */}
+                    <div className="p-3 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/30 flex items-center justify-between">
+                      <button
+                        onClick={() => setInspectingWebsite(site)}
+                        className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>Manage Delegated Team</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+
+                      {canManageUsers(activeRole) && (
+                        <button
+                          onClick={() => {
+                            setInviteWebsiteId(site.id);
+                            setInviteRole('Content Writer');
+                            setIsInviteOpen(true);
+                          }}
+                          className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <UserPlus className="w-3 h-3" />
+                          <span>Add to {site.name.split(' ')[0]}</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* TAB 2: 📋 ALL MEMBERS (STREAMLINED ROSTER DIRECTORY)                  */}
+      {/* ===================================================================== */}
+      {activeTab === 'directory' && (
+        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                Active Organization Accounts
+                Member Directory
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Tenant-scoped role assignments dictating editorial and publishing rights.
-              </p>
             </div>
-
-            <div className="relative w-full sm:w-64">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search by name or email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
-              />
-            </div>
+            <span className="text-xs font-mono text-slate-500">
+              {filteredUsers.length} total members
+            </span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400">
-                  <th className="py-3 px-4 font-semibold">User Details</th>
-                  <th className="py-3 px-4 font-semibold">Tenant Role Assignments</th>
+                  <th className="py-3 px-4 font-semibold">Team Member</th>
+                  <th className="py-3 px-4 font-semibold">Role Assignments</th>
+                  <th className="py-3 px-4 font-semibold">Delegation / Reporting</th>
                   <th className="py-3 px-4 font-semibold">Status</th>
-                  <th className="py-3 px-4 font-semibold">Last Login IP</th>
-                  <th className="py-3 px-4 font-semibold">Joined Date</th>
                   <th className="py-3 px-4 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-xs text-slate-400">
-                      No users match the search criteria.
+                    <td colSpan={5} className="py-8 text-center text-xs text-slate-400">
+                      No members match your search.
                     </td>
                   </tr>
                 ) : (
                   filteredUsers.map((u) => {
                     const assignedTenants = Object.entries(u.roleAssignments);
+                    const isGlobalSuper = Object.values(u.roleAssignments).includes('Super Admin');
+                    const isAnyWebsiteAdmin = Object.values(u.roleAssignments).includes('Website Admin');
+
+                    // Determine delegation line
+                    let delegationText = 'Super Admin (Global)';
+                    if (!isGlobalSuper) {
+                      if (isAnyWebsiteAdmin) {
+                        delegationText = 'Website Admin (Tenant Lead)';
+                      } else {
+                        const siteId = assignedTenants[0]?.[0];
+                        const siteLead = users.find(lead => lead.roleAssignments[siteId] === 'Website Admin');
+                        delegationText = siteLead ? `Managed by ${siteLead.name}` : 'Direct Contributor';
+                      }
+                    }
+
                     return (
                       <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-3">
-                            <img
-                              src={u.avatar}
-                              alt={u.name}
-                              className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0"
-                            />
+                            {renderUserAvatar(u.avatar, u.name, 'w-8 h-8 text-xs')}
                             <div>
                               <div className="font-semibold text-slate-900 dark:text-white">{u.name}</div>
                               <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">{u.email}</div>
@@ -304,78 +746,146 @@ export const UserManagementView: React.FC = () => {
                         </td>
 
                         <td className="py-3 px-4">
-                          <div className="flex flex-wrap gap-1.5 max-w-xs">
+                          <div className="flex flex-wrap gap-1.5 max-w-sm">
                             {assignedTenants.map(([siteId, role]) => {
                               const site = websites.find((w) => w.id === siteId);
-                              const siteName = siteId === 'all' ? 'All Tenants' : (site?.name || siteId);
+                              const siteName = siteId === 'all' ? 'All Sites' : (site?.name || siteId);
+                              const isRoleAdmin = role === 'Role Admin';
                               return (
-                                <span
-                                  key={siteId}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
-                                >
-                                  <span className="font-normal text-slate-500 dark:text-slate-400">{siteName}:</span>
-                                  <span>{role}</span>
-                                </span>
+                                <div key={siteId} className="flex flex-col items-start gap-0.5">
+                                  <span
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${getRoleBadge(role)}`}
+                                  >
+                                    <span className="font-normal opacity-80">{siteName}:</span>
+                                    <span>{role}</span>
+                                  </span>
+                                  {isRoleAdmin && u.managedRoles && u.managedRoles.length > 0 && (
+                                    <span className="text-[9px] text-blue-600 dark:text-blue-400 font-medium pl-0.5">
+                                      Manages: {u.managedRoles.join(', ')}
+                                    </span>
+                                  )}
+                                </div>
                               );
                             })}
                           </div>
                         </td>
 
+                        <td className="py-3 px-4 text-slate-600 dark:text-slate-400 text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <Briefcase className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>{delegationText}</span>
+                          </div>
+                        </td>
+
                         <td className="py-3 px-4">
-                          <button
-                            onClick={() => {
-                              const nextStatus = u.status === 'active' ? 'suspended' : 'active';
-                              updateUser(u.id, { status: nextStatus });
-                            }}
-                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-semibold cursor-pointer border text-[11px] transition-colors ${
-                              u.status === 'active'
-                                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
-                                : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400'
-                            }`}
-                          >
-                            {u.status === 'active' ? (
-                              <>
-                                <CheckCircle2 className="w-3 h-3" />
-                                <span>Active</span>
-                              </>
-                            ) : (
-                              <>
-                                <XCircle className="w-3 h-3" />
-                                <span>Suspended</span>
-                              </>
-                            )}
-                          </button>
-                        </td>
+                          {(() => {
+                            const targetIsSuperAdmin = Object.values(u.roleAssignments || {}).includes('Super Admin');
+                            const canManageThisUser = canManageUsers(activeRole) && (isSuperAdmin || !targetIsSuperAdmin);
 
-                        <td className="py-3 px-4 font-mono text-[11px] text-slate-500 dark:text-slate-400">
-                          {u.lastLoginIp}
-                        </td>
+                            if (canManageThisUser) {
+                              return (
+                                <button
+                                  onClick={() => {
+                                    const nextStatus = u.status === 'active' ? 'suspended' : 'active';
+                                    updateUser(u.id, { status: nextStatus });
+                                  }}
+                                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-semibold cursor-pointer border text-[11px] transition-colors ${
+                                    u.status === 'active'
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
+                                      : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400'
+                                  }`}
+                                >
+                                  {u.status === 'active' ? (
+                                    <>
+                                      <CheckCircle2 className="w-3 h-3" />
+                                      <span>Active</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <XCircle className="w-3 h-3" />
+                                      <span>Suspended</span>
+                                    </>
+                                  )}
+                                </button>
+                              );
+                            }
 
-                        <td className="py-3 px-4 font-mono text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                          {new Date(u.createdAt).toLocaleDateString()}
+                            return (
+                              <span
+                                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-semibold border text-[11px] ${
+                                  u.status === 'active'
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
+                                    : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400'
+                                }`}
+                              >
+                                {u.status === 'active' ? (
+                                  <>
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    <span>Active</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <XCircle className="w-3 h-3" />
+                                    <span>Suspended</span>
+                                  </>
+                                )}
+                              </span>
+                            );
+                          })()}
                         </td>
 
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => handleOpenEdit(u)}
-                              title="Edit User Role & Scope"
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
+                            {(() => {
+                              const targetIsSuperAdmin = Object.values(u.roleAssignments || {}).includes('Super Admin');
+                              const canManageThisUser = canManageUsers(activeRole) && (isSuperAdmin || !targetIsSuperAdmin);
 
-                            <button
-                              onClick={() => {
-                                if (confirm(`Remove access for ${u.name}?`)) {
-                                  deleteUser(u.id);
-                                }
-                              }}
-                              title="Revoke User"
-                              className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer border border-rose-200 dark:border-rose-800/60"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                              if (!canManageThisUser) {
+                                return (
+                                  <span className="text-[11px] text-slate-400 italic">Protected</span>
+                                );
+                              }
+
+                              return (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      const primarySiteId = Object.keys(u.roleAssignments)[0];
+                                      const site = websites.find((w) => w.id === primarySiteId) || websites[0];
+                                      setShareModalData({
+                                        user: u,
+                                        website: site,
+                                        tempPassword: u.tempPassword || 'Jupsoft@2026!X',
+                                      });
+                                    }}
+                                    title="Share Credentials (Email / WhatsApp)"
+                                    className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 transition-colors cursor-pointer border border-emerald-200 dark:border-emerald-800/60"
+                                  >
+                                    <Share2 className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  <button
+                                    onClick={() => handleOpenEdit(u)}
+                                    title="Edit Role Assignment"
+                                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  <button
+                                    onClick={() => {
+                                      if (confirm(`Remove access for ${u.name}?`)) {
+                                        deleteUser(u.id);
+                                      }
+                                    }}
+                                    title="Revoke Member"
+                                    className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer border border-rose-200 dark:border-rose-800/60"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              );
+                            })()}
                           </div>
                         </td>
                       </tr>
@@ -388,17 +898,16 @@ export const UserManagementView: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 2: RBAC MATRIX */}
+      {/* ===================================================================== */}
+      {/* TAB 3: 🛡️ RBAC ENTITLEMENT MATRIX                                     */}
+      {/* ===================================================================== */}
       {activeTab === 'matrix' && (
         <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs space-y-4">
           <div className="p-4 border-b border-slate-200 dark:border-slate-800">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <KeyRound className="w-4 h-4 text-slate-500" />
+              <KeyRound className="w-4 h-4 text-indigo-500" />
               Role-Based Access Control (RBAC) Entitlement Matrix
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Strictly enforced in NestJS guards (`@Roles(...)`) and verified on every mutating API endpoint.
-            </p>
           </div>
 
           <div className="overflow-x-auto">
@@ -418,7 +927,6 @@ export const UserManagementView: React.FC = () => {
                   <tr key={perm.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
                     <td className="py-3 px-4">
                       <div className="font-semibold text-slate-900 dark:text-white">{perm.label}</div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">{perm.description}</div>
                       <div className="text-[10px] font-mono text-slate-400 mt-0.5">{perm.id}</div>
                     </td>
 
@@ -446,13 +954,167 @@ export const UserManagementView: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL: INVITE MEMBER */}
+      {/* ===================================================================== */}
+      {/* MODAL: INSPECT WEBSITE ADMIN DELEGATED TEAM                           */}
+      {/* ===================================================================== */}
+      {inspectingWebsite && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl p-6 relative space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    {inspectingWebsite.name} — Team Members
+                  </h3>
+                  <p className="text-xs text-slate-500 font-mono">
+                    {inspectingWebsite.domain}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setInspectingWebsite(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer text-xs font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Lead Administrator Card */}
+            {(() => {
+              const leadAdmin = users.find((u) => u.roleAssignments[inspectingWebsite.id] === 'Website Admin');
+              return (
+                <div className="p-4 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-800/60 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {renderUserAvatar(leadAdmin?.avatar, leadAdmin?.name || 'Lead Admin', 'w-10 h-10 text-sm')}
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-indigo-600 dark:text-indigo-400">
+                        Website Administrator
+                      </div>
+                      <div className="font-bold text-slate-900 dark:text-white text-xs">
+                        {leadAdmin ? leadAdmin.name : 'No Website Admin Assigned'}
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-mono">
+                        {leadAdmin ? leadAdmin.email : 'Unassigned'}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700">
+                    Website Admin
+                  </span>
+                </div>
+              );
+            })()}
+
+            {/* Subordinate Team Members List */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-900 dark:text-white">
+                  Assigned Team Members
+                </span>
+                {canManageUsers(activeRole) && (
+                  <button
+                    onClick={() => {
+                      setInviteWebsiteId(inspectingWebsite.id);
+                      setInviteRole('Content Writer');
+                      setInspectingWebsite(null);
+                      setIsInviteOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 cursor-pointer"
+                  >
+                    <UserPlus className="w-3 h-3" />
+                    <span>Invite Member to {inspectingWebsite.name.split(' ')[0]}</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-800/80 max-h-60 overflow-y-auto">
+                {users.filter(u => u.roleAssignments[inspectingWebsite.id] && u.roleAssignments[inspectingWebsite.id] !== 'Website Admin').length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-400">
+                    No members assigned to this website yet.
+                  </div>
+                ) : (
+                  users
+                    .filter(u => u.roleAssignments[inspectingWebsite.id] && u.roleAssignments[inspectingWebsite.id] !== 'Website Admin')
+                    .map(member => (
+                      <div key={member.id} className="p-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors text-xs">
+                        <div className="flex items-center gap-3">
+                          {renderUserAvatar(member.avatar, member.name, 'w-8 h-8 text-xs')}
+                          <div>
+                            <div className="font-semibold text-slate-900 dark:text-white">{member.name}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">{member.email}</div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <div className="text-right">
+                            <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-md border ${getRoleBadge(member.roleAssignments[inspectingWebsite.id])}`}>
+                              {member.roleAssignments[inspectingWebsite.id]}
+                            </span>
+                            {member.roleAssignments[inspectingWebsite.id] === 'Role Admin' && member.managedRoles && member.managedRoles.length > 0 && (
+                              <div className="text-[9px] text-blue-600 dark:text-blue-400 font-medium mt-0.5">
+                                Manages: {member.managedRoles.join(', ')}
+                              </div>
+                            )}
+                          </div>
+                          {canManageUsers(activeRole) && (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setShareModalData({
+                                    user: member,
+                                    website: inspectingWebsite,
+                                    tempPassword: member.tempPassword || 'Jupsoft@2026!X',
+                                  });
+                                }}
+                                className="p-1 rounded-md text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors cursor-pointer"
+                                title="Share Credentials via WhatsApp / Email"
+                              >
+                                <Share2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setInspectingWebsite(null);
+                                  handleOpenEdit(member, inspectingWebsite.id);
+                                }}
+                                className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                                title="Edit Member Role"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setInspectingWebsite(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs cursor-pointer hover:bg-slate-200"
+              >
+                Close View
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL: INVITE MEMBER                                                  */}
+      {/* ===================================================================== */}
       {isInviteOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
           <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2">
-                <UserPlus className="w-4 h-4 text-slate-700 dark:text-slate-300" />
+                <UserPlus className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                 <h2 className="text-sm font-bold text-slate-900 dark:text-white">
                   Invite Organization Member
                 </h2>
@@ -476,7 +1138,7 @@ export const UserManagementView: React.FC = () => {
                   placeholder="e.g. Rachel Green"
                   value={inviteName}
                   onChange={(e) => setInviteName(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
 
@@ -490,7 +1152,7 @@ export const UserManagementView: React.FC = () => {
                   placeholder="rachel@company.com"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
 
@@ -501,10 +1163,12 @@ export const UserManagementView: React.FC = () => {
                 <select
                   value={inviteWebsiteId}
                   onChange={(e) => setInviteWebsiteId(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
                 >
-                  <option value="all">All Websites (Network Wide)</option>
-                  {websites.map((w) => (
+                  {isSuperAdmin && (
+                    <option value="all">All Websites (Network Wide)</option>
+                  )}
+                  {visibleWebsites.map((w) => (
                     <option key={w.id} value={w.id}>
                       {w.name} ({w.domain})
                     </option>
@@ -519,9 +1183,9 @@ export const UserManagementView: React.FC = () => {
                 <select
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value as UserRole)}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
                 >
-                  {ALL_ROLES.map((role) => (
+                  {allowedRoles.map((role) => (
                     <option key={role} value={role}>
                       {role}
                     </option>
@@ -529,19 +1193,159 @@ export const UserManagementView: React.FC = () => {
                 </select>
               </div>
 
+              {/* Role Admin Managed Roles Scope */}
+              {inviteRole === 'Role Admin' && (
+                <div className="p-3.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/60 space-y-2.5 animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-blue-950 dark:text-blue-200 text-xs flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                      <span>Role Admin Managed Scope (Administer Which Roles?)</span>
+                    </label>
+                    <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                      {inviteManagedRoles.length} selected
+                    </span>
+                  </div>
+
+                  {/* Preset Shortcuts */}
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setInviteManagedRoles(['Editor', 'Content Writer'])}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border transition-colors cursor-pointer ${
+                        inviteManagedRoles.length === 2 && inviteManagedRoles.includes('Editor') && inviteManagedRoles.includes('Content Writer')
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-blue-300'
+                      }`}
+                    >
+                      Editorial &amp; Writing
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInviteManagedRoles(['Content Writer'])}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border transition-colors cursor-pointer ${
+                        inviteManagedRoles.length === 1 && inviteManagedRoles.includes('Content Writer')
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-blue-300'
+                      }`}
+                    >
+                      Writers Only
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInviteManagedRoles(['Editor', 'Content Writer', 'SEO Manager', 'Publisher'])}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border transition-colors cursor-pointer ${
+                        inviteManagedRoles.length === 4
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-blue-300'
+                      }`}
+                    >
+                      All Contributor Roles
+                    </button>
+                  </div>
+
+                  {/* Checkbox Grid */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    {DELEGATABLE_ROLES.map(({ role, label }) => {
+                      const isChecked = inviteManagedRoles.includes(role);
+                      return (
+                        <label
+                          key={role}
+                          className={`flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer transition-colors ${
+                            isChecked
+                              ? 'bg-white dark:bg-slate-900 border-blue-400 dark:border-blue-700 text-slate-900 dark:text-white font-medium shadow-2xs'
+                              : 'bg-transparent border-slate-200/80 dark:border-slate-800/80 text-slate-500 dark:text-slate-400 hover:bg-white/50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              if (isChecked) {
+                                if (inviteManagedRoles.length > 1) {
+                                  setInviteManagedRoles(inviteManagedRoles.filter((r) => r !== role));
+                                }
+                              } else {
+                                setInviteManagedRoles([...inviteManagedRoles, role]);
+                              }
+                            }}
+                            className="rounded text-blue-600 focus:ring-blue-500"
+                          />
+                          <span>{label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Access Credentials & Temporary Password */}
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
+                    <KeyRound className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>Temporary Password &amp; Login ID</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setInvitePassword(generateStrongPassword())}
+                    className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Regenerate</span>
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type={showInvitePassword ? 'text' : 'password'}
+                    value={invitePassword}
+                    onChange={(e) => setInvitePassword(e.target.value)}
+                    required
+                    placeholder="Initial Temporary Password"
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl pl-3.5 pr-20 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowInvitePassword(!showInvitePassword)}
+                      className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                      title={showInvitePassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showInvitePassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(invitePassword);
+                        showNotification('Password copied to clipboard', 'info');
+                      }}
+                      className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                      title="Copy password"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-slate-400">
+                  User Login ID: <strong className="font-mono text-slate-700 dark:text-slate-300">{inviteEmail || 'user@company.com'}</strong>
+                </div>
+              </div>
+
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsInviteOpen(false)}
-                  className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-medium cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold cursor-pointer shadow-xs"
+                  className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold cursor-pointer shadow-xs flex items-center gap-1.5"
                 >
-                  Send Invitation
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Create &amp; Generate Invitation</span>
                 </button>
               </div>
             </form>
@@ -549,43 +1353,41 @@ export const UserManagementView: React.FC = () => {
         </div>
       )}
 
-      {/* Edit User Modal */}
+      {/* ===================================================================== */}
+      {/* MODAL: EDIT USER ROLE & SCOPE                                         */}
+      {/* ===================================================================== */}
       {editingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  Edit User Permissions
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Edit Role &amp; Tenant Assignment
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Update role assignments and platform access
+                  Update delegation rights for {editingUser.name}
                 </p>
               </div>
               <button
                 onClick={() => setEditingUser(null)}
-                className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* User Identity Snapshot */}
+            {/* Member Card Snapshot */}
             <div className="flex items-center gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 mb-5">
-              <img
-                src={editingUser.avatar}
-                alt={editingUser.name}
-                className="w-11 h-11 rounded-full object-cover border border-slate-200 dark:border-slate-700"
-              />
+              {renderUserAvatar(editingUser.avatar, editingUser.name, 'w-10 h-10 text-sm')}
               <div className="min-w-0 flex-1">
-                <div className="font-semibold text-slate-900 dark:text-white text-sm truncate">
+                <div className="font-semibold text-slate-900 dark:text-white text-xs truncate">
                   {editingUser.name}
                 </div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 font-mono truncate">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono truncate">
                   {editingUser.email}
                 </div>
               </div>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+              <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
                 editingUser.status === 'active'
                   ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800'
                   : 'bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-800'
@@ -605,13 +1407,15 @@ export const UserManagementView: React.FC = () => {
                     const newWebId = e.target.value;
                     setEditWebsiteId(newWebId);
                     if (editingUser) {
-                      setEditRole((editingUser.roleAssignments[newWebId] || editingUser.roleAssignments['all'] || 'Content Writer') as UserRole);
+                      setEditRole((editingUser.roleAssignments[newWebId] || editingUser.roleAssignments['all'] || allowedRoles[0] || 'Content Writer') as UserRole);
                     }
                   }}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
                 >
-                  <option value="all">All Websites (Network Wide)</option>
-                  {websites.map((w) => (
+                  {isSuperAdmin && (
+                    <option value="all">All Websites (Network Wide)</option>
+                  )}
+                  {visibleWebsites.map((w) => (
                     <option key={w.id} value={w.id}>
                       {w.name} ({w.domain})
                     </option>
@@ -626,18 +1430,100 @@ export const UserManagementView: React.FC = () => {
                 <select
                   value={editRole}
                   onChange={(e) => setEditRole(e.target.value as UserRole)}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
                 >
-                  {ALL_ROLES.map((role) => (
+                  {allowedRoles.map((role) => (
                     <option key={role} value={role}>
                       {role}
                     </option>
                   ))}
                 </select>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                  Roles define permissions for drafting, approving, publishing, and SEO configurations.
-                </p>
               </div>
+
+              {/* Role Admin Managed Roles Scope in Edit Modal */}
+              {editRole === 'Role Admin' && (
+                <div className="p-3.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/60 space-y-2.5 animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-blue-950 dark:text-blue-200 text-xs flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                      <span>Role Admin Managed Scope (Administer Which Roles?)</span>
+                    </label>
+                    <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                      {editManagedRoles.length} selected
+                    </span>
+                  </div>
+
+                  {/* Preset Shortcuts */}
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setEditManagedRoles(['Editor', 'Content Writer'])}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border transition-colors cursor-pointer ${
+                        editManagedRoles.length === 2 && editManagedRoles.includes('Editor') && editManagedRoles.includes('Content Writer')
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-blue-300'
+                      }`}
+                    >
+                      Editorial &amp; Writing
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditManagedRoles(['Content Writer'])}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border transition-colors cursor-pointer ${
+                        editManagedRoles.length === 1 && editManagedRoles.includes('Content Writer')
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-blue-300'
+                      }`}
+                    >
+                      Writers Only
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditManagedRoles(['Editor', 'Content Writer', 'SEO Manager', 'Publisher'])}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border transition-colors cursor-pointer ${
+                        editManagedRoles.length === 4
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-blue-300'
+                      }`}
+                    >
+                      All Contributor Roles
+                    </button>
+                  </div>
+
+                  {/* Checkbox Grid */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    {DELEGATABLE_ROLES.map(({ role, label }) => {
+                      const isChecked = editManagedRoles.includes(role);
+                      return (
+                        <label
+                          key={role}
+                          className={`flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer transition-colors ${
+                            isChecked
+                              ? 'bg-white dark:bg-slate-900 border-blue-400 dark:border-blue-700 text-slate-900 dark:text-white font-medium shadow-2xs'
+                              : 'bg-transparent border-slate-200/80 dark:border-slate-800/80 text-slate-500 dark:text-slate-400 hover:bg-white/50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              if (isChecked) {
+                                if (editManagedRoles.length > 1) {
+                                  setEditManagedRoles(editManagedRoles.filter((r) => r !== role));
+                                }
+                              } else {
+                                setEditManagedRoles([...editManagedRoles, role]);
+                              }
+                            }}
+                            className="rounded text-blue-600 focus:ring-blue-500"
+                          />
+                          <span>{label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
@@ -647,7 +1533,7 @@ export const UserManagementView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setEditStatus('active')}
-                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-semibold cursor-pointer transition-colors ${
+                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-xs font-semibold cursor-pointer transition-colors ${
                       editStatus === 'active'
                         ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
                         : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
@@ -659,7 +1545,7 @@ export const UserManagementView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setEditStatus('suspended')}
-                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-semibold cursor-pointer transition-colors ${
+                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-xs font-semibold cursor-pointer transition-colors ${
                       editStatus === 'suspended'
                         ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800'
                         : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
@@ -675,18 +1561,177 @@ export const UserManagementView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setEditingUser(null)}
-                  className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-medium cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold cursor-pointer shadow-xs"
+                  className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold cursor-pointer shadow-xs"
                 >
                   Save Changes
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL: SHARE CREDENTIALS (WHATSAPP / EMAIL / COPY)                   */}
+      {/* ===================================================================== */}
+      {shareModalData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                  <Check className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Credentials &amp; Onboarding Invitation
+                  </h2>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Share login details directly with {shareModalData.user.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShareModalData(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer text-xs font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Credentials Card */}
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 space-y-3 font-sans text-xs">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200/80 dark:border-slate-800">
+                <span className="text-slate-500 font-medium">Assigned Website:</span>
+                <span className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-indigo-500" />
+                  {shareModalData.website?.name || 'Jupsoft Cloud & ERP'} ({shareModalData.website?.domain || 'cloud.jupsoft.com'})
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200/80 dark:border-slate-800">
+                <span className="text-slate-500 font-medium">Assigned Role:</span>
+                <div className="text-right">
+                  <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${getRoleBadge(
+                    (shareModalData.user.roleAssignments[shareModalData.website?.id || ''] || shareModalData.user.roleAssignments['all'] || 'Editor') as UserRole
+                  )}`}>
+                    {shareModalData.user.roleAssignments[shareModalData.website?.id || ''] || shareModalData.user.roleAssignments['all']}
+                  </span>
+                  {shareModalData.user.managedRoles && shareModalData.user.managedRoles.length > 0 && (
+                    <div className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold mt-0.5">
+                      Manages: {shareModalData.user.managedRoles.join(', ')}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200/80 dark:border-slate-800">
+                <span className="text-slate-500 font-medium">Login URL:</span>
+                <span className="font-mono text-slate-800 dark:text-slate-200 text-[11px]">
+                  {typeof window !== 'undefined' ? `${window.location.origin}/login` : 'https://cloud.jupsoft.com/login'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200/80 dark:border-slate-800">
+                <span className="text-slate-500 font-medium">Login ID / Email:</span>
+                <span className="font-mono text-slate-900 dark:text-white font-semibold">
+                  {shareModalData.user.email}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">Temporary Password:</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-slate-900 dark:text-white font-bold bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200 dark:border-slate-700">
+                    {showSharePassword ? (shareModalData.tempPassword || shareModalData.user.tempPassword || 'Jupsoft@2026!X') : '••••••••••••'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowSharePassword(!showSharePassword)}
+                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                    title={showSharePassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showSharePassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const pwd = shareModalData.tempPassword || shareModalData.user.tempPassword || 'Jupsoft@2026!X';
+                      navigator.clipboard.writeText(pwd);
+                      showNotification('Password copied to clipboard', 'info');
+                    }}
+                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                    title="Copy password"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Share Actions */}
+            <div className="space-y-2 pt-1">
+              <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                Quick Dispatch Options:
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* WhatsApp Button */}
+                <button
+                  type="button"
+                  onClick={() => handleShareWhatsApp(shareModalData.user, shareModalData.website, shareModalData.tempPassword)}
+                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors cursor-pointer shadow-xs"
+                >
+                  <MessageSquare className="w-4 h-4 fill-current" />
+                  <span>Share via WhatsApp</span>
+                </button>
+
+                {/* Email Button */}
+                <button
+                  type="button"
+                  onClick={() => handleShareEmail(shareModalData.user, shareModalData.website, shareModalData.tempPassword)}
+                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors cursor-pointer shadow-xs"
+                >
+                  <Mail className="w-4 h-4" />
+                  <span>Share via Email</span>
+                </button>
+              </div>
+
+              {/* Copy Text Button */}
+              <button
+                type="button"
+                onClick={() => handleCopyInvite(shareModalData.user, shareModalData.website, shareModalData.tempPassword)}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+              >
+                {copiedShare ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Invitation Copied to Clipboard!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy Full Invitation Message</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShareModalData(null)}
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold text-xs cursor-pointer shadow-xs"
+              >
+                Done &amp; Close
+              </button>
+            </div>
           </div>
         </div>
       )}

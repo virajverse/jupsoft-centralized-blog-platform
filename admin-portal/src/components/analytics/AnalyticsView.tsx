@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useQueryState } from '../../hooks/useQueryState';
 import { 
-  BarChart3, 
   FileText, 
   Globe, 
   Building2, 
@@ -14,15 +13,12 @@ import {
   ArrowUpRight,
   X,
   Trophy,
-  Users,
   Eye,
   Clock,
-  CheckCircle2,
-  TrendingUp,
   Calendar,
   RefreshCw
 } from 'lucide-react';
-import { LanguageCode } from '../../types';
+import { LanguageCode, Category } from '../../types';
 import { apiClient } from '../../services/apiClient';
 
 export const AnalyticsView: React.FC = () => {
@@ -30,58 +26,65 @@ export const AnalyticsView: React.FC = () => {
   const searchParams = useSearchParams();
   const { setParam } = useQueryState();
 
-  const { blogs, activeWebsiteId, websites, categories, users } = useBlogStore();
+  const { blogs, activeWebsiteId, websites, categories } = useBlogStore();
   
   const isAllSites = activeWebsiteId === 'all';
   const tenantParam = searchParams.get('tenant');
-  const rangeParam = (searchParams.get('range') as '7d' | '30d' | '90d' | 'all') || '30d';
+  const rangeParam = searchParams.get('range') || '30d';
 
-  // If in All Sites mode and tenantParam is set, filter by tenantParam
   const effectiveSiteId = isAllSites ? (tenantParam || 'all') : activeWebsiteId;
   const isFilteredSingleSite = effectiveSiteId !== 'all';
-  
-  const activeSite = websites.find((w) => w.id === effectiveSiteId) || websites[0];
-  const siteBlogs = isFilteredSingleSite 
-    ? blogs.filter((b) => b.websiteId === effectiveSiteId) 
-    : blogs;
+  const activeSite = websites.find((w) => w.id === (isFilteredSingleSite ? effectiveSiteId : websites[0]?.id)) || websites[0];
+  const siteBlogs = isFilteredSingleSite ? blogs.filter((b) => b.websiteId === effectiveSiteId) : blogs;
 
-  const siteCategories = isFilteredSingleSite 
+  const siteCategories: Category[] = isFilteredSingleSite 
     ? (categories[effectiveSiteId] || [])
     : Object.values(categories).flat();
 
   // Range multiplier for realistic metrics scaling
   const rangeMultiplier = rangeParam === '7d' ? 0.28 : rangeParam === '30d' ? 0.72 : rangeParam === '90d' ? 0.91 : 1.0;
 
-  // Live Analytics from TRD §14 Backend
+  // Real API integration state (TRD §13/§14)
   const [liveData, setLiveData] = useState<{
     totalViews?: number;
     uniqueVisitors?: number;
-    avgReadPercent?: number;
+    topPages?: { slug: string; views: number }[];
     referrers?: { referrer: string; count: number }[];
     blogs?: { id: string; viewCount: number; title: string; uniqueVisitors: number }[];
   } | null>(null);
   const [loadingLive, setLoadingLive] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  const fetchLiveAnalytics = React.useCallback(async () => {
+  const fetchLiveAnalytics = () => {
+    setLoadingLive(true);
+    setRefreshTrigger((c) => c + 1);
+  };
+
+  useEffect(() => {
+    let active = true;
     const siteId = isFilteredSingleSite ? effectiveSiteId : websites[0]?.id;
     if (!siteId) return;
     const days = rangeParam === '7d' ? 7 : rangeParam === '30d' ? 30 : rangeParam === '90d' ? 90 : 365;
-    setLoadingLive(true);
-    try {
-      const res = await apiClient.getAnalyticsDashboard(siteId, days);
-      if (res) {
-        setLiveData(res);
-      }
-    } catch (err) {
-      console.warn('Live analytics API call failed, using store fallback:', err);
-    } finally {
-      setLoadingLive(false);
-    }
-  }, [effectiveSiteId, isFilteredSingleSite, rangeParam, websites]);
 
-  useEffect(() => {
-    fetchLiveAnalytics();
-  }, [fetchLiveAnalytics]);
+    apiClient.getAnalyticsDashboard(siteId, days)
+      .then((res) => {
+        if (active && res) {
+          setLiveData(res);
+        }
+      })
+      .catch((err) => {
+        console.warn('Live analytics API call failed, using store fallback:', err);
+      })
+      .finally(() => {
+        if (active) {
+          setLoadingLive(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [effectiveSiteId, isFilteredSingleSite, rangeParam, websites, refreshTrigger]);
 
   // Real metric computations
   const totalArticles = siteBlogs.length;
@@ -179,12 +182,6 @@ export const AnalyticsView: React.FC = () => {
               </button>
             )}
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            {isFilteredSingleSite 
-              ? `Real-time readership and author productivity metrics for ${activeSite.domain}`
-              : `Aggregated network analytics across ${websites.length} connected tenants`
-            }
-          </p>
         </div>
 
         {/* Timeframe Filter Tabs & Refresh */}
@@ -261,7 +258,7 @@ export const AnalyticsView: React.FC = () => {
             <Clock className="w-3.5 h-3.5 text-amber-500" />
           </div>
           <div className="text-3xl font-bold text-amber-700 dark:text-amber-400 tracking-tight">{inReviewArticles}</div>
-          <div className="text-xs text-slate-500 dark:text-slate-400">Editorial approval queue</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400">Needs review</div>
         </Link>
 
         <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-xl p-5 space-y-2 shadow-xs">
@@ -287,9 +284,6 @@ export const AnalyticsView: React.FC = () => {
               Author Productivity &amp; Performance Leaderboard
             </h3>
           </div>
-          <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
-            TRD Section 14 &middot; Ranked by Output
-          </span>
         </div>
 
         <div className="overflow-x-auto">

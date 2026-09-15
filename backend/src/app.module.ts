@@ -1,9 +1,11 @@
 /**
- * AppModule — TRD §15 (Security): ThrottlerModule global rate limiting (60 req/min)
+ * AppModule — Production-Hardened Configuration
+ * TRD §15: Rate limiting, security interceptors, global guards
+ * TRD §18: CloudWatch structured logging
  */
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD, Reflector } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR, Reflector } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './prisma/prisma.module';
@@ -17,22 +19,35 @@ import { RedirectsModule } from './modules/redirects/redirects.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { TaxonomyModule } from './modules/taxonomy/taxonomy.module';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { LoggerModule } from './common/logger/logger.module';
+import { EmailModule } from './modules/email/email.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
-    ScheduleModule.forRoot(), // TRD §7: Scheduled blog publishing cron worker
+    ScheduleModule.forRoot(),
 
-    // TRD §15: Rate Limiting — 60 requests per 60 seconds globally
+    // TRD §15: Dual-tier rate limiting
+    // Tier 1: 'global'     → 60 req/min per IP  (admin routes)
+    // Tier 2: 'public-api' → 120 req/min per API key (public /v1 routes via ApiKeyThrottlerGuard)
     ThrottlerModule.forRoot([
       {
         name: 'global',
-        ttl: 60000,  // 60 seconds window
-        limit: 60,   // 60 requests per window (TRD §15: "Rate limiting: 60 req/min")
+        ttl: 60000,
+        limit: 60,
+      },
+      {
+        name: 'public-api',
+        ttl: 60000,
+        limit: 120,
       },
     ]),
 
     PrismaModule,
+    LoggerModule,   // TRD §18: Global CloudWatch metrics service
+    EmailModule,    // AWS SES workflow notifications (global so any module can inject)
     WebhooksModule,
     AuthModule,
     WebsitesModule,
@@ -43,13 +58,19 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     UsersModule,
     AuditLogsModule,
     AnalyticsModule,
+    TaxonomyModule,
   ],
   providers: [
     Reflector,
-    // TRD §15: Apply rate limit guard globally to all routes
+    // TRD §15: Global rate limit guard
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    // TRD §17: Global API request logger → api_logs table
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: LoggingInterceptor,
     },
   ],
 })

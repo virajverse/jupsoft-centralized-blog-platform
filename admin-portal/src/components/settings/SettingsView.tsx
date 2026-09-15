@@ -13,15 +13,13 @@ import {
   Zap,
   Plus,
   ShieldCheck,
-  Activity,
-  Server,
   Layers,
   CheckCircle2,
   XCircle,
-  ExternalLink,
   History,
   Search,
-  Filter
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
@@ -31,22 +29,40 @@ export const SettingsView: React.FC = () => {
   const { 
     websites, 
     activeWebsiteId, 
+    activeRole,
+    fetchWebsites,
     updateWebsite, 
     addWebsite,
+    deleteWebsite,
     blogs,
     auditLogs,
+    fetchAuditLogs,
     showNotification 
   } = useBlogStore();
+
+  const isSuperAdmin = activeRole === 'Super Admin';
+
+  useEffect(() => {
+    fetchWebsites();
+  }, [fetchWebsites]);
+
+  useEffect(() => {
+    fetchAuditLogs(activeWebsiteId === 'all' ? undefined : activeWebsiteId);
+  }, [activeWebsiteId, fetchAuditLogs]);
 
   const isAllSites = activeWebsiteId === 'all';
 
   // URL state
   const tenantParam = searchParams.get('tenant');
-  const tabParam = (searchParams.get('tab') as 'all' | 'general' | 'webhook' | 'audit') || 'all';
+  const rawTabParam = searchParams.get('tab') as 'all' | 'general' | 'webhook' | 'audit';
+  const activeTab = (rawTabParam && ['all', 'general', 'webhook', 'audit'].includes(rawTabParam))
+    ? ((!isSuperAdmin && rawTabParam === 'all') ? 'general' : rawTabParam)
+    : (isSuperAdmin ? 'all' : 'general');
 
-  const defaultSiteId = isAllSites ? (tenantParam || websites[0]?.id) : activeWebsiteId;
-  const [targetSiteId, setTargetSiteId] = useState<string>(defaultSiteId);
-  const [activeTab, setActiveTab] = useState<'all' | 'general' | 'webhook' | 'audit'>(tabParam);
+  // Derive target site directly from URL state
+  const targetSiteId = (tenantParam && websites.some((w) => w.id === tenantParam))
+    ? tenantParam
+    : (isAllSites ? websites[0]?.id : activeWebsiteId);
 
   // Onboard modal state
   const [isOnboardOpen, setIsOnboardOpen] = useState(false);
@@ -69,35 +85,98 @@ export const SettingsView: React.FC = () => {
   // Audit filter state
   const [auditFilter, setAuditFilter] = useState('');
 
-  useEffect(() => {
-    if (tenantParam && websites.some((w) => w.id === tenantParam)) {
-      setTargetSiteId(tenantParam);
-    }
-  }, [tenantParam, websites]);
-
-  useEffect(() => {
-    if (['all', 'general', 'webhook', 'audit'].includes(tabParam)) {
-      setActiveTab(tabParam);
-    }
-  }, [tabParam]);
-
   const handleSelectTenant = (id: string) => {
-    setTargetSiteId(id);
     setParam('tenant', id);
   };
 
   const handleTabChange = (tab: 'all' | 'general' | 'webhook' | 'audit') => {
-    setActiveTab(tab);
-    setParam('tab', tab === 'all' ? null : tab);
+    setParam('tab', tab === (isSuperAdmin ? 'all' : 'general') ? null : tab);
   };
 
   const activeSite = websites.find((w) => w.id === targetSiteId) || websites[0];
+
+  // Editable local states for active tenant settings with adjust-during-render pattern
+  const [prevSiteId, setPrevSiteId] = useState(activeSite?.id);
+  const [editName, setEditName] = useState(activeSite?.name || '');
+  const [editDomain, setEditDomain] = useState(activeSite?.domain || '');
+  const [editLogoUrl, setEditLogoUrl] = useState(activeSite?.logoUrl || '');
+  const [editWebhookUrl, setEditWebhookUrl] = useState(activeSite?.revalidateWebhookUrl || '');
+  const [isSaving, setIsSaving] = useState(false);
+
+  if (activeSite && activeSite.id !== prevSiteId) {
+    setPrevSiteId(activeSite.id);
+    setEditName(activeSite.name || '');
+    setEditDomain(activeSite.domain || '');
+    setEditLogoUrl(activeSite.logoUrl || '');
+    setEditWebhookUrl(activeSite.revalidateWebhookUrl || '');
+  }
+
+  const handleSaveProfile = async () => {
+    if (!activeSite) return;
+    setIsSaving(true);
+    try {
+      await updateWebsite(activeSite.id, {
+        name: editName.trim(),
+        domain: editDomain.trim(),
+        logoUrl: editLogoUrl.trim(),
+      });
+      showNotification('Website profile & domain saved to database!', 'success');
+    } catch (err: unknown) {
+      showNotification(err instanceof Error ? err.message : 'Failed to update website', 'warning');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveWebhook = async () => {
+    if (!activeSite) return;
+    setIsSaving(true);
+    try {
+      await updateWebsite(activeSite.id, {
+        revalidateWebhookUrl: editWebhookUrl.trim(),
+      });
+      showNotification('Webhook endpoint saved to database!', 'success');
+    } catch (err: unknown) {
+      showNotification(err instanceof Error ? err.message : 'Failed to update webhook URL', 'warning');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [isRegeneratingKey, setIsRegeneratingKey] = useState(false);
 
   const copyApiKey = () => {
     if (!activeSite) return;
     navigator.clipboard.writeText(activeSite.apiKey);
     setCopiedKey(true);
     setTimeout(() => setCopiedKey(false), 2000);
+  };
+
+  const handleRegenerateApiKey = async () => {
+    if (!activeSite) return;
+    if (!isSuperAdmin) {
+      showNotification('Only Super Admin can rotate tenant secret API keys', 'warning');
+      return;
+    }
+    const confirmed = window.confirm(
+      `⚠️ Warning: Regenerating the API key for "${activeSite.name}" will immediately invalidate the existing key.\n\nAny client website using this key will need to update its .env.local to continue fetching blogs.\n\nDo you want to proceed?`
+    );
+    if (!confirmed) return;
+
+    setIsRegeneratingKey(true);
+    try {
+      const cleanSlug = activeSite.id.replace(/^site-/, '');
+      const randomHex = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 6);
+      const newKey = `jup_live_sec_${cleanSlug}_${randomHex}`;
+      await updateWebsite(activeSite.id, { apiKey: newKey } as any);
+      showNotification(`New API key generated successfully for ${activeSite.name}!`, 'success');
+      setShowApiKey(true);
+    } catch (err: unknown) {
+      showNotification(err instanceof Error ? err.message : 'Failed to rotate API key', 'warning');
+    } finally {
+      setIsRegeneratingKey(false);
+    }
   };
 
   // Auto-fill slug from name in onboarding modal
@@ -108,7 +187,24 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  const handleCreateWebsite = (e: React.FormEvent) => {
+  const handleDeleteWebsite = async (id: string, name: string) => {
+    if (!isSuperAdmin) {
+      showNotification('Only Super Admin can delete website tenants', 'warning');
+      return;
+    }
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete the website "${name}"?\n\nWARNING: This will cascade and delete all associated blogs, categories, tags, media assets, and redirects for this tenant. This action cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    await deleteWebsite(id);
+    if (targetSiteId === id) {
+      const remaining = websites.filter((w) => w.id !== id);
+      setParam('tenant', remaining[0]?.id || null);
+    }
+  };
+
+  const handleCreateWebsite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim() || !newDomain.trim()) {
       showNotification('Please provide both a website name and domain.', 'warning');
@@ -135,15 +231,14 @@ export const SettingsView: React.FC = () => {
       createdAt: new Date().toISOString(),
     };
 
-    addWebsite(newWebsite);
-    setTargetSiteId(newWebsite.id);
+    await addWebsite(newWebsite);
+    setParam('tenant', newWebsite.id);
     setIsOnboardOpen(false);
     setNewName('');
     setNewDomain('');
     setNewSlug('');
     setNewLogoUrl('');
     setNewDescription('');
-    showNotification(`Tenant "${newWebsite.name}" registered and ready for Next.js consumers!`, 'success');
   };
 
   // Simulate Webhook dispatch with HMAC signature (TRD Section 13)
@@ -173,32 +268,31 @@ export const SettingsView: React.FC = () => {
   });
 
   return (
-    <div className="p-6 sm:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-5 sm:space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
               Tenant &amp; System Settings
             </h1>
             {activeSite && (
-              <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700">
+              <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 truncate max-w-[150px]">
                 {activeSite.name}
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Manage multi-tenant website domains, independent AWS S3 prefixes, ISR webhook purges, and security audit trails.
-          </p>
         </div>
 
-        <button
-          onClick={() => setIsOnboardOpen(true)}
-          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span>Onboard New Website</span>
-        </button>
+        {isSuperAdmin && (
+          <button
+            onClick={() => setIsOnboardOpen(true)}
+            className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-[#4c22cf] hover:bg-[#3d1bb0] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer self-start sm:self-auto shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Onboard Website</span>
+          </button>
+        )}
       </div>
 
       {/* Quick Metrics Bar */}
@@ -265,23 +359,25 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* Section Tabs */}
-      <div className="flex items-center gap-1 bg-white dark:bg-[#0f172a] p-1 rounded-xl w-fit border border-slate-200 dark:border-slate-800 shadow-2xs overflow-x-auto max-w-full">
-        <button
-          onClick={() => handleTabChange('all')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-            activeTab === 'all'
-              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          All Tenants Overview
-        </button>
+      {/* Section Tabs - Smooth mobile scroll */}
+      <div className="flex items-center gap-1.5 bg-white dark:bg-[#0f172a] p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs overflow-x-auto scrollbar-none w-full sm:w-fit max-w-full">
+        {isSuperAdmin && (
+          <button
+            onClick={() => handleTabChange('all')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'all'
+                ? 'bg-[#4c22cf] text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            All Tenants
+          </button>
+        )}
         <button
           onClick={() => handleTabChange('general')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
             activeTab === 'general'
-              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+              ? 'bg-[#4c22cf] text-white shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
@@ -289,9 +385,9 @@ export const SettingsView: React.FC = () => {
         </button>
         <button
           onClick={() => handleTabChange('webhook')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
             activeTab === 'webhook'
-              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+              ? 'bg-[#4c22cf] text-white shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
@@ -299,13 +395,13 @@ export const SettingsView: React.FC = () => {
         </button>
         <button
           onClick={() => handleTabChange('audit')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
             activeTab === 'audit'
-              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+              ? 'bg-[#4c22cf] text-white shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
-          System Audit Trail ({auditLogs.length})
+          Audit Trail ({auditLogs.length})
         </button>
       </div>
 
@@ -318,9 +414,6 @@ export const SettingsView: React.FC = () => {
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                   Multi-Tenant Registry
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Each tenant maintains isolated categories, tags, author workflows, and S3 folders.
-                </p>
               </div>
               <span className="text-xs font-mono font-medium text-slate-500 dark:text-slate-400">
                 {websites.length} Tenants Configured
@@ -399,15 +492,26 @@ export const SettingsView: React.FC = () => {
                         </td>
 
                         <td className="py-3 px-4 text-right">
-                          <button
-                            onClick={() => {
-                              handleSelectTenant(w.id);
-                              handleTabChange('general');
-                            }}
-                            className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-                          >
-                            Configure
-                          </button>
+                          <div className="inline-flex items-center gap-2 justify-end">
+                            <button
+                              onClick={() => {
+                                handleSelectTenant(w.id);
+                                handleTabChange('general');
+                              }}
+                              className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                            >
+                              Configure
+                            </button>
+                            {isSuperAdmin && (
+                              <button
+                                onClick={() => handleDeleteWebsite(w.id, w.name)}
+                                className="px-2.5 py-1 rounded-md text-xs font-semibold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer border border-rose-200 dark:border-rose-800"
+                                title={`Delete tenant ${w.name}`}
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -433,36 +537,40 @@ export const SettingsView: React.FC = () => {
                 <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">Website Name</label>
                 <input
                   type="text"
-                  value={activeSite.name}
-                  onChange={(e) => updateWebsite(activeSite.id, { name: e.target.value })}
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-medium focus:outline-none focus:ring-1 focus:ring-slate-400"
                 />
               </div>
 
               <div>
-                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">Production Domain</label>
+                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">Production Domain / Hostname</label>
                 <input
                   type="text"
-                  value={activeSite.domain}
-                  onChange={(e) => updateWebsite(activeSite.id, { domain: e.target.value })}
+                  value={editDomain}
+                  onChange={(e) => setEditDomain(e.target.value)}
+                  placeholder="e.g. localhost:5001 or cloud.jupsoft.com"
                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-slate-400"
                 />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Localhost during testing (e.g. <code className="text-blue-500 font-mono">localhost:5001</code>). When launching live, enter your production domain here without code changes.
+                </p>
               </div>
 
               <div>
                 <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">Logo URL / Brand Mark</label>
                 <div className="flex items-center gap-3">
-                  {activeSite.logoUrl && (
+                  {editLogoUrl && (
                     <img
-                      src={activeSite.logoUrl}
-                      alt={activeSite.name}
+                      src={editLogoUrl}
+                      alt={editName}
                       className="w-9 h-9 rounded-lg object-contain bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700 shrink-0"
                     />
                   )}
                   <input
                     type="url"
-                    value={activeSite.logoUrl || ''}
-                    onChange={(e) => updateWebsite(activeSite.id, { logoUrl: e.target.value })}
+                    value={editLogoUrl}
+                    onChange={(e) => setEditLogoUrl(e.target.value)}
                     placeholder="https://cdn.example.com/logo.png"
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-slate-400"
                   />
@@ -484,9 +592,6 @@ export const SettingsView: React.FC = () => {
                     {activeSite.status === 'active' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
                     <span>Status: {activeSite.status.toUpperCase()}</span>
                   </button>
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Inactive tenants refuse public API read calls.
-                  </span>
                 </div>
               </div>
 
@@ -498,9 +603,18 @@ export const SettingsView: React.FC = () => {
                   value={activeSite.s3Prefix}
                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-500 dark:text-slate-400 font-mono focus:outline-none"
                 />
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                  Enforces isolated S3 bucket partitioning per TRD Section 10 &amp; 17.
-                </p>
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={handleSaveProfile}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>{isSaving ? 'Saving to Database...' : 'Save Profile & Domain'}</span>
+                </button>
               </div>
             </div>
           </div>
@@ -514,17 +628,40 @@ export const SettingsView: React.FC = () => {
 
             <div className="space-y-4 text-xs">
               <div>
-                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">
-                  Tenant Live Secret API Key
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-slate-700 dark:text-slate-300 font-semibold block">
+                    Tenant Live Secret API Key
+                  </label>
+                  {isSuperAdmin && (
+                    <button
+                      type="button"
+                      onClick={handleRegenerateApiKey}
+                      disabled={isRegeneratingKey}
+                      className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
+                      title="Roll a new secret API key for this tenant"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isRegeneratingKey ? 'animate-spin' : ''}`} />
+                      <span>{isRegeneratingKey ? 'Rotating...' : 'Rotate Key'}</span>
+                    </button>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   <input
-                    type="password"
+                    type={showApiKey ? 'text' : 'password'}
                     readOnly
                     value={activeSite.apiKey}
-                    className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-700 dark:text-slate-300 font-mono focus:outline-none"
+                    className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-700 dark:text-slate-300 font-mono text-xs focus:outline-none"
                   />
                   <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center transition-colors font-medium border border-slate-200 dark:border-slate-700 cursor-pointer"
+                    title={showApiKey ? 'Hide API key' : 'Show API key'}
+                  >
+                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4 text-slate-500" />}
+                  </button>
+                  <button
+                    type="button"
                     onClick={copyApiKey}
                     className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-colors font-medium border border-slate-200 dark:border-slate-700 cursor-pointer"
                   >
@@ -532,8 +669,8 @@ export const SettingsView: React.FC = () => {
                     <span>{copiedKey ? 'Copied' : 'Copy'}</span>
                   </button>
                 </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                  Pass in consumer requests header: `Authorization: Bearer &lt;api_key&gt;`.
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                  Generated automatically by platform backend &amp; stored in database. Client websites provide this key via <code className="font-mono text-indigo-600 dark:text-indigo-400">Authorization: Bearer &lt;key&gt;</code> to authenticate REST API requests.
                 </p>
               </div>
 
@@ -550,13 +687,27 @@ export const SettingsView: React.FC = () => {
                   ))}
                 </div>
               </div>
-
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2 text-[11px] text-slate-500 dark:text-slate-400">
-                <div className="font-semibold text-slate-800 dark:text-slate-200">Rate Limiting Guarantee:</div>
-                <p>Public consumer endpoints apply a Redis token bucket limiter with 1,000 req/min per IP/API key (TRD Section 11).</p>
-              </div>
             </div>
           </div>
+
+          {/* Danger Zone: Super Admin only */}
+          {isSuperAdmin && (
+            <div className="lg:col-span-2 p-5 rounded-2xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h4 className="text-sm font-bold text-rose-700 dark:text-rose-400">Danger Zone: Delete Website Tenant</h4>
+                <p className="text-xs text-rose-600/80 dark:text-rose-400/70 mt-0.5">
+                  Permanently delete <strong>{activeSite.name}</strong> ({activeSite.domain}) and all associated blogs, categories, tags, media assets, and redirects. This action cannot be undone.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleDeleteWebsite(activeSite.id, activeSite.name)}
+                className="px-3.5 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
+              >
+                Remove This Website
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -578,20 +729,32 @@ export const SettingsView: React.FC = () => {
               <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">
                 Consumer Revalidation Endpoint
               </label>
-              <input
-                type="text"
-                value={activeSite.revalidateWebhookUrl}
-                onChange={(e) => updateWebsite(activeSite.id, { revalidateWebhookUrl: e.target.value })}
-                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-slate-400"
-              />
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={editWebhookUrl}
+                  onChange={(e) => setEditWebhookUrl(e.target.value)}
+                  placeholder="e.g. http://localhost:5001/api/revalidate or https://cloud.jupsoft.com/api/revalidate"
+                  className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-slate-400"
+                />
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={handleSaveWebhook}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50 shrink-0"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>{isSaving ? 'Saving...' : 'Save Webhook URL'}</span>
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">
+                When you deploy to production, replace with your live webhook endpoint (e.g. <code className="text-emerald-500 font-mono">https://yourdomain.com/api/revalidate</code>).
+              </p>
             </div>
 
             {/* Test Trigger Button */}
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-3">
               <div className="text-slate-900 dark:text-white font-semibold">Test On-Demand Revalidation:</div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                Dispatches a test `blog.published` payload to purge Next.js ISR cached pages immediately on the live domain.
-              </p>
               <button
                 disabled={testingWebhook}
                 onClick={testWebhookRevalidation}
@@ -611,14 +774,6 @@ export const SettingsView: React.FC = () => {
                 </div>
               )}
             </div>
-
-            {/* Payload info */}
-            <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-3.5 rounded-xl text-[11px] text-slate-500 dark:text-slate-400 space-y-1">
-              <div className="font-semibold text-slate-800 dark:text-slate-200">TRD Webhook Architecture:</div>
-              <div>&bull; Consuming site verifies `X-Signature` HMAC hash with shared secret</div>
-              <div>&bull; Next.js calls `revalidateTag(&apos;blog:&apos; + body.slug)` in route handler</div>
-              <div>&bull; Zero cache staleness without sacrificing SSR speed!</div>
-            </div>
           </div>
         </div>
       )}
@@ -630,11 +785,8 @@ export const SettingsView: React.FC = () => {
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <History className="w-4 h-4 text-slate-500" />
-                Immutable System Audit Logs (TRD Section 15)
+                System Audit Logs
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                All administrative events, workflow status changes, user invitations, and media updates are recorded.
-              </p>
             </div>
 
             <div className="relative w-full sm:w-64">

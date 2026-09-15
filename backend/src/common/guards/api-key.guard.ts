@@ -10,6 +10,29 @@
 
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import * as crypto from 'crypto';
+
+function isValidAdminJwt(token: string, secret: string): boolean {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    const [header, payload, signature] = parts;
+    const expectedSignature = crypto
+      .createHmac('sha256', secret)
+      .update(`${header}.${payload}`)
+      .digest('base64url');
+    const sigBuf = Buffer.from(signature, 'utf8');
+    const expBuf = Buffer.from(expectedSignature, 'utf8');
+    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+      return false;
+    }
+    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (decoded.exp && decoded.exp * 1000 < Date.now()) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
@@ -22,38 +45,67 @@ export class ApiKeyGuard implements CanActivate {
     const queryApiKey = request.query?.apiKey as string;
     const websiteParam = (request.query?.website as string) || (request.query?.websiteId as string);
 
-    // 1. Check API Key via header or query
-    let apiKey: string | null = null;
+    // 1. Extract API Key / Bearer token if provided
+    let tokenValue: string | null = null;
     if (authHeader) {
       const [type, token] = authHeader.split(' ');
       if (type === 'Bearer' && token) {
-        apiKey = token;
+        tokenValue = token;
       }
     } else if (xApiKey) {
-      apiKey = xApiKey;
+      tokenValue = xApiKey;
     } else if (queryApiKey) {
-      apiKey = queryApiKey;
+      tokenValue = queryApiKey;
     }
 
-    if (apiKey) {
+    if (tokenValue) {
+      // 1.A Check if it matches a Tenant API Key
       const website = await this.prisma.website.findUnique({
-        where: { apiKey },
+        where: { apiKey: tokenValue },
       });
 
-      if (!website) {
-        throw new UnauthorizedException('Invalid tenant API key');
+      if (website) {
+        if (website.status !== 'active') {
+          throw new UnauthorizedException('Tenant is currently deactivated');
+        }
+        request.tenant = website;
+        return true;
       }
 
-      if (website.status !== 'active') {
-        throw new UnauthorizedException('Tenant is currently deactivated');
+      // 1.B If not a Tenant API Key, check if it's a valid Admin Portal JWT
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) {
+        // JWT_SECRET not configured — cannot validate admin tokens
+        throw new UnauthorizedException('Server misconfiguration: JWT_SECRET not set');
+      }
+      if (isValidAdminJwt(tokenValue, jwtSecret)) {
+        if (websiteParam && websiteParam !== 'all') {
+          const matchedSite = await this.prisma.website.findFirst({
+            where: {
+              OR: [
+                { id: websiteParam },
+                { domain: { contains: websiteParam, mode: 'insensitive' } },
+                { name: { contains: websiteParam, mode: 'insensitive' } },
+                { s3Prefix: websiteParam },
+              ],
+            },
+          });
+          if (matchedSite) {
+            request.tenant = matchedSite;
+            return true;
+          }
+        }
+        const defaultSite = await this.prisma.website.findFirst({ where: { status: 'active' } });
+        request.tenant = defaultSite || null;
+        return true;
       }
 
-      request.tenant = website;
-      return true;
+      // If neither a valid tenant API key nor a valid admin JWT
+      throw new UnauthorizedException('Invalid tenant API key or Bearer token');
     }
 
     // 2. TRD §12 & §13: Public read support via ?website=<domain|id|slug>
-    if (websiteParam) {
+    if (websiteParam && websiteParam !== 'all') {
       const website = await this.prisma.website.findFirst({
         where: {
           OR: [

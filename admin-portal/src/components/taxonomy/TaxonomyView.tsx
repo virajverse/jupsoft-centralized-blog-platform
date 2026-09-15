@@ -5,10 +5,8 @@ import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useQueryState } from '../../hooks/useQueryState';
 import { 
-  Tags, 
   FolderTree, 
   Hash, 
-  Layers,
   CornerDownRight
 } from 'lucide-react';
 import { Category, Tag } from '../../types';
@@ -22,39 +20,34 @@ export const TaxonomyView: React.FC = () => {
     tags, 
     activeWebsiteId, 
     websites, 
+    fetchCategories, 
+    fetchTags,
     addCategory, 
     addTag 
   } = useBlogStore();
+
+  useEffect(() => {
+    fetchCategories();
+    fetchTags();
+  }, [fetchCategories, fetchTags]);
 
   const isAllSites = activeWebsiteId === 'all';
 
   // URL state
   const tenantParam = searchParams.get('tenant');
   const tabParam = (searchParams.get('tab') as 'all' | 'categories' | 'tags') || 'all';
+  const activeTab = ['all', 'categories', 'tags'].includes(tabParam) ? tabParam : 'all';
 
-  const defaultSiteId = isAllSites ? (tenantParam || websites[0]?.id) : activeWebsiteId;
-  const [targetSiteId, setTargetSiteId] = useState<string>(defaultSiteId);
-  const [activeTab, setActiveTab] = useState<'all' | 'categories' | 'tags'>(tabParam);
-
-  useEffect(() => {
-    if (tenantParam && websites.some((w) => w.id === tenantParam)) {
-      setTargetSiteId(tenantParam);
-    }
-  }, [tenantParam, websites]);
-
-  useEffect(() => {
-    if (['all', 'categories', 'tags'].includes(tabParam)) {
-      setActiveTab(tabParam);
-    }
-  }, [tabParam]);
+  // Derive target site directly from URL state
+  const targetSiteId = (tenantParam && websites.some((w) => w.id === tenantParam))
+    ? tenantParam
+    : (isAllSites ? websites[0]?.id : activeWebsiteId);
 
   const handleSelectTenant = (id: string) => {
-    setTargetSiteId(id);
     setParam('tenant', id);
   };
 
   const handleTabChange = (tab: 'all' | 'categories' | 'tags') => {
-    setActiveTab(tab);
     setParam('tab', tab === 'all' ? null : tab);
   };
 
@@ -114,9 +107,6 @@ export const TaxonomyView: React.FC = () => {
             {activeSite.name}
           </span>
         </div>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-          Strictly scoped per website tenant boundary &mdash; never leaked across tenants in REST APIs.
-        </p>
 
         {/* Tenant Selector Tabs if in All Websites mode */}
         {isAllSites && (
@@ -177,12 +167,11 @@ export const TaxonomyView: React.FC = () => {
         {/* Categories Manager */}
         {(activeTab === 'all' || activeTab === 'categories') && (
           <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 space-y-4 shadow-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+            <div className="pb-3 border-b border-slate-200 dark:border-slate-800">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <FolderTree className="w-4 h-4 text-slate-500" />
                 Categories ({siteCategories.length})
               </h3>
-              <span className="text-[10px] text-slate-400 font-mono">Scoped Taxonomy</span>
             </div>
 
             {/* Add Category Form (TRD Section 9: parent_id, description) */}
@@ -271,7 +260,7 @@ export const TaxonomyView: React.FC = () => {
                           {cat.description && (
                             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{cat.description}</p>
                           )}
-                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">/category/{cat.slug}</div>
+                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">{cat.slug}</div>
                         </div>
                       </div>
                       <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0">
@@ -288,12 +277,11 @@ export const TaxonomyView: React.FC = () => {
         {/* Tags Manager */}
         {(activeTab === 'all' || activeTab === 'tags') && (
           <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 space-y-4 shadow-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+            <div className="pb-3 border-b border-slate-200 dark:border-slate-800">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Hash className="w-4 h-4 text-slate-500" />
                 Tags ({siteTags.length})
               </h3>
-              <span className="text-[10px] text-slate-400 font-mono">Indexed Tags</span>
             </div>
 
             {/* Add Tag Form */}

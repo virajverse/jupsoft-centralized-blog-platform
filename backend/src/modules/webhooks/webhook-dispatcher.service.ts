@@ -39,10 +39,15 @@ export class WebhookDispatcherService {
       return;
     }
 
-    // TRD §15: HMAC-signed payload
-    const secret =
-      this.configService.get<string>('WEBHOOK_DEFAULT_SECRET') ||
-      'wh_sec_jupsoft_default_revalidate_2026';
+    // TRD §15: HMAC-signed payload — secret MUST come from env, never hardcoded
+    const secret = this.configService.get<string>('WEBHOOK_DEFAULT_SECRET');
+    if (!secret) {
+      this.logger.error(
+        '[SECURITY] WEBHOOK_DEFAULT_SECRET is not set. ' +
+        'Cannot dispatch HMAC-signed webhook — skipping delivery to prevent unsigned payloads.',
+      );
+      return;
+    }
 
     const payload: WebhookPayload = {
       event,

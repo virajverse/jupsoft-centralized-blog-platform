@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Ip, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { InviteUserDto, UpdateUserRoleDto } from './dto/user.dto';
@@ -16,35 +16,45 @@ export class UsersController {
 
   @Get()
   @ApiOperation({ summary: 'List team members with tenant-scoped role assignments' })
-  async findAll() {
-    return this.usersService.findAll();
+  async findAll(@CurrentUser() user: any) {
+    return this.usersService.findAll(user);
   }
 
   @Post('invite')
-  @Roles('Super Admin')
-  @ApiOperation({ summary: 'Invite organization member with role assignment (Super Admin only)' })
-  async invite(@Body() dto: InviteUserDto, @CurrentUser() user: any) {
-    return this.usersService.invite(dto, user);
+  @Roles('Super Admin', 'Website Admin', 'Role Admin')
+  @ApiOperation({ summary: 'Invite new team member with role assignment' })
+  async invite(@Body() dto: InviteUserDto, @CurrentUser() user: any, @Ip() ip: string) {
+    return this.usersService.invite(dto, user, ip);
   }
 
   @Put(':id/role')
-  @Roles('Super Admin')
+  @Roles('Super Admin', 'Website Admin')
   @ApiOperation({ summary: 'Modify user tenant role assignment' })
-  async updateRole(@Param('id') id: string, @Body() dto: UpdateUserRoleDto, @CurrentUser() user: any) {
-    return this.usersService.updateRole(id, dto, user);
+  async updateRole(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserRoleDto,
+    @CurrentUser() user: any,
+    @Ip() ip: string,
+  ) {
+    return this.usersService.updateRole(id, dto, user, ip);
   }
 
   @Put(':id/status')
-  @Roles('Super Admin')
+  @Roles('Super Admin', 'Website Admin')
   @ApiOperation({ summary: 'Toggle user account status (active / suspended)' })
-  async toggleStatus(@Param('id') id: string, @Body() body: { status: string }, @CurrentUser() user: any) {
-    return this.usersService.toggleStatus(id, body.status, user);
+  async toggleStatus(
+    @Param('id') id: string,
+    @Body() body: { status: string },
+    @CurrentUser() user: any,
+    @Ip() ip: string,
+  ) {
+    return this.usersService.toggleStatus(id, body.status, user, ip);
   }
 
   @Delete(':id')
-  @Roles('Super Admin')
-  @ApiOperation({ summary: 'Revoke and delete user account' })
-  async delete(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.usersService.delete(id, user);
+  @Roles('Super Admin', 'Website Admin')
+  @ApiOperation({ summary: 'Revoke and delete user account permanently' })
+  async delete(@Param('id') id: string, @CurrentUser() user: any, @Ip() ip: string) {
+    return this.usersService.delete(id, user, ip);
   }
 }

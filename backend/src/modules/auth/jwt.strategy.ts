@@ -16,10 +16,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private configService: ConfigService,
     private prisma: PrismaService,
   ) {
+    const secret = configService.get<string>('JWT_SECRET');
+    if (!secret) {
+      throw new Error(
+        '[SECURITY] JWT_SECRET is not set. ' +
+        'JwtStrategy cannot be initialized without a secret.',
+      );
+    }
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET') || 'jupsoft_enterprise_jwt_super_secret_key_2026',
+      secretOrKey: secret,
     });
   }
 
@@ -35,7 +42,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('User account is inactive or not found');
     }
 
-    // Map role assignments
+    // Map role assignments — include isGlobal for RolesGuard (FIX 13)
     const roles = user.roleAssignments.map((r) => r.role);
     return {
       id: user.id,
@@ -43,7 +50,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       name: user.name,
       avatar: user.avatar,
       roles,
-      roleAssignments: user.roleAssignments,
+      // Pass full roleAssignments (with isGlobal flag) so guards can scope-check
+      roleAssignments: user.roleAssignments.map((ra) => ({
+        websiteId: ra.websiteId,
+        isGlobal: ra.isGlobal,
+        role: ra.role,
+      })),
     };
   }
 }

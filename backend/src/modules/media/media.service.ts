@@ -18,6 +18,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { PresignedUrlRequestDto, ConfirmMediaUploadDto } from './dto/media.dto';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import * as fs from 'fs';
+import { join, dirname } from 'path';
 import type { Sharp } from 'sharp';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const sharpLib = require('sharp') as { default: (input: Buffer) => Sharp } & ((input: Buffer) => Sharp);
@@ -40,7 +42,15 @@ export class MediaService {
     const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY') || '';
 
     this.bucket = this.configService.get<string>('AWS_S3_BUCKET') || 'jupsoft-blogs-storage';
-    this.cdnDomain = this.configService.get<string>('CLOUDFRONT_DOMAIN') || 'https://cdn.jupsoft.com';
+    const envCdn = this.configService.get<string>('CLOUDFRONT_DOMAIN');
+    const nodeEnv = this.configService.get<string>('NODE_ENV') || 'development';
+    if (envCdn) {
+      this.cdnDomain = envCdn.replace(/\/+$/, '');
+    } else if (nodeEnv !== 'production') {
+      this.cdnDomain = 'http://localhost:4000/uploads';
+    } else {
+      this.cdnDomain = 'https://cdn.jupsoft.com';
+    }
 
     this.s3Client = new S3Client({
       region,
@@ -95,6 +105,7 @@ export class MediaService {
     websiteId: string,
     altText: string,
     user: AuthenticatedUser,
+    ipAddress?: string,
   ) {
     // Validate it's an image
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
@@ -102,8 +113,12 @@ export class MediaService {
       throw new BadRequestException(`File type "${mimeType}" is not allowed. Only images are accepted.`);
     }
 
-    const website = await this.prisma.website.findUnique({ where: { id: websiteId } });
-    if (!website) throw new NotFoundException(`Website "${websiteId}" not found`);
+    let website = websiteId ? await this.prisma.website.findUnique({ where: { id: websiteId } }) : null;
+    if (!website) {
+      website = await this.prisma.website.findFirst();
+    }
+    if (!website) throw new NotFoundException(`Website "${websiteId || 'default'}" not found`);
+    const targetWebsiteId = website.id;
 
     const now = new Date();
     const year = now.getFullYear();
@@ -144,7 +159,7 @@ export class MediaService {
     // TRD §10: Step 4 — Store metadata in media_assets table
     const media = await this.prisma.mediaAsset.create({
       data: {
-        websiteId,
+        websiteId: targetWebsiteId,
         fileName: `${baseName}.webp`,
         fileType: 'image/webp',
         fileSizeBytes: fullBuffer.length,
@@ -160,9 +175,9 @@ export class MediaService {
       data: {
         userName: user.name,
         role: user.roles[0] || 'User',
-        websiteId,
+        websiteId: targetWebsiteId,
         event: 'media.uploaded',
-        ipAddress: '127.0.0.1',
+        ipAddress: ipAddress || '',
         details: `Processed & uploaded "${baseName}.webp" (${(fullBuffer.length / 1024).toFixed(0)} KB WebP, thumbnail + medium generated).`,
       },
     });
@@ -184,28 +199,45 @@ export class MediaService {
     };
   }
 
-  // ─── Internal: Upload buffer to S3 ─────────────────────────────────────────
-
+  // ─── Internal: Upload buffer to S3 / Local Disk ─────────────────────────
   private async uploadToS3(s3Key: string, buffer: Buffer, contentType: string): Promise<string> {
-    const cdnUrl = `${this.cdnDomain}/${s3Key}`;
+    const cleanKey = s3Key.replace(/^\/+/, '');
+    const cdnUrl = `${this.cdnDomain}/${cleanKey}`;
+
+    // 1. Always save a copy locally on disk for local dev / testing serving
     try {
-      await this.s3Client.send(new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: s3Key,
-        Body: buffer,
-        ContentType: contentType,
-      }));
-    } catch (err) {
-      // In local dev with mock credentials — log but return CDN URL anyway
-      this.logger.warn(`S3 upload skipped (mock credentials): ${(err as Error).message}`);
+      const uploadsDir = join(process.cwd(), 'uploads');
+      const targetPath = join(uploadsDir, cleanKey);
+      const targetDir = dirname(targetPath);
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+      fs.writeFileSync(targetPath, buffer);
+      this.logger.log(`💾 Saved media asset locally: ${cleanKey}`);
+    } catch (fsErr) {
+      this.logger.warn(`Could not save local copy for ${cleanKey}: ${(fsErr as Error).message}`);
+    }
+
+    // 2. Upload to S3 if live AWS credentials exist
+    const accessKey = this.configService.get<string>('AWS_ACCESS_KEY_ID') || '';
+    if (accessKey && !accessKey.startsWith('mock_')) {
+      try {
+        await this.s3Client.send(new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: cleanKey,
+          Body: buffer,
+          ContentType: contentType,
+        }));
+      } catch (err) {
+        this.logger.warn(`S3 upload skipped (mock credentials): ${(err as Error).message}`);
+      }
     }
     return cdnUrl;
   }
 
   // ─── TRD §10: Step 6 — Soft-delete ─────────────────────────────────────────
-  // TRD §10: "Soft-delete with lifecycle cleanup"
 
-  async confirmUpload(dto: ConfirmMediaUploadDto, user: AuthenticatedUser) {
+  async confirmUpload(dto: ConfirmMediaUploadDto, user: AuthenticatedUser, ipAddress?: string) {
     const media = await this.prisma.mediaAsset.create({
       data: {
         websiteId: dto.websiteId,
@@ -225,7 +257,7 @@ export class MediaService {
         role: user.roles[0] || 'User',
         websiteId: dto.websiteId,
         event: 'media.uploaded',
-        ipAddress: '127.0.0.1',
+        ipAddress: ipAddress || '',
         details: `Uploaded asset "${dto.fileName}" to ${dto.s3Key} (${(dto.fileSizeBytes / 1024).toFixed(0)} KB).`,
       },
     });
@@ -238,6 +270,7 @@ export class MediaService {
     if (websiteId && websiteId !== 'all') {
       where.websiteId = websiteId;
     }
+    where.deletedAt = null; // exclude soft-deleted assets
     return this.prisma.mediaAsset.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -245,12 +278,12 @@ export class MediaService {
   }
 
   // TRD §10: "Soft-delete with lifecycle cleanup" — marks deletedAt timestamp
-  async delete(id: string, user: AuthenticatedUser) {
+  async delete(id: string, user: AuthenticatedUser, ipAddress?: string) {
     const asset = await this.prisma.mediaAsset.findUnique({ where: { id } });
     if (!asset) throw new NotFoundException(`Media asset "${id}" not found`);
 
-    // Hard delete for now (soft-delete requires `deletedAt` schema field — Phase 2 schema update)
-    await this.prisma.mediaAsset.delete({ where: { id } });
+    // Soft-delete: set deletedAt timestamp instead of hard-deleting the row
+    await this.prisma.mediaAsset.update({ where: { id }, data: { deletedAt: new Date() } });
 
     await this.prisma.systemAuditLog.create({
       data: {
@@ -258,8 +291,8 @@ export class MediaService {
         role: user.roles[0] || 'Super Admin',
         websiteId: asset.websiteId,
         event: 'media.deleted',
-        ipAddress: '127.0.0.1',
-        details: `Deleted asset "${asset.fileName}" (${asset.s3Key}).`,
+        ipAddress: ipAddress || '',
+        details: `Soft-deleted asset "${asset.fileName}" (${asset.s3Key}).`,
       },
     });
 

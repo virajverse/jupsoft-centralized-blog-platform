@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useQueryState } from '../../hooks/useQueryState';
@@ -9,13 +9,8 @@ import {
   Copy, 
   Check, 
   Trash2, 
-  Layers, 
-  Sparkles, 
-  FileCheck,
   Image as ImageIcon,
   X,
-  ExternalLink,
-  Maximize2,
   RefreshCw
 } from 'lucide-react';
 import { MediaItem } from '../../types';
@@ -23,7 +18,7 @@ import { apiClient } from '../../services/apiClient';
 
 export const MediaLibraryView: React.FC = () => {
   const searchParams = useSearchParams();
-  const { setParam, setParams } = useQueryState();
+  const { setParam } = useQueryState();
 
   const { 
     media, 
@@ -45,19 +40,25 @@ export const MediaLibraryView: React.FC = () => {
   const tenantParam = searchParams.get('tenant');
   const viewParam = searchParams.get('view');
 
-  const defaultSiteId = isAllSites ? (tenantParam || websites[0]?.id) : activeWebsiteId;
-  const [targetSiteId, setTargetSiteId] = useState<string>(defaultSiteId);
-
-  useEffect(() => {
-    if (tenantParam && websites.some((w) => w.id === tenantParam)) {
-      setTargetSiteId(tenantParam);
-    }
-  }, [tenantParam, websites]);
+  // Derive target site directly from URL state
+  const targetSiteId = (tenantParam && websites.some((w) => w.id === tenantParam))
+    ? tenantParam
+    : (isAllSites ? websites[0]?.id : activeWebsiteId);
 
   const activeSite = websites.find((w) => w.id === (isAllSites ? targetSiteId : activeWebsiteId)) || websites[0];
-  const siteMedia = isAllSites 
-    ? (tenantParam ? media.filter((m) => m.websiteId === tenantParam) : media) 
-    : media.filter((m) => m.websiteId === activeWebsiteId);
+  
+  // Deduplicate by item.id so duplicate keys never occur in DOM
+  const siteMedia = useMemo(() => {
+    const raw = isAllSites 
+      ? (tenantParam ? media.filter((m) => m.websiteId === tenantParam) : media) 
+      : media.filter((m) => m.websiteId === activeWebsiteId);
+    const seen = new Set<string>();
+    return raw.filter((item) => {
+      if (!item?.id || seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+  }, [isAllSites, tenantParam, media, activeWebsiteId]);
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -72,12 +73,7 @@ export const MediaLibraryView: React.FC = () => {
   };
 
   const handleSelectTenant = (id: string | null) => {
-    if (id) {
-      setTargetSiteId(id);
-      setParam('tenant', id);
-    } else {
-      setParam('tenant', null);
-    }
+    setParam('tenant', id);
   };
 
   // TRD §10: Hybrid upload pipeline (Server-side sharp WebP with client-side canvas fallback)
@@ -87,7 +83,6 @@ export const MediaLibraryView: React.FC = () => {
 
     setProcessing(true);
     const uploadSiteId = isAllSites ? targetSiteId : activeWebsiteId;
-    const uploadSite = websites.find((w) => w.id === uploadSiteId) || websites[0];
     const cleanName = file.name.replace(/\.[^/.]+$/, '') + '.webp';
 
     try {
@@ -99,11 +94,11 @@ export const MediaLibraryView: React.FC = () => {
           websiteId: uploadSiteId,
           fileName: res.fileName || cleanName,
           fileType: 'image/webp',
-          fileSizeBytes: file.size,
+          fileSizeBytes: res.fileSizeBytes || file.size,
           s3Key: res.cdnUrl,
           cdnUrl: res.cdnUrl,
           altText: cleanName.replace(/[-_]/g, ' ').replace('.webp', ''),
-          dimensions: { width: 800, height: 600 },
+          dimensions: res.dimensions || { width: 800, height: 600 },
           uploadedBy: activeRole,
           createdAt: new Date().toISOString(),
         };
@@ -182,9 +177,6 @@ export const MediaLibraryView: React.FC = () => {
               {isAllSites ? 'All Websites' : activeSite.name}
             </span>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Client-side WebP pipeline with S3 key prefix <code className="text-slate-700 dark:text-slate-300 font-mono">blogs/{activeSite.s3Prefix}/yyyy/mm/</code>.
-          </p>
 
           {/* Tenant Selector Tabs if in All Websites mode */}
           {isAllSites && (
@@ -245,39 +237,6 @@ export const MediaLibraryView: React.FC = () => {
         </div>
       </div>
 
-      {/* S3 Pipeline Info Badges */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-xl p-4 flex items-center space-x-3.5 shadow-xs">
-          <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
-            <Sparkles className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="text-xs font-bold text-slate-900 dark:text-white">Client WebP Processing</div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400">Browser canvas compression</div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-xl p-4 flex items-center space-x-3.5 shadow-xs">
-          <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
-            <Layers className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="text-xs font-bold text-slate-900 dark:text-white">Persistent Storage</div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400">Retained in browser localStorage</div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-xl p-4 flex items-center space-x-3.5 shadow-xs">
-          <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
-            <FileCheck className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="text-xs font-bold text-slate-900 dark:text-white">Tenant Scoped</div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400">Isolated per website domain</div>
-          </div>
-        </div>
-      </div>
-
       {/* Media Grid or Real Empty State */}
       {siteMedia.length === 0 ? (
         <div className="bg-white dark:bg-[#0f172a] border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-16 text-center space-y-3 shadow-xs">
@@ -285,16 +244,13 @@ export const MediaLibraryView: React.FC = () => {
             <ImageIcon className="w-6 h-6" />
           </div>
           <div className="space-y-1">
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">No media uploaded yet for {activeSite.name}</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-              Upload images to convert them into high-performance WebP format automatically.
-            </p>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">No media uploaded yet</h3>
           </div>
           <button
             onClick={() => fileInputRef.current?.click()}
             className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 text-xs font-medium shadow-xs cursor-pointer"
           >
-            Select Image from PC
+            Upload Image
           </button>
         </div>
       ) : (
@@ -317,7 +273,7 @@ export const MediaLibraryView: React.FC = () => {
                     WebP
                   </span>
                   <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/70 text-[10px] text-slate-200 font-mono">
-                    {item.dimensions.width}&times;{item.dimensions.height}
+                    {item.dimensions ? `${item.dimensions.width}×${item.dimensions.height}` : 'WebP'}
                   </span>
                 </div>
 
@@ -400,7 +356,7 @@ export const MediaLibraryView: React.FC = () => {
                 <div>
                   <span className="text-slate-500 dark:text-slate-400 block font-medium">Resolution &amp; Size</span>
                   <div className="text-slate-900 dark:text-white font-mono">
-                    {inspectedItem.dimensions.width} &times; {inspectedItem.dimensions.height} px &middot; {(inspectedItem.fileSizeBytes / 1024).toFixed(1)} KB
+                    {inspectedItem.dimensions ? `${inspectedItem.dimensions.width} × ${inspectedItem.dimensions.height} px · ` : ''}{(inspectedItem.fileSizeBytes / 1024).toFixed(1)} KB
                   </div>
                 </div>
 

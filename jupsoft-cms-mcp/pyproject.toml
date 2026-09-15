@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jupsoft-cms-mcp"
+version = "1.0.0"
+description = "Jupsoft CMS Admin Panel MCP Server — 52-Tool Super Admin Control Suite for AI Agents"
+readme = "README.md"
+authors = [
+    { name = "VirajVerse" }
+]
+keywords = ["mcp", "cms", "admin", "blog", "jupsoft", "ai-agents"]
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=1.0.0",
+    "requests>=2.28.0",
+    "python-dotenv>=1.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

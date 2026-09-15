@@ -39,7 +39,9 @@ model User {
   name                 String
   avatar               String                 @default("")
   status               String                 @default("active") // active | suspended
-  lastLoginIp          String                 @default("127.0.0.1")
+  lastLoginIp          String                 @default("")
+  loginAttempts        Int                    @default(0)
+  lockoutUntil         DateTime?
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
 
@@ -52,14 +54,19 @@ model User {
 model UserRoleAssignment {
   id                   String                 @id @default(uuid())
   userId               String
-  websiteId            String                 // specific website ID or 'all'
-  role                 String                 // Super Admin | Editor | Content Writer | Publisher | SEO Manager
+  // FIX 13: websiteId is nullable for global-scope roles (Super Admin).
+  // isGlobal=true means the role applies to ALL websites (no FK needed).
+  // isGlobal=false means the role is scoped to the specific websiteId.
+  websiteId            String?                // NULL for global-scope assignments
+  isGlobal             Boolean                @default(false)
+  role                 String                 // Super Admin | Website Admin | Role Admin | Editor | Content Writer | Publisher | SEO Manager
   createdAt            DateTime               @default(now())
 
   user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   website              Website?               @relation(fields: [websiteId], references: [id], onDelete: Cascade)
 
   @@unique([userId, websiteId])
+  @@index([userId, isGlobal])
   @@map("user_role_assignments")
 }
 
@@ -164,6 +171,7 @@ model MediaAsset {
   altText              String                 @default("")
   uploadedBy           String                 @default("")
   createdAt            DateTime               @default(now())
+  deletedAt            DateTime?              // soft-delete: null = active, set = deleted
 
   website              Website                @relation(fields: [websiteId], references: [id], onDelete: Cascade)
 

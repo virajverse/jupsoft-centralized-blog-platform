@@ -14,16 +14,6 @@ import {
   RedirectItem,
   SystemAuditLog
 } from '../types';
-import {
-  INITIAL_WEBSITES,
-  INITIAL_BLOGS,
-  INITIAL_CATEGORIES,
-  INITIAL_TAGS,
-  INITIAL_MEDIA,
-  INITIAL_USERS,
-  INITIAL_REDIRECTS,
-  INITIAL_AUDIT_LOGS
-} from '../data/initialData';
 import { apiClient } from '../services/apiClient'; // TRD §12: live API integration
 
 
@@ -44,7 +34,13 @@ interface BlogState {
   editorLang: LanguageCode;
   notification: { message: string; type: 'success' | 'info' | 'warning' } | null;
   theme: 'light' | 'dark';
+  uiTheme: 'classic' | 'modern';
+  isUiThemeSwitching: boolean;
+  uiThemeSwitchTarget: 'classic' | 'modern' | null;
   sidebarOpen: boolean;
+  isGuideOpen: boolean;
+
+  // Real Auth State (TRD §4)
   isAuthenticated: boolean;
   currentUser: UserAccount | null;
 
@@ -52,12 +48,19 @@ interface BlogState {
 
   // Actions
   fetchBlogs: () => Promise<void>;
+  fetchWebsites: () => Promise<void>;
   fetchMedia: () => Promise<void>;
+  fetchUsers: () => Promise<void>;
+  fetchCategories: (websiteId?: string) => Promise<void>;
+  fetchTags: (websiteId?: string) => Promise<void>;
+  fetchRedirects: (websiteId?: string) => Promise<void>;
+  fetchAuditLogs: (websiteId?: string) => Promise<void>;
   loadInitialData: () => Promise<void>;
   login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
+  setGuideOpen: (open: boolean) => void;
   setActiveWebsite: (id: string) => void;
   setActiveRole: (role: UserRole) => void;
   setActiveView: (view: BlogState['activeView']) => void;
@@ -65,6 +68,8 @@ interface BlogState {
   setEditorLang: (lang: LanguageCode) => void;
   setTheme: (theme: 'light' | 'dark') => void;
   toggleTheme: () => void;
+  setUiTheme: (uiTheme: 'classic' | 'modern') => void;
+  toggleUiTheme: () => void;
   startCreateBlog: () => void;
   startEditBlog: (id: string) => void;
   saveBlog: (blog: Blog) => Promise<void> | void;
@@ -74,13 +79,14 @@ interface BlogState {
   deleteMediaItem: (id: string) => Promise<void> | void;
   addCategory: (cat: Category) => void;
   addTag: (tag: Tag) => void;
-  addWebsite: (site: Website) => void;
-  updateWebsite: (id: string, updates: Partial<Website>) => void;
-  addUser: (user: UserAccount) => void;
-  updateUser: (id: string, updates: Partial<UserAccount>) => void;
-  deleteUser: (id: string) => void;
-  addRedirect: (redirect: RedirectItem) => void;
-  deleteRedirect: (id: string) => void;
+  addWebsite: (site: Partial<Website>) => Promise<void> | void;
+  updateWebsite: (id: string, updates: Partial<Website>) => Promise<void> | void;
+  deleteWebsite: (id: string) => Promise<void> | void;
+  addUser: (user: UserAccount) => Promise<void> | void;
+  updateUser: (id: string, updates: Partial<UserAccount>) => Promise<void> | void;
+  deleteUser: (id: string) => Promise<void> | void;
+  addRedirect: (redirect: Partial<RedirectItem>) => Promise<void> | void;
+  deleteRedirect: (id: string) => Promise<void> | void;
   addAuditLog: (log: SystemAuditLog) => void;
   autoTranslateLocale: (blogId: string, fromLang: LanguageCode, toLang: LanguageCode) => void;
   clearNotification: () => void;
@@ -90,25 +96,29 @@ interface BlogState {
 export const useBlogStore = create<BlogState>()(
   persist(
     (set, get) => ({
-      websites: INITIAL_WEBSITES,
+      websites: [],
       activeWebsiteId: 'all',
       activeRole: 'Super Admin',
       activeView: 'dashboard',
-      blogs: INITIAL_BLOGS,
-      categories: INITIAL_CATEGORIES,
-      tags: INITIAL_TAGS,
-      media: INITIAL_MEDIA,
-      users: INITIAL_USERS,
-      redirects: INITIAL_REDIRECTS,
-      auditLogs: INITIAL_AUDIT_LOGS,
+      blogs: [],
+      categories: {},
+      tags: {},
+      media: [],
+      users: [],
+      redirects: [],
+      auditLogs: [],
       searchQuery: '',
       editingBlogId: null,
       editorLang: 'en',
       notification: null,
       theme: 'light',
+      uiTheme: 'modern',
+      isUiThemeSwitching: false,
+      uiThemeSwitchTarget: null,
       sidebarOpen: true,
-      isAuthenticated: true,
-      currentUser: INITIAL_USERS[0],
+      isGuideOpen: false,
+      isAuthenticated: false,
+      currentUser: null,
       isLoading: false,
 
       fetchBlogs: async () => {
@@ -118,15 +128,16 @@ export const useBlogStore = create<BlogState>()(
           const res = await apiClient.getBlogs({
             websiteId: siteId === 'all' ? undefined : siteId,
           });
-          if (res && Array.isArray(res.data) && res.data.length > 0) {
+          if (res && Array.isArray(res.data)) {
             set((state) => {
               const currentSite = state.activeWebsiteId;
-              if (currentSite === 'all') {
-                return { blogs: res.data, isLoading: false };
-              } else {
-                const others = state.blogs.filter((b) => b.websiteId !== currentSite);
-                return { blogs: [...others, ...res.data], isLoading: false };
-              }
+              const base = currentSite === 'all'
+                ? []
+                : state.blogs.filter((b) => b.websiteId !== currentSite);
+              const map = new Map<string, Blog>();
+              base.forEach((b) => map.set(b.id, b));
+              res.data.forEach((b: Blog) => map.set(b.id, b));
+              return { blogs: Array.from(map.values()), isLoading: false };
             });
           } else {
             set({ isLoading: false });
@@ -137,19 +148,33 @@ export const useBlogStore = create<BlogState>()(
         }
       },
 
+      fetchWebsites: async () => {
+        try {
+          const res = await apiClient.getWebsites();
+          if (Array.isArray(res)) {
+            const map = new Map<string, Website>();
+            res.forEach((s) => map.set(s.id, s));
+            set({ websites: Array.from(map.values()) });
+          }
+        } catch (err) {
+          console.warn('fetchWebsites error:', err);
+        }
+      },
+
       fetchMedia: async () => {
         try {
           const siteId = get().activeWebsiteId;
           const mediaList = await apiClient.getMedia(siteId === 'all' ? undefined : siteId);
-          if (Array.isArray(mediaList) && mediaList.length > 0) {
+          if (Array.isArray(mediaList)) {
             set((state) => {
               const currentSite = state.activeWebsiteId;
-              if (currentSite === 'all') {
-                return { media: mediaList };
-              } else {
-                const others = state.media.filter((m) => m.websiteId !== currentSite);
-                return { media: [...others, ...mediaList] };
-              }
+              const base = currentSite === 'all'
+                ? []
+                : state.media.filter((m) => m.websiteId !== currentSite);
+              const map = new Map<string, MediaItem>();
+              base.forEach((m) => map.set(m.id, m));
+              mediaList.forEach((m) => map.set(m.id, m));
+              return { media: Array.from(map.values()) };
             });
           }
         } catch (err) {
@@ -157,20 +182,147 @@ export const useBlogStore = create<BlogState>()(
         }
       },
 
+      fetchUsers: async () => {
+        try {
+          const userList = await apiClient.getUsers();
+          if (Array.isArray(userList)) {
+            set({ users: userList });
+          }
+        } catch (err) {
+          console.warn('apiClient.getUsers failed:', err);
+        }
+      },
+
+      fetchCategories: async (websiteId?: string) => {
+        try {
+          const res = await apiClient.getCategories(websiteId);
+          if (Array.isArray(res)) {
+            set((state) => {
+              const catMap = { ...state.categories };
+              res.forEach((cat) => {
+                if (!catMap[cat.websiteId]) catMap[cat.websiteId] = [];
+                if (!catMap[cat.websiteId].some((c) => c.id === cat.id)) {
+                  catMap[cat.websiteId].push(cat);
+                }
+              });
+              return { categories: catMap };
+            });
+          }
+        } catch (err) {
+          console.warn('fetchCategories error:', err);
+        }
+      },
+
+      fetchTags: async (websiteId?: string) => {
+        try {
+          const res = await apiClient.getTags(websiteId);
+          if (Array.isArray(res)) {
+            set((state) => {
+              const tagMap = { ...state.tags };
+              res.forEach((tag) => {
+                if (!tagMap[tag.websiteId]) tagMap[tag.websiteId] = [];
+                if (!tagMap[tag.websiteId].some((t) => t.id === tag.id)) {
+                  tagMap[tag.websiteId].push(tag);
+                }
+              });
+              return { tags: tagMap };
+            });
+          }
+        } catch (err) {
+          console.warn('fetchTags error:', err);
+        }
+      },
+
+      fetchRedirects: async (websiteId?: string) => {
+        try {
+          const res = await apiClient.getRedirects(websiteId);
+          if (Array.isArray(res)) {
+            set({ redirects: res });
+          }
+        } catch (err) {
+          console.warn('fetchRedirects error:', err);
+        }
+      },
+
+      fetchAuditLogs: async (websiteId?: string) => {
+        try {
+          const res = await apiClient.getAuditLogs(websiteId);
+          if (Array.isArray(res)) {
+            set({ auditLogs: res });
+          }
+        } catch (err) {
+          console.warn('fetchAuditLogs error:', err);
+        }
+      },
+
       loadInitialData: async () => {
         try {
-          const [websitesRes, blogsRes] = await Promise.allSettled([
+          const [
+            websitesRes,
+            blogsRes,
+            usersRes,
+            mediaRes,
+            redirectsRes,
+            auditLogsRes,
+            categoriesRes,
+            tagsRes,
+          ] = await Promise.allSettled([
             apiClient.getWebsites(),
             apiClient.getBlogs({ limit: 50 }),
+            apiClient.getUsers(),
+            apiClient.getMedia(),
+            apiClient.getRedirects(),
+            apiClient.getAuditLogs(),
+            apiClient.getCategories(),
+            apiClient.getTags(),
           ]);
 
           const updates: Partial<BlogState> = {};
-          if (websitesRes.status === 'fulfilled' && Array.isArray(websitesRes.value) && websitesRes.value.length > 0) {
-            updates.websites = websitesRes.value;
+          if (websitesRes.status === 'fulfilled' && Array.isArray(websitesRes.value)) {
+            const map = new Map<string, Website>();
+            websitesRes.value.forEach((w) => map.set(w.id, w));
+            updates.websites = Array.from(map.values());
           }
-          if (blogsRes.status === 'fulfilled' && blogsRes.value?.data && blogsRes.value.data.length > 0) {
-            updates.blogs = blogsRes.value.data;
+          if (blogsRes.status === 'fulfilled' && blogsRes.value?.data) {
+            const map = new Map<string, Blog>();
+            blogsRes.value.data.forEach((b: Blog) => map.set(b.id, b));
+            updates.blogs = Array.from(map.values());
           }
+          if (usersRes.status === 'fulfilled' && Array.isArray(usersRes.value)) {
+            const map = new Map<string, UserAccount>();
+            usersRes.value.forEach((u) => map.set(u.id, u));
+            updates.users = Array.from(map.values());
+          }
+          if (mediaRes.status === 'fulfilled' && Array.isArray(mediaRes.value)) {
+            const map = new Map<string, MediaItem>();
+            mediaRes.value.forEach((m) => map.set(m.id, m));
+            updates.media = Array.from(map.values());
+          }
+          if (redirectsRes.status === 'fulfilled' && Array.isArray(redirectsRes.value)) {
+            const map = new Map<string, RedirectItem>();
+            redirectsRes.value.forEach((r) => map.set(r.id, r));
+            updates.redirects = Array.from(map.values());
+          }
+          if (auditLogsRes.status === 'fulfilled' && Array.isArray(auditLogsRes.value)) {
+            updates.auditLogs = auditLogsRes.value;
+          }
+          if (categoriesRes.status === 'fulfilled' && Array.isArray(categoriesRes.value)) {
+            const catMap: Record<string, Category[]> = {};
+            categoriesRes.value.forEach((cat) => {
+              if (!catMap[cat.websiteId]) catMap[cat.websiteId] = [];
+              catMap[cat.websiteId].push(cat);
+            });
+            updates.categories = catMap;
+          }
+          if (tagsRes.status === 'fulfilled' && Array.isArray(tagsRes.value)) {
+            const tagMap: Record<string, Tag[]> = {};
+            tagsRes.value.forEach((tag) => {
+              if (!tagMap[tag.websiteId]) tagMap[tag.websiteId] = [];
+              tagMap[tag.websiteId].push(tag);
+            });
+            updates.tags = tagMap;
+          }
+
           if (Object.keys(updates).length > 0) {
             set(updates);
           }
@@ -179,40 +331,40 @@ export const useBlogStore = create<BlogState>()(
         }
       },
 
-      // TRD §4: Real API login with JWT token storage
+      // TRD Â§4: Real API login with JWT token storage
       login: async (email: string, password: string) => {
         try {
           const data = await apiClient.login(email, password);
           if (data.accessToken && data.user) {
             const user = data.user as UserAccount;
+            const isSuper = Object.values(user.roleAssignments || {}).includes('Super Admin');
+            const assignedWebsites = Object.keys(user.roleAssignments || {});
+            
+            let websiteId = get().activeWebsiteId;
+            if (!isSuper) {
+              if (websiteId === 'all' || !assignedWebsites.includes(websiteId)) {
+                websiteId = assignedWebsites[0] || 'site-cloud';
+              }
+            }
+            
+            const assignedRole = (user.roleAssignments?.[websiteId] || (isSuper ? 'Super Admin' : Object.values(user.roleAssignments || {})[0]) || 'Content Writer') as UserRole;
             set({
               isAuthenticated: true,
               currentUser: user,
-              activeRole: (user.roleAssignments?.[get().activeWebsiteId] || 'Super Admin') as UserRole,
+              activeWebsiteId: websiteId,
+              activeRole: assignedRole,
             });
             return { success: true };
           }
           return { success: false, message: 'Login failed — no token received' };
         } catch (err: unknown) {
-          // Fallback to local mock login for offline dev
           const errMsg = err instanceof Error ? err.message : String(err);
-          console.warn('API login failed, falling back to mock login:', errMsg);
-          const found = get().users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
-          if (found || email.trim().toLowerCase() === 'admin@jupsoft.com') {
-            const user = found || get().users[0];
-            const assignedRole = (user.roleAssignments[get().activeWebsiteId] || 'Super Admin') as UserRole;
-            set({ isAuthenticated: true, currentUser: user, activeRole: assignedRole });
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('jupsoft_auth_token', 'jwt_session_mock_' + Date.now());
-            }
-            return { success: true };
-          }
-          return { success: false, message: errMsg || 'Invalid credentials' };
+          return { success: false, message: errMsg || 'Invalid email or password' };
         }
       },
 
       logout: () => {
-        set({ isAuthenticated: false, currentUser: null });
+        set({ isAuthenticated: false, currentUser: null, activeWebsiteId: 'all' });
         if (typeof window !== 'undefined') {
           localStorage.removeItem('jupsoft_auth_token');
         }
@@ -220,7 +372,17 @@ export const useBlogStore = create<BlogState>()(
 
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
-      setActiveWebsite: (id) => set({ activeWebsiteId: id }),
+      setGuideOpen: (open) => set({ isGuideOpen: open }),
+      setActiveWebsite: (id) => {
+        const user = get().currentUser;
+        if (user && user.roleAssignments) {
+          const isSuper = Object.values(user.roleAssignments).includes('Super Admin');
+          const roleForSite = user.roleAssignments[id] || (isSuper ? 'Super Admin' : get().activeRole);
+          set({ activeWebsiteId: id, activeRole: roleForSite as UserRole });
+        } else {
+          set({ activeWebsiteId: id });
+        }
+      },
       setActiveRole: (role) => set({ activeRole: role }),
       setActiveView: (view) => set({ activeView: view }),
       setSearchQuery: (query) => set({ searchQuery: query }),
@@ -251,6 +413,36 @@ export const useBlogStore = create<BlogState>()(
         });
       },
 
+      setUiTheme: (targetTheme) => {
+        const current = get().uiTheme;
+        if (current === targetTheme) return;
+        if (get().isUiThemeSwitching) return;
+
+        // 1. Trigger transition motion screen immediately
+        set({
+          isUiThemeSwitching: true,
+          uiThemeSwitchTarget: targetTheme,
+        });
+
+        // 2. Midway (420ms): Swap the underlying layout while fully veiled
+        setTimeout(() => {
+          set({ uiTheme: targetTheme });
+        }, 420);
+
+        // 3. Complete (900ms): Clear switching state
+        setTimeout(() => {
+          set({
+            isUiThemeSwitching: false,
+            uiThemeSwitchTarget: null,
+          });
+        }, 900);
+      },
+
+      toggleUiTheme: () => {
+        const next = get().uiTheme === 'modern' ? 'classic' : 'modern';
+        get().setUiTheme(next);
+      },
+
       startCreateBlog: () => {
         set({ editingBlogId: null, editorLang: 'en', activeView: 'editor' });
       },
@@ -263,7 +455,7 @@ export const useBlogStore = create<BlogState>()(
       saveBlog: async (savedBlog) => {
         try {
           let apiResult: Blog;
-          const exists = get().blogs.some((b) => b.id === savedBlog.id && !savedBlog.id.startsWith('new-'));
+          const exists = get().blogs.some((b) => b.id === savedBlog.id && !savedBlog.id.startsWith('new-') && !savedBlog.id.startsWith('blog-'));
           if (exists) {
             apiResult = await apiClient.updateBlog(savedBlog.id, savedBlog as Partial<Blog>);
           } else {
@@ -273,7 +465,7 @@ export const useBlogStore = create<BlogState>()(
             const finalBlog = { ...savedBlog, ...apiResult };
             const newBlogs = exists
               ? state.blogs.map((b) => (b.id === savedBlog.id ? finalBlog : b))
-              : [finalBlog, ...state.blogs.filter((b) => b.id !== savedBlog.id)];
+              : [finalBlog, ...state.blogs.filter((b) => b.id !== savedBlog.id && b.id !== finalBlog.id)];
             const auditLog: SystemAuditLog = {
               id: `aud-${Date.now()}`,
               timestamp: new Date().toISOString(),
@@ -288,27 +480,16 @@ export const useBlogStore = create<BlogState>()(
               blogs: newBlogs,
               auditLogs: [auditLog, ...state.auditLogs],
               editingBlogId: finalBlog.id,
-              notification: { message: exists ? 'Article saved ✅' : 'New draft created ✅', type: 'success' },
+              notification: { message: exists ? 'Article updated ✅' : 'Article created ✅', type: 'success' },
             };
           });
         } catch (err: unknown) {
-          // Fallback: save locally only
-          console.warn('API saveBlog failed, saving locally:', err);
-          set((state) => {
-            const exists = state.blogs.some((b) => b.id === savedBlog.id);
-            const newBlogs = exists
-              ? state.blogs.map((b) => (b.id === savedBlog.id ? savedBlog : b))
-              : [savedBlog, ...state.blogs];
-            return {
-              blogs: newBlogs,
-              editingBlogId: savedBlog.id,
-              notification: { message: 'Saved locally (API offline)', type: 'warning' },
-            };
-          });
+          console.error('API saveBlog failed:', err);
+          throw err;
         }
       },
 
-      // TRD §7: Workflow transitions via dedicated API endpoints
+      // TRD Â§7: Workflow transitions via dedicated API endpoints
       transitionBlogStatus: async (blogId, newStatus, notes, scheduledAt) => {
         try {
           let apiResult: Blog;
@@ -333,7 +514,7 @@ export const useBlogStore = create<BlogState>()(
             const updatedBlog: Blog = { ...blog!, ...apiResult, workflowLogs: [newLog, ...(blog?.workflowLogs || [])] };
             return {
               blogs: state.blogs.map((b) => (b.id === blogId ? updatedBlog : b)),
-              notification: { message: `Article moved to "${newStatus}" ✅`, type: 'success' },
+              notification: { message: `Article moved to "${newStatus}" âœ…`, type: 'success' },
             };
           });
         } catch (err: unknown) {
@@ -351,7 +532,7 @@ export const useBlogStore = create<BlogState>()(
         }
       },
 
-      // TRD §12: Delete blog via real API
+      // TRD Â§12: Delete blog via real API
       deleteBlog: async (id) => {
         try {
           await apiClient.deleteBlog(id);
@@ -369,7 +550,7 @@ export const useBlogStore = create<BlogState>()(
 
       addMediaItem: (item) => {
         set((state) => ({
-          media: [item, ...state.media],
+          media: [item, ...state.media.filter((m) => m.id !== item.id)],
           auditLogs: [
             {
               id: `aud-${Date.now()}`,
@@ -425,88 +606,144 @@ export const useBlogStore = create<BlogState>()(
         });
       },
 
-      addWebsite: (site) => {
-        set((state) => ({
-          websites: [...state.websites, site],
-          auditLogs: [
-            {
-              id: `aud-${Date.now()}`,
-              timestamp: new Date().toISOString(),
-              userName: state.activeRole,
-              role: state.activeRole,
-              websiteId: site.id,
-              event: 'website.created',
-              ipAddress: '192.168.1.42',
-              details: `Onboarded new website tenant "${site.name}" (${site.domain}).`,
-            },
-            ...state.auditLogs,
-          ],
-          notification: { message: `New tenant "${site.name}" registered successfully`, type: 'success' },
-        }));
+      addWebsite: async (site) => {
+        try {
+          const created = await apiClient.createWebsite(site);
+          set((state) => ({
+            websites: [...state.websites.filter((w) => w.id !== created.id), created],
+            notification: { message: `New tenant "${created.name}" registered successfully`, type: 'success' },
+          }));
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'Failed to register website';
+          set({
+            notification: { message: msg, type: 'warning' },
+          });
+        }
       },
 
-      updateWebsite: (id, updates) => {
-        set((state) => ({
-          websites: state.websites.map((w) => (w.id === id ? { ...w, ...updates } : w)),
-          notification: { message: 'Tenant settings saved', type: 'success' },
-        }));
+      updateWebsite: async (id, updates) => {
+        try {
+          const updated = await apiClient.updateWebsite(id, updates);
+          set((state) => ({
+            websites: state.websites.map((w) => (w.id === id ? { ...w, ...updated } : w)),
+            notification: { message: 'Tenant settings saved', type: 'success' },
+          }));
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'Failed to save tenant settings';
+          set({
+            notification: { message: msg, type: 'warning' },
+          });
+        }
       },
 
-      addUser: (user) => {
-        set((state) => ({
-          users: [user, ...state.users],
-          auditLogs: [
-            {
-              id: `aud-${Date.now()}`,
-              timestamp: new Date().toISOString(),
-              userName: state.activeRole,
-              role: state.activeRole,
-              websiteId: 'system',
-              event: 'user.invited',
-              ipAddress: '192.168.1.42',
-              details: `Invited user ${user.name} (${user.email}).`,
-            },
-            ...state.auditLogs,
-          ],
-          notification: { message: `User "${user.name}" invited successfully`, type: 'success' },
-        }));
+      deleteWebsite: async (id: string) => {
+        try {
+          await apiClient.deleteWebsite(id);
+          set((state) => {
+            const updatedWebsites = state.websites.filter((w) => w.id !== id);
+            const nextActive = state.activeWebsiteId === id
+              ? (updatedWebsites.length > 0 ? 'all' : '')
+              : state.activeWebsiteId;
+            return {
+              websites: updatedWebsites,
+              activeWebsiteId: nextActive,
+              notification: { message: 'Website tenant removed successfully', type: 'info' },
+            };
+          });
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'Failed to delete website';
+          set({
+            notification: { message: msg, type: 'warning' },
+          });
+        }
       },
 
-      updateUser: (id, updates) => {
-        set((state) => ({
-          users: state.users.map((u) => (u.id === id ? { ...u, ...updates } : u)),
-          notification: { message: 'User updated successfully', type: 'success' },
-        }));
+      addUser: async (user) => {
+        try {
+          const targetWebsiteId = Object.keys(user.roleAssignments)[0] || 'web-1';
+          const targetRole = Object.values(user.roleAssignments)[0] || 'Content Writer';
+          const created = await apiClient.inviteUser({
+            name: user.name,
+            email: user.email,
+            websiteId: targetWebsiteId,
+            role: targetRole,
+            password: user.tempPassword,
+          });
+          const userWithCredentials = {
+            ...created,
+            tempPassword: created.tempPassword || user.tempPassword,
+          };
+          set((state) => ({
+            users: [userWithCredentials, ...state.users.filter((u) => u.id !== created.id)],
+            notification: { message: `User "${created.name}" invited successfully`, type: 'success' },
+          }));
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'Failed to invite user';
+          set((state) => ({
+            users: [user, ...state.users],
+            notification: { message: msg, type: 'warning' },
+          }));
+        }
       },
 
-      deleteUser: (id) => {
+      updateUser: async (id, updates) => {
+        try {
+          if (updates.roleAssignments) {
+            const [websiteId, role] = Object.entries(updates.roleAssignments)[0] || [];
+            if (websiteId && role) {
+              await apiClient.updateUserRole(id, role, websiteId);
+            }
+          }
+          if (updates.status) {
+            await apiClient.updateUserStatus(id, updates.status);
+          }
+          set((state) => ({
+            users: state.users.map((u) => (u.id === id ? { ...u, ...updates } : u)),
+            notification: { message: 'User updated successfully', type: 'success' },
+          }));
+        } catch (err: unknown) {
+          console.warn('API updateUser failed:', err);
+          set((state) => ({
+            users: state.users.map((u) => (u.id === id ? { ...u, ...updates } : u)),
+            notification: { message: 'User updated locally', type: 'warning' },
+          }));
+        }
+      },
+
+      deleteUser: async (id) => {
+        try {
+          await apiClient.deleteUser(id);
+        } catch (err) {
+          console.warn('API deleteUser failed:', err);
+        }
         set((state) => ({
           users: state.users.filter((u) => u.id !== id),
           notification: { message: 'User removed from system', type: 'info' },
         }));
       },
 
-      addRedirect: (redirect) => {
-        set((state) => ({
-          redirects: [redirect, ...state.redirects],
-          auditLogs: [
-            {
-              id: `aud-${Date.now()}`,
-              timestamp: new Date().toISOString(),
-              userName: state.activeRole,
-              role: state.activeRole,
-              websiteId: redirect.websiteId,
-              event: 'redirect.created',
-              ipAddress: '192.168.1.42',
-              details: `Created 301 redirect: /${redirect.fromSlug} -> /${redirect.toSlug}`,
-            },
-            ...state.auditLogs,
-          ],
-          notification: { message: `301 Permanent Redirect created for /blog/${redirect.fromSlug}`, type: 'success' },
-        }));
+      addRedirect: async (redirect) => {
+        try {
+          const created = await apiClient.createRedirect(redirect as RedirectItem);
+          set((state) => ({
+            redirects: [created, ...state.redirects.filter((r) => r.id !== created.id)],
+            notification: { message: `301 Permanent Redirect created for /blog/${created.fromSlug}`, type: 'success' },
+          }));
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'Failed to create redirect';
+          set((state) => ({
+            redirects: [redirect as RedirectItem, ...state.redirects],
+            notification: { message: msg, type: 'warning' },
+          }));
+        }
       },
 
-      deleteRedirect: (id) => {
+      deleteRedirect: async (id) => {
+        try {
+          await apiClient.deleteRedirect(id);
+        } catch (err) {
+          console.warn('deleteRedirect error:', err);
+        }
         set((state) => ({
           redirects: state.redirects.filter((r) => r.id !== id),
           notification: { message: 'Redirect rule removed', type: 'info' },
@@ -529,9 +766,9 @@ export const useBlogStore = create<BlogState>()(
 
           // Realistic translation dictionaries for TRD languages
           const prefixMap: Record<LanguageCode, { titlePrefix: string; bodyPrefix: string }> = {
-            hi: { titlePrefix: '[हिंदी] ', bodyPrefix: '<p>इस लेख का हिंदी अनुवाद निम्नलिखित है: </p>' },
-            fr: { titlePrefix: '[FR] ', bodyPrefix: '<p>Voici la traduction française de cet article: </p>' },
-            ar: { titlePrefix: '[عربي] ', bodyPrefix: '<p>فيما يلي الترجمة العربية لهذه المقالة: </p>' },
+            hi: { titlePrefix: '[à¤¹à¤¿à¤‚à¤¦à¥€] ', bodyPrefix: '<p>à¤‡à¤¸ à¤²à¥‡à¤– à¤•à¤¾ à¤¹à¤¿à¤‚à¤¦à¥€ à¤…à¤¨à¥à¤µà¤¾à¤¦ à¤¨à¤¿à¤®à¥à¤¨à¤²à¤¿à¤–à¤¿à¤¤ à¤¹à¥ˆ: </p>' },
+            fr: { titlePrefix: '[FR] ', bodyPrefix: '<p>Voici la traduction franÃ§aise de cet article: </p>' },
+            ar: { titlePrefix: '[Ø¹Ø±Ø¨ÙŠ] ', bodyPrefix: '<p>ÙÙŠÙ…Ø§ ÙŠÙ„ÙŠ Ø§Ù„ØªØ±Ø¬Ù…Ø© Ø§Ù„Ø¹Ø±Ø¨ÙŠØ© Ù„Ù‡Ø°Ù‡ Ø§Ù„Ù…Ù‚Ø§Ù„Ø©: </p>' },
             en: { titlePrefix: '[EN] ', bodyPrefix: '<p>English translation: </p>' },
           };
 
@@ -581,25 +818,13 @@ export const useBlogStore = create<BlogState>()(
     {
       name: 'jupsoft_cms_platform_store_v4',
       storage: createJSONStorage(() => localStorage),
-      onRehydrateStorage: () => (state) => {
-        if (state) {
-          if (!state.blogs || state.blogs.length === 0) {
-            state.blogs = INITIAL_BLOGS;
-          }
-          if (!state.websites || state.websites.length === 0) {
-            state.websites = INITIAL_WEBSITES;
-          }
-          if (!state.media || state.media.length === 0) {
-            state.media = INITIAL_MEDIA;
-          }
-          if (!state.users || state.users.length === 0) {
-            state.users = INITIAL_USERS;
-          }
-          if (!state.redirects || state.redirects.length === 0) {
-            state.redirects = INITIAL_REDIRECTS;
-          }
-        }
+      partialize: (state) => {
+        // Exclude transient switching state so page reload never gets stuck
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { isUiThemeSwitching, uiThemeSwitchTarget, ...rest } = state;
+        return rest;
       },
     }
   )
 );
+

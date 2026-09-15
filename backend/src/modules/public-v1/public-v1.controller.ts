@@ -1,10 +1,16 @@
 import { Controller, Get, Param, Query, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiHeader } from '@nestjs/swagger';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { PublicV1Service } from './public-v1.service';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
+import { ApiKeyThrottlerGuard } from '../../common/guards/api-key-throttler.guard';
 
 @ApiTags('Public Consumer API (v1)')
 @Controller('v1')
+// Skip the global IP-based throttler; apply per-API-key throttler instead (TRD §15)
+@SkipThrottle({ global: true })
+@UseGuards(ApiKeyThrottlerGuard)
+@Throttle({ 'public-api': { limit: 120, ttl: 60000 } })
 export class PublicV1Controller {
   constructor(private readonly publicV1Service: PublicV1Service) {}
 
@@ -103,16 +109,18 @@ export class PublicV1Controller {
   @UseGuards(ApiKeyGuard)
   @ApiHeader({ name: 'Authorization', description: 'Bearer <tenant_api_key>', required: true })
   @ApiOperation({ summary: 'Retrieve taxonomy category tree for consuming website' })
-  async getCategories(@Req() req: any) {
-    return this.publicV1Service.getCategories(req.tenant.id);
+  async getCategories(@Req() req: any, @Query('websiteId') queryWebsiteId?: string) {
+    const targetSiteId = queryWebsiteId || req.tenant?.id;
+    return this.publicV1Service.getCategories(targetSiteId);
   }
 
   @Get('tags')
   @UseGuards(ApiKeyGuard)
   @ApiHeader({ name: 'Authorization', description: 'Bearer <tenant_api_key>', required: true })
   @ApiOperation({ summary: 'Retrieve tags list for consuming website' })
-  async getTags(@Req() req: any) {
-    return this.publicV1Service.getTags(req.tenant.id);
+  async getTags(@Req() req: any, @Query('websiteId') queryWebsiteId?: string) {
+    const targetSiteId = queryWebsiteId || req.tenant?.id;
+    return this.publicV1Service.getTags(targetSiteId);
   }
 
   @Get('search')
@@ -130,4 +138,24 @@ export class PublicV1Controller {
   ) {
     return this.publicV1Service.search(q || '', req.tenant.id, lang || 'en', limit ? Number(limit) : 10);
   }
+
+  @Get('website')
+  @UseGuards(ApiKeyGuard)
+  @ApiOperation({ summary: 'Retrieve tenant website configuration & metadata directly from database' })
+  async getWebsiteInfo(@Req() req: any) {
+    const tenant = req.tenant;
+    return {
+      success: true,
+      data: {
+        id: tenant.id,
+        name: tenant.name,
+        domain: tenant.domain,
+        status: tenant.status,
+        s3Prefix: tenant.s3Prefix,
+        revalidateWebhookUrl: tenant.revalidateWebhookUrl,
+        defaultLanguage: tenant.defaultLanguage || 'en',
+      },
+    };
+  }
 }
+

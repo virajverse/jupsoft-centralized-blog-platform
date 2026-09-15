@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Ip } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { BlogsService } from './blogs.service';
 import { CreateBlogDto, UpdateBlogDto, TransitionBlogStatusDto } from './dto/create-blog.dto';
@@ -47,62 +47,93 @@ export class BlogsController {
   }
 
   @Post()
-  @Roles('Super Admin', 'Editor', 'Content Writer')
+  @Roles('Super Admin', 'Website Admin', 'Role Admin', 'Editor', 'Content Writer')
   @ApiOperation({ summary: 'Create a new blog article draft' })
   @ApiResponse({ status: 201, description: 'Blog draft created' })
-  async create(@Body() dto: CreateBlogDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.blogsService.create(dto, user);
+  async create(@Body() dto: CreateBlogDto, @CurrentUser() user: AuthenticatedUser, @Ip() ip: string) {
+    return this.blogsService.create(dto, user, ip);
   }
 
   @Put(':id')
-  @Roles('Super Admin', 'Editor', 'Content Writer')
-  @ApiOperation({ summary: 'Update blog content, SEO metadata, or translations (auto-captures 301 on slug changes)' })
-  async update(@Param('id') id: string, @Body() dto: UpdateBlogDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.blogsService.update(id, dto, user);
+  @Roles('Super Admin', 'Website Admin', 'Role Admin', 'Editor', 'Content Writer')
+  @ApiOperation({ summary: 'Update blog content, SEO metadata, or translations' })
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateBlogDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Ip() ip: string,
+  ) {
+    return this.blogsService.update(id, dto, user, ip);
   }
 
   @Post(':id/submit')
-  @Roles('Super Admin', 'Editor', 'Content Writer')
+  @Roles('Super Admin', 'Website Admin', 'Role Admin', 'Editor', 'Content Writer')
   @ApiOperation({ summary: 'Submit draft for editorial review (Draft → Under Review)' })
-  async submitForReview(@Param('id') id: string, @Body() body: { notes?: string }, @CurrentUser() user: AuthenticatedUser) {
-    return this.blogsService.transitionStatus(id, { status: 'Under Review', notes: body.notes }, user);
+  async submitForReview(
+    @Param('id') id: string,
+    @Body() body: { notes?: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Ip() ip: string,
+  ) {
+    return this.blogsService.transitionStatus(id, { status: 'Under Review', notes: body.notes }, user, ip);
   }
 
   @Post(':id/approve')
-  @Roles('Super Admin', 'Editor')
+  @Roles('Super Admin', 'Website Admin', 'Role Admin', 'Editor')
   @ApiOperation({ summary: 'Approve article for live publishing (Under Review → Approved)' })
-  async approve(@Param('id') id: string, @Body() body: { notes?: string }, @CurrentUser() user: AuthenticatedUser) {
-    return this.blogsService.transitionStatus(id, { status: 'Approved', notes: body.notes }, user);
+  async approve(
+    @Param('id') id: string,
+    @Body() body: { notes?: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Ip() ip: string,
+  ) {
+    return this.blogsService.transitionStatus(id, { status: 'Approved', notes: body.notes }, user, ip);
   }
 
   @Post(':id/publish')
-  @Roles('Super Admin', 'Publisher')
-  @ApiOperation({ summary: 'Publish article live and dispatch on-demand ISR revalidation webhook' })
-  async publish(@Param('id') id: string, @Body() body: { notes?: string }, @CurrentUser() user: AuthenticatedUser) {
-    return this.blogsService.transitionStatus(id, { status: 'Published', notes: body.notes }, user);
+  @Roles('Super Admin', 'Website Admin', 'Publisher')
+  @ApiOperation({ summary: 'Publish article live and dispatch ISR revalidation webhook' })
+  async publish(
+    @Param('id') id: string,
+    @Body() body: { notes?: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Ip() ip: string,
+  ) {
+    return this.blogsService.transitionStatus(id, { status: 'Published', notes: body.notes }, user, ip);
   }
 
   @Post(':id/schedule')
-  @Roles('Super Admin', 'Editor', 'Publisher')
-  @ApiOperation({ summary: 'Schedule article for release at future timestamp (TRD §7 & §20)' })
+  @Roles('Super Admin', 'Website Admin', 'Publisher')
+  @ApiOperation({ summary: 'Schedule article for release at future timestamp' })
   async schedule(
     @Param('id') id: string,
     @Body() body: { scheduledAt: string; notes?: string },
     @CurrentUser() user: AuthenticatedUser,
+    @Ip() ip: string,
   ) {
-    return this.blogsService.transitionStatus(id, { status: 'Scheduled', notes: body.notes, scheduledAt: body.scheduledAt }, user);
+    return this.blogsService.transitionStatus(
+      id,
+      { status: 'Scheduled', notes: body.notes, scheduledAt: body.scheduledAt },
+      user,
+      ip,
+    );
   }
 
   @Post(':id/archive')
   @Roles('Super Admin', 'Editor', 'Publisher')
   @ApiOperation({ summary: 'Archive article and unpublish from CDN cache' })
-  async archive(@Param('id') id: string, @Body() body: { notes?: string }, @CurrentUser() user: AuthenticatedUser) {
-    return this.blogsService.transitionStatus(id, { status: 'Archived', notes: body.notes }, user);
+  async archive(
+    @Param('id') id: string,
+    @Body() body: { notes?: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Ip() ip: string,
+  ) {
+    return this.blogsService.transitionStatus(id, { status: 'Archived', notes: body.notes }, user, ip);
   }
 
   @Post(':id/seo-audit')
   @Roles('Super Admin', 'Editor', 'Content Writer', 'SEO Manager')
-  @ApiOperation({ summary: 'Run automated SEO audit on article translation and save to seo_audit_logs (TRD §11 & §17)' })
+  @ApiOperation({ summary: 'Run automated SEO audit and save to seo_audit_logs' })
   @ApiQuery({ name: 'lang', required: false, example: 'en' })
   async runSeoAudit(
     @Param('id') id: string,
@@ -115,7 +146,7 @@ export class BlogsController {
   @Delete(':id')
   @Roles('Super Admin')
   @ApiOperation({ summary: 'Delete article permanently (Super Admin only)' })
-  async delete(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.blogsService.delete(id, user);
+  async delete(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser, @Ip() ip: string) {
+    return this.blogsService.delete(id, user, ip);
   }
 }

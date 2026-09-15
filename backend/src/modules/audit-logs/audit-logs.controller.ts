@@ -4,6 +4,7 @@ import { AuditLogsService } from './audit-logs.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Admin / Audit Logs')
 @ApiBearerAuth()
@@ -13,7 +14,7 @@ export class AuditLogsController {
   constructor(private readonly auditLogsService: AuditLogsService) {}
 
   @Get()
-  @Roles('Super Admin')
+  @Roles('Super Admin', 'Editor', 'SEO Manager', 'Publisher')
   @ApiOperation({ summary: 'Retrieve immutable system activity trail (TRD Section 15)' })
   @ApiQuery({ name: 'websiteId', required: false })
   @ApiQuery({ name: 'event', required: false })
@@ -22,11 +23,15 @@ export class AuditLogsController {
     @Query('websiteId') websiteId?: string,
     @Query('event') event?: string,
     @Query('limit') limit?: number,
+    @CurrentUser() user?: any,
   ) {
-    return this.auditLogsService.findAll({
-      websiteId,
-      event,
-      limit: limit ? Number(limit) : 50,
-    });
+    return this.auditLogsService.findAll(
+      {
+        websiteId,
+        event,
+        limit: limit ? Number(limit) : 50,
+      },
+      user,
+    );
   }
 }

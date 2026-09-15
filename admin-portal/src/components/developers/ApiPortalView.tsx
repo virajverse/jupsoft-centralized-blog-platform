@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { 
   Code2, 
@@ -10,22 +9,19 @@ import {
   Play, 
   Terminal, 
   Globe, 
-  ExternalLink, 
   ShieldCheck, 
   Key, 
-  Server,
-  Zap,
-  BookOpen,
-  FileCode2,
+  Zap, 
+  BookOpen, 
+  FileCode2, 
   RefreshCw
 } from 'lucide-react';
 
 export const ApiPortalView: React.FC = () => {
-  const searchParams = useSearchParams();
   const { websites, activeWebsiteId, blogs, categories } = useBlogStore();
 
-  const isAllSites = activeWebsiteId === 'all';
   const activeSite = websites.find((w) => w.id === activeWebsiteId) || websites[0];
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
   const [activeTab, setActiveTab] = useState<'tester' | 'snippets' | 'specs'>('tester');
   const [selectedEndpoint, setSelectedEndpoint] = useState<string>('/v1/blogs');
@@ -38,7 +34,7 @@ export const ApiPortalView: React.FC = () => {
     status: number;
     latencyMs: number;
     headers: Record<string, string>;
-    body: any;
+    body: unknown;
   } | null>(null);
 
   const copyToClipboard = (text: string, id: string) => {
@@ -51,7 +47,6 @@ export const ApiPortalView: React.FC = () => {
   const handleExecuteApi = async () => {
     setIsLoadingTest(true);
     const startTime = performance.now();
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
     let resolvedPath = selectedEndpoint;
     if (selectedEndpoint === '/v1/blogs/{slug}') {
@@ -65,7 +60,7 @@ export const ApiPortalView: React.FC = () => {
     // Try real HTTP request first
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1200);
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
 
       const res = await fetch(`${apiBaseUrl}${resolvedPath}`, {
         headers: {
@@ -211,87 +206,261 @@ export const ApiPortalView: React.FC = () => {
     }, 280);
   };
 
-  const curlCommand = `curl -X GET "https://api.jupsoft.com${selectedEndpoint.replace('{slug}', slugParam || 'enterprise-ai-shift')}?website_id=${activeSite.id}&lang=${selectedLang}" \\
+  const curlCommand = `curl -X GET "${apiBaseUrl}${selectedEndpoint.replace('{slug}', slugParam || 'enterprise-ai-shift')}?website_id=${activeSite.id}&lang=${selectedLang}" \\
   -H "Authorization: Bearer ${activeSite.apiKey}" \\
   -H "Accept: application/json"`;
 
-  // Production Consumer Code Snippets (TRD Section 11 & 13)
-  const nextjsConsumerSnippet = `// app/blog/[slug]/page.tsx (Next.js 15 App Router with ISR & SEO)
+  // Production Next.js 16 Environment Variables
+  const envConfigSnippet = `# .env.local (Next.js 16 Consumer Configuration)
+NEXT_PUBLIC_CMS_API_URL=${apiBaseUrl}
+CMS_TENANT_API_KEY=${activeSite.apiKey}
+CMS_WEBSITE_ID=${activeSite.id}
+CMS_WEBHOOK_SECRET=wh_sec_jupsoft_default_revalidate_2026`;
+
+  // Production Next.js 16 TypeScript SDK Client
+  const nextjsSdkSnippet = `// lib/jupsoft-sdk.ts (Next.js 16 Type-Safe Client SDK)
+export interface JupsoftConfig {
+  apiUrl?: string;
+  apiKey: string;
+  websiteId: string;
+  defaultLang?: string;
+}
+
+export interface BlogPost {
+  id: string;
+  slug: string;
+  title: string;
+  content: string;
+  excerpt: string;
+  featuredImage?: string;
+  authorName: string;
+  publishedAt?: string;
+  readTimeMinutes: number;
+  categoryIds: string[];
+  tagIds: string[];
+  seo?: {
+    metaTitle?: string;
+    metaDescription?: string;
+    metaKeywords?: string;
+    canonicalUrl?: string;
+    ogTitle?: string;
+    ogDescription?: string;
+    ogImage?: string;
+    twitterTitle?: string;
+    twitterDescription?: string;
+    twitterImage?: string;
+  };
+  canonicalUrl?: string;
+  schemaJsonLd?: Record<string, unknown>;
+}
+
+export interface BlogListResponse {
+  success: boolean;
+  meta: { website: string; total: number; page: number; limit: number };
+  data: BlogPost[];
+}
+
+export class JupsoftClient {
+  private apiUrl: string;
+  private apiKey: string;
+  private websiteId: string;
+  private defaultLang: string;
+
+  constructor(config?: Partial<JupsoftConfig>) {
+    this.apiUrl = (config?.apiUrl || process.env.NEXT_PUBLIC_CMS_API_URL || '${apiBaseUrl}').replace(/\\/$/, '');
+    this.apiKey = config?.apiKey || process.env.CMS_TENANT_API_KEY || '${activeSite.apiKey}';
+    this.websiteId = config?.websiteId || process.env.CMS_WEBSITE_ID || '${activeSite.id}';
+    this.defaultLang = config?.defaultLang || 'en';
+  }
+
+  private async request<T>(path: string, options: { tags?: string[]; revalidate?: number } = {}): Promise<T> {
+    const url = new URL(\`\${this.apiUrl}\${path}\`);
+    if (!url.searchParams.has('website_id') && this.websiteId) {
+      url.searchParams.set('website_id', this.websiteId);
+    }
+
+    const res = await fetch(url.toString(), {
+      headers: {
+        'Authorization': \`Bearer \${this.apiKey}\`,
+        'Accept': 'application/json',
+      },
+      next: {
+        tags: options.tags || ['blogs'],
+        revalidate: options.revalidate ?? 3600,
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error(\`Jupsoft CMS Error: \${res.status} \${res.statusText} on \${path}\`);
+    }
+
+    return res.json() as Promise<T>;
+  }
+
+  async getBlogs(params?: { page?: number; limit?: number; category?: string; tag?: string; lang?: string; q?: string }): Promise<BlogListResponse> {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.category) query.set('category', params.category);
+    if (params?.tag) query.set('tag', params.tag);
+    if (params?.lang || this.defaultLang) query.set('lang', params?.lang || this.defaultLang);
+    if (params?.q) query.set('q', params.q);
+
+    return this.request<BlogListResponse>(\`/v1/blogs?\${query.toString()}\`, {
+      tags: ['blogs', 'blogs-list'],
+    });
+  }
+
+  async getBlogBySlug(slug: string, lang?: string): Promise<BlogPost | null> {
+    try {
+      const res = await this.request<{ success: boolean; data: BlogPost }>(
+        \`/v1/blogs/\${encodeURIComponent(slug)}?lang=\${lang || this.defaultLang}\`,
+        { tags: [\`blog:\${slug}\`, 'blogs'] }
+      );
+      return res.data;
+    } catch {
+      return null;
+    }
+  }
+
+  async getLatest(limit = 5, lang?: string): Promise<BlogPost[]> {
+    const res = await this.request<{ success: boolean; data: BlogPost[] }>(
+      \`/v1/blogs/latest?limit=\${limit}&lang=\${lang || this.defaultLang}\`,
+      { tags: ['blogs', 'blogs-latest'] }
+    );
+    return res.data || [];
+  }
+
+  async getPopular(limit = 5, lang?: string): Promise<BlogPost[]> {
+    const res = await this.request<{ success: boolean; data: BlogPost[] }>(
+      \`/v1/blogs/popular?limit=\${limit}&lang=\${lang || this.defaultLang}\`,
+      { tags: ['blogs', 'blogs-popular'] }
+    );
+    return res.data || [];
+  }
+
+  recordView(slug: string): void {
+    fetch(\`\${this.apiUrl}/v1/blogs/\${encodeURIComponent(slug)}/view\`, {
+      method: 'POST',
+      headers: { 'Authorization': \`Bearer \${this.apiKey}\` },
+    }).catch(() => {});
+  }
+
+  async verifyWebhookSignature(payloadText: string, signature: string | null, secret: string): Promise<boolean> {
+    if (!signature || !secret) return false;
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    const sigBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(payloadText));
+    const computedHex = Array.from(new Uint8Array(sigBuffer))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    return computedHex === signature;
+  }
+}
+
+export const jupsoft = new JupsoftClient();`;
+
+  // Production Next.js 16 App Router Dynamic Route (with async params Promise)
+  const nextjsConsumerSnippet = `// app/blog/[slug]/page.tsx (Next.js 16 App Router with async params & ISR)
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import { jupsoft } from '@/lib/jupsoft-sdk';
 
 export const revalidate = 3600; // Background ISR revalidation every 1 hour
 
+// In Next.js 16, params and searchParams are Promises!
 interface PageProps {
   params: Promise<{ slug: string }>;
+  searchParams?: Promise<{ lang?: string }>;
 }
 
-async function getBlog(slug: string) {
-  const res = await fetch(\`https://api.jupsoft.com/v1/blogs/\${slug}?website_id=${activeSite.id}\`, {
-    headers: {
-      Authorization: \`Bearer \${process.env.JUPSOFT_CMS_API_KEY}\`,
-    },
-    next: { tags: [\`blog:\${slug}\`, 'blogs'] }, // On-demand webhook cache tag
-  });
-
-  if (!res.ok) return null;
-  const json = await res.json();
-  return json.data;
-}
-
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const blog = await getBlog(slug);
-  if (!blog) return {};
+  const sp = await searchParams;
+  const blog = await jupsoft.getBlogBySlug(slug, sp?.lang);
+  if (!blog) return { title: 'Article Not Found' };
 
   return {
-    title: blog.seo.metaTitle || blog.title,
-    description: blog.seo.metaDescription || blog.excerpt,
+    title: blog.seo?.metaTitle || blog.title,
+    description: blog.seo?.metaDescription || blog.excerpt,
+    alternates: {
+      canonical: blog.canonicalUrl || blog.seo?.canonicalUrl,
+    },
     openGraph: {
-      title: blog.seo.ogTitle || blog.title,
-      description: blog.seo.ogDescription || blog.excerpt,
-      images: blog.coverImage ? [blog.coverImage] : [],
+      title: blog.seo?.ogTitle || blog.title,
+      description: blog.seo?.ogDescription || blog.excerpt,
+      images: blog.featuredImage ? [blog.featuredImage] : [],
     },
   };
 }
 
-export default async function BlogPostPage({ params }: PageProps) {
+export default async function BlogPostPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
-  const blog = await getBlog(slug);
+  const sp = await searchParams;
+  const blog = await jupsoft.getBlogBySlug(slug, sp?.lang);
 
   if (!blog) notFound();
 
+  // Non-blocking view tracking
+  jupsoft.recordView(slug);
+
   return (
-    <article className="max-w-3xl mx-auto py-12 px-4">
-      <h1 className="text-4xl font-bold tracking-tight mb-4">{blog.title}</h1>
-      <div className="text-sm text-slate-500 mb-8 font-mono">
-        By {blog.authorName} &middot; {blog.readingTimeMinutes} min read
-      </div>
-      <div 
-        className="prose prose-slate dark:prose-invert max-w-none"
-        dangerouslySetInnerHTML={{ __html: blog.content }} 
+    <main className="max-w-4xl mx-auto py-12 px-4 sm:px-6">
+      {/* Schema.org JSON-LD structured data for Google rich search results */}
+      {blog.schemaJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(blog.schemaJsonLd) }}
+        />
+      )}
+
+      <header className="mb-8">
+        <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-slate-900 mb-4">
+          {blog.title}
+        </h1>
+        <div className="flex items-center gap-3 text-sm text-slate-500">
+          <span className="font-medium text-slate-900">{blog.authorName}</span>
+          <span>&middot;</span>
+          <span>{blog.readTimeMinutes} min read</span>
+        </div>
+      </header>
+
+      {blog.featuredImage && (
+        <img
+          src={blog.featuredImage}
+          alt={blog.title}
+          className="w-full h-80 sm:h-96 object-cover rounded-2xl mb-8 shadow-sm"
+        />
+      )}
+
+      <div
+        className="prose prose-slate lg:prose-lg max-w-none"
+        dangerouslySetInnerHTML={{ __html: blog.content }}
       />
-    </article>
+    </main>
   );
 }`;
 
-  const webhookHandlerSnippet = `// app/api/revalidate/route.ts (On-Demand Next.js ISR Purge)
+  // Next.js 16 On-Demand Revalidation Route Handler
+  const webhookHandlerSnippet = `// app/api/revalidate/route.ts (Next.js 16 On-Demand ISR Cache Purge)
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
-import crypto from 'crypto';
+import { jupsoft } from '@/lib/jupsoft-sdk';
 
 export async function POST(req: NextRequest) {
   const bodyText = await req.text();
   const signature = req.headers.get('x-signature');
-  const secret = process.env.JUPSOFT_WEBHOOK_SECRET || '';
+  const secret = process.env.CMS_WEBHOOK_SECRET || '';
 
-  // 1. Verify HMAC SHA-256 signature (TRD Section 13)
-  const expectedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(bodyText)
-    .digest('hex');
-
-  if (signature !== expectedSignature) {
+  // 1. Verify HMAC SHA-256 signature using the SDK
+  const isValid = await jupsoft.verifyWebhookSignature(bodyText, signature, secret);
+  if (!isValid) {
     return NextResponse.json({ error: 'Invalid HMAC signature' }, { status: 401 });
   }
 
@@ -299,8 +468,11 @@ export async function POST(req: NextRequest) {
 
   // 2. Invalidate specific article cache and list tags
   if (payload.event === 'blog.published' || payload.event === 'blog.archived') {
-    revalidateTag(\`blog:\${payload.slug}\`);
+    if (payload.slug) {
+      revalidateTag(\`blog:\${payload.slug}\`);
+    }
     revalidateTag('blogs');
+    revalidateTag('blogs-list');
   }
 
   return NextResponse.json({ revalidated: true, now: Date.now() });
@@ -316,12 +488,9 @@ export async function POST(req: NextRequest) {
               Developer API Portal &amp; SDK
             </h1>
             <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700">
-              REST v1.0
+              Next.js 16 Ready
             </span>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Integrate Jupsoft CMS with consuming frontend websites using high-speed cached JSON APIs and Next.js ISR.
-          </p>
         </div>
 
         {/* Tenant Scope Indicator */}
@@ -355,7 +524,7 @@ export async function POST(req: NextRequest) {
           }`}
         >
           <FileCode2 className="w-3.5 h-3.5" />
-          <span>Next.js 15 Integration Snippets</span>
+          <span>Next.js 16 SDK &amp; Integration</span>
         </button>
 
         <button
@@ -547,33 +716,78 @@ export async function POST(req: NextRequest) {
               ) : (
                 <div className="py-24 text-center text-xs text-slate-400 space-y-2">
                   <Code2 className="w-8 h-8 text-slate-300 dark:text-slate-700 mx-auto" />
-                  <p>Click &quot;Send Test Request&quot; to test consumer REST endpoints with live store data.</p>
+                  <div>Ready for request</div>
                 </div>
               )}
             </div>
 
             <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-              <span>TRD v1.0 Contract: 100% NestJS Compliant</span>
-              <span>CDN: AWS CloudFront</span>
+              <span>REST API v1</span>
+              <span>Edge Cached</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* TAB 2: NEXT.JS 15 SNIPPETS */}
+      {/* TAB 2: NEXT.JS 16 SNIPPETS */}
       {activeTab === 'snippets' && (
         <div className="space-y-6">
-          {/* Consumer Dynamic Route */}
+          {/* Card 1: Environment Variables */}
           <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <FileCode2 className="w-4 h-4 text-slate-500" />
-                  1. Next.js 15 App Router Article Page (`app/blog/[slug]/page.tsx`)
+                  <Key className="w-4 h-4 text-amber-500" />
+                  1. Environment Configuration (`.env.local`)
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Combines ISR cache revalidation, metadata SEO extraction, and dynamic tag binding.
-                </p>
+              </div>
+
+              <button
+                onClick={() => copyToClipboard(envConfigSnippet, 'env-config')}
+                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+              >
+                {copiedCode === 'env-config' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedCode === 'env-config' ? 'Copied' : 'Copy Env'}</span>
+              </button>
+            </div>
+
+            <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto leading-relaxed border border-slate-800">
+              {envConfigSnippet}
+            </pre>
+          </div>
+
+          {/* Card 2: Turnkey Next.js 16 SDK Client */}
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Code2 className="w-4 h-4 text-blue-500" />
+                  2. Next.js 16 Type-Safe Client SDK (`lib/jupsoft-sdk.ts`)
+                </h3>
+              </div>
+
+              <button
+                onClick={() => copyToClipboard(nextjsSdkSnippet, 'next-sdk')}
+                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+              >
+                {copiedCode === 'next-sdk' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedCode === 'next-sdk' ? 'Copied' : 'Copy SDK'}</span>
+              </button>
+            </div>
+
+            <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[460px] leading-relaxed border border-slate-800">
+              {nextjsSdkSnippet}
+            </pre>
+          </div>
+
+          {/* Card 3: Next.js 16 Consumer Dynamic Route */}
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <FileCode2 className="w-4 h-4 text-emerald-500" />
+                  3. Next.js 16 App Router Dynamic Article (`app/blog/[slug]/page.tsx`)
+                </h3>
               </div>
 
               <button
@@ -585,22 +799,19 @@ export async function POST(req: NextRequest) {
               </button>
             </div>
 
-            <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto leading-relaxed border border-slate-800">
+            <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[460px] leading-relaxed border border-slate-800">
               {nextjsConsumerSnippet}
             </pre>
           </div>
 
-          {/* Webhook Handler Route */}
+          {/* Card 4: Webhook Revalidation Route Handler */}
           <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-slate-500" />
-                  2. Webhook Revalidation Route Handler (`app/api/revalidate/route.ts`)
+                  <Zap className="w-4 h-4 text-violet-500" />
+                  4. On-Demand ISR Cache Purge Webhook (`app/api/revalidate/route.ts`)
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Verifies `x-signature` HMAC SHA-256 and calls `revalidateTag` for sub-second purge.
-                </p>
               </div>
 
               <button
@@ -612,7 +823,7 @@ export async function POST(req: NextRequest) {
               </button>
             </div>
 
-            <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto leading-relaxed border border-slate-800">
+            <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[460px] leading-relaxed border border-slate-800">
               {webhookHandlerSnippet}
             </pre>
           </div>
@@ -628,31 +839,16 @@ export async function POST(req: NextRequest) {
               Required Request Headers
             </h3>
             <div className="space-y-3 text-xs">
-              <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
-                <div className="font-mono font-semibold text-slate-800 dark:text-slate-200">
-                  Authorization: Bearer &lt;API_KEY&gt;
-                </div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                  Tenant secret token matching the target domain.
-                </div>
+              <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 font-mono font-semibold text-slate-800 dark:text-slate-200">
+                Authorization: Bearer &lt;API_KEY&gt;
               </div>
 
-              <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
-                <div className="font-mono font-semibold text-slate-800 dark:text-slate-200">
-                  Accept: application/json
-                </div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                  Mandates standard JSON payload structure.
-                </div>
+              <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 font-mono font-semibold text-slate-800 dark:text-slate-200">
+                Accept: application/json
               </div>
 
-              <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
-                <div className="font-mono font-semibold text-slate-800 dark:text-slate-200">
-                  x-signature: &lt;HMAC_SHA256&gt;
-                </div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                  Sent on webhook dispatch to verify authenticity.
-                </div>
+              <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 font-mono font-semibold text-slate-800 dark:text-slate-200">
+                x-signature: &lt;HMAC_SHA256&gt;
               </div>
             </div>
           </div>

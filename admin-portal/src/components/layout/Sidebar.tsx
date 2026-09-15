@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useQueryState } from '../../hooks/useQueryState';
+import { canAccessModule, isGlobalScopeRole, canCreateBlog, AppModule } from '../../utils/permissions';
 import {
   LayoutDashboard,
   FileText,
@@ -13,7 +14,6 @@ import {
   Tags,
   BarChart3,
   Settings,
-  Zap,
   Radio,
   Globe,
   Plus,
@@ -33,13 +33,21 @@ export const Sidebar: React.FC = () => {
     blogs, 
     activeWebsiteId, 
     setActiveWebsite,
+    activeRole,
     websites,
     redirects,
     sidebarOpen,
     toggleSidebar,
+    setSidebarOpen,
     currentUser,
     logout
   } = useBlogStore();
+
+  const handleNavClick = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
+  };
 
   // Sync site param from URL to store on mount/change
   const siteParam = searchParams.get('site');
@@ -51,19 +59,35 @@ export const Sidebar: React.FC = () => {
     }
   }, [siteParam, activeWebsiteId, websites, setActiveWebsite]);
 
+  const isSuperAdmin = isGlobalScopeRole(activeRole);
   const isAllSites = activeWebsiteId === 'all';
   const activeSite = websites.find((w) => w.id === activeWebsiteId) || websites[0];
   
   const displayedBlogs = isAllSites ? blogs : blogs.filter((b) => b.websiteId === activeWebsiteId);
   const underReviewCount = displayedBlogs.filter((b) => b.status === 'Under Review').length;
 
+  // Websites visible to the user: Super Admin sees all; others see only assigned websites
+  const visibleWebsites = isSuperAdmin
+    ? websites
+    : websites.filter((site) => currentUser?.roleAssignments?.[site.id]);
+
   // Preserve site query param when navigating between pages
   const siteQuery = `?site=${activeWebsiteId}`;
 
-  const navItems = [
+  const navItems: {
+    href: string;
+    basePath: string;
+    module: AppModule;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    badge: string | null;
+    badgeColor?: string;
+    isActive: boolean;
+  }[] = [
     {
       href: `/dashboard${siteQuery}`,
       basePath: '/dashboard',
+      module: 'dashboard',
       label: 'Dashboard',
       icon: LayoutDashboard,
       badge: null,
@@ -72,6 +96,7 @@ export const Sidebar: React.FC = () => {
     {
       href: `/blogs${siteQuery}`,
       basePath: '/blogs',
+      module: 'blogs',
       label: 'All Articles',
       icon: FileText,
       badge: displayedBlogs.length > 0 ? displayedBlogs.length.toString() : null,
@@ -80,6 +105,7 @@ export const Sidebar: React.FC = () => {
     {
       href: `/workflow${siteQuery}`,
       basePath: '/workflow',
+      module: 'workflow',
       label: 'Workflow Kanban',
       icon: Kanban,
       badge: underReviewCount > 0 ? underReviewCount.toString() : null,
@@ -89,6 +115,7 @@ export const Sidebar: React.FC = () => {
     {
       href: `/media${siteQuery}`,
       basePath: '/media',
+      module: 'media',
       label: 'Media Library',
       icon: ImageIcon,
       badge: 'WebP',
@@ -98,6 +125,7 @@ export const Sidebar: React.FC = () => {
     {
       href: `/taxonomy${siteQuery}`,
       basePath: '/taxonomy',
+      module: 'taxonomy',
       label: 'Categories & Tags',
       icon: Tags,
       badge: null,
@@ -106,6 +134,7 @@ export const Sidebar: React.FC = () => {
     {
       href: `/redirects${siteQuery}`,
       basePath: '/redirects',
+      module: 'redirects',
       label: '301 Redirects',
       icon: ArrowRightLeft,
       badge: redirects.length > 0 ? redirects.length.toString() : null,
@@ -115,6 +144,7 @@ export const Sidebar: React.FC = () => {
     {
       href: `/analytics${siteQuery}`,
       basePath: '/analytics',
+      module: 'analytics',
       label: 'Content Analytics',
       icon: BarChart3,
       badge: null,
@@ -123,6 +153,7 @@ export const Sidebar: React.FC = () => {
     {
       href: `/developers${siteQuery}`,
       basePath: '/developers',
+      module: 'developers',
       label: 'Developer API Portal',
       icon: Code2,
       badge: 'REST',
@@ -132,6 +163,7 @@ export const Sidebar: React.FC = () => {
     {
       href: `/users${siteQuery}`,
       basePath: '/users',
+      module: 'users',
       label: 'Team & RBAC',
       icon: Users,
       badge: null,
@@ -140,12 +172,15 @@ export const Sidebar: React.FC = () => {
     {
       href: `/settings${siteQuery}`,
       basePath: '/settings',
+      module: 'settings',
       label: 'Tenant & Settings',
       icon: Settings,
       badge: null,
       isActive: pathname === '/settings',
     },
   ];
+
+  const visibleNavItems = navItems.filter((item) => canAccessModule(activeRole, item.module));
 
   const handleSelectSite = (id: string) => {
     setActiveWebsite(id);
@@ -171,9 +206,13 @@ export const Sidebar: React.FC = () => {
         <div className="p-4 space-y-5">
           {/* Brand Header with Collapse Toggle */}
           <div className="flex items-center justify-between px-2 py-1">
-            <Link href={`/dashboard${siteQuery}`} className="flex items-center space-x-2.5 group">
-              <div className="w-8 h-8 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center justify-center shadow-xs shrink-0 font-black text-xs">
-                <Zap className="w-4 h-4" />
+            <Link 
+              href={`/dashboard${siteQuery}`} 
+              onClick={handleNavClick}
+              className="flex items-center space-x-2.5 group"
+            >
+              <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center shadow-xs shrink-0 bg-transparent p-0.5 border border-slate-200/60 dark:border-slate-800/60">
+                <img src="/jupsoft-icon.png?v=2" alt="Jupsoft" className="w-full h-full object-contain" />
               </div>
               <div>
                 <div className="font-bold text-xs tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
@@ -194,16 +233,19 @@ export const Sidebar: React.FC = () => {
             </button>
           </div>
 
-        {/* Quick Action: New Post */}
-        <div className="px-1">
-          <Link
-            href={`/blogs/new${siteQuery}`}
-            className="w-full inline-flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>New Article</span>
-          </Link>
-        </div>
+        {/* Quick Action: New Post (Only if permitted to create blogs) */}
+        {canCreateBlog(activeRole) && (
+          <div className="px-1">
+            <Link
+              href={`/blogs/new${siteQuery}`}
+              onClick={handleNavClick}
+              className="w-full inline-flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>New Article</span>
+            </Link>
+          </div>
+        )}
 
         {/* Websites Scope Selector */}
         <div className="space-y-1">
@@ -212,31 +254,33 @@ export const Sidebar: React.FC = () => {
               Websites Scope
             </span>
             <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
-              {websites.length} sites
+              {visibleWebsites.length} sites
             </span>
           </div>
 
-          {/* All Websites (Total Overview) */}
-          <button
-            onClick={() => handleSelectSite('all')}
-            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-              isAllSites
-                ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 shadow-xs font-semibold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'
-            }`}
-          >
-            <div className="flex items-center space-x-2 min-w-0">
-              <Globe className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
-              <span className="truncate text-xs">All Websites (Total)</span>
-            </div>
-            <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
-              {blogs.length}
-            </span>
-          </button>
+          {/* All Websites (Total Overview) — Only available to Super Admin */}
+          {isSuperAdmin && (
+            <button
+              onClick={() => handleSelectSite('all')}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                isAllSites
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 shadow-xs font-semibold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'
+              }`}
+            >
+              <div className="flex items-center space-x-2 min-w-0">
+                <Globe className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+                <span className="truncate text-xs">All Websites (Total)</span>
+              </div>
+              <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                {blogs.length}
+              </span>
+            </button>
+          )}
 
-          {/* Individual Websites */}
+          {/* Individual Websites (Scoped to visibleWebsites) */}
           <div className="space-y-0.5 pt-0.5">
-            {websites.map((site) => {
+            {visibleWebsites.map((site) => {
               const isSelected = activeWebsiteId === site.id;
               const count = blogs.filter((b) => b.websiteId === site.id).length;
               return (
@@ -269,12 +313,13 @@ export const Sidebar: React.FC = () => {
           <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2 pb-1">
             Content Engine
           </div>
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
             return (
               <Link
                 key={item.basePath}
                 href={item.href}
+                onClick={handleNavClick}
                 className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
                   item.isActive
                     ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 shadow-xs font-semibold'

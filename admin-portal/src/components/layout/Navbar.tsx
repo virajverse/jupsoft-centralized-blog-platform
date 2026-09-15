@@ -22,21 +22,22 @@ import {
   PanelLeft,
   PanelLeftClose,
   LogOut,
-  User
+  BookOpen
 } from 'lucide-react';
 import { UserRole } from '../../types';
+import { isGlobalScopeRole, canCreateBlog } from '../../utils/permissions';
+import { UiThemeSwitcher } from './UiThemeSwitcher';
 
 export const Navbar: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { setParam, setParams } = useQueryState();
+  const { setParam } = useQueryState();
   const { 
     websites, 
     activeWebsiteId, 
     setActiveWebsite, 
     activeRole, 
-    setActiveRole, 
     notification,
     clearNotification,
     theme,
@@ -44,22 +45,12 @@ export const Navbar: React.FC = () => {
     sidebarOpen,
     toggleSidebar,
     currentUser,
-    logout
+    logout,
+    setGuideOpen
   } = useBlogStore();
 
   const [siteDropdownOpen, setSiteDropdownOpen] = useState(false);
-  const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
-  const [searchFocused, setSearchFocused] = useState(false);
-  const [localSearch, setLocalSearch] = useState(searchParams.get('q') || '');
-
-  // Sync role param from URL on load
-  const roleParam = searchParams.get('role');
-  useEffect(() => {
-    if (roleParam && roleParam !== activeRole) {
-      setActiveRole(roleParam as UserRole);
-    }
-  }, [roleParam, activeRole, setActiveRole]);
 
   // Global keyboard shortcut Ctrl+B or Cmd+B to toggle sidebar
   useEffect(() => {
@@ -73,11 +64,15 @@ export const Navbar: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [toggleSidebar]);
 
-  // Keep local search synced if URL param changes
+  // Search input state with adjust-during-render pattern
   const qParam = searchParams.get('q') || '';
-  useEffect(() => {
+  const [localSearch, setLocalSearch] = useState(qParam);
+  const [prevQParam, setPrevQParam] = useState(qParam);
+
+  if (prevQParam !== qParam) {
+    setPrevQParam(qParam);
     setLocalSearch(qParam);
-  }, [qParam]);
+  }
 
   const handleSearchChange = (val: string) => {
     setLocalSearch(val);
@@ -101,23 +96,25 @@ export const Navbar: React.FC = () => {
     setParam('site', id);
   };
 
-  const handleSelectRole = (r: UserRole) => {
-    setActiveRole(r);
-    setRoleDropdownOpen(false);
-    setParam('role', r);
-  };
-
+  const isSuperAdmin = isGlobalScopeRole(activeRole);
   const isAllSites = activeWebsiteId === 'all';
   const activeSite = websites.find((w) => w.id === activeWebsiteId);
   const displayName = isAllSites ? 'All Websites' : (activeSite?.name || 'All Websites');
   const displayDomain = isAllSites ? `${websites.length} Connected Domains` : (activeSite?.domain || 'Multi-Tenant');
 
+  // Multi-tenant visible websites: Super Admin sees all; others see only assigned websites
+  const visibleWebsites = isSuperAdmin
+    ? websites
+    : websites.filter((site) => currentUser?.roleAssignments?.[site.id]);
+
   const roles: { role: UserRole; color: string; desc: string }[] = [
-    { role: 'Super Admin', color: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/40', desc: 'Full System & Tenant Control' },
+    { role: 'Super Admin', color: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/40', desc: 'Full System & Global Control' },
+    { role: 'Website Admin', color: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800/40', desc: 'Manage Single Tenant & Team' },
+    { role: 'Role Admin', color: 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-800/40', desc: 'Functional Department Lead' },
     { role: 'Editor', color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40', desc: 'Review & Approve Content' },
     { role: 'Content Writer', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40', desc: 'Draft & Submit Articles' },
     { role: 'Publisher', color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/40', desc: 'Schedule & Publish to CDN' },
-    { role: 'SEO Manager', color: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800/40', desc: 'Meta, Schemas & Audits' },
+    { role: 'SEO Manager', color: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/40', desc: 'Meta, Schemas & Audits' },
   ];
 
   const activeRoleConfig = roles.find((r) => r.role === activeRole) || roles[0];
@@ -149,38 +146,51 @@ export const Navbar: React.FC = () => {
           )}
         </button>
 
+        {!sidebarOpen && (
+          <Link href={`/dashboard${siteQuery}`} className="hidden sm:flex items-center space-x-2 shrink-0 group">
+            <div className="w-6 h-6 rounded-md overflow-hidden bg-transparent p-0.5 border border-slate-200/60 dark:border-slate-800/60 flex items-center justify-center">
+              <img src="/jupsoft-icon.png?v=2" alt="Jupsoft" className="w-full h-full object-contain" />
+            </div>
+            <span className="font-bold text-xs tracking-tight text-slate-900 dark:text-white">JUPSOFT</span>
+          </Link>
+        )}
+
         <div className="relative">
           <button
-            onClick={() => setSiteDropdownOpen(!siteDropdownOpen)}
-            className="flex items-center space-x-2 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-colors text-xs font-semibold text-slate-800 dark:text-slate-200 shadow-2xs cursor-pointer"
+            onClick={() => visibleWebsites.length > 1 && setSiteDropdownOpen(!siteDropdownOpen)}
+            className={`flex items-center space-x-2 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-colors text-xs font-semibold text-slate-800 dark:text-slate-200 shadow-2xs ${visibleWebsites.length > 1 ? 'cursor-pointer' : 'cursor-default'}`}
           >
             <Globe className="w-3.5 h-3.5 text-slate-500" />
             <span>{displayName}</span>
-            <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${siteDropdownOpen ? 'rotate-180' : ''}`} />
+            {visibleWebsites.length > 1 && (
+              <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${siteDropdownOpen ? 'rotate-180' : ''}`} />
+            )}
           </button>
 
-          {siteDropdownOpen && (
+          {siteDropdownOpen && visibleWebsites.length > 1 && (
             <div className="absolute left-0 mt-1.5 w-72 rounded-xl b2b-dropdown p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 shadow-lg">
               <div className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
                 Select Scope
               </div>
               <div className="py-1 space-y-0.5">
-                <button
-                  onClick={() => handleSelectSite('all')}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
-                    isAllSites
-                      ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2">
-                    <Layers className="w-3.5 h-3.5 text-slate-500" />
-                    <span>All Websites (Total)</span>
-                  </div>
-                  {isAllSites && <CheckCircle2 className="w-3.5 h-3.5 text-slate-900 dark:text-white" />}
-                </button>
+                {isSuperAdmin && (
+                  <button
+                    onClick={() => handleSelectSite('all')}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                      isAllSites
+                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Layers className="w-3.5 h-3.5 text-slate-500" />
+                      <span>All Websites (Total)</span>
+                    </div>
+                    {isAllSites && <CheckCircle2 className="w-3.5 h-3.5 text-slate-900 dark:text-white" />}
+                  </button>
+                )}
 
-                {websites.map((site) => (
+                {visibleWebsites.map((site) => (
                   <button
                     key={site.id}
                     onClick={() => handleSelectSite(site.id)}
@@ -208,7 +218,7 @@ export const Navbar: React.FC = () => {
           <span>{displayDomain}</span>
           {!isAllSites && activeSite && (
             <a 
-              href={`https://${activeSite.domain}`} 
+              href={activeSite.domain.startsWith('http') ? activeSite.domain : (activeSite.domain.includes('localhost') || activeSite.domain.includes('127.0.0.1') ? `http://${activeSite.domain}` : `https://${activeSite.domain}`)} 
               target="_blank" 
               rel="noreferrer" 
               className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
@@ -248,6 +258,9 @@ export const Navbar: React.FC = () => {
 
       {/* Right: Controls & Actions */}
       <div className="flex items-center space-x-2">
+        {/* Instant Dual UI Switcher */}
+        <UiThemeSwitcher variant="classic" />
+
         {/* Light / Dark Mode Toggle */}
         <button
           onClick={toggleTheme}
@@ -262,54 +275,37 @@ export const Navbar: React.FC = () => {
           )}
         </button>
 
-        {/* Role Selector with URL param */}
-        <div className="relative">
-          <button
-            onClick={() => setRoleDropdownOpen(!roleDropdownOpen)}
-            className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold transition-colors cursor-pointer ${activeRoleConfig.color}`}
-            title="Simulate RBAC role"
-          >
-            <ShieldCheck className="w-3 h-3" />
-            <span>{activeRole}</span>
-            <ChevronDown className="w-2.5 h-2.5 opacity-60" />
-          </button>
-
-          {roleDropdownOpen && (
-            <div className="absolute right-0 mt-1.5 w-60 rounded-xl b2b-dropdown p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 shadow-lg">
-              <div className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
-                Simulate RBAC Role
-              </div>
-              <div className="py-1 space-y-0.5">
-                {roles.map((r) => (
-                  <button
-                    key={r.role}
-                    onClick={() => handleSelectRole(r.role)}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
-                      r.role === activeRole
-                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold'
-                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
-                    }`}
-                  >
-                    <div className="text-left">
-                      <div className="font-semibold">{r.role}</div>
-                      <div className="text-[10px] text-slate-400">{r.desc}</div>
-                    </div>
-                    {r.role === activeRole && <CheckCircle2 className="w-3.5 h-3.5 text-slate-900 dark:text-white" />}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+        {/* Real User Role Badge - derived from JWT session */}
+        <div
+          className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold ${activeRoleConfig.color}`}
+          title={`Your assigned role: ${activeRole}`}
+        >
+          <ShieldCheck className="w-3 h-3" />
+          <span>{activeRole}</span>
         </div>
 
-        {/* Primary CTA */}
-        <Link
-          href={`/blogs/new${siteQuery}`}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold text-xs shadow-xs transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">New Article</span>
-        </Link>
+        {/* Super Admin How to Use Guide Button */}
+        {isSuperAdmin && (
+          <button
+            onClick={() => setGuideOpen(true)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            title="Super Admin Platform Guide"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            <span className="hidden sm:inline">How to Use</span>
+          </button>
+        )}
+
+        {/* Primary CTA — only if allowed to create blogs */}
+        {canCreateBlog(activeRole) && (
+          <Link
+            href={`/blogs/new${siteQuery}`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold text-xs shadow-xs transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">New Article</span>
+          </Link>
+        )}
 
         {/* User Profile & Sign Out Dropdown */}
         <div className="relative pl-1 border-l border-slate-200 dark:border-slate-800">
@@ -377,3 +373,4 @@ export const Navbar: React.FC = () => {
     </header>
   );
 };
+

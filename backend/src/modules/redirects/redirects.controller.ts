@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Ip } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { RedirectsService } from './redirects.service';
 import { CreateRedirectDto } from './dto/redirect.dto';
@@ -22,16 +22,16 @@ export class RedirectsController {
   }
 
   @Post()
-  @Roles('Super Admin', 'Publisher')
+  @Roles('Super Admin', 'SEO Manager', 'Publisher')
   @ApiOperation({ summary: 'Create manual 301 permanent redirect rule' })
-  async create(@Body() dto: CreateRedirectDto, @CurrentUser() user: any) {
-    return this.redirectsService.create(dto, user);
+  async create(@Body() dto: CreateRedirectDto, @CurrentUser() user: any, @Ip() ip: string) {
+    return this.redirectsService.create(dto, user, ip);
   }
 
   @Delete(':id')
-  @Roles('Super Admin', 'Publisher')
+  @Roles('Super Admin', 'SEO Manager', 'Publisher')
   @ApiOperation({ summary: 'Delete 301 redirect rule' })
-  async delete(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.redirectsService.delete(id, user);
+  async delete(@Param('id') id: string, @CurrentUser() user: any, @Ip() ip: string) {
+    return this.redirectsService.delete(id, user, ip);
   }
 }

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useQueryState } from '../../hooks/useQueryState';
 import { 
@@ -16,19 +16,20 @@ import {
   Search,
   RefreshCw
 } from 'lucide-react';
-import { BlogStatus, Blog, LanguageCode } from '../../types';
+import { LanguageCode } from '../../types';
+import { canDeleteBlog, canCreateBlog } from '../../utils/permissions';
 
 const ALL_LANGUAGES: LanguageCode[] = ['en', 'hi', 'fr', 'ar'];
 
 export const BlogList: React.FC = () => {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const { setParam, setParams } = useQueryState();
+  const { setParam } = useQueryState();
 
   const { 
     blogs, 
     activeWebsiteId, 
     websites, 
+    activeRole,
     deleteBlog,
     fetchBlogs,
     isLoading
@@ -43,29 +44,24 @@ export const BlogList: React.FC = () => {
   const tenantParam = searchParams.get('tenant') || 'all';
   const queryParam = searchParams.get('q') || '';
 
-  const [selectedStatus, setSelectedStatus] = useState<string>(statusParam);
-  const [selectedTenantFilter, setSelectedTenantFilter] = useState<string>(tenantParam);
+  // Derive status and tenant filters directly from URL state
+  const selectedStatus = statusParam;
+  const selectedTenantFilter = tenantParam;
+
+  // Search input state with adjust-during-render pattern
   const [searchVal, setSearchVal] = useState<string>(queryParam);
+  const [prevQueryParam, setPrevQueryParam] = useState<string>(queryParam);
 
-  useEffect(() => {
-    setSelectedStatus(statusParam);
-  }, [statusParam]);
-
-  useEffect(() => {
-    setSelectedTenantFilter(tenantParam);
-  }, [tenantParam]);
-
-  useEffect(() => {
+  if (prevQueryParam !== queryParam) {
+    setPrevQueryParam(queryParam);
     setSearchVal(queryParam);
-  }, [queryParam]);
+  }
 
   const handleStatusChange = (status: string) => {
-    setSelectedStatus(status);
     setParam('status', status === 'All' ? null : status);
   };
 
   const handleTenantChange = (tenant: string) => {
-    setSelectedTenantFilter(tenant);
     setParam('tenant', tenant === 'all' ? null : tenant);
   };
 
@@ -114,13 +110,6 @@ export const BlogList: React.FC = () => {
               {isAllSites ? 'All Websites' : activeSite.name}
             </span>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            {isAllSites ? (
-              <>Unified content plane across <span className="text-slate-800 dark:text-slate-200 font-mono font-medium">{websites.length} connected tenants</span></>
-            ) : (
-              <>Independent content library for <span className="text-slate-800 dark:text-slate-200 font-mono font-medium">{activeSite.domain}</span></>
-            )}
-          </p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -133,36 +122,38 @@ export const BlogList: React.FC = () => {
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
             <span>{isLoading ? 'Syncing...' : 'Refresh'}</span>
           </button>
-          <Link
-            href={`/blogs/new?site=${activeWebsiteId}`}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-medium text-xs shadow-xs transition-colors shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>New Article</span>
-          </Link>
+          {canCreateBlog(activeRole) && (
+            <Link
+              href={`/blogs/new?site=${activeWebsiteId}`}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-medium text-xs shadow-xs transition-colors shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>New Article</span>
+            </Link>
+          )}
         </div>
       </div>
 
       {/* Filter Tabs and Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-[#0f172a] p-2 rounded-xl border border-slate-200 dark:border-slate-800/80 shadow-xs">
-        {/* Status Filter Tabs - URL bound */}
-        <div className="flex flex-wrap items-center gap-1">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white dark:bg-[#0f172a] p-2 sm:p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800/80 shadow-xs">
+        {/* Status Filter Tabs - Smooth horizontal swipe on mobile */}
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1 lg:pb-0 w-full lg:w-auto">
           {statuses.map((s) => {
             const isActive = selectedStatus === s.value;
             return (
               <button
                 key={s.value}
                 onClick={() => handleStatusChange(s.value)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-2 cursor-pointer ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer ${
                   isActive
-                    ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                    ? 'bg-[#4c22cf] text-white shadow-xs'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/60'
                 }`}
               >
                 <span>{s.label}</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-semibold ${
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
                   isActive 
-                    ? 'bg-white/20 text-white dark:bg-slate-900/20 dark:text-slate-900' 
+                    ? 'bg-white/20 text-white' 
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                 }`}>
                   {s.count}
@@ -172,18 +163,18 @@ export const BlogList: React.FC = () => {
           })}
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Tenant Filter Dropdown (in All Websites mode) - URL bound */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
+          {/* Tenant Filter Dropdown */}
           {isAllSites && (
-            <div className="flex items-center gap-2 px-2">
-              <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 font-medium">
+            <div className="flex items-center gap-2 px-1">
+              <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 font-medium whitespace-nowrap shrink-0">
                 <Building2 className="w-3.5 h-3.5 text-slate-400" />
                 Tenant:
               </span>
               <select
                 value={selectedTenantFilter}
                 onChange={(e) => handleTenantChange(e.target.value)}
-                className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-400 cursor-pointer"
+                className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#4c22cf] cursor-pointer w-full sm:w-auto"
               >
                 <option value="all">All Sites ({blogs.length})</option>
                 {websites.map((w) => (
@@ -196,7 +187,7 @@ export const BlogList: React.FC = () => {
           )}
 
           {/* Real-time Search Input */}
-          <div className="relative">
+          <div className="relative w-full sm:w-48">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
@@ -206,7 +197,7 @@ export const BlogList: React.FC = () => {
                 setSearchVal(e.target.value);
                 setParam('q', e.target.value.trim() || null);
               }}
-              className="pl-8 pr-7 py-1 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400 w-36 sm:w-48"
+              className="pl-8 pr-7 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#4c22cf] w-full"
             />
             {searchVal && (
               <button
@@ -214,7 +205,7 @@ export const BlogList: React.FC = () => {
                   setSearchVal('');
                   setParam('q', null);
                 }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -241,14 +232,14 @@ export const BlogList: React.FC = () => {
               >
                 Clear Search Filter
               </button>
-            ) : (
+            ) : canCreateBlog(activeRole) ? (
               <Link
                 href={`/blogs/new?site=${activeWebsiteId}`}
                 className="inline-block px-3.5 py-1.5 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-medium shadow-xs hover:bg-slate-800 cursor-pointer"
               >
                 Draft New Post
               </Link>
-            )}
+            ) : null}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -296,8 +287,8 @@ export const BlogList: React.FC = () => {
                             >
                               {enTrans?.title || 'Untitled Post'}
                             </Link>
-                            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono truncate mt-0.5">
-                              /blog/{enTrans?.slug || 'draft'}
+                            <div className="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
+                              Updated {new Date(blog.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                             </div>
                           </div>
                         </div>
@@ -389,17 +380,19 @@ export const BlogList: React.FC = () => {
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </Link>
-                          <button
-                            onClick={() => {
-                              if (confirm('Are you sure you want to delete this article?')) {
-                                deleteBlog(blog.id);
-                              }
-                            }}
-                            className="p-1.5 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
-                            title="Delete Article"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {canDeleteBlog(activeRole) && (
+                            <button
+                              onClick={() => {
+                                if (confirm('Are you sure you want to delete this article?')) {
+                                  deleteBlog(blog.id);
+                                }
+                              }}
+                              className="p-1.5 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
+                              title="Delete Article"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

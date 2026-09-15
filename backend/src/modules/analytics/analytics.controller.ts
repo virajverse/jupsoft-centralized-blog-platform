@@ -11,7 +11,7 @@
 
 import {
   Controller, Post, Get, Body, Param, Query,
-  UseGuards, Req, HttpCode, HttpStatus,
+  UseGuards, Req, HttpCode, HttpStatus, UsePipes, ValidationPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
@@ -20,13 +20,35 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
 import { Request } from 'express';
 
+import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
+
 class TrackDto {
+  @IsString()
+  @IsNotEmpty()
   blogId: string;
+
+  @IsString()
+  @IsNotEmpty()
   websiteId: string;
+
+  @IsString()
+  @IsNotEmpty()
   sessionId: string;
+
+  @IsString()
+  @IsOptional()
   referrer?: string;
+
+  @IsNumber()
+  @IsOptional()
   readPercent?: number;
+
+  @IsString()
+  @IsOptional()
   event?: 'page_view' | 'read_complete';
+
+  @IsString()
+  @IsOptional()
   country?: string;
 }
 
@@ -40,6 +62,7 @@ export class PublicAnalyticsController {
 
   @Post()
   @HttpCode(HttpStatus.NO_CONTENT) // 204 — TRD §14: fast, no body response
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: false, transform: true }))
   @ApiOperation({ summary: 'Track blog view event — fire-and-forget (TRD §14)' })
   async track(@Body() dto: TrackDto, @Req() req: Request) {
     const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()

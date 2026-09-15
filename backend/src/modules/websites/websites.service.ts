@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateWebsiteDto, UpdateWebsiteDto } from './dto/create-website.dto';
 import * as crypto from 'crypto';
@@ -35,7 +35,7 @@ export class WebsitesService {
     return website;
   }
 
-  async create(dto: CreateWebsiteDto) {
+  async create(dto: CreateWebsiteDto, user?: any, ipAddress?: string) {
     const existing = await this.prisma.website.findFirst({
       where: {
         OR: [{ id: dto.id }, { domain: dto.domain }],
@@ -43,24 +43,23 @@ export class WebsitesService {
     });
 
     if (existing) {
-      throw new ConflictException('A website with this ID or domain already exists');
+      throw new ConflictException(`A website with domain "${dto.domain}" already exists`);
     }
 
-    // Auto-generate secure API key and S3 folder prefix
-    const randomHex = crypto.randomBytes(6).toString('hex');
-    const cleanSlug = dto.id.replace(/^site-/, '');
-    const apiKey = `jup_live_sec_${cleanSlug}_${randomHex}`;
-    const s3Prefix = `blogs/${cleanSlug}/`;
+    // FIX 15: Validate webhook URL format if provided
+    if (dto.revalidateWebhookUrl && !dto.revalidateWebhookUrl.startsWith('https://') && !dto.revalidateWebhookUrl.startsWith('http://')) {
+      throw new BadRequestException('revalidateWebhookUrl must be a valid URL starting with http:// or https://');
+    }
 
     const website = await this.prisma.website.create({
       data: {
-        id: dto.id,
+        id: dto.id || `web-${Date.now()}`,
         name: dto.name,
-        domain: dto.domain.toLowerCase(),
+        domain: dto.domain,
         logoUrl: dto.logoUrl || '',
         description: dto.description || '',
-        apiKey,
-        s3Prefix,
+        apiKey: `jup_sec_${crypto.randomUUID().replace(/-/g, '')}`,
+        s3Prefix: `blogs/${dto.domain.replace(/[^a-zA-Z0-9]/g, '_')}/`,
         status: 'active',
         defaultLanguage: dto.defaultLanguage || 'en',
         supportedLanguages: dto.supportedLanguages || ['en', 'hi', 'fr', 'ar'],
@@ -71,11 +70,11 @@ export class WebsitesService {
     // Record in audit log
     await this.prisma.systemAuditLog.create({
       data: {
-        userName: 'Super Admin',
-        role: 'Super Admin',
+        userName: user?.name || 'Super Admin',
+        role: user?.roles?.[0] || 'Super Admin',
         websiteId: website.id,
         event: 'website.created',
-        ipAddress: '127.0.0.1',
+        ipAddress: ipAddress || '',
         details: `Onboarded new website tenant "${website.name}" (${website.domain}).`,
       },
     });
@@ -86,9 +85,35 @@ export class WebsitesService {
   async update(id: string, dto: UpdateWebsiteDto) {
     await this.findOne(id);
 
+    if (dto.revalidateWebhookUrl && !dto.revalidateWebhookUrl.startsWith('https://') && !dto.revalidateWebhookUrl.startsWith('http://')) {
+      throw new BadRequestException('revalidateWebhookUrl must be a valid URL starting with http:// or https://');
+    }
+
     return this.prisma.website.update({
       where: { id },
       data: dto,
     });
+  }
+
+  async delete(id: string, user?: any, ipAddress?: string) {
+    const website = await this.findOne(id);
+
+    await this.prisma.website.delete({
+      where: { id },
+    });
+
+    // Record in audit log
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: user?.name || 'Super Admin',
+        role: user?.roles?.[0] || 'Super Admin',
+        websiteId: id,
+        event: 'website.deleted',
+        ipAddress: ipAddress || '',
+        details: `Deleted website tenant "${website.name}" (${website.domain}) and cascaded associated data.`,
+      },
+    });
+
+    return { success: true, message: `Website tenant "${website.name}" removed.` };
   }
 }

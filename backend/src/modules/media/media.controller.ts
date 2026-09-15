@@ -12,7 +12,7 @@
 import {
   Controller, Get, Post, Delete, Body, Param, Query,
   UseGuards, UseInterceptors, UploadedFile, ParseFilePipe,
-  MaxFileSizeValidator, FileTypeValidator,
+  MaxFileSizeValidator, FileTypeValidator, Ip,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiConsumes, ApiBody } from '@nestjs/swagger';
@@ -60,17 +60,23 @@ export class MediaController {
       }),
     )
     file: Express.Multer.File,
-    @Query('websiteId') websiteId: string,
-    @Query('altText') altText: string,
+    @Body('websiteId') bodyWebsiteId: string,
+    @Query('websiteId') queryWebsiteId: string,
+    @Body('altText') bodyAltText: string,
+    @Query('altText') queryAltText: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Ip() ip: string,
   ) {
+    const websiteId = queryWebsiteId || bodyWebsiteId;
+    const altText = queryAltText || bodyAltText || '';
     return this.mediaService.processAndUpload(
       file.buffer,
       file.originalname,
       file.mimetype,
       websiteId,
-      altText || '',
+      altText,
       user,
+      ip,
     );
   }
 
@@ -82,8 +88,12 @@ export class MediaController {
 
   @Post('confirm')
   @ApiOperation({ summary: 'Register client-uploaded media asset metadata into database' })
-  async confirmUpload(@Body() dto: ConfirmMediaUploadDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.mediaService.confirmUpload(dto, user);
+  async confirmUpload(
+    @Body() dto: ConfirmMediaUploadDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Ip() ip: string,
+  ) {
+    return this.mediaService.confirmUpload(dto, user, ip);
   }
 
   @Get()
@@ -95,7 +105,11 @@ export class MediaController {
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete media asset (TRD §10: soft-delete with lifecycle cleanup)' })
-  async delete(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.mediaService.delete(id, user);
+  async delete(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Ip() ip: string,
+  ) {
+    return this.mediaService.delete(id, user, ip);
   }
 }

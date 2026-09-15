@@ -1,31 +1,30 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useQueryState } from '../../hooks/useQueryState';
 import { 
   CheckCircle2, 
   Send, 
-  ShieldCheck, 
   History, 
-  RotateCcw, 
-  Plus, 
   FileText, 
   X, 
   Clock, 
-  Calendar, 
   Archive, 
   Zap,
   Search,
   GripVertical,
-  RefreshCw
+  RefreshCw,
+  ShieldCheck,
+  Plus,
+  RotateCcw
 } from 'lucide-react';
-import { BlogStatus, Blog, UserRole } from '../../types';
+import { BlogStatus, Blog, UserRole, WorkflowLog } from '../../types';
+import { canCreateBlog } from '../../utils/permissions';
 
 export const WorkflowKanban: React.FC = () => {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { setParam, setParams } = useQueryState();
 
@@ -53,10 +52,12 @@ export const WorkflowKanban: React.FC = () => {
   // Search filter state (URL query bound)
   const qParam = searchParams.get('q') || '';
   const [searchQuery, setSearchQuery] = useState(qParam);
+  const [prevQParam, setPrevQParam] = useState(qParam);
 
-  useEffect(() => {
+  if (prevQParam !== qParam) {
+    setPrevQParam(qParam);
     setSearchQuery(qParam);
-  }, [qParam]);
+  }
 
   const filteredSiteBlogs = siteBlogs.filter((b) => {
     if (!searchQuery.trim()) return true;
@@ -77,34 +78,20 @@ export const WorkflowKanban: React.FC = () => {
   const transitionParam = searchParams.get('transition');
   const targetParam = searchParams.get('target') as BlogStatus;
 
-  const [activeNoteModal, setActiveNoteModal] = useState<{
-    blog: Blog;
-    targetStatus: BlogStatus;
-  } | null>(null);
   const [reviewNote, setReviewNote] = useState('');
   const [scheduledDate, setScheduledDate] = useState('2026-09-25T09:00');
-  const [selectedAuditBlog, setSelectedAuditBlog] = useState<Blog | null>(null);
 
-  // Sync logParam with selectedAuditBlog
-  useEffect(() => {
-    if (logParam) {
-      const found = blogs.find((b) => b.id === logParam);
-      if (found) setSelectedAuditBlog(found);
-    } else {
-      setSelectedAuditBlog(null);
-    }
+  // Derive selectedAuditBlog from logParam without useEffect cascading renders
+  const selectedAuditBlog = useMemo(() => {
+    if (!logParam) return null;
+    return blogs.find((b) => b.id === logParam) || null;
   }, [logParam, blogs]);
 
-  // Sync transitionParam & targetParam with activeNoteModal
-  useEffect(() => {
-    if (transitionParam && targetParam) {
-      const found = blogs.find((b) => b.id === transitionParam);
-      if (found) {
-        setActiveNoteModal({ blog: found, targetStatus: targetParam });
-      }
-    } else {
-      setActiveNoteModal(null);
-    }
+  // Derive activeNoteModal from transitionParam & targetParam without useEffect cascading renders
+  const activeNoteModal = useMemo(() => {
+    if (!transitionParam || !targetParam) return null;
+    const found = blogs.find((b) => b.id === transitionParam);
+    return found ? { blog: found, targetStatus: targetParam } : null;
   }, [transitionParam, targetParam, blogs]);
 
   const columns: { status: BlogStatus; label: string; desc: string; countBadge: string }[] = [
@@ -147,12 +134,13 @@ export const WorkflowKanban: React.FC = () => {
   ];
 
   const canTransition = (from: BlogStatus, to: BlogStatus, role: UserRole): boolean => {
-    if (role === 'Super Admin') return true;
-    if (role === 'Content Writer' && from === 'Draft' && to === 'Under Review') return true;
-    if (role === 'Editor') {
+    if (role === 'Super Admin' || role === 'Website Admin') return true;
+    if (role === 'Role Admin' || role === 'Editor') {
       if (from === 'Under Review' && (to === 'Approved' || to === 'Draft')) return true;
       if (from === 'Draft' && to === 'Under Review') return true;
+      if (from === 'Approved' && to === 'Under Review') return true;
     }
+    if (role === 'Content Writer' && from === 'Draft' && to === 'Under Review') return true;
     if (role === 'Publisher') {
       if (from === 'Approved' && (to === 'Published' || to === 'Scheduled')) return true;
       if (from === 'Scheduled' && to === 'Published') return true;
@@ -218,7 +206,6 @@ export const WorkflowKanban: React.FC = () => {
 
   const closeTransitionModal = () => {
     setParams({ transition: null, target: null });
-    setActiveNoteModal(null);
   };
 
   const submitTransition = () => {
@@ -242,7 +229,6 @@ export const WorkflowKanban: React.FC = () => {
 
   const closeLogModal = () => {
     setParam('log', null);
-    setSelectedAuditBlog(null);
   };
 
   return (
@@ -262,20 +248,14 @@ export const WorkflowKanban: React.FC = () => {
               {isAllSites ? 'All Websites' : activeSite.name}
             </span>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            {isAllSites 
-              ? `Unified pipeline across ${websites.length} tenant libraries`
-              : `Scoped strictly to ${activeSite.domain}`
-            }
-          </p>
 
-          {/* Tenant Selector Tabs if in All Websites mode */}
+          {/* Tenant Selector Tabs if in All Websites mode - Smooth mobile scroll */}
           {isAllSites && (
-            <div className="flex flex-wrap items-center gap-1.5 mt-3 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg w-fit border border-slate-200 dark:border-slate-700">
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium px-2">Scope Filter:</span>
+            <div className="flex items-center gap-1.5 mt-3 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full sm:w-fit border border-slate-200 dark:border-slate-700 overflow-x-auto scrollbar-none">
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium px-2 shrink-0">Scope:</span>
               <button
                 onClick={() => setParam('tenant', null)}
-                className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
                   !tenantParam
                     ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-xs'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -287,7 +267,7 @@ export const WorkflowKanban: React.FC = () => {
                 <button
                   key={w.id}
                   onClick={() => setParam('tenant', w.id)}
-                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
                     tenantParam === w.id
                       ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-xs'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -352,9 +332,9 @@ export const WorkflowKanban: React.FC = () => {
         </div>
       </div>
 
-      {/* Kanban Board Container */}
-      <div className="flex-1 min-h-0 overflow-x-auto pb-2">
-        <div className="flex gap-4 min-w-[1040px] h-full items-start">
+      {/* Kanban Board Container - Touch momentum scroll with snap */}
+      <div className="flex-1 min-h-0 overflow-x-auto pb-4 scrollbar-thin snap-x snap-mandatory">
+        <div className="flex gap-4 min-w-[960px] h-full items-start">
           {columns.map((col) => {
             const colBlogs = filteredSiteBlogs.filter((b) => b.status === col.status);
             const isDragOver = dragOverColumn === col.status;
@@ -365,7 +345,7 @@ export const WorkflowKanban: React.FC = () => {
                 onDragOver={(e) => handleDragOver(e, col.status)}
                 onDragLeave={(e) => handleDragLeave(e, col.status)}
                 onDrop={(e) => handleDrop(e, col.status)}
-                className={`w-80 shrink-0 flex flex-col max-h-full rounded-2xl p-4 border transition-all duration-150 shadow-xs ${
+                className={`snap-start w-72 sm:w-80 shrink-0 flex flex-col max-h-full rounded-2xl p-4 border transition-all duration-150 shadow-xs ${
                   isDragOver
                     ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40 ring-2 ring-indigo-400/50'
                     : 'bg-slate-50/75 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800'
@@ -373,14 +353,11 @@ export const WorkflowKanban: React.FC = () => {
               >
                 {/* Column Header */}
                 <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 shrink-0">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">{col.label}</h3>
-                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${col.countBadge}`}>
-                        {colBlogs.length}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{col.desc}</p>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">{col.label}</h3>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${col.countBadge}`}>
+                      {colBlogs.length}
+                    </span>
                   </div>
                 </div>
 
@@ -393,7 +370,7 @@ export const WorkflowKanban: React.FC = () => {
                         : 'text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-800'
                     }`}>
                       <div className="text-xs font-medium">{isDragOver ? 'Drop to move here' : `No articles in ${col.label}`}</div>
-                      {!isDragOver && col.status === 'Draft' && (
+                      {!isDragOver && col.status === 'Draft' && canCreateBlog(activeRole) && (
                         <Link
                           href={`/blogs/new?site=${effectiveSiteId}`}
                           className="mt-2 text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-medium inline-block mx-auto"
@@ -446,9 +423,6 @@ export const WorkflowKanban: React.FC = () => {
                               >
                                 {enTrans?.title || 'Untitled Post'}
                               </Link>
-                              <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate mt-0.5">
-                                /blog/{enTrans?.slug || 'draft'}
-                              </div>
                             </div>
                           </div>
 
@@ -485,132 +459,117 @@ export const WorkflowKanban: React.FC = () => {
                             </button>
                           </div>
 
-                          {/* Role-Guarded Actions */}
-                          <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-                            {col.status === 'Draft' && (
+                          {/* Role-Guarded Actions - Only rendered if role has permission */}
+                          {col.status === 'Draft' && canTransition('Draft', 'Under Review', activeRole) && (
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
                               <button
-                                disabled={!canTransition('Draft', 'Under Review', activeRole)}
                                 onClick={() => handleAction(blog, 'Under Review')}
-                                className={`w-full py-1.5 px-2.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                                  canTransition('Draft', 'Under Review', activeRole)
-                                    ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
-                                    : 'bg-slate-100 text-slate-400 dark:bg-slate-800/50 dark:text-slate-600 cursor-not-allowed'
-                                }`}
+                                className="w-full py-1.5 px-2.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer bg-amber-600 hover:bg-amber-700 text-white shadow-xs"
                               >
                                 <Send className="w-3 h-3" />
                                 <span>Submit for Review</span>
                               </button>
-                            )}
+                            </div>
+                          )}
 
-                            {col.status === 'Under Review' && (
+                          {col.status === 'Under Review' && (canTransition('Under Review', 'Approved', activeRole) || canTransition('Under Review', 'Draft', activeRole)) && (
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
                               <div className="w-full flex items-center gap-2">
-                                <button
-                                  disabled={!canTransition('Under Review', 'Approved', activeRole)}
-                                  onClick={() => handleAction(blog, 'Approved')}
-                                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-colors cursor-pointer ${
-                                    canTransition('Under Review', 'Approved', activeRole)
-                                      ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs'
-                                      : 'bg-slate-100 text-slate-400 dark:bg-slate-800/50 dark:text-slate-600 cursor-not-allowed'
-                                  }`}
-                                >
-                                  <CheckCircle2 className="w-3 h-3" /> Approve
-                                </button>
-                                <button
-                                  disabled={!canTransition('Under Review', 'Draft', activeRole)}
-                                  onClick={() => handleAction(blog, 'Draft')}
-                                  className={`py-1.5 px-2.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-colors cursor-pointer ${
-                                    canTransition('Under Review', 'Draft', activeRole)
-                                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300'
-                                      : 'bg-slate-100 text-slate-400 dark:bg-slate-800/50 dark:text-slate-600 cursor-not-allowed'
-                                  }`}
-                                  title="Request revisions"
-                                >
-                                  <RotateCcw className="w-3 h-3" /> Changes
-                                </button>
+                                {canTransition('Under Review', 'Approved', activeRole) && (
+                                  <button
+                                    onClick={() => handleAction(blog, 'Approved')}
+                                    className="flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-colors cursor-pointer bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
+                                  >
+                                    <CheckCircle2 className="w-3 h-3" /> Approve
+                                  </button>
+                                )}
+                                {canTransition('Under Review', 'Draft', activeRole) && (
+                                  <button
+                                    onClick={() => handleAction(blog, 'Draft')}
+                                    className="py-1.5 px-2.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-colors cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+                                    title="Request revisions"
+                                  >
+                                    <RotateCcw className="w-3 h-3" /> Changes
+                                  </button>
+                                )}
                               </div>
-                            )}
+                            </div>
+                          )}
 
-                            {col.status === 'Approved' && (
+                          {col.status === 'Approved' && (canTransition('Approved', 'Published', activeRole) || canTransition('Approved', 'Scheduled', activeRole)) && (
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
                               <div className="w-full flex items-center gap-2">
-                                <button
-                                  disabled={!canTransition('Approved', 'Published', activeRole)}
-                                  onClick={() => handleAction(blog, 'Published')}
-                                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                                    canTransition('Approved', 'Published', activeRole)
-                                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
-                                      : 'bg-slate-100 text-slate-400 dark:bg-slate-800/50 dark:text-slate-600 cursor-not-allowed'
-                                  }`}
-                                >
-                                  <Zap className="w-3 h-3" />
-                                  <span>Publish</span>
-                                </button>
-                                <button
-                                  disabled={!canTransition('Approved', 'Scheduled', activeRole)}
-                                  onClick={() => handleAction(blog, 'Scheduled')}
-                                  className={`py-1.5 px-2.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-colors cursor-pointer ${
-                                    canTransition('Approved', 'Scheduled', activeRole)
-                                      ? 'bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/60 hover:bg-purple-100'
-                                      : 'bg-slate-100 text-slate-400 dark:bg-slate-800/50 dark:text-slate-600 cursor-not-allowed'
-                                  }`}
-                                  title="Schedule release"
-                                >
-                                  <Clock className="w-3 h-3" />
-                                  <span>Schedule</span>
-                                </button>
+                                {canTransition('Approved', 'Published', activeRole) && (
+                                  <button
+                                    onClick={() => handleAction(blog, 'Published')}
+                                    className="flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                                  >
+                                    <Zap className="w-3 h-3" />
+                                    <span>Publish</span>
+                                  </button>
+                                )}
+                                {canTransition('Approved', 'Scheduled', activeRole) && (
+                                  <button
+                                    onClick={() => handleAction(blog, 'Scheduled')}
+                                    className="py-1.5 px-2.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-colors cursor-pointer bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/60 hover:bg-purple-100"
+                                    title="Schedule release"
+                                  >
+                                    <Clock className="w-3 h-3" />
+                                    <span>Schedule</span>
+                                  </button>
+                                )}
                               </div>
-                            )}
+                            </div>
+                          )}
 
-                            {col.status === 'Scheduled' && (
-                              <div className="space-y-2">
-                                <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/50 text-[11px] text-purple-700 dark:text-purple-300 font-mono flex items-center gap-1.5">
-                                  <Clock className="w-3.5 h-3.5 shrink-0" />
-                                  <span className="truncate">
-                                    {blog.scheduledAt ? new Date(blog.scheduledAt).toLocaleDateString() + ' ' + new Date(blog.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Scheduled'}
-                                  </span>
-                                </div>
+                          {col.status === 'Scheduled' && (
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                              <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/50 text-[11px] text-purple-700 dark:text-purple-300 font-mono flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5 shrink-0" />
+                                <span className="truncate">
+                                  {blog.scheduledAt ? new Date(blog.scheduledAt).toLocaleDateString() + ' ' + new Date(blog.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Scheduled'}
+                                </span>
+                              </div>
+                              {canTransition('Scheduled', 'Published', activeRole) && (
                                 <button
-                                  disabled={!canTransition('Scheduled', 'Published', activeRole)}
                                   onClick={() => handleAction(blog, 'Published')}
-                                  className={`w-full py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                                    canTransition('Scheduled', 'Published', activeRole)
-                                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950 hover:bg-slate-800 dark:hover:bg-slate-100 shadow-xs'
-                                      : 'bg-slate-100 text-slate-400 dark:bg-slate-800/50 dark:text-slate-600 cursor-not-allowed'
-                                  }`}
+                                  className="w-full py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer bg-slate-900 text-white dark:bg-white dark:text-slate-950 hover:bg-slate-800 dark:hover:bg-slate-100 shadow-xs"
                                 >
                                   <Zap className="w-3 h-3" />
                                   <span>Release Now</span>
                                 </button>
-                              </div>
-                            )}
+                              )}
+                            </div>
+                          )}
 
-                            {col.status === 'Published' && (
-                              <div className="space-y-2">
-                                <div className="w-full text-center text-[11px] text-emerald-700 dark:text-emerald-400 font-mono py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60">
-                                  ✓ Live on {activeSite.domain}
-                                </div>
-                                {canTransition('Published', 'Archived', activeRole) && (
-                                  <button
-                                    onClick={() => handleAction(blog, 'Archived')}
-                                    className="w-full py-1 px-2 rounded-md text-[11px] text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors flex items-center justify-center gap-1 cursor-pointer"
-                                  >
-                                    <Archive className="w-3 h-3" />
-                                    <span>Retire to Archive</span>
-                                  </button>
-                                )}
+                          {col.status === 'Published' && (
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                              <div className="w-full text-center text-[11px] text-emerald-700 dark:text-emerald-400 font-mono py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60">
+                                ✓ Live on {activeSite.domain}
                               </div>
-                            )}
+                              {canTransition('Published', 'Archived', activeRole) && (
+                                <button
+                                  onClick={() => handleAction(blog, 'Archived')}
+                                  className="w-full py-1 px-2 rounded-md text-[11px] text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                                >
+                                  <Archive className="w-3 h-3" />
+                                  <span>Retire to Archive</span>
+                                </button>
+                              )}
+                            </div>
+                          )}
 
-                            {col.status === 'Archived' && (
+                          {col.status === 'Archived' && canTransition('Archived', 'Draft', activeRole) && (
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
                               <button
-                                disabled={!canTransition('Archived', 'Draft', activeRole)}
                                 onClick={() => handleAction(blog, 'Draft')}
                                 className="w-full py-1.5 px-2 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                               >
                                 <RotateCcw className="w-3 h-3" />
                                 <span>Reactivate as Draft</span>
                               </button>
-                            )}
-                          </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })
@@ -666,21 +625,6 @@ export const WorkflowKanban: React.FC = () => {
                   onChange={(e) => setScheduledDate(e.target.value)}
                   className="w-full bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 rounded-lg p-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-400 font-mono"
                 />
-                <p className="text-[10px] text-purple-600 dark:text-purple-400">
-                  Article will automatically publish and trigger on-demand ISR revalidation at this time.
-                </p>
-              </div>
-            )}
-
-            {activeNoteModal.targetStatus === 'Published' && (
-              <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-xs text-emerald-800 dark:text-emerald-300 space-y-1">
-                <div className="font-semibold flex items-center gap-1">
-                  <Zap className="w-3.5 h-3.5" /> Webhook Revalidation Notice:
-                </div>
-                <div className="text-[11px] text-slate-600 dark:text-slate-300">
-                  Publishing dispatches an HMAC-signed POST request to:
-                  <code className="text-indigo-600 dark:text-indigo-400 block mt-0.5 font-mono">{activeSite.revalidateWebhookUrl}</code>
-                </div>
               </div>
             )}
 
@@ -710,7 +654,7 @@ export const WorkflowKanban: React.FC = () => {
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <History className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                  Audit Trail: workflow_logs
+                  Workflow History
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-sm mt-0.5">
                   {selectedAuditBlog.translations.en?.title || 'Article'}
@@ -728,7 +672,7 @@ export const WorkflowKanban: React.FC = () => {
               {(!selectedAuditBlog.workflowLogs || selectedAuditBlog.workflowLogs.length === 0) ? (
                 <div className="py-8 text-center text-slate-400 text-xs">No recorded logs yet.</div>
               ) : (
-                selectedAuditBlog.workflowLogs.map((log) => (
+                selectedAuditBlog.workflowLogs.map((log: WorkflowLog) => (
                   <div
                     key={log.id}
                     className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1 text-xs"

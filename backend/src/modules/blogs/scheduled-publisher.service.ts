@@ -74,7 +74,7 @@ export class ScheduledPublisherService {
             role: 'Publisher',
             websiteId: blog.websiteId,
             event: 'blog.published',
-            ipAddress: '127.0.0.1',
+            ipAddress: 'system-cron',
             details: `Auto-published scheduled blog "${blog.id}" for domain ${blog.website.domain}.`,
           },
         });

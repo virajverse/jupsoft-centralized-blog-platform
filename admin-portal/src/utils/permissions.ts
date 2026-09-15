@@ -1,0 +1,164 @@
+import { UserRole } from '../types';
+
+export type AppModule = 
+  | 'dashboard'
+  | 'blogs'
+  | 'workflow'
+  | 'media'
+  | 'taxonomy'
+  | 'redirects'
+  | 'analytics'
+  | 'developers'
+  | 'users'
+  | 'settings';
+
+/**
+ * Modular Plugin-Type Feature Visibility Matrix
+ * Maps each UserRole to the exact list of application modules they are permitted to see.
+ */
+const ROLE_MODULE_PERMISSIONS: Record<UserRole, AppModule[]> = {
+  'Super Admin': [
+    'dashboard',
+    'blogs',
+    'workflow',
+    'media',
+    'taxonomy',
+    'redirects',
+    'analytics',
+    'developers',
+    'users',
+    'settings',
+  ],
+  'Website Admin': [
+    'dashboard',
+    'blogs',
+    'workflow',
+    'media',
+    'taxonomy',
+    'redirects',
+    'analytics',
+    'users',
+    'settings',
+  ],
+  'Role Admin': [
+    'dashboard',
+    'blogs',
+    'workflow',
+    'media',
+    'taxonomy',
+    'users',
+  ],
+  'Editor': [
+    'dashboard',
+    'blogs',
+    'workflow',
+    'media',
+    'taxonomy',
+  ],
+  'Content Writer': [
+    'dashboard',
+    'blogs',
+    'media',
+  ],
+  'Publisher': [
+    'dashboard',
+    'blogs',
+    'workflow',
+    'media',
+    'redirects',
+  ],
+  'SEO Manager': [
+    'dashboard',
+    'blogs',
+    'taxonomy',
+    'redirects',
+    'analytics',
+  ],
+};
+
+export function canAccessModule(role: UserRole | string | undefined, module: AppModule): boolean {
+  if (!role) return false;
+  if (role === 'Super Admin') return true;
+  const allowed = ROLE_MODULE_PERMISSIONS[role as UserRole];
+  return allowed ? allowed.includes(module) : false;
+}
+
+export function canCreateBlog(role: UserRole | string | undefined): boolean {
+  return (
+    role === 'Super Admin' ||
+    role === 'Website Admin' ||
+    role === 'Role Admin' ||
+    role === 'Editor' ||
+    role === 'Content Writer'
+  );
+}
+
+export function canPublish(role: UserRole | string | undefined): boolean {
+  return role === 'Super Admin' || role === 'Website Admin' || role === 'Publisher';
+}
+
+export function canApprove(role: UserRole | string | undefined): boolean {
+  return role === 'Super Admin' || role === 'Website Admin' || role === 'Role Admin' || role === 'Editor';
+}
+
+export function canDeleteBlog(role: UserRole | string | undefined): boolean {
+  return role === 'Super Admin' || role === 'Website Admin';
+}
+
+export function canManageUsers(role: UserRole | string | undefined): boolean {
+  return role === 'Super Admin' || role === 'Website Admin' || role === 'Role Admin';
+}
+
+export function canManageWebsites(role: UserRole | string | undefined): boolean {
+  return role === 'Super Admin';
+}
+
+export function canEditWebsiteSettings(role: UserRole | string | undefined): boolean {
+  return role === 'Super Admin' || role === 'Website Admin';
+}
+
+export function isGlobalScopeRole(role: UserRole | string | undefined): boolean {
+  return role === 'Super Admin';
+}
+
+/**
+ * Returns allowed roles that the current user can assign when inviting a new team member.
+ * - Super Admin can assign any role.
+ * - Website Admin can assign any role EXCEPT Super Admin.
+ * - Role Admin can assign roles only within their functional scope.
+ */
+export function getAllowedInviteRoles(
+  currentRole: UserRole | string | undefined,
+  managedRoles?: UserRole[],
+): UserRole[] {
+  if (currentRole === 'Super Admin') {
+    return [
+      'Super Admin',
+      'Website Admin',
+      'Role Admin',
+      'Editor',
+      'Content Writer',
+      'Publisher',
+      'SEO Manager',
+    ];
+  }
+  if (currentRole === 'Website Admin') {
+    return [
+      'Role Admin',
+      'Editor',
+      'Content Writer',
+      'Publisher',
+      'SEO Manager',
+    ];
+  }
+  if (currentRole === 'Role Admin') {
+    if (managedRoles && managedRoles.length > 0) {
+      return managedRoles;
+    }
+    return [
+      'Editor',
+      'Content Writer',
+    ];
+  }
+  return [];
+}

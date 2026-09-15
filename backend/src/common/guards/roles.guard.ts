@@ -29,7 +29,23 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const hasRole = requiredRoles.some((role) => userRoles.includes(role));
+    // Determine target website scope if present in request (query, body, or header)
+    const targetWebsiteId = request.query?.websiteId || request.body?.websiteId || request.headers?.['x-website-id'];
+
+    // FIX 13: Use isGlobal flag instead of websiteId='all' sentinel
+    let applicableRoles: string[] = userRoles;
+    if (targetWebsiteId && user.roleAssignments && user.roleAssignments.length > 0) {
+      applicableRoles = user.roleAssignments
+        .filter((ra: any) => ra.isGlobal || ra.websiteId === targetWebsiteId)
+        .map((ra: any) => ra.role);
+    }
+
+    // If user has Website Admin on target site, they have all non-Super Admin permissions for that site
+    if (applicableRoles.includes('Website Admin') && !requiredRoles.includes('Super Admin')) {
+      return true;
+    }
+
+    const hasRole = requiredRoles.some((role) => applicableRoles.includes(role));
     if (!hasRole) {
       throw new ForbiddenException(`Insufficient permissions. Required role(s): ${requiredRoles.join(', ')}`);
     }

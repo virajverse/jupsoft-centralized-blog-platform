@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { RedirectItem } from '../../types';
 import { 
@@ -9,29 +8,27 @@ import {
   Plus, 
   Search, 
   Trash2, 
-  Globe, 
-  Check, 
   TrendingUp, 
   ShieldCheck, 
-  ExternalLink,
-  ArrowRight,
-  Zap,
-  Info
+  ArrowRight
 } from 'lucide-react';
 
 export const RedirectsView: React.FC = () => {
-  const searchParams = useSearchParams();
   const { 
     redirects, 
     websites, 
     activeWebsiteId, 
+    fetchRedirects,
     addRedirect, 
     deleteRedirect, 
     showNotification 
   } = useBlogStore();
 
+  React.useEffect(() => {
+    fetchRedirects(activeWebsiteId === 'all' ? undefined : activeWebsiteId);
+  }, [activeWebsiteId, fetchRedirects]);
+
   const isAllSites = activeWebsiteId === 'all';
-  const activeSite = websites.find((w) => w.id === activeWebsiteId) || websites[0];
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -88,17 +85,9 @@ export const RedirectsView: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-              301 Permanent Redirects
-            </h1>
-            <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700">
-              TRD Section 7 &amp; 17
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Preserve organic SEO authority and prevent 404 errors whenever published slugs or URLs are updated.
-          </p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+            301 Permanent Redirects
+          </h1>
         </div>
 
         <button
@@ -150,9 +139,6 @@ export const RedirectsView: React.FC = () => {
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">
               Permanent URL Mapping Rules
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Evaluated by CloudFront Edge / Next.js middleware prior to page rendering.
-            </p>
           </div>
 
           <div className="relative w-full sm:w-64">
@@ -198,16 +184,20 @@ export const RedirectsView: React.FC = () => {
                         <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">{site?.domain}</div>
                       </td>
 
-                      <td className="py-3 px-4 font-mono text-slate-700 dark:text-slate-300">
-                        <span className="text-slate-400">/</span>{r.fromSlug}
+                      <td className="py-3 px-4">
+                        <code className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-xs">
+                          /{r.fromSlug}
+                        </code>
                       </td>
 
                       <td className="py-3 px-4 text-center">
                         <ArrowRight className="w-4 h-4 text-slate-400 mx-auto" />
                       </td>
 
-                      <td className="py-3 px-4 font-mono font-semibold text-emerald-600 dark:text-emerald-400">
-                        <span className="text-emerald-400/60">/</span>{r.toSlug}
+                      <td className="py-3 px-4">
+                        <code className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/80 font-mono text-xs">
+                          /{r.toSlug}
+                        </code>
                       </td>
 
                       <td className="py-3 px-4 font-mono">
@@ -243,19 +233,6 @@ export const RedirectsView: React.FC = () => {
               )}
             </tbody>
           </table>
-        </div>
-      </div>
-
-      {/* Architecture Alert */}
-      <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex items-start gap-3 text-xs text-slate-600 dark:text-slate-400">
-        <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-        <div className="space-y-1">
-          <div className="font-semibold text-slate-900 dark:text-white">
-            Automated Slug Protection Guarantee
-          </div>
-          <p className="leading-relaxed">
-            Whenever a published article&apos;s slug is updated in the Blog Editor, Jupsoft CMS automatically registers a 301 Permanent Redirect rule linking the previous slug to the new slug, preventing search engines from dropping indexed rank or penalizing broken back-links.
-          </p>
         </div>
       </div>
 
@@ -334,9 +311,8 @@ export const RedirectsView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 space-y-1">
-                <div>&bull; Status code returned: <span className="font-mono font-semibold text-amber-600 dark:text-amber-400">301 Moved Permanently</span></div>
-                <div>&bull; Informs Googlebot and Bingbot to transfer search rankings immediately.</div>
+              <div className="p-2.5 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
+                HTTP Response: <span className="font-mono font-semibold text-amber-600 dark:text-amber-400">301 Moved Permanently</span>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">

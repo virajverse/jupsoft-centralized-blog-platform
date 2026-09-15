@@ -9,12 +9,12 @@
 FROM node:20-alpine AS builder
 
 # Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 WORKDIR /app
 
 # Copy lockfile + manifests first (cache layer)
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml .npmrc ./
 COPY prisma ./prisma/
 
 # Install all deps (including devDeps for build)
@@ -24,26 +24,26 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 
 # Generate Prisma client
-RUN pnpm prisma generate
+RUN npx prisma generate
 
 # Build NestJS app
-RUN pnpm build
+RUN pnpm run build
 
 # ── Stage 2: Production ───────────────────────────────────────────────────────
 FROM node:20-alpine AS production
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 WORKDIR /app
 
 # Only copy production dependencies
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --prod
-
-# Copy compiled dist and Prisma client from builder
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY package.json pnpm-lock.yaml .npmrc ./
 COPY prisma ./prisma/
+RUN pnpm install --frozen-lockfile --prod
+RUN npx prisma generate
+
+# Copy compiled dist from builder
+COPY --from=builder /app/dist ./dist
 
 # TRD §18: Non-root user for security
 RUN addgroup -S jupsoft && adduser -S cms -G jupsoft
