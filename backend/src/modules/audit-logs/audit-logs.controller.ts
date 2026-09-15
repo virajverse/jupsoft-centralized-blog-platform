@@ -14,7 +14,7 @@ export class AuditLogsController {
   constructor(private readonly auditLogsService: AuditLogsService) {}
 
   @Get()
-  @Roles('Super Admin', 'Editor', 'SEO Manager', 'Publisher')
+  @Roles('Super Admin', 'Website Admin', 'Role Admin', 'Editor', 'Content Writer', 'SEO Manager', 'Publisher')
   @ApiOperation({ summary: 'Retrieve immutable system activity trail (TRD Section 15)' })
   @ApiQuery({ name: 'websiteId', required: false })
   @ApiQuery({ name: 'event', required: false })

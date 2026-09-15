@@ -262,6 +262,26 @@ export class MediaService {
       },
     });
 
+    // In local / dev mode, ensure a valid file exists on disk
+    try {
+      const cleanKey = dto.s3Key.replace(/^\/+/, '');
+      const uploadsDir = join(process.cwd(), 'uploads');
+      const targetPath = join(uploadsDir, cleanKey);
+      if (!fs.existsSync(targetPath)) {
+        const targetDir = dirname(targetPath);
+        if (!fs.existsSync(targetDir)) {
+          fs.mkdirSync(targetDir, { recursive: true });
+        }
+        const svg = `<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100%" height="100%" fill="#4f46e5"/>
+          <text x="50%" y="50%" font-size="20" fill="#ffffff" font-family="sans-serif" font-weight="bold" text-anchor="middle" dy=".3em">${dto.fileName}</text>
+        </svg>`;
+        await sharpFn(Buffer.from(svg)).webp({ quality: 80 }).toFile(targetPath);
+      }
+    } catch (diskErr) {
+      this.logger.warn(`Could not ensure local asset for ${dto.s3Key}: ${(diskErr as Error).message}`);
+    }
+
     return media;
   }
 

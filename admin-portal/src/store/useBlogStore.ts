@@ -660,7 +660,7 @@ export const useBlogStore = create<BlogState>()(
 
       addUser: async (user) => {
         try {
-          const targetWebsiteId = Object.keys(user.roleAssignments)[0] || 'web-1';
+          const targetWebsiteId = Object.keys(user.roleAssignments)[0] || 'site-cloud';
           const targetRole = Object.values(user.roleAssignments)[0] || 'Content Writer';
           const created = await apiClient.inviteUser({
             name: user.name,
@@ -679,10 +679,10 @@ export const useBlogStore = create<BlogState>()(
           }));
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : 'Failed to invite user';
-          set((state) => ({
-            users: [user, ...state.users],
+          set({
             notification: { message: msg, type: 'warning' },
-          }));
+          });
+          throw err;
         }
       },
 

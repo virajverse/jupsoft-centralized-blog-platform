@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { InviteUserDto, UpdateUserRoleDto } from './dto/user.dto';
 import * as bcrypt from 'bcrypt';
@@ -40,7 +40,8 @@ export class UsersService {
       status: u.status,
       lastLoginIp: u.lastLoginIp,
       roleAssignments: u.roleAssignments.reduce((acc, curr) => {
-        acc[curr.websiteId] = curr.role;
+        const key = curr.isGlobal || !curr.websiteId ? 'all' : curr.websiteId;
+        acc[key] = curr.role;
         return acc;
       }, {} as Record<string, string>),
       createdAt: u.createdAt.toISOString(),
@@ -81,6 +82,16 @@ export class UsersService {
     const rawPassword = dto.password?.trim() || `Tmp${Math.random().toString(36).slice(2, 10)}!${Date.now().toString(36)}`;
     const defaultPasswordHash = await bcrypt.hash(rawPassword, 10);
 
+    const isGlobal = dto.websiteId === 'all' || !dto.websiteId;
+    let targetWebsiteId: string | null = null;
+    if (!isGlobal) {
+      const siteExists = await this.prisma.website.findUnique({ where: { id: dto.websiteId } });
+      if (!siteExists) {
+        throw new BadRequestException(`Website with ID "${dto.websiteId}" does not exist`);
+      }
+      targetWebsiteId = dto.websiteId;
+    }
+
     const user = await this.prisma.user.create({
       data: {
         email: dto.email.toLowerCase(),
@@ -90,7 +101,8 @@ export class UsersService {
         status: 'active',
         roleAssignments: {
           create: {
-            websiteId: dto.websiteId,
+            websiteId: targetWebsiteId,
+            isGlobal: isGlobal,
             role: dto.role,
           },
         },
@@ -119,7 +131,8 @@ export class UsersService {
       status: user.status,
       tempPassword: rawPassword,
       roleAssignments: user.roleAssignments.reduce((acc, curr) => {
-        acc[curr.websiteId] = curr.role;
+        const key = curr.isGlobal || !curr.websiteId ? 'all' : curr.websiteId;
+        acc[key] = curr.role;
         return acc;
       }, {} as Record<string, string>),
     };
@@ -151,11 +164,31 @@ export class UsersService {
       throw new NotFoundException(`User "${userId}" not found`);
     }
 
-    await this.prisma.userRoleAssignment.upsert({
-      where: { userId_websiteId: { userId, websiteId: dto.websiteId } },
-      update: { role: dto.role },
-      create: { userId, websiteId: dto.websiteId, role: dto.role },
+    const isGlobal = dto.websiteId === 'all' || !dto.websiteId;
+    const targetWebsiteId = isGlobal ? null : dto.websiteId;
+
+    const existingAssignment = await this.prisma.userRoleAssignment.findFirst({
+      where: {
+        userId,
+        ...(isGlobal ? { isGlobal: true } : { websiteId: targetWebsiteId }),
+      },
     });
+
+    if (existingAssignment) {
+      await this.prisma.userRoleAssignment.update({
+        where: { id: existingAssignment.id },
+        data: { role: dto.role },
+      });
+    } else {
+      await this.prisma.userRoleAssignment.create({
+        data: {
+          userId,
+          websiteId: targetWebsiteId,
+          isGlobal,
+          role: dto.role,
+        },
+      });
+    }
 
     await this.prisma.systemAuditLog.create({
       data: {

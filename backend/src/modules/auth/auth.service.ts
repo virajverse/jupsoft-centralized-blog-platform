@@ -144,7 +144,8 @@ export class AuthService {
         status: user.status,
         roles,
         roleAssignments: user.roleAssignments.reduce((acc, curr) => {
-          acc[curr.websiteId] = curr.role;
+          const key = curr.isGlobal || !curr.websiteId ? 'all' : curr.websiteId;
+          acc[key] = curr.role;
           return acc;
         }, {} as Record<string, string>),
       },
@@ -264,7 +265,8 @@ export class AuthService {
       status: user.status,
       lastLoginIp: user.lastLoginIp,
       roleAssignments: user.roleAssignments.reduce((acc, curr) => {
-        acc[curr.websiteId] = curr.role;
+        const key = curr.isGlobal || !curr.websiteId ? 'all' : curr.websiteId;
+        acc[key] = curr.role;
         return acc;
       }, {} as Record<string, string>),
     };

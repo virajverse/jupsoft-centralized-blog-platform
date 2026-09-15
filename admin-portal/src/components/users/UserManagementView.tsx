@@ -305,23 +305,27 @@ _Please log in and update your password on your first sign-in._`;
       createdAt: new Date().toISOString(),
     };
 
-    await addUser(newUser);
-    showNotification(`Created account for ${inviteName} as ${inviteRole}`, 'success');
-    setIsInviteOpen(false);
+    try {
+      await addUser(newUser);
+      showNotification(`Created account for ${inviteName} as ${inviteRole}`, 'success');
+      setIsInviteOpen(false);
 
-    // Immediately trigger Credentials Share Modal so admin can dispatch via WhatsApp or Email
-    const targetSite = websites.find((w) => w.id === inviteWebsiteId);
-    setShareModalData({
-      user: newUser,
-      website: targetSite,
-      tempPassword: assignedTempPassword,
-    });
+      // Immediately trigger Credentials Share Modal so admin can dispatch via WhatsApp or Email
+      const targetSite = websites.find((w) => w.id === inviteWebsiteId);
+      setShareModalData({
+        user: newUser,
+        website: targetSite,
+        tempPassword: assignedTempPassword,
+      });
 
-    // Reset inputs with freshly generated password for next action
-    setInviteName('');
-    setInviteEmail('');
-    setInvitePassword(generateStrongPassword());
-    setInviteManagedRoles(['Editor', 'Content Writer']);
+      // Reset inputs with freshly generated password for next action
+      setInviteName('');
+      setInviteEmail('');
+      setInvitePassword(generateStrongPassword());
+      setInviteManagedRoles(['Editor', 'Content Writer']);
+    } catch {
+      // Error notification is handled by store
+    }
   };
 
   const filteredUsers = users.filter((u) => {

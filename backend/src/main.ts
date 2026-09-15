@@ -30,6 +30,17 @@ async function bootstrap() {
   app.useStaticAssets(uploadsDir, {
     prefix: '/uploads/',
   });
+  // Fallback for missing images in /uploads so browsers / ORB never block with 500 or JSON error
+  app.use('/uploads', (req: any, res: any, next: any) => {
+    if (req.method === 'GET' && /\.(webp|png|jpe?g|gif|svg)$/i.test(req.path)) {
+      res.setHeader('Content-Type', 'image/svg+xml');
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      return res.status(200).send(
+        `<svg width="300" height="200" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="#f1f5f9"/><text x="50%" y="50%" font-size="14" fill="#94a3b8" font-family="sans-serif" font-weight="600" text-anchor="middle" dy=".3em">Asset Not Found</text></svg>`
+      );
+    }
+    next();
+  });
   logger.log(`📁 Static assets mounted: /uploads -> ${uploadsDir}`);
 
   // 2. Helmet — HTTP Security Headers
