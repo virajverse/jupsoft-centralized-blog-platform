@@ -158,8 +158,18 @@ function createSiteServer(site) {
     };
 
     let targetPath = path.join(site.dir, url.pathname);
-    if (fs.existsSync(targetPath) && fs.statSync(targetPath).isDirectory()) {
+    if (url.pathname.startsWith('/uploads/')) {
+      const sharedUploadPath = path.join(__dirname, url.pathname);
+      const backendUploadPath = path.join(__dirname, '..', 'backend', url.pathname);
+      if (fs.existsSync(sharedUploadPath)) {
+        targetPath = sharedUploadPath;
+      } else if (fs.existsSync(backendUploadPath)) {
+        targetPath = backendUploadPath;
+      }
+    } else if (fs.existsSync(targetPath) && fs.statSync(targetPath).isDirectory()) {
       targetPath = path.join(targetPath, 'index.html');
+    } else if (!fs.existsSync(targetPath) && fs.existsSync(targetPath + '.html')) {
+      targetPath = targetPath + '.html';
     }
 
     if (fs.existsSync(targetPath) && fs.statSync(targetPath).isFile()) {

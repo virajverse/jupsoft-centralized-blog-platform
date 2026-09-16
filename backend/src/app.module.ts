@@ -20,6 +20,7 @@ import { UsersModule } from './modules/users/users.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { TaxonomyModule } from './modules/taxonomy/taxonomy.module';
+import { TranslationModule } from './modules/translation/translation.module';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { LoggerModule } from './common/logger/logger.module';
 import { EmailModule } from './modules/email/email.module';
@@ -59,6 +60,7 @@ import { EmailModule } from './modules/email/email.module';
     AuditLogsModule,
     AnalyticsModule,
     TaxonomyModule,
+    TranslationModule,
   ],
   providers: [
     Reflector,

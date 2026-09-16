@@ -120,7 +120,6 @@ export const ModernSidebar: React.FC = () => {
       module: 'media',
       label: 'Media Library',
       icon: ImageIcon,
-      badge: 'WebP',
       isActive: pathname === '/media',
     },
     {
@@ -154,7 +153,6 @@ export const ModernSidebar: React.FC = () => {
       module: 'developers',
       label: 'Developer API',
       icon: Code2,
-      badge: 'REST',
       isActive: pathname === '/developers',
     },
     {

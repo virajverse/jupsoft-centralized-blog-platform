@@ -229,9 +229,11 @@ export const AnalyticsView: React.FC = () => {
           </div>
           <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
             <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-              {liveData?.uniqueVisitors ? `${liveData.uniqueVisitors} unique` : '+14.2%'}
+              {liveData?.uniqueVisitors !== undefined && liveData.uniqueVisitors > 0
+                ? `${liveData.uniqueVisitors.toLocaleString()} unique`
+                : '0 unique'}
             </span>
-            <span>{liveData?.uniqueVisitors ? 'visitors tracked' : 'vs previous period'}</span>
+            <span>visitors tracked</span>
           </div>
         </div>
 

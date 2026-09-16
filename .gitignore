@@ -49,3 +49,6 @@ __pycache__/
 *.pyo
 *.pyd
 *.egg-info/
+
+# Package tarballs
+*.tgz

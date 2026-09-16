@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useQueryState } from '../../hooks/useQueryState';
 import { UserAccount, UserRole, Website } from '../../types';
-import { getAllowedInviteRoles, canManageUsers, isGlobalScopeRole } from '../../utils/permissions';
+import { getAllowedInviteRoles, canManageUsers, isGlobalScopeRole, cleanAvatarUrl } from '../../utils/permissions';
 import { 
   Users, 
   ShieldCheck, 
@@ -124,10 +124,11 @@ function generateStrongPassword(): string {
 }
 
 function renderUserAvatar(avatar?: string | null, name?: string, sizeClasses = 'w-8 h-8 text-xs') {
-  if (avatar && avatar.trim() !== '') {
+  const safeAvatar = cleanAvatarUrl(avatar);
+  if (safeAvatar && safeAvatar.trim() !== '') {
     return (
       <img
-        src={avatar}
+        src={safeAvatar}
         alt={name || 'User avatar'}
         className={`${sizeClasses} rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0`}
       />
@@ -157,6 +158,7 @@ export const UserManagementView: React.FC = () => {
     addUser, 
     updateUser, 
     deleteUser, 
+    resetUserPassword,
     showNotification 
   } = useBlogStore();
 
@@ -237,6 +239,21 @@ _Please log in and update your password on your first sign-in._`;
     window.open(url, '_blank');
   };
 
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+
+  const handleResetUserPassword = async (userId: string) => {
+    setIsResettingPassword(true);
+    try {
+      const res = await resetUserPassword(userId);
+      if (res.success && res.tempPassword) {
+        setShareModalData((prev) => prev ? { ...prev, tempPassword: res.tempPassword } : null);
+        showNotification(`New temporary password generated: ${res.tempPassword}`, 'success');
+      }
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
   const handleCopyInvite = (user: UserAccount, site?: Website, password?: string) => {
     const text = getInvitationText(user, site, password);
     navigator.clipboard.writeText(text);
@@ -294,7 +311,7 @@ _Please log in and update your password on your first sign-in._`;
       id: `usr-${Date.now()}`,
       name: inviteName.trim(),
       email: inviteEmail.trim().toLowerCase(),
-      avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80`,
+      avatar: '/uploads/avatars/avatar-default.webp',
       roleAssignments: {
         [inviteWebsiteId]: inviteRole,
       },
@@ -628,7 +645,7 @@ _Please log in and update your password on your first sign-in._`;
                                           setShareModalData({
                                             user: member,
                                             website: site,
-                                            tempPassword: member.tempPassword || 'Jupsoft@2026!X',
+                                            tempPassword: member.tempPassword || '',
                                           });
                                         }}
                                         className="p-1 rounded-md text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors cursor-pointer"
@@ -859,7 +876,7 @@ _Please log in and update your password on your first sign-in._`;
                                       setShareModalData({
                                         user: u,
                                         website: site,
-                                        tempPassword: u.tempPassword || 'Jupsoft@2026!X',
+                                        tempPassword: u.tempPassword || '',
                                       });
                                     }}
                                     title="Share Credentials (Email / WhatsApp)"
@@ -1071,7 +1088,7 @@ _Please log in and update your password on your first sign-in._`;
                                   setShareModalData({
                                     user: member,
                                     website: inspectingWebsite,
-                                    tempPassword: member.tempPassword || 'Jupsoft@2026!X',
+                                    tempPassword: member.tempPassword || '',
                                   });
                                 }}
                                 className="p-1 rounded-md text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors cursor-pointer"
@@ -1651,31 +1668,52 @@ _Please log in and update your password on your first sign-in._`;
 
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-medium">Temporary Password:</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-slate-900 dark:text-white font-bold bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200 dark:border-slate-700">
-                    {showSharePassword ? (shareModalData.tempPassword || shareModalData.user.tempPassword || 'Jupsoft@2026!X') : '••••••••••••'}
-                  </span>
+                {(shareModalData.tempPassword || shareModalData.user.tempPassword) ? (
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-slate-900 dark:text-white font-bold bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200 dark:border-slate-700">
+                      {showSharePassword ? (shareModalData.tempPassword || shareModalData.user.tempPassword) : '••••••••••••'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowSharePassword(!showSharePassword)}
+                      className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                      title={showSharePassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showSharePassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const pwd = shareModalData.tempPassword || shareModalData.user.tempPassword || '';
+                        navigator.clipboard.writeText(pwd);
+                        showNotification('Password copied to clipboard', 'info');
+                      }}
+                      className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                      title="Copy password"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleResetUserPassword(shareModalData.user.id)}
+                      disabled={isResettingPassword}
+                      className="p-1 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 cursor-pointer disabled:opacity-50"
+                      title="Regenerate new temporary password"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isResettingPassword ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
+                ) : (
                   <button
                     type="button"
-                    onClick={() => setShowSharePassword(!showSharePassword)}
-                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                    title={showSharePassword ? 'Hide password' : 'Show password'}
+                    onClick={() => handleResetUserPassword(shareModalData.user.id)}
+                    disabled={isResettingPassword}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-50 shadow-xs"
                   >
-                    {showSharePassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    {isResettingPassword ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />}
+                    <span>Generate Password</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const pwd = shareModalData.tempPassword || shareModalData.user.tempPassword || 'Jupsoft@2026!X';
-                      navigator.clipboard.writeText(pwd);
-                      showNotification('Password copied to clipboard', 'info');
-                    }}
-                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                    title="Copy password"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+                )}
               </div>
             </div>
 
@@ -1689,8 +1727,9 @@ _Please log in and update your password on your first sign-in._`;
                 {/* WhatsApp Button */}
                 <button
                   type="button"
-                  onClick={() => handleShareWhatsApp(shareModalData.user, shareModalData.website, shareModalData.tempPassword)}
-                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors cursor-pointer shadow-xs"
+                  disabled={!shareModalData.tempPassword && !shareModalData.user.tempPassword}
+                  onClick={() => handleShareWhatsApp(shareModalData.user, shareModalData.website, shareModalData.tempPassword || shareModalData.user.tempPassword)}
+                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors cursor-pointer shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <MessageSquare className="w-4 h-4 fill-current" />
                   <span>Share via WhatsApp</span>
@@ -1699,8 +1738,9 @@ _Please log in and update your password on your first sign-in._`;
                 {/* Email Button */}
                 <button
                   type="button"
-                  onClick={() => handleShareEmail(shareModalData.user, shareModalData.website, shareModalData.tempPassword)}
-                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors cursor-pointer shadow-xs"
+                  disabled={!shareModalData.tempPassword && !shareModalData.user.tempPassword}
+                  onClick={() => handleShareEmail(shareModalData.user, shareModalData.website, shareModalData.tempPassword || shareModalData.user.tempPassword)}
+                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors cursor-pointer shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Mail className="w-4 h-4" />
                   <span>Share via Email</span>
@@ -1710,8 +1750,9 @@ _Please log in and update your password on your first sign-in._`;
               {/* Copy Text Button */}
               <button
                 type="button"
-                onClick={() => handleCopyInvite(shareModalData.user, shareModalData.website, shareModalData.tempPassword)}
-                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                disabled={!shareModalData.tempPassword && !shareModalData.user.tempPassword}
+                onClick={() => handleCopyInvite(shareModalData.user, shareModalData.website, shareModalData.tempPassword || shareModalData.user.tempPassword)}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {copiedShare ? (
                   <>

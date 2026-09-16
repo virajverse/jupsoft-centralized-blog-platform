@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SEO Trends Modern Brands Should Watch Closely | DigifyNext Blog</title>
+  
+  <!-- ========================================================================= -->
+  <!-- 1. SEO & SOCIAL META LINKS (Search Engines & Social Previews) -->
+  <!-- ========================================================================= -->
+  <meta name="description" content="AI overviews, GEO, zero-click searches and E-E-A-T are changing how brands get found. Here are the SEO trends that actually matter in 2026." />
+  <meta name="keywords" content="SEO trends 2026, AI overviews SEO, GEO optimization, zero click search, E-E-A-T, technical SEO, DigifyNext" />
+  <meta name="author" content="DigifyNext Team" />
+  <meta name="robots" content="index, follow" />
+
+  <!-- Canonical Link (Tells Google this is the primary canonical URL) -->
+  <link rel="canonical" href="http://localhost:5002/blogdetail" />
+
+  <!-- Open Graph Meta Links (WhatsApp, LinkedIn, Facebook preview cards) -->
+  <meta property="og:type" content="article" />
+  <meta property="og:title" content="SEO Trends Modern Brands Should Watch Closely | DigifyNext" />
+  <meta property="og:description" content="AI overviews, GEO, zero-click searches and E-E-A-T are changing how brands get found in 2026." />
+  <meta property="og:url" content="http://localhost:5002/blogdetail" />
+  <meta property="og:image" content="http://localhost:5002/uploads/blogs/site-growth/2026/09/technical-seo-playbook.webp" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Enterprise Technical SEO Playbook 2026" />
+
+  <!-- Twitter / X Meta Links -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="SEO Trends Modern Brands Should Watch Closely" />
+  <meta name="twitter:description" content="AI overviews, GEO, zero-click searches and E-E-A-T are changing how brands get found." />
+  <meta name="twitter:image" content="http://localhost:5002/uploads/blogs/site-growth/2026/09/technical-seo-playbook.webp" />
+
+  <!-- Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            accent: {
+              DEFAULT: '#FC6D10',
+              hover: '#e05a07',
+              50: '#fff7ed',
+              100: '#ffedd5',
+              500: '#fc6d10',
+              600: '#ea580c',
+            },
+            dark: {
+              900: '#0B0F19',
+              800: '#111827',
+              700: '#1F2937',
+            }
+          },
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            heading: ['"Space Grotesk"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    .fx-progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #FC6D10, #ff8c3b);
+      z-index: 9999;
+      width: 0%;
+      transition: width 0.1s ease-out;
+    }
+    .whatsapp-pulse {
+      animation: waPulse 2s infinite;
+    }
+    @keyframes waPulse {
+      0% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.7); }
+      70% { box-shadow: 0 0 0 16px rgba(37, 211, 102, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0); }
+    }
+  </style>
+</head>
+
+<body class="bg-[#fcfcfd] text-[#1e293b] antialiased selection:bg-accent selection:text-white font-sans">
+
+  <!-- 1. Reading Progress Bar -->
+  <div class="fx-progress" id="fxProgressBar"></div>
+
+  <!-- Top System Status Banner -->
+  <div class="bg-dark-900 text-slate-400 text-xs py-2 px-4 border-b border-slate-800">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-orange-950/80 text-orange-400 font-semibold text-[11px] border border-orange-800/60">
+          <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span> DigifyNext Live Client (Port 5002)
+        </span>
+        <span class="hidden sm:inline text-slate-500">·</span>
+        <span class="hidden sm:inline text-slate-400">Template Model: <strong class="text-white">digifynext.com/blogdetail</strong></span>
+      </div>
+      <div class="flex items-center gap-3 text-[11px]">
+        <span id="revalidateBadge" class="inline-flex items-center gap-1 text-emerald-400 font-medium">
+          <i class="fa-solid fa-bolt text-accent"></i> ISR Webhook: <strong>Listening</strong>
+        </span>
+        <span class="text-slate-600">|</span>
+        <a href="http://localhost:3000/settings" target="_blank" class="text-orange-400 hover:text-orange-300 font-semibold flex items-center gap-1">
+          <i class="fa-solid fa-sliders"></i> Central CMS Settings
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. MAIN HEADER & NAVBAR -->
+  <header class="bg-white/95 backdrop-blur-md sticky top-0 z-40 border-b border-slate-100 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-6">
+      
+      <!-- Brand Logo Link -->
+      <a href="http://localhost:5002" class="flex items-center gap-3 group">
+        <div class="w-10 h-10 rounded-xl bg-accent flex items-center justify-center text-white text-xl font-bold shadow-md shadow-accent/30 group-hover:scale-105 transition-transform">
+          <i class="fa-solid fa-bolt"></i>
+        </div>
+        <div class="flex flex-col">
+          <span class="text-xl font-black tracking-tight text-slate-900 font-heading">
+            DIGIFY<span class="text-accent">NEXT</span>
+          </span>
+          <span class="text-[9px] tracking-widest uppercase font-semibold text-slate-400 -mt-1">Growth & Marketing</span>
+        </div>
+      </a>
+
+      <!-- Desktop Navigation Menu Links -->
+      <nav class="hidden lg:flex items-center gap-8 text-sm font-semibold text-slate-700">
+        <a href="http://localhost:5002" class="hover:text-accent transition-colors">Home</a>
+        <a href="#services" class="hover:text-accent transition-colors flex items-center gap-1">
+          Services <i class="fa-solid fa-chevron-down text-[10px] text-slate-400"></i>
+        </a>
+        <a href="#industries" class="hover:text-accent transition-colors">Industries</a>
+        <a href="#pricing" class="hover:text-accent transition-colors">Pricing</a>
+        <a href="http://localhost:5002/blogdetail" class="text-accent flex items-center gap-1 font-bold">
+          Blog <span class="w-1.5 h-1.5 rounded-full bg-accent"></span>
+        </a>
+        <a href="#contact" class="hover:text-accent transition-colors">Contact</a>
+      </nav>
+
+      <!-- Header Action / CTA Link -->
+      <div class="flex items-center gap-3">
+        <a href="https://api.whatsapp.com/send?phone=919599524455&text=Hello%20DigifyNext,%20I%20need%20a%20Free%20SEO%20Audit" target="_blank" class="hidden sm:inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-accent hover:bg-accent-hover text-white text-xs font-bold shadow-md shadow-accent/25 hover:shadow-lg transition-all cursor-pointer">
+          <span>Get Free Audit</span>
+          <i class="fa-solid fa-arrow-right text-[11px]"></i>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- 3. DARK HERO SECTION -->
+  <section class="bg-[#0b101d] text-white py-14 lg:py-20 relative overflow-hidden border-b border-slate-800">
+    <div class="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-accent/10 blur-3xl pointer-events-none"></div>
+    <div class="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-blue-600/10 blur-3xl pointer-events-none"></div>
+
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 relative z-10 text-center">
+      
+      <!-- Category Badge Link -->
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/15 border border-accent/30 text-accent text-xs font-bold uppercase tracking-wider mb-6">
+        <i class="fa-solid fa-magnifying-glass-chart"></i>
+        <a href="#category-seo" class="hover:underline">SEO & AI Search</a>
+      </div>
+
+      <!-- Main Article H1 Title -->
+      <h1 id="articleTitle" class="text-3xl sm:text-4xl lg:text-5xl font-black text-white font-heading tracking-tight leading-tight mb-6">
+        SEO Trends Modern Brands Should Watch Closely
+      </h1>
+
+      <!-- Breadcrumb / Post Meta Details -->
+      <div class="flex flex-wrap items-center justify-center gap-y-2 gap-x-6 text-xs text-slate-300 font-medium">
+        <div class="flex items-center gap-2">
+          <div class="w-6 h-6 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[10px] text-accent font-bold">DN</div>
+          <span class="text-white font-semibold">DigifyNext Team</span>
+        </div>
+        <span class="text-slate-600">·</span>
+        <div class="flex items-center gap-1.5 text-slate-300">
+          <i class="fa-regular fa-calendar text-accent"></i>
+          <span>March 22, 2026</span>
+        </div>
+        <span class="text-slate-600">·</span>
+        <div class="flex items-center gap-1.5 text-slate-300">
+          <i class="fa-regular fa-clock text-accent"></i>
+          <span>6 min read</span>
+        </div>
+        <span class="text-slate-600">·</span>
+        <div class="flex items-center gap-1.5 text-emerald-400">
+          <i class="fa-solid fa-circle-check"></i> Verified Content
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. MAIN ARTICLE CONTAINER -->
+  <main class="max-w-4xl mx-auto px-4 sm:px-6 py-10 lg:py-16">
+
+    <!-- Featured Image Link / CDN Asset -->
+    <div class="mb-10 rounded-2xl overflow-hidden shadow-xl border border-slate-200 bg-white">
+      <img 
+        id="featuredImage"
+        src="/uploads/blogs/site-growth/2026/09/technical-seo-playbook.webp" 
+        alt="SEO Trends Modern Brands Should Watch" 
+        class="w-full h-[320px] sm:h-[440px] object-cover hover:scale-[1.01] transition-transform duration-500"
+      />
+      <div class="p-3 bg-slate-50 border-t border-slate-100 text-center text-xs text-slate-500">
+        AI Search engines like ChatGPT, Perplexity and Google Overviews are rewriting organic search.
+      </div>
+    </div>
+
+    <!-- Key Takeaways Callout Box -->
+    <div class="mb-10 p-6 sm:p-7 rounded-2xl bg-gradient-to-br from-orange-50/80 via-white to-orange-50/40 border border-orange-200/80 shadow-xs">
+      <div class="flex items-center gap-2.5 text-accent font-bold text-base sm:text-lg mb-4 font-heading">
+        <div class="w-8 h-8 rounded-lg bg-accent text-white flex items-center justify-center text-sm shadow-xs">
+          <i class="fa-solid fa-bolt"></i>
+        </div>
+        <span>Key Takeaways for 2026</span>
+      </div>
+      <ul class="space-y-2.5 text-sm text-slate-700 leading-relaxed">
+        <li class="flex items-start gap-2.5">
+          <i class="fa-solid fa-check text-accent mt-1 shrink-0 text-xs"></i>
+          <span><strong>AI overviews sit between your website and your customer:</strong> Being cited by LLMs matters as much as traditional page-one ranking.</span>
+        </li>
+        <li class="flex items-start gap-2.5">
+          <i class="fa-solid fa-check text-accent mt-1 shrink-0 text-xs"></i>
+          <span><strong>Zero-click searches are the default:</strong> More searches end directly on Google results. Brands must optimize to own the direct answer.</span>
+        </li>
+        <li class="flex items-start gap-2.5">
+          <i class="fa-solid fa-check text-accent mt-1 shrink-0 text-xs"></i>
+          <span><strong>Experience beats volume:</strong> Google rewards authentic first-hand experience (E-E-A-T). Generic AI content is getting de-indexed.</span>
+        </li>
+        <li class="flex items-start gap-2.5">
+          <i class="fa-solid fa-check text-accent mt-1 shrink-0 text-xs"></i>
+          <span><strong>Technical health is non-negotiable:</strong> Page speed and clean semantic HTML determine if AI crawlers can even read your content.</span>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Table of Contents (Anchor Links) -->
+    <div class="mb-12 p-6 rounded-2xl bg-white border border-slate-200 shadow-xs">
+      <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2 font-heading">
+        <i class="fa-solid fa-list-ul text-accent"></i> In This Article
+      </h3>
+      <ol class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-slate-700">
+        <li>
+          <a href="#trend-1" class="hover:text-accent flex items-center gap-2 transition-colors py-1 group">
+            <span class="text-xs font-mono text-accent font-bold group-hover:translate-x-0.5 transition-transform">01.</span>
+            <span>AI Overviews are the New Position One</span>
+          </a>
+        </li>
+        <li>
+          <a href="#trend-2" class="hover:text-accent flex items-center gap-2 transition-colors py-1 group">
+            <span class="text-xs font-mono text-accent font-bold group-hover:translate-x-0.5 transition-transform">02.</span>
+            <span>GEO: Getting Cited, Not Just Ranked</span>
+          </a>
+        </li>
+        <li>
+          <a href="#trend-3" class="hover:text-accent flex items-center gap-2 transition-colors py-1 group">
+            <span class="text-xs font-mono text-accent font-bold group-hover:translate-x-0.5 transition-transform">03.</span>
+            <span>Zero-Click Searches are the Default</span>
+          </a>
+        </li>
+        <li>
+          <a href="#trend-4" class="hover:text-accent flex items-center gap-2 transition-colors py-1 group">
+            <span class="text-xs font-mono text-accent font-bold group-hover:translate-x-0.5 transition-transform">04.</span>
+            <span>Experience & E-E-A-T Beats Volume</span>
+          </a>
+        </li>
+        <li>
+          <a href="#trend-5" class="hover:text-accent flex items-center gap-2 transition-colors py-1 group">
+            <span class="text-xs font-mono text-accent font-bold group-hover:translate-x-0.5 transition-transform">05.</span>
+            <span>Technical Health Decides AI Visibility</span>
+          </a>
+        </li>
+        <li>
+          <a href="#what-to-do" class="hover:text-accent flex items-center gap-2 transition-colors py-1 group">
+            <span class="text-xs font-mono text-accent font-bold group-hover:translate-x-0.5 transition-transform">06.</span>
+            <span>What Your Brand Should Do Next</span>
+          </a>
+        </li>
+      </ol>
+    </div>
+
+    <!-- Article Body Typography -->
+    <article class="space-y-8 text-base sm:text-lg text-slate-700 leading-relaxed">
+      
+      <p class="text-lg sm:text-xl font-normal text-slate-800 leading-relaxed">
+        Search is going through its biggest shift since mobile. People still search — in fact, they search more than ever — but where those searches happen and how answers appear has fundamentally transformed. Google's AI overviews, ChatGPT, Perplexity, and voice agents answer questions directly before users ever see traditional blue links.
+      </p>
+
+      <section id="trend-1" class="pt-6">
+        <h2 class="text-2xl sm:text-3xl font-bold text-slate-950 font-heading mb-4 tracking-tight flex items-center gap-3">
+          <span class="text-accent font-mono text-xl">1.</span> AI Overviews Are the New Position One
+        </h2>
+        <p class="mb-4">
+          When Google shows an AI-generated summary at the top of the search results, that summary captures the vast majority of user attention. Sites quoted inside the overview receive highly qualified traffic. Sites excluded become virtually invisible even if they rank #2 or #3 organically.
+        </p>
+
+        <blockquote class="my-6 p-5 sm:p-6 rounded-2xl bg-orange-50/60 border-l-4 border-accent text-slate-900 font-medium italic text-base sm:text-lg">
+          "The question has changed from 'where do we rank?' to 'does the AI answer mention us?' Those are two different problems with two completely different solutions."
+        </blockquote>
+      </section>
+
+      <section id="trend-2" class="pt-6">
+        <h2 class="text-2xl sm:text-3xl font-bold text-slate-950 font-heading mb-4 tracking-tight flex items-center gap-3">
+          <span class="text-accent font-mono text-xl">2.</span> GEO: Getting Cited, Not Just Ranked
+        </h2>
+        <p class="mb-4">
+          <strong>Generative Engine Optimization (GEO)</strong> is the practice of structuring content so AI systems quote your brand as the definitive source. LLMs prefer content with direct answers, named authorities, verifiable data points, and concise takeaways.
+        </p>
+        <p class="mb-4">
+          This is huge news for specialized brands: AI models don't just quote the biggest domains — they quote the <em>clearest</em> domain. A focused business with original data can outrank billion-dollar corporations in AI responses.
+        </p>
+      </section>
+
+      <section id="trend-3" class="pt-6">
+        <h2 class="text-2xl sm:text-3xl font-bold text-slate-950 font-heading mb-4 tracking-tight flex items-center gap-3">
+          <span class="text-accent font-mono text-xl">3.</span> Zero-Click Searches Are the Default
+        </h2>
+        <p class="mb-4">
+          Over 60% of Google searches now finish without a click to an external site. Fighting this trend is futile. The winning strategy is ensuring your brand is represented accurately inside the on-page snippet: clean Schema.org markup, updated Google Business profile, and transparent pricing.
+        </p>
+      </section>
+
+      <section id="trend-4" class="pt-6">
+        <h2 class="text-2xl sm:text-3xl font-bold text-slate-950 font-heading mb-4 tracking-tight flex items-center gap-3">
+          <span class="text-accent font-mono text-xl">4.</span> Experience Beats Generic Volume
+        </h2>
+        <p class="mb-4">
+          Churning out 50 AI-generated articles every month is a recipe for Google penalties. Search systems now look for first-hand proof: case studies, video walkthroughs, client metrics, and named practitioners.
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 my-6">
+          <div class="p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
+            <div class="text-xs font-bold text-rose-600 uppercase tracking-wider mb-1">Old Playbook (Dead)</div>
+            <p class="text-xs text-slate-600">50 generic definitions written by ChatGPT with anonymous author tags.</p>
+          </div>
+          <div class="p-4 rounded-xl bg-white border border-emerald-200 shadow-xs bg-emerald-50/20">
+            <div class="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">2026 Playbook (Winning)</div>
+            <p class="text-xs text-slate-700">1 deep case study with real ROI metrics, screenshots, and expert quotes.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="trend-5" class="pt-6">
+        <h2 class="text-2xl sm:text-3xl font-bold text-slate-950 font-heading mb-4 tracking-tight flex items-center gap-3">
+          <span class="text-accent font-mono text-xl">5.</span> Technical Health Decides AI Visibility
+        </h2>
+        <p class="mb-4">
+          AI bots crawling for retrieval augmented generation (RAG) have strict latency timeouts. If your website takes 3 seconds to render because of unoptimized JavaScript or lack of CDN caching, AI crawlers skip your page completely.
+        </p>
+      </section>
+
+      <section id="what-to-do" class="pt-6">
+        <h2 class="text-2xl sm:text-3xl font-bold text-slate-950 font-heading mb-4 tracking-tight flex items-center gap-3">
+          <span class="text-accent font-mono text-xl">6.</span> What Your Brand Should Do Next
+        </h2>
+        <p class="mb-4">
+          Begin by auditing your presence on both traditional Google search and generative engines (ChatGPT & Perplexity). Test your brand's core queries and identify whether you appear in citations. Then modernize your CMS infrastructure to support Instant On-Demand Revalidation.
+        </p>
+      </section>
+
+    </article>
+
+    <!-- 6. TAGS & 1-CLICK SOCIAL SHARING LINKS -->
+    <div class="mt-12 pt-8 border-t border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+      
+      <!-- Tags Links -->
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-400 mr-1">Tags:</span>
+        <a href="#tag-seo" class="px-3 py-1 rounded-lg bg-slate-100 hover:bg-orange-100 hover:text-accent text-xs font-semibold text-slate-700 transition-colors">#SEO</a>
+        <a href="#tag-ai" class="px-3 py-1 rounded-lg bg-slate-100 hover:bg-orange-100 hover:text-accent text-xs font-semibold text-slate-700 transition-colors">#AISearch</a>
+        <a href="#tag-geo" class="px-3 py-1 rounded-lg bg-slate-100 hover:bg-orange-100 hover:text-accent text-xs font-semibold text-slate-700 transition-colors">#GEO</a>
+        <a href="#tag-content" class="px-3 py-1 rounded-lg bg-slate-100 hover:bg-orange-100 hover:text-accent text-xs font-semibold text-slate-700 transition-colors">#Growth</a>
+      </div>
+
+      <!-- Social Share Intent Links -->
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-400 mr-1">Share:</span>
+        
+        <!-- WhatsApp Share Link -->
+        <a 
+          href="https://api.whatsapp.com/send?text=Check%20out%20this%20SEO%20guide:%20http://localhost:5002/blogdetail" 
+          target="_blank" 
+          rel="noopener"
+          class="w-8 h-8 rounded-full bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white border border-emerald-200 flex items-center justify-center text-xs transition-colors"
+          title="Share on WhatsApp"
+        >
+          <i class="fa-brands fa-whatsapp"></i>
+        </a>
+
+        <!-- LinkedIn Share Link -->
+        <a 
+          href="https://www.linkedin.com/sharing/share-offsite/?url=http://localhost:5002/blogdetail" 
+          target="_blank" 
+          rel="noopener"
+          class="w-8 h-8 rounded-full bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white border border-blue-200 flex items-center justify-center text-xs transition-colors"
+          title="Share on LinkedIn"
+        >
+          <i class="fa-brands fa-linkedin-in"></i>
+        </a>
+
+        <!-- Twitter / X Share Link -->
+        <a 
+          href="https://twitter.com/intent/tweet?text=SEO%20Trends%20for%202026&url=http://localhost:5002/blogdetail" 
+          target="_blank" 
+          rel="noopener"
+          class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-900 text-slate-700 hover:text-white border border-slate-300 flex items-center justify-center text-xs transition-colors"
+          title="Share on X (Twitter)"
+        >
+          <i class="fa-brands fa-x-twitter"></i>
+        </a>
+
+        <!-- Copy Link Button -->
+        <button 
+          onclick="copyArticleLink()" 
+          class="px-3 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-300"
+          title="Copy Link to Clipboard"
+        >
+          <i class="fa-solid fa-link text-[10px]"></i>
+          <span id="copyLinkText">Copy Link</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 7. AUTHOR BIO CARD -->
+    <div class="mt-12 p-6 sm:p-8 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center gap-6">
+      <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-orange-600 to-amber-400 flex items-center justify-center text-white text-2xl font-black shrink-0 shadow-md">
+        DN
+      </div>
+      <div class="space-y-1.5 flex-1">
+        <div class="flex items-center gap-2.5">
+          <h4 class="text-lg font-bold text-slate-900 font-heading">DigifyNext Team</h4>
+          <span class="px-2 py-0.5 rounded-full bg-orange-100 text-accent text-[11px] font-bold">SEO & AI Search</span>
+        </div>
+        <p class="text-xs sm:text-sm text-slate-600 leading-relaxed">
+          The DigifyNext growth engineering team specializes in Generative Engine Optimization (GEO), conversion architecture, and high-performance multi-tenant web platforms.
+        </p>
+        <div class="pt-1 flex items-center gap-3 text-xs">
+          <a href="http://localhost:5002" class="text-accent hover:underline font-semibold flex items-center gap-1">
+            <span>View all articles by team</span>
+            <i class="fa-solid fa-arrow-right text-[10px]"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Previous / Next Article Navigation Links -->
+    <div class="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <a href="#prev-post" class="p-5 rounded-2xl bg-white border border-slate-200 hover:border-accent/50 hover:shadow-md transition-all group">
+        <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+          <i class="fa-solid fa-arrow-left text-[10px] group-hover:-translate-x-1 transition-transform"></i> Previous Article
+        </div>
+        <div class="text-sm font-bold text-slate-800 group-hover:text-accent transition-colors line-clamp-1">
+          Rebranding Without Losing Your Search Rankings
+        </div>
+      </a>
+      <a href="#next-post" class="p-5 rounded-2xl bg-white border border-slate-200 hover:border-accent/50 hover:shadow-md transition-all group text-left sm:text-right">
+        <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-start sm:justify-end gap-1">
+          Next Article <i class="fa-solid fa-arrow-right text-[10px] group-hover:translate-x-1 transition-transform"></i>
+        </div>
+        <div class="text-sm font-bold text-slate-800 group-hover:text-accent transition-colors line-clamp-1">
+          How Paid Search Turns High Intent Into Qualified Leads
+        </div>
+      </a>
+    </div>
+
+  </main>
+
+  <!-- 8. RELATED ARTICLES SECTION -->
+  <section class="bg-slate-100/70 border-t border-slate-200 py-14">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between mb-8">
+        <div>
+          <span class="text-xs font-bold uppercase tracking-wider text-accent">Keep Reading</span>
+          <h3 class="text-2xl font-bold text-slate-900 font-heading">Related Articles</h3>
+        </div>
+        <a href="http://localhost:5002" class="text-xs font-bold text-accent hover:underline flex items-center gap-1">
+          View All <i class="fa-solid fa-arrow-right text-[10px]"></i>
+        </a>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <!-- Card 1 -->
+        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-lg transition-shadow group flex flex-col">
+          <div class="h-48 overflow-hidden relative bg-slate-900">
+            <span class="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-purple-900/80 backdrop-blur-md text-[11px] font-bold text-purple-200 shadow-xs z-10">AI Search</span>
+            <img src="/uploads/blogs/site-growth/2026/09/ai-search-optimization.webp" alt="AI Neural Search" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+          </div>
+          <div class="p-5 flex-1 flex flex-col justify-between">
+            <div>
+              <div class="text-xs text-slate-400 mb-1.5 flex items-center gap-1">
+                <i class="fa-regular fa-calendar"></i> March 16, 2026 · 8 min read
+              </div>
+              <h4 class="text-base font-bold text-slate-900 group-hover:text-accent transition-colors line-clamp-2">
+                <a href="#article-ai-geo">Getting Found in ChatGPT and Google Overviews: The GEO Playbook</a>
+              </h4>
+            </div>
+            <div class="pt-4 border-t border-slate-100 mt-4 flex items-center justify-between">
+              <span class="text-xs font-bold text-accent">Read Guide</span>
+              <i class="fa-solid fa-arrow-right text-xs text-accent group-hover:translate-x-1 transition-transform"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-lg transition-shadow group flex flex-col">
+          <div class="h-48 overflow-hidden relative bg-slate-900">
+            <span class="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-teal-900/80 backdrop-blur-md text-[11px] font-bold text-teal-200 shadow-xs z-10">Technical SEO</span>
+            <img src="/uploads/blogs/site-growth/2026/09/cro-conversion-audit.webp" alt="Technical SEO Audit" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+          </div>
+          <div class="p-5 flex-1 flex flex-col justify-between">
+            <div>
+              <div class="text-xs text-slate-400 mb-1.5 flex items-center gap-1">
+                <i class="fa-regular fa-calendar"></i> March 08, 2026 · 10 min read
+              </div>
+              <h4 class="text-base font-bold text-slate-900 group-hover:text-accent transition-colors line-clamp-2">
+                <a href="#article-tech-seo">Technical SEO Checklist: Core Web Vitals & Crawl Budget</a>
+              </h4>
+            </div>
+            <div class="pt-4 border-t border-slate-100 mt-4 flex items-center justify-between">
+              <span class="text-xs font-bold text-accent">Read Guide</span>
+              <i class="fa-solid fa-arrow-right text-xs text-accent group-hover:translate-x-1 transition-transform"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-lg transition-shadow group flex flex-col">
+          <div class="h-48 overflow-hidden relative bg-slate-900">
+            <span class="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-orange-900/80 backdrop-blur-md text-[11px] font-bold text-orange-200 shadow-xs z-10">PPC Marketing</span>
+            <img src="/uploads/blogs/site-growth/2026/09/ppc-google-ads-roi.webp" alt="PPC Funnel" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+          </div>
+          <div class="p-5 flex-1 flex flex-col justify-between">
+            <div>
+              <div class="text-xs text-slate-400 mb-1.5 flex items-center gap-1">
+                <i class="fa-regular fa-calendar"></i> March 02, 2026 · 5 min read
+              </div>
+              <h4 class="text-base font-bold text-slate-900 group-hover:text-accent transition-colors line-clamp-2">
+                <a href="#article-ppc-leads">Conversion Funnels: Turning Search Intent Into High-Ticket Leads</a>
+              </h4>
+            </div>
+            <div class="pt-4 border-t border-slate-100 mt-4 flex items-center justify-between">
+              <span class="text-xs font-bold text-accent">Read Guide</span>
+              <i class="fa-solid fa-arrow-right text-xs text-accent group-hover:translate-x-1 transition-transform"></i>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- 9. NEWSLETTER BLOCK -->
+  <section class="bg-white py-14 border-t border-slate-200">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 text-center">
+      <div class="p-8 sm:p-12 rounded-3xl bg-gradient-to-br from-dark-900 to-slate-900 text-white shadow-xl relative overflow-hidden">
+        <div class="absolute -top-20 -right-20 w-60 h-60 rounded-full bg-accent/20 blur-2xl pointer-events-none"></div>
+        <span class="text-xs font-bold uppercase tracking-widest text-accent mb-2 block">Growth Notes</span>
+        <h3 class="text-2xl sm:text-3xl font-bold font-heading mb-3">Get Growth Insights in Your Inbox</h3>
+        <p class="text-xs sm:text-sm text-slate-300 max-w-lg mx-auto mb-6">
+          Practical SEO, AI search, and funnel optimization tactics delivered directly to your inbox. No fluff, unsubscribe anytime.
+        </p>
+        <form onsubmit="handleSubscribe(event)" class="max-w-md mx-auto flex flex-col sm:flex-row gap-2">
+          <input 
+            type="email" 
+            id="subEmail"
+            required
+            placeholder="Enter your work email" 
+            class="flex-1 px-4 py-3 rounded-full bg-slate-800/80 border border-slate-700 text-white text-xs focus:outline-none focus:border-accent"
+          />
+          <button type="submit" class="px-6 py-3 rounded-full bg-accent hover:bg-accent-hover text-white text-xs font-bold transition-colors cursor-pointer">
+            Subscribe
+          </button>
+        </form>
+        <div id="subSuccess" class="hidden mt-3 text-xs text-emerald-400 font-medium">
+          <i class="fa-solid fa-circle-check"></i> Subscribed successfully! Check your inbox.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10. MEGA FOOTER -->
+  <footer class="bg-dark-900 text-slate-400 pt-16 pb-12 border-t border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-10 pb-12 border-b border-slate-800">
+        
+        <!-- Col 1 -->
+        <div class="space-y-4">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-accent text-white flex items-center justify-center font-bold">
+              <i class="fa-solid fa-bolt text-sm"></i>
+            </div>
+            <span class="text-lg font-black text-white font-heading tracking-tight">DIGIFY<span class="text-accent">NEXT</span></span>
+          </div>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            DigifyNext is a performance marketing & growth engineering agency helping brands scale organic visibility, high-ROI paid media, and multi-tenant digital platforms.
+          </p>
+          <div class="flex items-center gap-3 text-slate-400 text-sm">
+            <a href="https://linkedin.com" target="_blank" class="hover:text-accent transition-colors"><i class="fa-brands fa-linkedin-in"></i></a>
+            <a href="https://twitter.com" target="_blank" class="hover:text-accent transition-colors"><i class="fa-brands fa-x-twitter"></i></a>
+            <a href="https://facebook.com" target="_blank" class="hover:text-accent transition-colors"><i class="fa-brands fa-facebook-f"></i></a>
+          </div>
+        </div>
+
+        <!-- Col 2 -->
+        <div class="space-y-3">
+          <h4 class="text-sm font-bold text-white uppercase tracking-wider font-heading">Quick Links</h4>
+          <ul class="space-y-2 text-xs">
+            <li><a href="http://localhost:5002" class="hover:text-white transition-colors">Home</a></li>
+            <li><a href="#about" class="hover:text-white transition-colors">About Us</a></li>
+            <li><a href="#services" class="hover:text-white transition-colors">Services</a></li>
+            <li><a href="http://localhost:5002/blogdetail" class="hover:text-white transition-colors text-accent">Blog & Articles</a></li>
+            <li><a href="#pricing" class="hover:text-white transition-colors">Pricing</a></li>
+            <li><a href="#contact" class="hover:text-white transition-colors">Contact</a></li>
+          </ul>
+        </div>
+
+        <!-- Col 3 -->
+        <div class="space-y-3">
+          <h4 class="text-sm font-bold text-white uppercase tracking-wider font-heading">Our Services</h4>
+          <ul class="space-y-2 text-xs">
+            <li><a href="#seo-services" class="hover:text-white transition-colors">Search Engine Optimization (SEO)</a></li>
+            <li><a href="#geo-services" class="hover:text-white transition-colors">Generative Engine Optimization (GEO)</a></li>
+            <li><a href="#ai-search" class="hover:text-white transition-colors">Agentic AI Search</a></li>
+            <li><a href="#ppc" class="hover:text-white transition-colors">Performance Marketing (PPC)</a></li>
+            <li><a href="#web-dev" class="hover:text-white transition-colors">High-Speed Web Development</a></li>
+          </ul>
+        </div>
+
+        <!-- Col 4 -->
+        <div class="space-y-3">
+          <h4 class="text-sm font-bold text-white uppercase tracking-wider font-heading">Get in Touch</h4>
+          <ul class="space-y-2.5 text-xs">
+            <li class="flex items-center gap-2">
+              <i class="fa-regular fa-envelope text-accent"></i>
+              <span>growth@digifynext.com</span>
+            </li>
+            <li class="flex items-center gap-2">
+              <i class="fa-solid fa-phone text-emerald-400"></i>
+              <span>+91 95995 24455</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <i class="fa-solid fa-location-dot text-accent mt-0.5"></i>
+              <span>Sector 63, Noida, Uttar Pradesh, India</span>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+
+      <!-- Bottom Copyright Bar -->
+      <div class="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+        <p>© 2026 DigifyNext. All rights reserved.</p>
+        <div class="flex gap-4">
+          <a href="#privacy" class="hover:text-slate-300 transition-colors">Privacy Policy</a>
+          <a href="#terms" class="hover:text-slate-300 transition-colors">Terms of Service</a>
+        </div>
+      </div>
+
+    </div>
+  </footer>
+
+  <!-- 11. FLOATING WHATSAPP CHAT BUTTON -->
+  <a 
+    href="https://api.whatsapp.com/send?phone=919599524455&text=Hi%20DigifyNext,%20I%20saw%20your%20SEO%20Trends%20article%20and%20want%20to%20know%20more" 
+    target="_blank" 
+    rel="noopener"
+    class="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-[#25D366] text-white flex items-center justify-center text-2xl shadow-xl hover:scale-110 transition-transform whatsapp-pulse z-50 cursor-pointer"
+    title="Chat with us on WhatsApp"
+  >
+    <i class="fa-brands fa-whatsapp"></i>
+  </a>
+
+  <!-- SCRIPT: Progress Bar + Copy Link + SSE Webhook Listener -->
+  <script>
+    // 1. Reading Progress Bar on Scroll
+    window.addEventListener('scroll', () => {
+      const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const progress = (window.pageYOffset / totalHeight) * 100;
+      document.getElementById('fxProgressBar').style.width = progress + '%';
+    });
+
+    // 2. 1-Click Clipboard Link Copy
+    function copyArticleLink() {
+      navigator.clipboard.writeText(window.location.href).then(() => {
+        const btnText = document.getElementById('copyLinkText');
+        btnText.innerText = 'Copied!';
+        setTimeout(() => { btnText.innerText = 'Copy Link'; }, 2000);
+      });
+    }
+
+    // 3. Newsletter Subscribe
+    function handleSubscribe(e) {
+      e.preventDefault();
+      document.getElementById('subSuccess').classList.remove('hidden');
+      document.getElementById('subEmail').value = '';
+    }
+
+    // 4. Listen to Server-Sent Events (SSE) from our Node Server (Live Webhook Revalidation)
+    try {
+      const eventSource = new EventSource('/api/events');
+      eventSource.onmessage = function(event) {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('⚡ [SSE Webhook Received]:', data);
+          const badge = document.getElementById('revalidateBadge');
+          if (badge) {
+            badge.innerHTML = '<i class="fa-solid fa-check-double text-accent"></i> Cache Revalidated at ' + new Date().toLocaleTimeString();
+            badge.className = 'inline-flex items-center gap-1 text-accent font-bold animate-bounce';
+            setTimeout(() => {
+              badge.className = 'inline-flex items-center gap-1 text-emerald-400 font-medium';
+              badge.innerHTML = '<i class="fa-solid fa-bolt text-accent"></i> ISR Webhook: <strong>Active</strong>';
+            }, 4000);
+          }
+        } catch (err) {}
+      };
+    } catch(e) {}
+  </script>
+
+</body>
+</html>

@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import { LandingPageClient } from '@/components/landing/LandingPageClient';
 
 export default function RootPage() {
-  redirect('/dashboard');
+  return <LandingPageClient />;
 }

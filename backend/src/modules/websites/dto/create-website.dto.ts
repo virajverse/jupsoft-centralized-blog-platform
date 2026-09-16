@@ -17,7 +17,7 @@ export class CreateWebsiteDto {
   @IsNotEmpty()
   domain: string;
 
-  @ApiProperty({ example: 'https://images.unsplash.com/...', required: false })
+  @ApiProperty({ example: 'https://cdn.jupsoft.com/logos/site-logo.svg', required: false })
   @IsString()
   @IsOptional()
   logoUrl?: string;

@@ -541,7 +541,7 @@
       const trans = featured.translations?.en || Object.values(featured.translations || {})[0] || {};
       const title = featured.title || trans.title || 'Untitled';
       const excerpt = featured.excerpt || trans.excerpt || 'Data-driven growth intelligence and technical SEO insights.';
-      const img = featured.featuredImage || 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80';
+      const img = featured.featuredImage || '/uploads/blogs/site-growth/2026/09/technical-seo-playbook.webp';
       const date = featured.publishedAt ? new Date(featured.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recently Published';
       const readTime = featured.readTimeMinutes || featured.readingTimeMinutes || 7;
 
@@ -585,9 +585,9 @@
           </div>
 
           <div class="lg:col-span-5 h-64 lg:h-80 rounded-2xl overflow-hidden relative cursor-pointer" onclick="openArticle('${featured.slug || featured.id}')">
-            <img src="${img}" alt="${title}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-500" onerror="this.src='https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80'" />
+            <img src="${img}" alt="${title}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-500" onerror="this.src='/uploads/blogs/site-growth/2026/09/technical-seo-playbook.webp'" />
             <div class="absolute top-3 right-3 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-md text-[10px] font-mono text-white font-semibold">
-              WebP 4K
+              WebP
             </div>
           </div>
         </div>
@@ -643,7 +643,7 @@
         const trans = b.translations?.en || Object.values(b.translations || {})[0] || {};
         const title = b.title || trans.title || 'Untitled Article';
         const excerpt = b.excerpt || trans.excerpt || 'Explore high-leverage growth strategies, organic visibility blueprints, and technical optimization.';
-        const img = b.featuredImage || 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80';
+        const img = b.featuredImage || '/uploads/blogs/site-growth/2026/09/technical-seo-playbook.webp';
         const date = b.publishedAt ? new Date(b.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recently Published';
         const readTime = b.readTimeMinutes || b.readingTimeMinutes || 6;
         const slug = b.slug || b.id;
@@ -651,12 +651,12 @@
         return `
           <div class="bg-white rounded-2xl border border-slate-200/80 card-hover overflow-hidden flex flex-col group cursor-pointer" onclick="openArticle('${slug}')">
             <div class="aspect-video overflow-hidden bg-slate-100 relative">
-              <img src="${img}" alt="${title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onerror="this.src='https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80'" />
+              <img src="${img}" alt="${title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onerror="this.src='/uploads/blogs/site-growth/2026/09/technical-seo-playbook.webp'" />
               <div class="absolute top-3 left-3 bg-brand-900/80 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-xs">
                 Performance SEO
               </div>
               <div class="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md text-slate-200 text-[10px] font-mono px-2 py-0.5 rounded">
-                WebP
+                Vector SVG
               </div>
             </div>
 

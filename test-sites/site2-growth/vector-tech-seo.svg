@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="600" height="400">
+  <defs>
+    <linearGradient id="tsg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#042f2e"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+  <rect width="600" height="400" fill="url(#tsg)"/>
+  <circle cx="300" cy="190" r="90" fill="none" stroke="#14b8a6" stroke-width="12" stroke-dasharray="420" stroke-dashoffset="80" stroke-linecap="round"/>
+  <text x="300" y="190" fill="#ffffff" font-family="system-ui, sans-serif" font-size="42" font-weight="900" text-anchor="middle">100</text>
+  <text x="300" y="220" fill="#2dd4bf" font-family="system-ui, sans-serif" font-size="14" font-weight="700" text-anchor="middle">PERFORMANCE</text>
+  <text x="300" y="350" fill="#99f6e4" font-family="system-ui, sans-serif" font-size="18" font-weight="700" text-anchor="middle" letter-spacing="2">CORE WEB VITALS &amp; CRAWL</text>
+</svg>

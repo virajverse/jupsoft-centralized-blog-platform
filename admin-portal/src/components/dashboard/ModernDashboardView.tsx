@@ -16,7 +16,7 @@ import {
   Phone
 } from 'lucide-react';
 import { Blog, Website, UserRole } from '../../types';
-import { canCreateBlog, canAccessModule } from '../../utils/permissions';
+import { canCreateBlog, canAccessModule, cleanAvatarUrl } from '../../utils/permissions';
 
 interface ModernDashboardViewProps {
   blogs: Blog[];
@@ -314,17 +314,20 @@ export const ModernDashboardView: React.FC<ModernDashboardViewProps> = ({
             {/* Circular Avatar with Purple Ring */}
             <div className="relative inline-block mx-auto mb-3">
               <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-full p-1 border-3 border-[#4c22cf] bg-white shadow-sm flex items-center justify-center">
-                {currentUser?.avatar ? (
-                  <img
-                    src={currentUser.avatar}
-                    alt={currentUser.name}
-                    className="w-full h-full rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full rounded-full bg-[#4c22cf]/10 text-[#4c22cf] flex items-center justify-center font-black text-xl">
-                    {currentUser?.name?.charAt(0) || 'A'}
-                  </div>
-                )}
+                {(() => {
+                  const safeAvatar = cleanAvatarUrl(currentUser?.avatar);
+                  return safeAvatar ? (
+                    <img
+                      src={safeAvatar}
+                      alt={currentUser.name}
+                      className="w-full h-full rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full rounded-full bg-[#4c22cf]/10 text-[#4c22cf] flex items-center justify-center font-black text-xl">
+                      {currentUser?.name?.charAt(0) || activeRole?.charAt(0) || 'U'}
+                    </div>
+                  );
+                })()}
               </div>
               <span className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white" />
             </div>
@@ -392,7 +395,7 @@ export const ModernDashboardView: React.FC<ModernDashboardViewProps> = ({
                   <Mail className="w-3.5 h-3.5" />
                 </div>
                 <div className="truncate text-xs font-semibold text-slate-700 max-w-[180px] sm:max-w-[220px]">
-                  {currentUser?.email || 'admin@jupsoft.com'}
+                  {currentUser?.email || (currentUser?.name ? `${currentUser.name.toLowerCase().replace(/\s+/g, '.')}@jupsoft.com` : 'Active Session')}
                 </div>
               </div>
             </div>

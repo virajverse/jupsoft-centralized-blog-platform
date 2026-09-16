@@ -11,6 +11,41 @@ import {
   UserAccount, RedirectItem, SystemAuditLog, BlogStatus,
 } from '../types';
 
+export interface WebhookEndpoint {
+  id: string;
+  name: string;
+  url: string;
+  events: string[];
+  secret?: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface WebhookTestResult {
+  success: boolean;
+  statusCode: number;
+  statusText: string;
+  responseBody: string;
+  latencyMs: number;
+  url: string;
+  timestamp: string;
+  message: string;
+}
+
+export interface WebhookDeliveryLogItem {
+  id: string;
+  websiteId: string;
+  event: string;
+  slug: string;
+  targetUrl: string;
+  statusCode: number;
+  responseBody: string;
+  attempt: number;
+  delivered: boolean;
+  timestamp: string;
+}
+
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 // Cookie helpers for Edge Middleware compatibility
@@ -360,20 +395,6 @@ class ApiClient {
     return this.request(`/admin/blogs/${id}/archive`, { method: 'POST', body: JSON.stringify({}) });
   }
 
-  // ─── Taxonomy (TRD §8) ────────────────────────────────────────────────────
-
-  async getCategories(websiteId?: string): Promise<Category[]> {
-    const qs = websiteId && websiteId !== 'all' ? `?websiteId=${websiteId}` : '';
-    const res = await this.request<Category[] | { data: Category[] }>(`/v1/categories${qs}`);
-    return Array.isArray(res) ? res : res?.data || [];
-  }
-
-  async getTags(websiteId?: string): Promise<Tag[]> {
-    const qs = websiteId && websiteId !== 'all' ? `?websiteId=${websiteId}` : '';
-    const res = await this.request<Tag[] | { data: Tag[] }>(`/v1/tags${qs}`);
-    return Array.isArray(res) ? res : res?.data || [];
-  }
-
   // ─── Media Library (TRD §10) ──────────────────────────────────────────────
 
   async getMedia(websiteId?: string): Promise<MediaItem[]> {
@@ -424,6 +445,50 @@ class ApiClient {
     return this.request(`/admin/redirects/${id}`, { method: 'DELETE' });
   }
 
+  // ─── Taxonomy: Categories & Tags (TRD §9) ─────────────────────────────────
+
+  async getCategories(websiteId?: string): Promise<Category[]> {
+    const qs = websiteId && websiteId !== 'all' ? `?websiteId=${websiteId}` : '';
+    return this.request(`/admin/categories${qs}`);
+  }
+
+  async createCategory(data: {
+    websiteId: string;
+    name: string;
+    slug?: string;
+    description?: string;
+    parentId?: string | null;
+  }): Promise<Category> {
+    return this.request('/admin/categories', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteCategory(id: string): Promise<{ success: boolean; message?: string }> {
+    return this.request(`/admin/categories/${id}`, { method: 'DELETE' });
+  }
+
+  async getTags(websiteId?: string): Promise<Tag[]> {
+    const qs = websiteId && websiteId !== 'all' ? `?websiteId=${websiteId}` : '';
+    return this.request(`/admin/tags${qs}`);
+  }
+
+  async createTag(data: {
+    websiteId: string;
+    name: string;
+    slug?: string;
+  }): Promise<Tag> {
+    return this.request('/admin/tags', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteTag(id: string): Promise<{ success: boolean; message?: string }> {
+    return this.request(`/admin/tags/${id}`, { method: 'DELETE' });
+  }
+
   // ─── Users (TRD §5) ───────────────────────────────────────────────────────
 
   async getUsers(): Promise<UserAccount[]> {
@@ -444,6 +509,31 @@ class ApiClient {
 
   async deleteUser(id: string): Promise<{ success: boolean }> {
     return this.request(`/admin/users/${id}`, { method: 'DELETE' });
+  }
+
+  async resetUserPassword(id: string): Promise<{ success: boolean; tempPassword: string; message: string }> {
+    return this.request(`/admin/users/${id}/reset-password`, { method: 'POST' });
+  }
+
+  // ─── AI Translation Engine (TRD §10) ───────────────────────────────────────
+
+  async translateText(data: {
+    title?: string;
+    content?: string;
+    excerpt?: string;
+    text?: string;
+    from: string;
+    to: string;
+  }): Promise<{
+    title?: string;
+    content?: string;
+    excerpt?: string;
+    translatedText?: string;
+  }> {
+    return this.request('/admin/translate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 
   // ─── Audit Logs (TRD §6) ──────────────────────────────────────────────────
@@ -471,6 +561,53 @@ class ApiClient {
   }): Promise<void> {
     return this.request('/v1/track', { method: 'POST', body: JSON.stringify(data) });
   }
+
+  // ─── Webhooks (TRD §13 & §15) ──────────────────────────────────────────────
+
+  async testWebhookPing(websiteId: string, url?: string, event?: string): Promise<WebhookTestResult> {
+    return this.request('/admin/webhooks/test-ping', {
+      method: 'POST',
+      body: JSON.stringify({ websiteId, url, event }),
+    });
+  }
+
+  async getWebhookEndpoints(websiteId: string): Promise<WebhookEndpoint[]> {
+    return this.request(`/admin/webhooks/endpoints?websiteId=${websiteId}`);
+  }
+
+  async addWebhookEndpoint(
+    websiteId: string,
+    endpoint: { name: string; url: string; events?: string[]; secret?: string; isActive?: boolean },
+  ): Promise<WebhookEndpoint> {
+    return this.request('/admin/webhooks/endpoints', {
+      method: 'POST',
+      body: JSON.stringify({ websiteId, ...endpoint }),
+    });
+  }
+
+  async updateWebhookEndpoint(
+    websiteId: string,
+    id: string,
+    updates: Partial<WebhookEndpoint>,
+  ): Promise<WebhookEndpoint> {
+    return this.request(`/admin/webhooks/endpoints/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ websiteId, ...updates }),
+    });
+  }
+
+  async deleteWebhookEndpoint(websiteId: string, id: string): Promise<{ success: boolean; message: string }> {
+    return this.request(`/admin/webhooks/endpoints/${id}?websiteId=${websiteId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getWebhookLogs(websiteId?: string, limit = 50): Promise<{ total: number; data: WebhookDeliveryLogItem[] }> {
+    const qs = websiteId && websiteId !== 'all' ? `?websiteId=${websiteId}&limit=${limit}` : `?limit=${limit}`;
+    return this.request(`/admin/webhooks/logs${qs}`);
+  }
+
 }
+
 
 export const apiClient = new ApiClient();

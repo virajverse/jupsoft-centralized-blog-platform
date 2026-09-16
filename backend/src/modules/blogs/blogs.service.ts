@@ -204,7 +204,7 @@ export class BlogsService {
           authorId: user.id,
           authorName: user.name,
           authorAvatar: user.avatar || '',
-          featuredImage: dto.featuredImage || '',
+          featuredImage: dto.featuredImage?.trim() || '/uploads/blogs/default-blog-cover.webp',
           featuredImageAlt: dto.featuredImageAlt || '',
           status: initialStatus,
           publishDate: isPublishing ? new Date() : undefined,

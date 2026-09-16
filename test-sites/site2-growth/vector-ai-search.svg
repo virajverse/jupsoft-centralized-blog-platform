@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="600" height="400">
+  <defs>
+    <linearGradient id="aig" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#311042"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+  <rect width="600" height="400" fill="url(#aig)"/>
+  <circle cx="300" cy="200" r="100" fill="#8b5cf6" opacity="0.2"/>
+  <polygon points="300,110 380,160 380,240 300,290 220,240 220,160" fill="none" stroke="#a855f7" stroke-width="4"/>
+  <circle cx="300" cy="110" r="7" fill="#c084fc"/>
+  <circle cx="380" cy="160" r="7" fill="#c084fc"/>
+  <circle cx="380" cy="240" r="7" fill="#c084fc"/>
+  <circle cx="300" cy="290" r="7" fill="#c084fc"/>
+  <circle cx="220" cy="240" r="7" fill="#c084fc"/>
+  <circle cx="220" cy="160" r="7" fill="#c084fc"/>
+  <circle cx="300" cy="200" r="26" fill="#9333ea"/>
+  <text x="300" y="350" fill="#e9d5ff" font-family="system-ui, sans-serif" font-size="18" font-weight="700" text-anchor="middle" letter-spacing="2">AI GEO &amp; NEURAL SEARCH</text>
+</svg>

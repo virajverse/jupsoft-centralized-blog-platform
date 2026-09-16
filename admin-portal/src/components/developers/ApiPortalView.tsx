@@ -1,7 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useBlogStore } from '../../store/useBlogStore';
+import { Website } from '../../types';
+import { getIntegrationSnippets } from './snippets';
+import { ClientHandoverModal } from '../common/ClientHandoverModal';
 import { 
   Code2, 
   Copy, 
@@ -14,21 +17,78 @@ import {
   Zap, 
   BookOpen, 
   FileCode2, 
-  RefreshCw
+  RefreshCw,
+  Sparkles,
+  CheckCircle2,
+  AlertCircle,
+  Laptop,
+  ArrowRight,
+  Eye,
+  Hash,
+  FolderTree,
+  Search,
+  ExternalLink,
+  ChevronRight,
+  Layers,
+  FileText,
+  Package
 } from 'lucide-react';
 
-export const ApiPortalView: React.FC = () => {
-  const { websites, activeWebsiteId, blogs, categories } = useBlogStore();
+const FALLBACK_SITE: Website = {
+  id: 'site-cloud',
+  name: 'Jupsoft Cloud & ERP',
+  domain: 'localhost:5001',
+  logoUrl: '/uploads/logos/jupsoft-cloud-logo.webp',
+  description: 'Enterprise Cloud ERP, Distributed Systems & AI Infrastructure.',
+  apiKey: 'jup_live_sec_cloud_9934afbc82a104',
+  s3Prefix: 'blogs/cloud/',
+  status: 'active',
+  defaultLanguage: 'en',
+  supportedLanguages: ['en', 'hi', 'fr', 'ar'],
+  revalidateWebhookUrl: 'http://localhost:5001/api/revalidate',
+  createdAt: new Date().toISOString(),
+};
 
-  const activeSite = websites.find((w) => w.id === activeWebsiteId) || websites[0];
+export const ApiPortalView: React.FC = () => {
+  const { websites, activeWebsiteId, blogs } = useBlogStore();
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
-  const [activeTab, setActiveTab] = useState<'tester' | 'snippets' | 'specs'>('tester');
+  // Interactive Tenant State
+  const [selectedSiteId, setSelectedSiteId] = useState<string>(() => {
+    if (activeWebsiteId && activeWebsiteId !== 'all') return activeWebsiteId;
+    return websites[0]?.id || 'site-cloud';
+  });
+
+  // Keep selected site synced if global activeWebsiteId changes and is not 'all'
+  useEffect(() => {
+    if (activeWebsiteId && activeWebsiteId !== 'all') {
+      setSelectedSiteId(activeWebsiteId);
+    }
+  }, [activeWebsiteId]);
+
+  const activeSite = useMemo(() => {
+    return websites.find((w) => w.id === selectedSiteId) || websites[0] || FALLBACK_SITE;
+  }, [websites, selectedSiteId]);
+
+  // Find a real sample slug for this website if available
+  const sampleSlug = useMemo(() => {
+    const siteBlog = blogs.find((b) => b.websiteId === activeSite.id);
+    const trans = siteBlog?.translations?.en || (siteBlog?.translations ? Object.values(siteBlog.translations)[0] : undefined);
+    return trans?.slug || (activeSite.id === 'site-growth' ? 'enterprise-technical-seo-playbook-2026' : 'zero-downtime-migration-nextjs-micro-frontends');
+  }, [blogs, activeSite.id]);
+
+  // Tab State
+  const [activeTab, setActiveTab] = useState<'tester' | 'snippets' | 'specs'>('snippets');
+  const [activeSnippetFilter, setActiveSnippetFilter] = useState<'all' | 'npm' | 'widget' | 'env' | 'nextconfig' | 'sdk' | 'listing' | 'detail' | 'revalidate' | 'sitemap'>('all');
+  const [scaffoldShell, setScaffoldShell] = useState<'powershell' | 'bash'>('powershell');
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [isHandoverOpen, setIsHandoverOpen] = useState(false);
+
+  // Tab 1 (Tester) State
   const [selectedEndpoint, setSelectedEndpoint] = useState<string>('/v1/blogs');
   const [selectedLang, setSelectedLang] = useState<string>('en');
   const [slugParam, setSlugParam] = useState<string>('');
   const [searchQueryParam, setSearchQueryParam] = useState<string>('enterprise');
-  const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [isLoadingTest, setIsLoadingTest] = useState(false);
   const [testResponse, setTestResponse] = useState<{
     status: number;
@@ -37,40 +97,71 @@ export const ApiPortalView: React.FC = () => {
     body: unknown;
   } | null>(null);
 
+  // Tab 2 (Live SDK Playground) State
+  const [sdkMethod, setSdkMethod] = useState<'getBlogs' | 'getLatest' | 'getPopular' | 'getCategories' | 'getTags' | 'getBlogBySlug' | 'search' | 'getWebsiteInfo'>('getBlogs');
+  const [sdkSlugInput, setSdkSlugInput] = useState<string>('');
+  const [sdkSearchInput, setSdkSearchInput] = useState<string>('enterprise');
+  const [sdkLimitInput, setSdkLimitInput] = useState<number>(5);
+  const [isSdkRunning, setIsSdkRunning] = useState<boolean>(false);
+  const [sdkResponse, setSdkResponse] = useState<{
+    method: string;
+    url: string;
+    status: number;
+    latencyMs: number;
+    headers: Record<string, string>;
+    body: unknown;
+    error?: string;
+  } | null>(null);
+
+  // Auto-sync slug input when website changes
+  useEffect(() => {
+    setSdkSlugInput(sampleSlug);
+    setSlugParam(sampleSlug);
+  }, [sampleSlug]);
+
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedCode(id);
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
-  // API execution with live HTTP probe and local Zustand cache fallback
+  // Get dynamically generated production snippets for active site
+  const {
+    npmCliSnippet,
+    universalWidgetSnippet,
+    envConfigSnippet,
+    nextConfigSnippet,
+    nextjsSdkSnippet,
+    nextjsListingSnippet,
+    nextjsConsumerSnippet,
+    webhookHandlerSnippet,
+    sitemapSnippet,
+    cliScaffoldPowerShell,
+    cliScaffoldBash,
+  } = useMemo(() => getIntegrationSnippets(apiBaseUrl, activeSite), [apiBaseUrl, activeSite]);
+
+  // Tab 1 API execution (Direct HTTP probe)
   const handleExecuteApi = async () => {
     setIsLoadingTest(true);
     const startTime = performance.now();
 
     let resolvedPath = selectedEndpoint;
     if (selectedEndpoint === '/v1/blogs/{slug}') {
-      resolvedPath = `/v1/blogs/${slugParam || 'sample-post'}`;
+      resolvedPath = `/v1/blogs/${slugParam || sampleSlug}`;
     } else if (selectedEndpoint === '/v1/search') {
       resolvedPath = `/v1/search?q=${encodeURIComponent(searchQueryParam)}&lang=${selectedLang}`;
     } else if (selectedEndpoint === '/v1/blogs') {
       resolvedPath = `/v1/blogs?lang=${selectedLang}`;
     }
 
-    // Try real HTTP request first
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-
       const res = await fetch(`${apiBaseUrl}${resolvedPath}`, {
         headers: {
           'Authorization': `Bearer ${activeSite.apiKey}`,
           'X-Tenant-ID': activeSite.id,
           'Accept': 'application/json',
         },
-        signal: controller.signal,
       });
-      clearTimeout(timeoutId);
 
       const data = await res.json();
       const latency = Math.round(performance.now() - startTime);
@@ -87,434 +178,171 @@ export const ApiPortalView: React.FC = () => {
         },
         body: data,
       });
-      setIsLoadingTest(false);
-      return;
-    } catch {
-      // Graceful fallback to client-side Zustand simulation when backend server is offline
-    }
-
-    setTimeout(() => {
-      const siteBlogs = blogs.filter((b) => b.websiteId === activeSite.id && b.status === 'Published');
-      let responseBody: Record<string, unknown> | null = null;
-      let statusCode = 200;
-
-      if (selectedEndpoint === '/v1/blogs') {
-        responseBody = {
-          success: true,
-          meta: {
-            website: activeSite.domain,
-            total: siteBlogs.length,
-            page: 1,
-            limit: 10,
-          },
-          data: siteBlogs.map((b) => {
-            const tr = b.translations[selectedLang as keyof typeof b.translations] || b.translations.en;
-            return {
-              id: b.id,
-              slug: tr?.slug || b.id,
-              title: tr?.title || 'Untitled',
-              excerpt: tr?.excerpt || '',
-              featuredImage: b.featuredImage,
-              authorName: b.authorName,
-              publishedAt: b.publishDate,
-              readTimeMinutes: b.readTimeMinutes,
-              seo: tr?.seo,
-              categoryIds: b.categoryIds,
-              tagIds: b.tagIds,
-            };
-          }),
-        };
-      } else if (selectedEndpoint === '/v1/blogs/{slug}') {
-        const found = siteBlogs.find((b) => {
-          const tr = b.translations[selectedLang as keyof typeof b.translations] || b.translations.en;
-          return tr?.slug === slugParam || b.id === slugParam;
-        }) || siteBlogs[0];
-
-        if (!found) {
-          statusCode = 404;
-          responseBody = { success: false, error: 'ArticleNotFound', message: `No published article for slug "${slugParam}"` };
-        } else {
-          const tr = found.translations[selectedLang as keyof typeof found.translations] || found.translations.en;
-          responseBody = {
-            success: true,
-            data: {
-              id: found.id,
-              slug: tr?.slug,
-              title: tr?.title,
-              content: tr?.content,
-              excerpt: tr?.excerpt,
-              featuredImage: found.featuredImage,
-              authorName: found.authorName,
-              publishedAt: found.publishDate,
-              readTimeMinutes: found.readTimeMinutes,
-              seo: tr?.seo,
-              canonicalUrl: tr?.seo.canonicalUrl || `https://${activeSite.domain}/blog/${tr?.slug}`,
-              schemaJsonLd: {
-                "@context": "https://schema.org",
-                "@type": "BlogPosting",
-                "headline": tr?.title,
-                "image": found.featuredImage ? [found.featuredImage] : [],
-                "datePublished": found.publishDate,
-                "author": { "@type": "Person", "name": found.authorName }
-              }
-            }
-          };
-        }
-      } else if (selectedEndpoint === '/v1/categories') {
-        const siteCats = categories[activeSite.id] || [];
-        responseBody = {
-          success: true,
-          meta: { website: activeSite.domain, count: siteCats.length },
-          data: siteCats.map((c) => ({
-            id: c.id,
-            name: c.name,
-            slug: c.slug,
-            description: c.description || '',
-          })),
-        };
-      } else if (selectedEndpoint === '/v1/search') {
-        const matches = siteBlogs.filter((b) => {
-          const title = (b.translations[selectedLang as keyof typeof b.translations]?.title || b.translations.en?.title || '').toLowerCase();
-          return title.includes(searchQueryParam.toLowerCase());
-        });
-        responseBody = {
-          success: true,
-          query: searchQueryParam,
-          meta: { matches: matches.length },
-          data: matches.map((b) => ({
-            id: b.id,
-            title: b.translations.en?.title,
-            slug: b.translations.en?.slug,
-            featuredImage: b.featuredImage,
-          })),
-        };
-      }
-
+    } catch (err: any) {
+      const latency = Math.round(performance.now() - startTime);
       setTestResponse({
-        status: statusCode,
-        latencyMs: Math.floor(Math.random() * 15) + 12,
+        status: 0,
+        latencyMs: latency,
         headers: {
-          'Content-Type': 'application/json; charset=utf-8',
+          'X-Status': 'Network Connection Failed',
           'X-Tenant-ID': activeSite.id,
-          'X-RateLimit-Limit': '1000',
-          'X-RateLimit-Remaining': '994',
-          'X-Cache': 'HIT (Edge CDN Simulator)',
+          'X-Target-URL': `${apiBaseUrl}${resolvedPath}`,
         },
-        body: responseBody,
+        body: {
+          error: 'NetworkConnectionError',
+          message: err?.message || `Failed to connect to backend server. Make sure NestJS is running on ${apiBaseUrl}`,
+          endpoint: resolvedPath,
+          timestamp: new Date().toISOString(),
+        },
       });
+    } finally {
       setIsLoadingTest(false);
-    }, 280);
+    }
   };
 
-  const curlCommand = `curl -X GET "${apiBaseUrl}${selectedEndpoint.replace('{slug}', slugParam || 'enterprise-ai-shift')}?website_id=${activeSite.id}&lang=${selectedLang}" \\
+  // Tab 2 Live SDK Runner
+  const handleRunSdkMethod = async (targetMethod: typeof sdkMethod) => {
+    setSdkMethod(targetMethod);
+    setIsSdkRunning(true);
+    const startTime = performance.now();
+
+    let path = '/v1/blogs';
+    let methodDisplay = '';
+
+    if (targetMethod === 'getBlogs') {
+      path = `/v1/blogs?limit=${sdkLimitInput}&lang=${selectedLang}`;
+      methodDisplay = `jupsoft.getBlogs({ limit: ${sdkLimitInput}, lang: '${selectedLang}' })`;
+    } else if (targetMethod === 'getLatest') {
+      path = `/v1/blogs/latest?limit=${sdkLimitInput}&lang=${selectedLang}`;
+      methodDisplay = `jupsoft.getLatest(${sdkLimitInput}, '${selectedLang}')`;
+    } else if (targetMethod === 'getPopular') {
+      path = `/v1/blogs/popular?limit=${sdkLimitInput}&lang=${selectedLang}`;
+      methodDisplay = `jupsoft.getPopular(${sdkLimitInput}, '${selectedLang}')`;
+    } else if (targetMethod === 'getCategories') {
+      path = `/v1/categories`;
+      methodDisplay = `jupsoft.getCategories()`;
+    } else if (targetMethod === 'getTags') {
+      path = `/v1/tags`;
+      methodDisplay = `jupsoft.getTags()`;
+    } else if (targetMethod === 'getBlogBySlug') {
+      const slug = sdkSlugInput || sampleSlug;
+      path = `/v1/blogs/${encodeURIComponent(slug)}?lang=${selectedLang}`;
+      methodDisplay = `jupsoft.getBlogBySlug('${slug}', '${selectedLang}')`;
+    } else if (targetMethod === 'search') {
+      const q = sdkSearchInput || 'enterprise';
+      path = `/v1/search?q=${encodeURIComponent(q)}&lang=${selectedLang}&limit=${sdkLimitInput}`;
+      methodDisplay = `jupsoft.search('${q}', '${selectedLang}', ${sdkLimitInput})`;
+    } else if (targetMethod === 'getWebsiteInfo') {
+      path = `/v1/website`;
+      methodDisplay = `jupsoft.getWebsiteInfo()`;
+    }
+
+    try {
+      const targetUrl = `${apiBaseUrl}${path}`;
+      const res = await fetch(targetUrl, {
+        headers: {
+          'Authorization': `Bearer ${activeSite.apiKey}`,
+          'Accept': 'application/json',
+        },
+      });
+      const data = await res.json();
+      const latency = Math.round(performance.now() - startTime);
+
+      setSdkResponse({
+        method: methodDisplay,
+        url: targetUrl,
+        status: res.status,
+        latencyMs: latency,
+        headers: {
+          'Content-Type': res.headers.get('content-type') || 'application/json; charset=utf-8',
+          'X-Tenant-ID': activeSite.id,
+          'X-Cache': res.headers.get('x-cache') || 'MISS (Live NestJS Server)',
+        },
+        body: data,
+      });
+    } catch (err: any) {
+      const latency = Math.round(performance.now() - startTime);
+      setSdkResponse({
+        method: methodDisplay,
+        url: `${apiBaseUrl}${path}`,
+        status: 0,
+        latencyMs: latency,
+        headers: {
+          'X-Status': 'Failed',
+        },
+        body: {
+          error: 'NetworkError',
+          message: err?.message || 'Connection failed to backend API',
+        },
+        error: err?.message,
+      });
+    } finally {
+      setIsSdkRunning(false);
+    }
+  };
+
+  const curlCommand = `curl -X GET "${apiBaseUrl}${selectedEndpoint.replace('{slug}', slugParam || sampleSlug)}?website_id=${activeSite.id}&lang=${selectedLang}" \\
   -H "Authorization: Bearer ${activeSite.apiKey}" \\
   -H "Accept: application/json"`;
 
-  // Production Next.js 16 Environment Variables
-  const envConfigSnippet = `# .env.local (Next.js 16 Consumer Configuration)
-NEXT_PUBLIC_CMS_API_URL=${apiBaseUrl}
-CMS_TENANT_API_KEY=${activeSite.apiKey}
-CMS_WEBSITE_ID=${activeSite.id}
-CMS_WEBHOOK_SECRET=wh_sec_jupsoft_default_revalidate_2026`;
-
-  // Production Next.js 16 TypeScript SDK Client
-  const nextjsSdkSnippet = `// lib/jupsoft-sdk.ts (Next.js 16 Type-Safe Client SDK)
-export interface JupsoftConfig {
-  apiUrl?: string;
-  apiKey: string;
-  websiteId: string;
-  defaultLang?: string;
-}
-
-export interface BlogPost {
-  id: string;
-  slug: string;
-  title: string;
-  content: string;
-  excerpt: string;
-  featuredImage?: string;
-  authorName: string;
-  publishedAt?: string;
-  readTimeMinutes: number;
-  categoryIds: string[];
-  tagIds: string[];
-  seo?: {
-    metaTitle?: string;
-    metaDescription?: string;
-    metaKeywords?: string;
-    canonicalUrl?: string;
-    ogTitle?: string;
-    ogDescription?: string;
-    ogImage?: string;
-    twitterTitle?: string;
-    twitterDescription?: string;
-    twitterImage?: string;
-  };
-  canonicalUrl?: string;
-  schemaJsonLd?: Record<string, unknown>;
-}
-
-export interface BlogListResponse {
-  success: boolean;
-  meta: { website: string; total: number; page: number; limit: number };
-  data: BlogPost[];
-}
-
-export class JupsoftClient {
-  private apiUrl: string;
-  private apiKey: string;
-  private websiteId: string;
-  private defaultLang: string;
-
-  constructor(config?: Partial<JupsoftConfig>) {
-    this.apiUrl = (config?.apiUrl || process.env.NEXT_PUBLIC_CMS_API_URL || '${apiBaseUrl}').replace(/\\/$/, '');
-    this.apiKey = config?.apiKey || process.env.CMS_TENANT_API_KEY || '${activeSite.apiKey}';
-    this.websiteId = config?.websiteId || process.env.CMS_WEBSITE_ID || '${activeSite.id}';
-    this.defaultLang = config?.defaultLang || 'en';
-  }
-
-  private async request<T>(path: string, options: { tags?: string[]; revalidate?: number } = {}): Promise<T> {
-    const url = new URL(\`\${this.apiUrl}\${path}\`);
-    if (!url.searchParams.has('website_id') && this.websiteId) {
-      url.searchParams.set('website_id', this.websiteId);
-    }
-
-    const res = await fetch(url.toString(), {
-      headers: {
-        'Authorization': \`Bearer \${this.apiKey}\`,
-        'Accept': 'application/json',
-      },
-      next: {
-        tags: options.tags || ['blogs'],
-        revalidate: options.revalidate ?? 3600,
-      },
-    });
-
-    if (!res.ok) {
-      throw new Error(\`Jupsoft CMS Error: \${res.status} \${res.statusText} on \${path}\`);
-    }
-
-    return res.json() as Promise<T>;
-  }
-
-  async getBlogs(params?: { page?: number; limit?: number; category?: string; tag?: string; lang?: string; q?: string }): Promise<BlogListResponse> {
-    const query = new URLSearchParams();
-    if (params?.page) query.set('page', String(params.page));
-    if (params?.limit) query.set('limit', String(params.limit));
-    if (params?.category) query.set('category', params.category);
-    if (params?.tag) query.set('tag', params.tag);
-    if (params?.lang || this.defaultLang) query.set('lang', params?.lang || this.defaultLang);
-    if (params?.q) query.set('q', params.q);
-
-    return this.request<BlogListResponse>(\`/v1/blogs?\${query.toString()}\`, {
-      tags: ['blogs', 'blogs-list'],
-    });
-  }
-
-  async getBlogBySlug(slug: string, lang?: string): Promise<BlogPost | null> {
-    try {
-      const res = await this.request<{ success: boolean; data: BlogPost }>(
-        \`/v1/blogs/\${encodeURIComponent(slug)}?lang=\${lang || this.defaultLang}\`,
-        { tags: [\`blog:\${slug}\`, 'blogs'] }
-      );
-      return res.data;
-    } catch {
-      return null;
-    }
-  }
-
-  async getLatest(limit = 5, lang?: string): Promise<BlogPost[]> {
-    const res = await this.request<{ success: boolean; data: BlogPost[] }>(
-      \`/v1/blogs/latest?limit=\${limit}&lang=\${lang || this.defaultLang}\`,
-      { tags: ['blogs', 'blogs-latest'] }
-    );
-    return res.data || [];
-  }
-
-  async getPopular(limit = 5, lang?: string): Promise<BlogPost[]> {
-    const res = await this.request<{ success: boolean; data: BlogPost[] }>(
-      \`/v1/blogs/popular?limit=\${limit}&lang=\${lang || this.defaultLang}\`,
-      { tags: ['blogs', 'blogs-popular'] }
-    );
-    return res.data || [];
-  }
-
-  recordView(slug: string): void {
-    fetch(\`\${this.apiUrl}/v1/blogs/\${encodeURIComponent(slug)}/view\`, {
-      method: 'POST',
-      headers: { 'Authorization': \`Bearer \${this.apiKey}\` },
-    }).catch(() => {});
-  }
-
-  async verifyWebhookSignature(payloadText: string, signature: string | null, secret: string): Promise<boolean> {
-    if (!signature || !secret) return false;
-    const encoder = new TextEncoder();
-    const key = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(secret),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign']
-    );
-    const sigBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(payloadText));
-    const computedHex = Array.from(new Uint8Array(sigBuffer))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-    return computedHex === signature;
-  }
-}
-
-export const jupsoft = new JupsoftClient();`;
-
-  // Production Next.js 16 App Router Dynamic Route (with async params Promise)
-  const nextjsConsumerSnippet = `// app/blog/[slug]/page.tsx (Next.js 16 App Router with async params & ISR)
-import { notFound } from 'next/navigation';
-import type { Metadata } from 'next';
-import { jupsoft } from '@/lib/jupsoft-sdk';
-
-export const revalidate = 3600; // Background ISR revalidation every 1 hour
-
-// In Next.js 16, params and searchParams are Promises!
-interface PageProps {
-  params: Promise<{ slug: string }>;
-  searchParams?: Promise<{ lang?: string }>;
-}
-
-export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
-  const { slug } = await params;
-  const sp = await searchParams;
-  const blog = await jupsoft.getBlogBySlug(slug, sp?.lang);
-  if (!blog) return { title: 'Article Not Found' };
-
-  return {
-    title: blog.seo?.metaTitle || blog.title,
-    description: blog.seo?.metaDescription || blog.excerpt,
-    alternates: {
-      canonical: blog.canonicalUrl || blog.seo?.canonicalUrl,
-    },
-    openGraph: {
-      title: blog.seo?.ogTitle || blog.title,
-      description: blog.seo?.ogDescription || blog.excerpt,
-      images: blog.featuredImage ? [blog.featuredImage] : [],
-    },
-  };
-}
-
-export default async function BlogPostPage({ params, searchParams }: PageProps) {
-  const { slug } = await params;
-  const sp = await searchParams;
-  const blog = await jupsoft.getBlogBySlug(slug, sp?.lang);
-
-  if (!blog) notFound();
-
-  // Non-blocking view tracking
-  jupsoft.recordView(slug);
-
-  return (
-    <main className="max-w-4xl mx-auto py-12 px-4 sm:px-6">
-      {/* Schema.org JSON-LD structured data for Google rich search results */}
-      {blog.schemaJsonLd && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(blog.schemaJsonLd) }}
-        />
-      )}
-
-      <header className="mb-8">
-        <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-slate-900 mb-4">
-          {blog.title}
-        </h1>
-        <div className="flex items-center gap-3 text-sm text-slate-500">
-          <span className="font-medium text-slate-900">{blog.authorName}</span>
-          <span>&middot;</span>
-          <span>{blog.readTimeMinutes} min read</span>
-        </div>
-      </header>
-
-      {blog.featuredImage && (
-        <img
-          src={blog.featuredImage}
-          alt={blog.title}
-          className="w-full h-80 sm:h-96 object-cover rounded-2xl mb-8 shadow-sm"
-        />
-      )}
-
-      <div
-        className="prose prose-slate lg:prose-lg max-w-none"
-        dangerouslySetInnerHTML={{ __html: blog.content }}
-      />
-    </main>
-  );
-}`;
-
-  // Next.js 16 On-Demand Revalidation Route Handler
-  const webhookHandlerSnippet = `// app/api/revalidate/route.ts (Next.js 16 On-Demand ISR Cache Purge)
-import { NextRequest, NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
-import { jupsoft } from '@/lib/jupsoft-sdk';
-
-export async function POST(req: NextRequest) {
-  const bodyText = await req.text();
-  const signature = req.headers.get('x-signature');
-  const secret = process.env.CMS_WEBHOOK_SECRET || '';
-
-  // 1. Verify HMAC SHA-256 signature using the SDK
-  const isValid = await jupsoft.verifyWebhookSignature(bodyText, signature, secret);
-  if (!isValid) {
-    return NextResponse.json({ error: 'Invalid HMAC signature' }, { status: 401 });
-  }
-
-  const payload = JSON.parse(bodyText);
-
-  // 2. Invalidate specific article cache and list tags
-  if (payload.event === 'blog.published' || payload.event === 'blog.archived') {
-    if (payload.slug) {
-      revalidateTag(\`blog:\${payload.slug}\`);
-    }
-    revalidateTag('blogs');
-    revalidateTag('blogs-list');
-  }
-
-  return NextResponse.json({ revalidated: true, now: Date.now() });
-}`;
-
   return (
     <div className="p-6 sm:p-8 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
+      {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
               Developer API Portal &amp; SDK
             </h1>
-            <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700">
+            <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800">
               Next.js 16 Ready
             </span>
+            <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              Live Backend
+            </span>
           </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Real-time TypeScript SDK, endpoints, on-demand revalidation webhooks &amp; multi-tenant scaffolds.
+          </p>
         </div>
 
-        {/* Tenant Scope Indicator */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 text-xs shadow-2xs">
-          <Globe className="w-3.5 h-3.5 text-blue-500" />
-          <span className="text-slate-500 dark:text-slate-400">Target Tenant:</span>
-          <span className="font-semibold text-slate-900 dark:text-white">{activeSite.name}</span>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => setIsHandoverOpen(true)}
+            className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-bold shadow-xs hover:shadow-md transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+            title="Copy 1-command installer or ready message to send to client"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <span>⚡ Share Code with Client</span>
+          </button>
+
+          {/* Interactive Tenant Switcher */}
+          <div className="flex items-center gap-2 p-1.5 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-2xs">
+          <Globe className="w-4 h-4 text-blue-500 ml-1.5 shrink-0" />
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 leading-none">Target Tenant</span>
+            <select
+              value={selectedSiteId}
+              onChange={(e) => setSelectedSiteId(e.target.value)}
+              className="text-xs font-bold text-slate-900 dark:text-white bg-transparent border-0 outline-none cursor-pointer pr-4 py-0.5"
+            >
+              {websites.map((w) => (
+                <option key={w.id} value={w.id} className="dark:bg-slate-900 dark:text-white">
+                  {w.name} ({w.domain})
+                </option>
+              ))}
+            </select>
+          </div>
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+            {activeSite.id}
+          </span>
         </div>
       </div>
+    </div>
 
-      {/* Tabs */}
+      {/* Main Tab Navigation */}
       <div className="flex items-center gap-1 bg-white dark:bg-[#0f172a] p-1 rounded-xl w-fit border border-slate-200 dark:border-slate-800 shadow-2xs">
-        <button
-          onClick={() => setActiveTab('tester')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'tester'
-              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <Terminal className="w-3.5 h-3.5" />
-          <span>Interactive Endpoint Tester</span>
-        </button>
-
         <button
           onClick={() => setActiveTab('snippets')}
           className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
@@ -525,6 +353,18 @@ export async function POST(req: NextRequest) {
         >
           <FileCode2 className="w-3.5 h-3.5" />
           <span>Next.js 16 SDK &amp; Integration</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('tester')}
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'tester'
+              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Terminal className="w-3.5 h-3.5" />
+          <span>Interactive Endpoint Tester</span>
         </button>
 
         <button
@@ -540,149 +380,748 @@ export async function POST(req: NextRequest) {
         </button>
       </div>
 
-      {/* TAB 1: INTERACTIVE TESTER */}
+      {/* TAB: NEXT.JS 16 SDK & INTEGRATION */}
+      {activeTab === 'snippets' && (
+        <div className="space-y-6">
+          {/* Active Tenant Credentials Banner */}
+          <div className="bg-linear-to-r from-blue-900/10 via-indigo-900/10 to-violet-900/10 dark:from-blue-950/40 dark:via-indigo-950/30 dark:to-violet-950/40 border border-blue-200 dark:border-blue-900/60 rounded-2xl p-4 sm:p-5">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                    Active Scaffolding Context
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-medium">
+                    Verified Database Key
+                  </span>
+                </div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <span>{activeSite.name}</span>
+                  <span className="text-xs font-mono font-normal text-slate-500 dark:text-slate-400">({activeSite.domain})</span>
+                </h2>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <Key className="w-3.5 h-3.5 text-amber-500" />
+                  <span className="text-slate-400">API Key:</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{activeSite.apiKey}</span>
+                  <button
+                    onClick={() => copyToClipboard(activeSite.apiKey, 'badge-key')}
+                    className="ml-1 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+                    title="Copy API Key"
+                  >
+                    {copiedCode === 'badge-key' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <Hash className="w-3.5 h-3.5 text-blue-500" />
+                  <span className="text-slate-400">Tenant:</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{activeSite.id}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ⚡ LIVE SDK PLAYGROUND CONSOLE */}
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-amber-500" />
+                  Live SDK Playground (Zero-Mock Real HTTP Execution)
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Click any SDK method below to execute live against NestJS <code className="font-mono text-blue-600 dark:text-blue-400">{apiBaseUrl}/v1</code> with credentials for <span className="font-semibold">{activeSite.name}</span>.
+                </p>
+              </div>
+
+              {sdkResponse && (
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs px-2.5 py-1 rounded-md font-mono font-bold flex items-center gap-1 ${
+                    sdkResponse.status >= 200 && sdkResponse.status < 300
+                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                      : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+                  }`}>
+                    {sdkResponse.status === 200 && <CheckCircle2 className="w-3 h-3" />}
+                    {sdkResponse.status} {sdkResponse.status === 200 ? 'OK' : 'Error'}
+                  </span>
+                  <span className="text-xs px-2 py-1 rounded-md font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                    {sdkResponse.latencyMs}ms
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Playground Method Buttons */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => handleRunSdkMethod('getBlogs')}
+                disabled={isSdkRunning}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                  sdkMethod === 'getBlogs' && sdkResponse
+                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 shadow-2xs'
+                    : 'bg-slate-50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <Play className="w-3 h-3 text-blue-500 fill-blue-500" />
+                <span>jupsoft.getBlogs()</span>
+              </button>
+
+              <button
+                onClick={() => handleRunSdkMethod('getLatest')}
+                disabled={isSdkRunning}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                  sdkMethod === 'getLatest' && sdkResponse
+                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 shadow-2xs'
+                    : 'bg-slate-50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <Play className="w-3 h-3 text-blue-500 fill-blue-500" />
+                <span>jupsoft.getLatest(3)</span>
+              </button>
+
+              <button
+                onClick={() => handleRunSdkMethod('getPopular')}
+                disabled={isSdkRunning}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                  sdkMethod === 'getPopular' && sdkResponse
+                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 shadow-2xs'
+                    : 'bg-slate-50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <Play className="w-3 h-3 text-blue-500 fill-blue-500" />
+                <span>jupsoft.getPopular(3)</span>
+              </button>
+
+              <button
+                onClick={() => handleRunSdkMethod('getCategories')}
+                disabled={isSdkRunning}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                  sdkMethod === 'getCategories' && sdkResponse
+                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 shadow-2xs'
+                    : 'bg-slate-50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <FolderTree className="w-3 h-3 text-emerald-500" />
+                <span>jupsoft.getCategories()</span>
+              </button>
+
+              <button
+                onClick={() => handleRunSdkMethod('getTags')}
+                disabled={isSdkRunning}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                  sdkMethod === 'getTags' && sdkResponse
+                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 shadow-2xs'
+                    : 'bg-slate-50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <Hash className="w-3 h-3 text-purple-500" />
+                <span>jupsoft.getTags()</span>
+              </button>
+
+              <button
+                onClick={() => handleRunSdkMethod('getBlogBySlug')}
+                disabled={isSdkRunning}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                  sdkMethod === 'getBlogBySlug' && sdkResponse
+                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 shadow-2xs'
+                    : 'bg-slate-50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <FileText className="w-3 h-3 text-amber-500" />
+                <span>jupsoft.getBlogBySlug('{sampleSlug.slice(0, 20)}...')</span>
+              </button>
+
+              <button
+                onClick={() => handleRunSdkMethod('getWebsiteInfo')}
+                disabled={isSdkRunning}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                  sdkMethod === 'getWebsiteInfo' && sdkResponse
+                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 shadow-2xs'
+                    : 'bg-slate-50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <Globe className="w-3 h-3 text-cyan-500" />
+                <span>jupsoft.getWebsiteInfo()</span>
+              </button>
+            </div>
+
+            {/* Live Playground Output Box */}
+            {isSdkRunning ? (
+              <div className="py-12 text-center space-y-2 bg-slate-900/80 rounded-xl border border-slate-800 text-slate-400">
+                <RefreshCw className="w-6 h-6 animate-spin text-blue-400 mx-auto" />
+                <div className="text-xs font-mono">Executing live SDK query on NestJS /v1...</div>
+              </div>
+            ) : sdkResponse ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-900 text-slate-300 text-xs font-mono border border-slate-800">
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="text-emerald-400">Method:</span>
+                    <span className="text-white font-semibold">{sdkResponse.method}</span>
+                    <span className="text-slate-500 hidden sm:inline">&rarr;</span>
+                    <span className="text-slate-400 hidden sm:inline truncate">{sdkResponse.url}</span>
+                  </div>
+                  <button
+                    onClick={() => copyToClipboard(JSON.stringify(sdkResponse.body, null, 2), 'sdk-resp')}
+                    className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-mono flex items-center gap-1 cursor-pointer shrink-0 ml-2"
+                  >
+                    {copiedCode === 'sdk-resp' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedCode === 'sdk-resp' ? 'Copied' : 'Copy JSON'}</span>
+                  </button>
+                </div>
+
+                <pre className="p-4 bg-[#0a0f1d] text-emerald-400 rounded-xl text-xs font-mono overflow-auto max-h-72 leading-relaxed border border-slate-800">
+                  {JSON.stringify(sdkResponse.body, null, 2)}
+                </pre>
+              </div>
+            ) : (
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-blue-500" />
+                  <span>Click any method above to run a genuine live SDK call against the PostgreSQL-backed API.</span>
+                </div>
+                <button
+                  onClick={() => handleRunSdkMethod('getBlogs')}
+                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1"
+                >
+                  <Play className="w-3 h-3 fill-white" />
+                  <span>Run Initial Test</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 1-CLICK CLI TERMINAL SCAFFOLDING COMMAND */}
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Terminal className="w-4 h-4 text-emerald-500" />
+                  1-Click Terminal Scaffolding Command
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Run this single command inside your Next.js 16 project root to initialize folders and create <code className="font-mono text-emerald-600">.env.local</code>.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-xs font-semibold">
+                  <button
+                    onClick={() => setScaffoldShell('powershell')}
+                    className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                      scaffoldShell === 'powershell'
+                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                    }`}
+                  >
+                    PowerShell
+                  </button>
+                  <button
+                    onClick={() => setScaffoldShell('bash')}
+                    className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                      scaffoldShell === 'bash'
+                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                    }`}
+                  >
+                    Bash / macOS
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => copyToClipboard(
+                    scaffoldShell === 'powershell' ? cliScaffoldPowerShell : cliScaffoldBash,
+                    'cli-scaffold'
+                  )}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                >
+                  {copiedCode === 'cli-scaffold' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedCode === 'cli-scaffold' ? 'Copied' : 'Copy Script'}</span>
+                </button>
+              </div>
+            </div>
+
+            <pre className="p-4 bg-slate-900 text-emerald-400 rounded-xl text-xs font-mono overflow-x-auto leading-relaxed border border-slate-800">
+              {scaffoldShell === 'powershell' ? cliScaffoldPowerShell : cliScaffoldBash}
+            </pre>
+          </div>
+
+          {/* CODE SNIPPET JUMP TABS */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+            <span className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Filter Files:</span>
+            {[
+              { id: 'all', label: 'All Options' },
+              { id: 'npm', label: '⚡ 1-Command CLI Wizard' },
+              { id: 'widget', label: '🌐 Universal HTML/PHP Widget' },
+              { id: 'env', label: '1. .env.local' },
+              { id: 'nextconfig', label: '2. next.config.ts' },
+              { id: 'sdk', label: '3. lib/jupsoft-sdk.ts' },
+              { id: 'listing', label: '4. app/blog/page.tsx' },
+              { id: 'detail', label: '5. app/blog/[slug]/page.tsx' },
+              { id: 'revalidate', label: '6. app/api/revalidate/route.ts' },
+              { id: 'sitemap', label: '7. app/sitemap.ts' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveSnippetFilter(tab.id as any)}
+                className={`px-3 py-1 rounded-lg font-medium whitespace-nowrap transition-colors cursor-pointer ${
+                  activeSnippetFilter === tab.id
+                    ? 'bg-blue-600 text-white shadow-2xs font-semibold'
+                    : 'bg-white dark:bg-[#0f172a] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* CARD 0: 1-COMMAND NPM PACKAGE CLI */}
+          {(activeSnippetFilter === 'all' || activeSnippetFilter === 'npm') && (
+            <div className="bg-linear-to-r from-blue-900/5 via-indigo-900/10 to-purple-900/5 dark:from-blue-950/30 dark:via-indigo-950/20 dark:to-purple-950/30 border-2 border-indigo-500/40 dark:border-indigo-500/50 rounded-2xl p-6 space-y-4 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300">
+                      Recommended • Zero-Config Setup
+                    </span>
+                    <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Next.js 14/15/16 Ready
+                    </span>
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mt-1">
+                    <Package className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                    1-Command Auto-Installer (<code className="font-mono text-indigo-600 dark:text-indigo-400">@jupsoft/next-blog</code>)
+                  </h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                    Run this single command in your Next.js root. It auto-installs the package, generates listing &amp; reader pages with sleek auto-locale dropdown, sets up webhook cache revalidation, and configures <code className="font-mono text-indigo-600">.env.local</code> for <strong>{activeSite.name}</strong>.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => copyToClipboard(npmCliSnippet, 'npm-cli')}
+                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-md shrink-0"
+                >
+                  {copiedCode === 'npm-cli' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  <span>{copiedCode === 'npm-cli' ? 'Copied Command' : 'Copy CLI Command'}</span>
+                </button>
+              </div>
+
+              <pre className="p-4 bg-slate-950 text-indigo-300 rounded-xl text-xs font-mono overflow-x-auto leading-relaxed border border-indigo-900/50 shadow-inner">
+                {npmCliSnippet}
+              </pre>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
+                <div className="p-3 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex items-start gap-2.5">
+                  <span className="text-indigo-500 font-bold">1.</span>
+                  <div>
+                    <strong className="text-slate-800 dark:text-slate-200">Auto-installs package:</strong>
+                    <p className="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">Detects your package manager and installs missing dependencies.</p>
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex items-start gap-2.5">
+                  <span className="text-indigo-500 font-bold">2.</span>
+                  <div>
+                    <strong className="text-slate-800 dark:text-slate-200">Generates all routes:</strong>
+                    <p className="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">Creates <code>app/blog</code>, <code>[slug]</code>, and webhook API route.</p>
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex items-start gap-2.5">
+                  <span className="text-indigo-500 font-bold">3.</span>
+                  <div>
+                    <strong className="text-slate-800 dark:text-slate-200">Auto-Locale Dropdown:</strong>
+                    <p className="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">Detects browser language with compact micro-dropdown &amp; SEO tags.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* CARD: UNIVERSAL HTML/PHP EMBED WIDGET */}
+          {(activeSnippetFilter === 'all' || activeSnippetFilter === 'widget') && (
+            <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400">
+                      Non-Next.js / Universal
+                    </span>
+                    <span className="text-xs text-slate-500">HTML · PHP · WordPress · Laravel · Shopify</span>
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 mt-1">
+                    <Globe className="w-4 h-4 text-emerald-500" />
+                    Universal Blog Feed Widget (2-Line Drop-in)
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    For non-Next.js websites: embed your live blog feed with auto-locale micro-dropdown and responsive grid cards anywhere.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => copyToClipboard(universalWidgetSnippet, 'universal-widget')}
+                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 shrink-0"
+                >
+                  {copiedCode === 'universal-widget' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedCode === 'universal-widget' ? 'Copied' : 'Copy Widget Code'}</span>
+                </button>
+              </div>
+
+              <pre className="p-4 bg-slate-900 text-emerald-400 rounded-xl text-xs font-mono overflow-x-auto leading-relaxed border border-slate-800">
+                {universalWidgetSnippet}
+              </pre>
+            </div>
+          )}
+
+          {/* CARD 1: .env.local */}
+          {(activeSnippetFilter === 'all' || activeSnippetFilter === 'env') && (
+            <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Key className="w-4 h-4 text-amber-500" />
+                    1. Environment Configuration (<code className="font-mono text-blue-600 dark:text-blue-400">.env.local</code>)
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Tenant-specific secrets automatically calibrated for {activeSite.name}.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => copyToClipboard(envConfigSnippet, 'env-config')}
+                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                >
+                  {copiedCode === 'env-config' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedCode === 'env-config' ? 'Copied' : 'Copy Env'}</span>
+                </button>
+              </div>
+
+              <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto leading-relaxed border border-slate-800">
+                {envConfigSnippet}
+              </pre>
+            </div>
+          )}
+
+          {/* CARD 2: next.config.ts */}
+          {(activeSnippetFilter === 'all' || activeSnippetFilter === 'nextconfig') && (
+            <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Laptop className="w-4 h-4 text-cyan-500" />
+                    2. WebP Image Optimization Config (<code className="font-mono text-blue-600 dark:text-blue-400">next.config.ts</code>)
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Permits remote WebP image loading from S3, CMS uploads, and tenant domains without host errors.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => copyToClipboard(nextConfigSnippet, 'next-config')}
+                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                >
+                  {copiedCode === 'next-config' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedCode === 'next-config' ? 'Copied' : 'Copy Config'}</span>
+                </button>
+              </div>
+
+              <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[380px] leading-relaxed border border-slate-800">
+                {nextConfigSnippet}
+              </pre>
+            </div>
+          )}
+
+          {/* CARD 3: lib/jupsoft-sdk.ts */}
+          {(activeSnippetFilter === 'all' || activeSnippetFilter === 'sdk') && (
+            <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Code2 className="w-4 h-4 text-blue-500" />
+                    3. Turnkey Next.js 16 Type-Safe Client SDK (<code className="font-mono text-blue-600 dark:text-blue-400">lib/jupsoft-sdk.ts</code>)
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Complete client with ISR cache tags, crypto HMAC signature verification, search, taxonomy &amp; fire-and-forget view telemetry.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => copyToClipboard(nextjsSdkSnippet, 'next-sdk')}
+                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                >
+                  {copiedCode === 'next-sdk' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedCode === 'next-sdk' ? 'Copied' : 'Copy SDK'}</span>
+                </button>
+              </div>
+
+              <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[500px] leading-relaxed border border-slate-800">
+                {nextjsSdkSnippet}
+              </pre>
+            </div>
+          )}
+
+          {/* CARD 4: app/blog/page.tsx */}
+          {(activeSnippetFilter === 'all' || activeSnippetFilter === 'listing') && (
+            <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-indigo-500" />
+                    4. Blog Archive &amp; Category Grid (<code className="font-mono text-blue-600 dark:text-blue-400">app/blog/page.tsx</code>)
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Next.js 16 Server Component: async searchParams, category pills, responsive grid of article cards, author, WebP thumbnail &amp; pagination.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => copyToClipboard(nextjsListingSnippet, 'next-listing')}
+                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                >
+                  {copiedCode === 'next-listing' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedCode === 'next-listing' ? 'Copied' : 'Copy Listing'}</span>
+                </button>
+              </div>
+
+              <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[500px] leading-relaxed border border-slate-800">
+                {nextjsListingSnippet}
+              </pre>
+            </div>
+          )}
+
+          {/* CARD 5: app/blog/[slug]/page.tsx */}
+          {(activeSnippetFilter === 'all' || activeSnippetFilter === 'detail') && (
+            <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <FileCode2 className="w-4 h-4 text-emerald-500" />
+                    5. Dynamic Article Post Detail (<code className="font-mono text-blue-600 dark:text-blue-400">app/blog/[slug]/page.tsx</code>)
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Next.js 16 Server Component: async params Promise, automated OpenGraph metadata, Schema.org JSON-LD &amp; background ISR.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => copyToClipboard(nextjsConsumerSnippet, 'next-page')}
+                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                >
+                  {copiedCode === 'next-page' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedCode === 'next-page' ? 'Copied' : 'Copy Detail'}</span>
+                </button>
+              </div>
+
+              <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[500px] leading-relaxed border border-slate-800">
+                {nextjsConsumerSnippet}
+              </pre>
+            </div>
+          )}
+
+          {/* CARD 6: app/api/revalidate/route.ts */}
+          {(activeSnippetFilter === 'all' || activeSnippetFilter === 'revalidate') && (
+            <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-violet-500" />
+                    6. On-Demand ISR Cache Purge Webhook (<code className="font-mono text-blue-600 dark:text-blue-400">app/api/revalidate/route.ts</code>)
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Next.js 16 App Router Route Handler: validates HMAC SHA-256 signatures and executes zero-downtime cache purges.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => copyToClipboard(webhookHandlerSnippet, 'webhook-route')}
+                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                >
+                  {copiedCode === 'webhook-route' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedCode === 'webhook-route' ? 'Copied' : 'Copy Webhook'}</span>
+                </button>
+              </div>
+
+              <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[460px] leading-relaxed border border-slate-800">
+                {webhookHandlerSnippet}
+              </pre>
+            </div>
+          )}
+
+          {/* CARD 7: app/sitemap.ts */}
+          {(activeSnippetFilter === 'all' || activeSnippetFilter === 'sitemap') && (
+            <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-teal-500" />
+                    7. Dynamic Automated Sitemap (<code className="font-mono text-blue-600 dark:text-blue-400">app/sitemap.ts</code>)
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Generates dynamic XML sitemaps for search engines querying all published articles via the SDK.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => copyToClipboard(sitemapSnippet, 'sitemap-code')}
+                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                >
+                  {copiedCode === 'sitemap-code' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedCode === 'sitemap-code' ? 'Copied' : 'Copy Sitemap'}</span>
+                </button>
+              </div>
+
+              <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[380px] leading-relaxed border border-slate-800">
+                {sitemapSnippet}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB: INTERACTIVE ENDPOINT TESTER */}
       {activeTab === 'tester' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Request Builder Panel (5 Cols) */}
           <div className="lg:col-span-5 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 shadow-xs">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Code2 className="w-4 h-4 text-slate-500" />
-                Request Configuration
-              </h3>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-200 dark:border-emerald-800/60">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/80">
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Terminal className="w-4 h-4 text-blue-500" />
+                Live Request Builder
+              </h2>
+              <span className="text-xs px-2 py-0.5 rounded font-mono font-semibold bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/60">
                 GET
               </span>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
-                  Select Endpoint
-                </label>
-                <select
-                  value={selectedEndpoint}
-                  onChange={(e) => setSelectedEndpoint(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 font-mono focus:outline-none"
-                >
-                  <option value="/v1/blogs">GET /v1/blogs (List Published Posts)</option>
-                  <option value="/v1/blogs/{slug}">GET /v1/blogs/&#123;slug&#125; (Full Post + Schema)</option>
-                  <option value="/v1/categories">GET /v1/categories (Taxonomy Tree)</option>
-                  <option value="/v1/search">GET /v1/search (Full-Text Search)</option>
-                </select>
-              </div>
-
-              {selectedEndpoint === '/v1/blogs/{slug}' && (
-                <div>
-                  <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
-                    Article Slug
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. enterprise-ai-shift"
-                    value={slugParam}
-                    onChange={(e) => setSlugParam(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 font-mono focus:outline-none"
-                  />
-                </div>
-              )}
-
-              {selectedEndpoint === '/v1/search' && (
-                <div>
-                  <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
-                    Search Query (?q=)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. enterprise"
-                    value={searchQueryParam}
-                    onChange={(e) => setSearchQueryParam(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 font-mono focus:outline-none"
-                  />
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
-                    Language Locale
-                  </label>
-                  <select
-                    value={selectedLang}
-                    onChange={(e) => setSelectedLang(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
-                  >
-                    <option value="en">English (EN)</option>
-                    <option value="hi">Hindi (HI)</option>
-                    <option value="fr">French (FR)</option>
-                    <option value="ar">Arabic (AR)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
-                    Authorization Header
-                  </label>
-                  <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-500 truncate">
-                    Bearer {activeSite.apiKey.slice(0, 12)}...
-                  </div>
-                </div>
-              </div>
-
-              {/* cURL Display */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-slate-700 dark:text-slate-300 font-semibold">cURL Command</label>
-                  <button
-                    onClick={() => copyToClipboard(curlCommand, 'curl')}
-                    className="text-[11px] text-slate-500 hover:text-slate-900 dark:hover:text-white flex items-center gap-1 cursor-pointer"
-                  >
-                    {copiedCode === 'curl' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                    <span>{copiedCode === 'curl' ? 'Copied' : 'Copy cURL'}</span>
-                  </button>
-                </div>
-                <pre className="p-3 bg-slate-900 text-slate-200 rounded-xl text-[11px] font-mono overflow-x-auto whitespace-pre leading-relaxed border border-slate-800">
-                  {curlCommand}
-                </pre>
-              </div>
-
-              <button
-                disabled={isLoadingTest}
-                onClick={handleExecuteApi}
-                className="w-full py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+            {/* Endpoint Selector */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Endpoint Route</label>
+              <select
+                value={selectedEndpoint}
+                onChange={(e) => setSelectedEndpoint(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono text-slate-900 dark:text-white outline-none cursor-pointer focus:border-blue-500"
               >
-                {isLoadingTest ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Executing Request...</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-3.5 h-3.5 fill-current" />
-                    <span>Send Test Request</span>
-                  </>
-                )}
-              </button>
+                <option value="/v1/blogs">GET /v1/blogs (List Published Posts)</option>
+                <option value="/v1/blogs/{slug}">GET /v1/blogs/:slug (Single Post by Slug)</option>
+                <option value="/v1/blogs/latest">GET /v1/blogs/latest (Latest Posts)</option>
+                <option value="/v1/blogs/popular">GET /v1/blogs/popular (Most Viewed Posts)</option>
+                <option value="/v1/categories">GET /v1/categories (Taxonomy Tree)</option>
+                <option value="/v1/tags">GET /v1/tags (Website Tags)</option>
+                <option value="/v1/search">GET /v1/search (Full-Text Search)</option>
+                <option value="/v1/website">GET /v1/website (Tenant Metadata)</option>
+              </select>
+            </div>
+
+            {/* Dynamic Param Inputs */}
+            {selectedEndpoint === '/v1/blogs/{slug}' && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Article Slug</label>
+                <input
+                  type="text"
+                  value={slugParam}
+                  onChange={(e) => setSlugParam(e.target.value)}
+                  placeholder={sampleSlug}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono text-slate-900 dark:text-white outline-none focus:border-blue-500"
+                />
+              </div>
+            )}
+
+            {selectedEndpoint === '/v1/search' && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Search Query (q)</label>
+                <input
+                  type="text"
+                  value={searchQueryParam}
+                  onChange={(e) => setSearchQueryParam(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono text-slate-900 dark:text-white outline-none focus:border-blue-500"
+                />
+              </div>
+            )}
+
+            {/* Language Selector */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Language Locale</label>
+              <div className="flex items-center gap-2">
+                {['en', 'hi', 'fr', 'ar'].map((lang) => (
+                  <button
+                    key={lang}
+                    onClick={() => setSelectedLang(lang)}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold uppercase transition-colors cursor-pointer border ${
+                      selectedLang === lang
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                        : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
+                    }`}
+                  >
+                    {lang}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Auth Token Preview */}
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1 text-xs">
+              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Resolved Authorization Header</div>
+              <div className="font-mono text-[11px] text-slate-800 dark:text-slate-300 truncate">
+                Bearer {activeSite.apiKey}
+              </div>
+            </div>
+
+            {/* Execute Button */}
+            <button
+              onClick={handleExecuteApi}
+              disabled={isLoadingTest}
+              className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+            >
+              {isLoadingTest ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Executing Live Request...</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-3.5 h-3.5 fill-white" />
+                  <span>Send Request to NestJS Server</span>
+                </>
+              )}
+            </button>
+
+            {/* Generated cURL */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-700 dark:text-slate-300">Equivalent cURL</span>
+                <button
+                  onClick={() => copyToClipboard(curlCommand, 'curl')}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer"
+                >
+                  {copiedCode === 'curl' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedCode === 'curl' ? 'Copied' : 'Copy'}</span>
+                </button>
+              </div>
+              <pre className="p-2.5 rounded-lg bg-slate-900 text-slate-200 font-mono text-[11px] overflow-x-auto leading-relaxed border border-slate-800">
+                {curlCommand}
+              </pre>
             </div>
           </div>
 
-          {/* Response Console (7 Cols) */}
-          <div className="lg:col-span-7 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-3 shadow-xs flex flex-col justify-between">
+          {/* Response Inspector Panel (7 Cols) */}
+          <div className="lg:col-span-7 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 shadow-xs flex flex-col justify-between">
             <div>
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                  <Terminal className="w-4 h-4 text-slate-500" />
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                    Live Response Console
-                  </h3>
-                </div>
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/80">
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                  Live Response Inspector
+                </h2>
 
                 {testResponse && (
-                  <div className="flex items-center gap-2 font-mono text-[11px]">
-                    <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-200 dark:border-emerald-800/60">
-                      HTTP {testResponse.status} OK
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs px-2.5 py-0.5 rounded-md font-mono font-bold ${
+                      testResponse.status >= 200 && testResponse.status < 300
+                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                        : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+                    }`}>
+                      {testResponse.status} {testResponse.status === 200 ? 'OK' : 'Error'}
                     </span>
-                    <span className="text-slate-400">
+                    <span className="text-xs px-2 py-0.5 rounded-md font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                       {testResponse.latencyMs}ms
                     </span>
                   </div>
@@ -691,7 +1130,6 @@ export async function POST(req: NextRequest) {
 
               {testResponse ? (
                 <div className="mt-3 space-y-3">
-                  {/* Response Headers */}
                   <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-[11px] font-mono space-y-0.5 text-slate-500 dark:text-slate-400">
                     <div>Content-Type: {testResponse.headers['Content-Type']}</div>
                     <div>X-Tenant-ID: {testResponse.headers['X-Tenant-ID']}</div>
@@ -699,7 +1137,6 @@ export async function POST(req: NextRequest) {
                     <div>X-Cache: {testResponse.headers['X-Cache']}</div>
                   </div>
 
-                  {/* JSON Body */}
                   <div className="relative">
                     <button
                       onClick={() => copyToClipboard(JSON.stringify(testResponse.body, null, 2), 'body')}
@@ -716,121 +1153,20 @@ export async function POST(req: NextRequest) {
               ) : (
                 <div className="py-24 text-center text-xs text-slate-400 space-y-2">
                   <Code2 className="w-8 h-8 text-slate-300 dark:text-slate-700 mx-auto" />
-                  <div>Ready for request</div>
+                  <div>Click "Send Request to NestJS Server" to execute a live probe.</div>
                 </div>
               )}
             </div>
 
             <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-              <span>REST API v1</span>
-              <span>Edge Cached</span>
+              <span>REST API v1 (NestJS)</span>
+              <span>PostgreSQL + Redis Cached</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* TAB 2: NEXT.JS 16 SNIPPETS */}
-      {activeTab === 'snippets' && (
-        <div className="space-y-6">
-          {/* Card 1: Environment Variables */}
-          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Key className="w-4 h-4 text-amber-500" />
-                  1. Environment Configuration (`.env.local`)
-                </h3>
-              </div>
-
-              <button
-                onClick={() => copyToClipboard(envConfigSnippet, 'env-config')}
-                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-              >
-                {copiedCode === 'env-config' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedCode === 'env-config' ? 'Copied' : 'Copy Env'}</span>
-              </button>
-            </div>
-
-            <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto leading-relaxed border border-slate-800">
-              {envConfigSnippet}
-            </pre>
-          </div>
-
-          {/* Card 2: Turnkey Next.js 16 SDK Client */}
-          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Code2 className="w-4 h-4 text-blue-500" />
-                  2. Next.js 16 Type-Safe Client SDK (`lib/jupsoft-sdk.ts`)
-                </h3>
-              </div>
-
-              <button
-                onClick={() => copyToClipboard(nextjsSdkSnippet, 'next-sdk')}
-                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-              >
-                {copiedCode === 'next-sdk' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedCode === 'next-sdk' ? 'Copied' : 'Copy SDK'}</span>
-              </button>
-            </div>
-
-            <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[460px] leading-relaxed border border-slate-800">
-              {nextjsSdkSnippet}
-            </pre>
-          </div>
-
-          {/* Card 3: Next.js 16 Consumer Dynamic Route */}
-          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <FileCode2 className="w-4 h-4 text-emerald-500" />
-                  3. Next.js 16 App Router Dynamic Article (`app/blog/[slug]/page.tsx`)
-                </h3>
-              </div>
-
-              <button
-                onClick={() => copyToClipboard(nextjsConsumerSnippet, 'next-page')}
-                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-              >
-                {copiedCode === 'next-page' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedCode === 'next-page' ? 'Copied' : 'Copy Code'}</span>
-              </button>
-            </div>
-
-            <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[460px] leading-relaxed border border-slate-800">
-              {nextjsConsumerSnippet}
-            </pre>
-          </div>
-
-          {/* Card 4: Webhook Revalidation Route Handler */}
-          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-violet-500" />
-                  4. On-Demand ISR Cache Purge Webhook (`app/api/revalidate/route.ts`)
-                </h3>
-              </div>
-
-              <button
-                onClick={() => copyToClipboard(webhookHandlerSnippet, 'webhook-route')}
-                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-              >
-                {copiedCode === 'webhook-route' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedCode === 'webhook-route' ? 'Copied' : 'Copy Code'}</span>
-              </button>
-            </div>
-
-            <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[460px] leading-relaxed border border-slate-800">
-              {webhookHandlerSnippet}
-            </pre>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: SPECS & HEADERS */}
+      {/* TAB: SPECS & HEADERS */}
       {activeTab === 'specs' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
@@ -883,6 +1219,13 @@ export async function POST(req: NextRequest) {
           </div>
         </div>
       )}
+
+      {/* CLIENT HANDOVER & INSTALL MODAL */}
+      <ClientHandoverModal
+        isOpen={isHandoverOpen}
+        site={activeSite}
+        onClose={() => setIsHandoverOpen(false)}
+      />
     </div>
   );
 };

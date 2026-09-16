@@ -56,7 +56,7 @@ export class WebsitesService {
         id: dto.id || `web-${Date.now()}`,
         name: dto.name,
         domain: dto.domain,
-        logoUrl: dto.logoUrl || '',
+        logoUrl: dto.logoUrl?.trim() || '/uploads/logos/default-website-logo.webp',
         description: dto.description || '',
         apiKey: `jup_sec_${crypto.randomUUID().replace(/-/g, '')}`,
         s3Prefix: `blogs/${dto.domain.replace(/[^a-zA-Z0-9]/g, '_')}/`,
@@ -66,6 +66,37 @@ export class WebsitesService {
         revalidateWebhookUrl: dto.revalidateWebhookUrl || `https://${dto.domain}/api/revalidate`,
       },
     });
+
+    // Auto-seed starter WebP assets into media library for this new website
+    try {
+      await this.prisma.mediaAsset.createMany({
+        data: [
+          {
+            websiteId: website.id,
+            fileName: 'default-website-logo.webp',
+            fileType: 'image/webp',
+            fileSizeBytes: 6200,
+            s3Key: `logos/${website.id}/default-website-logo.webp`,
+            cdnUrl: '/uploads/logos/default-website-logo.webp',
+            altText: `${website.name} Default Logo`,
+            uploadedBy: user?.name || 'System Admin',
+          },
+          {
+            websiteId: website.id,
+            fileName: 'default-blog-cover.webp',
+            fileType: 'image/webp',
+            fileSizeBytes: 34000,
+            s3Key: `blogs/${website.id}/default-blog-cover.webp`,
+            cdnUrl: '/uploads/blogs/default-blog-cover.webp',
+            altText: `${website.name} Featured Article Banner`,
+            uploadedBy: user?.name || 'System Admin',
+          },
+        ],
+        skipDuplicates: true,
+      });
+    } catch (mErr) {
+      // Non-blocking
+    }
 
     // Record in audit log
     await this.prisma.systemAuditLog.create({

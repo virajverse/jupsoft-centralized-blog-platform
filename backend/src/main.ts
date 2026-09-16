@@ -43,6 +43,15 @@ async function bootstrap() {
   });
   logger.log(`📁 Static assets mounted: /uploads -> ${uploadsDir}`);
 
+  // 1.B Static Assets — Universal Embed Widget (/widget)
+  const widgetDir = join(process.cwd(), 'public', 'widget');
+  if (fs.existsSync(widgetDir)) {
+    app.useStaticAssets(widgetDir, {
+      prefix: '/widget/',
+    });
+    logger.log(`📁 Universal widget mounted: /widget -> ${widgetDir}`);
+  }
+
   // 2. Helmet — HTTP Security Headers
   app.use(
     helmet({
@@ -67,8 +76,8 @@ async function bootstrap() {
       if (nodeEnv !== 'production' && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
         return callback(null, true);
       }
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error('CORS blocked: origin not allowed'));
+      if (allowedOrigins.includes(origin) || origin.endsWith('.netlify.app')) return callback(null, true);
+      return callback(new Error('CORS blocked: origin not allowed: ' + origin));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

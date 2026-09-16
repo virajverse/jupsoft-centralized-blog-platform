@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Body, Query, UseGuards,
+  Controller, Get, Post, Put, Delete, Body, Query, Param, UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -44,6 +44,73 @@ export class WebhooksController {
       total: logs.length,
       data: logs,
     };
+  }
+
+  @Post('test-ping')
+  @Roles('Super Admin', 'Website Admin')
+  @ApiOperation({ summary: 'Fire a 100% real live HTTP test ping to the target webhook URL' })
+  async testPing(
+    @Body()
+    body: {
+      websiteId: string;
+      url?: string;
+      event?: 'blog.published' | 'blog.updated' | 'blog.unpublished' | 'blog.archived' | 'test.ping';
+    },
+  ) {
+    return this.webhookDispatcher.testPing(body.websiteId, body.url, body.event || 'test.ping');
+  }
+
+  @Get('endpoints')
+  @Roles('Super Admin', 'Website Admin')
+  @ApiOperation({ summary: 'List all configured webhook endpoints for a tenant' })
+  @ApiQuery({ name: 'websiteId', required: true })
+  async getEndpoints(@Query('websiteId') websiteId: string) {
+    return this.webhookDispatcher.getEndpoints(websiteId);
+  }
+
+  @Post('endpoints')
+  @Roles('Super Admin', 'Website Admin')
+  @ApiOperation({ summary: 'Add a new webhook endpoint to a tenant' })
+  async addEndpoint(
+    @Body()
+    body: {
+      websiteId: string;
+      name: string;
+      url: string;
+      events?: string[];
+      secret?: string;
+      isActive?: boolean;
+    },
+  ) {
+    return this.webhookDispatcher.addEndpoint(body.websiteId, body);
+  }
+
+  @Put('endpoints/:id')
+  @Roles('Super Admin', 'Website Admin')
+  @ApiOperation({ summary: 'Update an existing webhook endpoint' })
+  async updateEndpoint(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      websiteId: string;
+      name?: string;
+      url?: string;
+      events?: string[];
+      secret?: string;
+      isActive?: boolean;
+    },
+  ) {
+    return this.webhookDispatcher.updateEndpoint(body.websiteId, id, body);
+  }
+
+  @Delete('endpoints/:id')
+  @Roles('Super Admin', 'Website Admin')
+  @ApiOperation({ summary: 'Delete a webhook endpoint' })
+  async deleteEndpoint(
+    @Param('id') id: string,
+    @Query('websiteId') websiteId: string,
+  ) {
+    return this.webhookDispatcher.deleteEndpoint(websiteId, id);
   }
 
   @Post('revalidate')

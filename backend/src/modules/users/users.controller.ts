@@ -57,4 +57,15 @@ export class UsersController {
   async delete(@Param('id') id: string, @CurrentUser() user: any, @Ip() ip: string) {
     return this.usersService.delete(id, user, ip);
   }
+
+  @Post(':id/reset-password')
+  @Roles('Super Admin', 'Website Admin', 'Role Admin')
+  @ApiOperation({ summary: 'Generate a new secure temporary password for a user' })
+  async resetPassword(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Ip() ip: string,
+  ) {
+    return this.usersService.resetPassword(id, user, ip);
+  }
 }

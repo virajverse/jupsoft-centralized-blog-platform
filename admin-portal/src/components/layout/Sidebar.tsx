@@ -118,8 +118,7 @@ export const Sidebar: React.FC = () => {
       module: 'media',
       label: 'Media Library',
       icon: ImageIcon,
-      badge: 'WebP',
-      badgeColor: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60',
+      badge: null,
       isActive: pathname === '/media',
     },
     {
@@ -156,8 +155,7 @@ export const Sidebar: React.FC = () => {
       module: 'developers',
       label: 'Developer API Portal',
       icon: Code2,
-      badge: 'REST',
-      badgeColor: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 dark:border-blue-800/60',
+      badge: null,
       isActive: pathname === '/developers',
     },
     {

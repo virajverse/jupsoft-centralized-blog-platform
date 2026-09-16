@@ -42,12 +42,14 @@ import {
   Smartphone,
   ExternalLink,
   Clock,
-  Globe,
-  ChevronRight
+  Globe, 
+  ChevronRight,
+  Loader2
 } from 'lucide-react';
 import { LanguageCode, BlogStatus, Blog, BlogTranslation, BlogSEO } from '../../types';
 import { createEmptySEO } from '../../data/initialData';
 import { canPublish, canApprove } from '../../utils/permissions';
+import { apiClient } from '../../services/apiClient';
 
 interface BlogEditorProps {
   blogId?: string | null;
@@ -361,52 +363,66 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     setTimeout(() => setCopiedSchema(false), 2000);
   };
 
-  // AI Auto-Translate helper
-  const handleAITranslate = () => {
+  // Real-time AI Multi-Language Translation Engine
+  const [isTranslating, setIsTranslating] = useState(false);
+
+  const handleAITranslate = async () => {
     const enTrans = translations.en;
     if (!enTrans || !enTrans.title) {
       showNotification('Please fill the English (EN) post title first.', 'warning');
       return;
     }
-    // FIX 12: Make clear this is a content scaffold, not real AI translation
-    showNotification(
-      `🚧 Translation Scaffold: Content copied from EN with language prefix. ` +
-      `Replace with real translation before publishing. ` +
-      `(AI translation API integration — Phase SaaS)`,
-      'warning',
-    );
-    const prefixMap: Record<LanguageCode, { titlePrefix: string; bodyPrefix: string }> = {
-      hi: { titlePrefix: '[हिंदी] ', bodyPrefix: '<p>इस लेख का हिंदी अनुवाद निम्नलिखित है: </p>' },
-      fr: { titlePrefix: '[FR] ', bodyPrefix: '<p>Voici la traduction française de cet article: </p>' },
-      ar: { titlePrefix: '[عربي] ', bodyPrefix: '<p>فيما يلي الترجمة العربية لهذه المقالة: </p>' },
-      en: { titlePrefix: '', bodyPrefix: '' },
-    };
-    const target = prefixMap[currentLang];
-    const transTitle = `${target.titlePrefix}${enTrans.title}`;
-    const transSlug = `${enTrans.slug}-${currentLang}`;
-    const transContent = `${target.bodyPrefix}${enTrans.content}`;
-
-    setTranslations((prev) => ({
-      ...prev,
-      [currentLang]: {
-        ...prev[currentLang],
-        title: transTitle,
-        slug: transSlug,
-        excerpt: enTrans.excerpt,
-        content: transContent,
-        seo: {
-          ...enTrans.seo,
-          metaTitle: transTitle,
-          ogTitle: transTitle,
-          twitterTitle: transTitle,
-        },
-      },
-    }));
-
-    if (editor) {
-      editor.commands.setContent(transContent);
+    if (currentLang === 'en') {
+      showNotification('Active tab is already English (EN). Switch to Hindi, French, or Arabic to translate.', 'info');
+      return;
     }
-    showNotification(`Auto-translated English content to ${currentLang.toUpperCase()}!`, 'success');
+
+    setIsTranslating(true);
+    showNotification(`Translating English content to ${currentLang.toUpperCase()} via real-time translation engine...`, 'info');
+
+    try {
+      const currentEditorHtml = editor?.getHTML() || enTrans.content;
+      const res = await apiClient.translateText({
+        title: enTrans.title,
+        excerpt: enTrans.excerpt,
+        content: currentEditorHtml,
+        from: 'en',
+        to: currentLang,
+      });
+
+      const transTitle = res.title || enTrans.title;
+      const transSlug = `${enTrans.slug || 'article'}-${currentLang}`;
+      const transContent = res.content || currentEditorHtml;
+      const transExcerpt = res.excerpt || enTrans.excerpt;
+
+      setTranslations((prev) => ({
+        ...prev,
+        [currentLang]: {
+          ...prev[currentLang],
+          title: transTitle,
+          slug: transSlug,
+          excerpt: transExcerpt,
+          content: transContent,
+          seo: {
+            ...enTrans.seo,
+            metaTitle: transTitle,
+            ogTitle: transTitle,
+            twitterTitle: transTitle,
+            metaDescription: transExcerpt || enTrans.seo?.metaDescription,
+          },
+        },
+      }));
+
+      if (editor) {
+        editor.commands.setContent(transContent);
+      }
+      showNotification(`Successfully translated post to ${currentLang.toUpperCase()}!`, 'success');
+    } catch (err: any) {
+      console.error('Translation error:', err);
+      showNotification(`Translation error: ${err?.message || 'Failed to translate'}`, 'warning');
+    } finally {
+      setIsTranslating(false);
+    }
   };
 
   // Insert image into editor canvas
@@ -462,8 +478,8 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       id,
       websiteId: targetSiteId,
       authorId: currentUser?.id || existingBlog?.authorId || 'usr-superadmin',
-      authorName: currentUser?.name || existingBlog?.authorName || 'Aarav Sharma',
-      authorAvatar: currentUser?.avatar || existingBlog?.authorAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=96&auto=format&fit=crop&q=80',
+      authorName: currentUser?.name || existingBlog?.authorName || 'Staff Writer',
+      authorAvatar: currentUser?.avatar || existingBlog?.authorAvatar || '/uploads/avatars/avatar-default.webp',
       featuredImage,
       featuredImageAlt,
       status,
@@ -558,11 +574,12 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           {currentLang !== 'en' && (
             <button
               onClick={handleAITranslate}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 transition-colors cursor-pointer"
-              title="Translation Scaffold (copies EN content with language prefix)"
+              disabled={isTranslating}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 transition-colors cursor-pointer disabled:opacity-50"
+              title="Real-time multi-language translation from English"
             >
-              <Bot className="w-3 h-3" />
-              <span className="hidden md:inline">Translate EN</span>
+              {isTranslating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bot className="w-3 h-3" />}
+              <span className="hidden md:inline">{isTranslating ? 'Translating...' : 'Translate EN'}</span>
             </button>
           )}
         </div>
@@ -1543,7 +1560,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
                     <div className="flex items-center gap-2.5">
                       <img
-                        src={existingBlog?.authorAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=96&auto=format&fit=crop&q=80'}
+                        src={existingBlog?.authorAvatar || '/uploads/avatars/avatar-default.webp'}
                         alt="Author"
                         className="w-9 h-9 rounded-full object-cover border border-slate-200 dark:border-slate-700"
                       />

@@ -236,22 +236,22 @@ export const DashboardOverview: React.FC = () => {
             <>
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  {isAllSites ? 'Connected Tenants' : 'Architecture SLA'}
+                  {isAllSites ? 'Connected Tenants' : 'Tenant Status'}
                 </span>
                 <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
-                  {isAllSites ? <Globe className="w-4 h-4" /> : <Zap className="w-4 h-4" />}
+                  <Globe className="w-4 h-4" />
                 </div>
               </div>
               <div className="mt-3 flex items-baseline justify-between">
                 <div className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
-                  {isAllSites ? `${websites.length} Sites` : '< 300ms'}
+                  {isAllSites ? `${websites.length} Sites` : 'Active'}
                 </div>
                 <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60">
-                  {isAllSites ? 'Multi-Tenant' : 'Optimal'}
+                  {isAllSites ? 'Multi-Tenant' : 'Isolated'}
                 </span>
               </div>
               <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                {isAllSites ? 'Full tenant isolation' : 'Next.js SSR/ISR cache'}
+                {isAllSites ? 'Full tenant isolation' : (activeSite?.domain || 'Configured Tenant')}
               </div>
             </>
           );

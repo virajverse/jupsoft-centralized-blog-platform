@@ -15,6 +15,7 @@ import {
   SystemAuditLog
 } from '../types';
 import { apiClient } from '../services/apiClient'; // TRD §12: live API integration
+import { cleanAvatarUrl } from '../utils/permissions';
 
 
 interface BlogState {
@@ -77,18 +78,21 @@ interface BlogState {
   deleteBlog: (id: string) => Promise<void> | void;
   addMediaItem: (item: MediaItem) => void;
   deleteMediaItem: (id: string) => Promise<void> | void;
-  addCategory: (cat: Category) => void;
-  addTag: (tag: Tag) => void;
+  addCategory: (cat: Partial<Category> & { websiteId: string; name: string }) => Promise<Category | void>;
+  deleteCategory: (id: string, websiteId: string) => Promise<void>;
+  addTag: (tag: Partial<Tag> & { websiteId: string; name: string }) => Promise<Tag | void>;
+  deleteTag: (id: string, websiteId: string) => Promise<void>;
   addWebsite: (site: Partial<Website>) => Promise<void> | void;
   updateWebsite: (id: string, updates: Partial<Website>) => Promise<void> | void;
   deleteWebsite: (id: string) => Promise<void> | void;
   addUser: (user: UserAccount) => Promise<void> | void;
   updateUser: (id: string, updates: Partial<UserAccount>) => Promise<void> | void;
   deleteUser: (id: string) => Promise<void> | void;
+  resetUserPassword: (userId: string) => Promise<{ success: boolean; tempPassword?: string; message?: string }>;
   addRedirect: (redirect: Partial<RedirectItem>) => Promise<void> | void;
   deleteRedirect: (id: string) => Promise<void> | void;
   addAuditLog: (log: SystemAuditLog) => void;
-  autoTranslateLocale: (blogId: string, fromLang: LanguageCode, toLang: LanguageCode) => void;
+  autoTranslateLocale: (blogId: string, fromLang: LanguageCode, toLang: LanguageCode) => Promise<void>;
   clearNotification: () => void;
   showNotification: (message: string, type?: 'success' | 'info' | 'warning') => void;
 }
@@ -199,12 +203,16 @@ export const useBlogStore = create<BlogState>()(
           if (Array.isArray(res)) {
             set((state) => {
               const catMap = { ...state.categories };
-              res.forEach((cat) => {
-                if (!catMap[cat.websiteId]) catMap[cat.websiteId] = [];
-                if (!catMap[cat.websiteId].some((c) => c.id === cat.id)) {
-                  catMap[cat.websiteId].push(cat);
-                }
-              });
+              if (websiteId && websiteId !== 'all') {
+                catMap[websiteId] = res;
+              } else {
+                res.forEach((cat) => {
+                  if (!catMap[cat.websiteId]) catMap[cat.websiteId] = [];
+                  if (!catMap[cat.websiteId].some((c) => c.id === cat.id)) {
+                    catMap[cat.websiteId].push(cat);
+                  }
+                });
+              }
               return { categories: catMap };
             });
           }
@@ -219,12 +227,16 @@ export const useBlogStore = create<BlogState>()(
           if (Array.isArray(res)) {
             set((state) => {
               const tagMap = { ...state.tags };
-              res.forEach((tag) => {
-                if (!tagMap[tag.websiteId]) tagMap[tag.websiteId] = [];
-                if (!tagMap[tag.websiteId].some((t) => t.id === tag.id)) {
-                  tagMap[tag.websiteId].push(tag);
-                }
-              });
+              if (websiteId && websiteId !== 'all') {
+                tagMap[websiteId] = res;
+              } else {
+                res.forEach((tag) => {
+                  if (!tagMap[tag.websiteId]) tagMap[tag.websiteId] = [];
+                  if (!tagMap[tag.websiteId].some((t) => t.id === tag.id)) {
+                    tagMap[tag.websiteId].push(tag);
+                  }
+                });
+              }
               return { tags: tagMap };
             });
           }
@@ -290,8 +302,30 @@ export const useBlogStore = create<BlogState>()(
           }
           if (usersRes.status === 'fulfilled' && Array.isArray(usersRes.value)) {
             const map = new Map<string, UserAccount>();
-            usersRes.value.forEach((u) => map.set(u.id, u));
+            usersRes.value.forEach((u) => {
+              map.set(u.id, {
+                ...u,
+                avatar: cleanAvatarUrl(u.avatar) || '/uploads/avatars/avatar-default.webp',
+              });
+            });
             updates.users = Array.from(map.values());
+
+            const current = get().currentUser;
+            if (current) {
+              const matched = usersRes.value.find((u) => u.id === current.id || u.email === current.email);
+              if (matched) {
+                updates.currentUser = {
+                  ...current,
+                  ...matched,
+                  avatar: cleanAvatarUrl(matched.avatar) || '/uploads/avatars/avatar-default.webp',
+                };
+              } else {
+                updates.currentUser = {
+                  ...current,
+                  avatar: cleanAvatarUrl(current.avatar) || '/uploads/avatars/avatar-default.webp',
+                };
+              }
+            }
           }
           if (mediaRes.status === 'fulfilled' && Array.isArray(mediaRes.value)) {
             const map = new Map<string, MediaItem>();
@@ -350,7 +384,10 @@ export const useBlogStore = create<BlogState>()(
             const assignedRole = (user.roleAssignments?.[websiteId] || (isSuper ? 'Super Admin' : Object.values(user.roleAssignments || {})[0]) || 'Content Writer') as UserRole;
             set({
               isAuthenticated: true,
-              currentUser: user,
+              currentUser: {
+                ...user,
+                avatar: cleanAvatarUrl(user.avatar) || '/uploads/avatars/avatar-default.webp',
+              },
               activeWebsiteId: websiteId,
               activeRole: assignedRole,
             });
@@ -580,30 +617,92 @@ export const useBlogStore = create<BlogState>()(
         }));
       },
 
-      addCategory: (cat) => {
-        set((state) => {
-          const current = state.categories[cat.websiteId] || [];
-          return {
-            categories: {
-              ...state.categories,
-              [cat.websiteId]: [...current, cat],
-            },
-            notification: { message: `Category "${cat.name}" created`, type: 'success' },
-          };
-        });
+      addCategory: async (cat) => {
+        try {
+          const created = await apiClient.createCategory({
+            websiteId: cat.websiteId,
+            name: cat.name,
+            slug: cat.slug,
+            description: cat.description,
+            parentId: cat.parentId,
+          });
+          set((state) => {
+            const current = state.categories[created.websiteId] || [];
+            return {
+              categories: {
+                ...state.categories,
+                [created.websiteId]: [...current.filter((c) => c.id !== created.id), created],
+              },
+              notification: { message: `Category "${created.name}" created`, type: 'success' },
+            };
+          });
+          return created;
+        } catch (err: any) {
+          console.error('Failed to create category:', err);
+          set({ notification: { message: err?.message || 'Failed to create category', type: 'warning' } });
+        }
       },
 
-      addTag: (tag) => {
-        set((state) => {
-          const current = state.tags[tag.websiteId] || [];
-          return {
-            tags: {
-              ...state.tags,
-              [tag.websiteId]: [...current, tag],
-            },
-            notification: { message: `Tag "#${tag.name}" added`, type: 'success' },
-          };
-        });
+      deleteCategory: async (id: string, websiteId: string) => {
+        try {
+          await apiClient.deleteCategory(id);
+          set((state) => {
+            const current = state.categories[websiteId] || [];
+            return {
+              categories: {
+                ...state.categories,
+                [websiteId]: current.filter((c) => c.id !== id),
+              },
+              notification: { message: 'Category deleted', type: 'info' },
+            };
+          });
+        } catch (err: any) {
+          console.error('Failed to delete category:', err);
+          set({ notification: { message: err?.message || 'Failed to delete category', type: 'warning' } });
+        }
+      },
+
+      addTag: async (tag) => {
+        try {
+          const created = await apiClient.createTag({
+            websiteId: tag.websiteId,
+            name: tag.name,
+            slug: tag.slug,
+          });
+          set((state) => {
+            const current = state.tags[created.websiteId] || [];
+            return {
+              tags: {
+                ...state.tags,
+                [created.websiteId]: [...current.filter((t) => t.id !== created.id), created],
+              },
+              notification: { message: `Tag "#${created.name}" added`, type: 'success' },
+            };
+          });
+          return created;
+        } catch (err: any) {
+          console.error('Failed to create tag:', err);
+          set({ notification: { message: err?.message || 'Failed to create tag', type: 'warning' } });
+        }
+      },
+
+      deleteTag: async (id: string, websiteId: string) => {
+        try {
+          await apiClient.deleteTag(id);
+          set((state) => {
+            const current = state.tags[websiteId] || [];
+            return {
+              tags: {
+                ...state.tags,
+                [websiteId]: current.filter((t) => t.id !== id),
+              },
+              notification: { message: 'Tag deleted', type: 'info' },
+            };
+          });
+        } catch (err: any) {
+          console.error('Failed to delete tag:', err);
+          set({ notification: { message: err?.message || 'Failed to delete tag', type: 'warning' } });
+        }
       },
 
       addWebsite: async (site) => {
@@ -756,37 +855,56 @@ export const useBlogStore = create<BlogState>()(
         }));
       },
 
-      autoTranslateLocale: (blogId, fromLang, toLang) => {
-        set((state) => {
-          const blog = state.blogs.find((b) => b.id === blogId);
-          if (!blog) return state;
+      resetUserPassword: async (userId: string) => {
+        try {
+          const res = await apiClient.resetUserPassword(userId);
+          if (res.success) {
+            set((state) => ({
+              users: state.users.map((u) =>
+                u.id === userId ? { ...u, tempPassword: res.tempPassword } : u
+              ),
+              notification: { message: `Temporary password reset: ${res.tempPassword}`, type: 'success' },
+            }));
+          }
+          return res;
+        } catch (err: any) {
+          console.error('resetUserPassword error:', err);
+          set({ notification: { message: err?.message || 'Failed to reset password', type: 'warning' } });
+          return { success: false, message: err?.message };
+        }
+      },
 
-          const source = blog.translations[fromLang];
-          if (!source || !source.title) return state;
+      autoTranslateLocale: async (blogId, fromLang, toLang) => {
+        const blog = get().blogs.find((b) => b.id === blogId);
+        if (!blog) return;
 
-          // Realistic translation dictionaries for TRD languages
-          const prefixMap: Record<LanguageCode, { titlePrefix: string; bodyPrefix: string }> = {
-            hi: { titlePrefix: '[à¤¹à¤¿à¤‚à¤¦à¥€] ', bodyPrefix: '<p>à¤‡à¤¸ à¤²à¥‡à¤– à¤•à¤¾ à¤¹à¤¿à¤‚à¤¦à¥€ à¤…à¤¨à¥à¤µà¤¾à¤¦ à¤¨à¤¿à¤®à¥à¤¨à¤²à¤¿à¤–à¤¿à¤¤ à¤¹à¥ˆ: </p>' },
-            fr: { titlePrefix: '[FR] ', bodyPrefix: '<p>Voici la traduction franÃ§aise de cet article: </p>' },
-            ar: { titlePrefix: '[Ø¹Ø±Ø¨ÙŠ] ', bodyPrefix: '<p>ÙÙŠÙ…Ø§ ÙŠÙ„ÙŠ Ø§Ù„ØªØ±Ø¬Ù…Ø© Ø§Ù„Ø¹Ø±Ø¨ÙŠØ© Ù„Ù‡Ø°Ù‡ Ø§Ù„Ù…Ù‚Ø§Ù„Ø©: </p>' },
-            en: { titlePrefix: '[EN] ', bodyPrefix: '<p>English translation: </p>' },
-          };
+        const source = blog.translations[fromLang];
+        if (!source || !source.title) return;
 
-          const targetPrefix = prefixMap[toLang];
-          const translatedTitle = `${targetPrefix.titlePrefix}${source.title}`;
+        try {
+          const res = await apiClient.translateText({
+            title: source.title,
+            excerpt: source.excerpt,
+            content: source.content,
+            from: fromLang,
+            to: toLang,
+          });
+
+          const translatedTitle = res.title || source.title;
           const translatedSlug = `${source.slug}-${toLang}`;
-          const translatedContent = `${targetPrefix.bodyPrefix}${source.content}`;
+          const translatedContent = res.content || source.content;
+          const translatedExcerpt = res.excerpt || source.excerpt;
 
           const updatedTrans = {
             ...blog.translations[toLang],
             title: translatedTitle,
             slug: translatedSlug,
-            excerpt: source.excerpt,
+            excerpt: translatedExcerpt,
             content: translatedContent,
             seo: {
               ...source.seo,
               metaTitle: translatedTitle,
-              metaDescription: source.seo.metaDescription,
+              metaDescription: source.seo?.metaDescription || translatedExcerpt,
             },
           };
 
@@ -799,14 +917,17 @@ export const useBlogStore = create<BlogState>()(
             updatedAt: new Date().toISOString(),
           };
 
-          return {
+          set((state) => ({
             blogs: state.blogs.map((b) => (b.id === blogId ? updatedBlog : b)),
             notification: {
-              message: `AI Auto-translated to ${toLang.toUpperCase()} successfully!`,
+              message: `Translated to ${toLang.toUpperCase()} successfully via real-time translation engine!`,
               type: 'success',
             },
-          };
-        });
+          }));
+        } catch (err: any) {
+          console.error('autoTranslateLocale error:', err);
+          set({ notification: { message: 'Translation failed: ' + (err?.message || 'Unknown error'), type: 'warning' } });
+        }
       },
 
       showNotification: (message, type = 'info') => {
@@ -816,7 +937,7 @@ export const useBlogStore = create<BlogState>()(
       clearNotification: () => set({ notification: null }),
     }),
     {
-      name: 'jupsoft_cms_platform_store_v4',
+      name: 'jupsoft_cms_platform_store_v6',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => {
         // Exclude transient switching state so page reload never gets stuck

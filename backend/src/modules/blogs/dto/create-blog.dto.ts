@@ -96,7 +96,7 @@ export class CreateBlogDto {
   @IsNotEmpty()
   websiteId: string;
 
-  @ApiProperty({ example: 'https://images.unsplash.com/...', required: false })
+  @ApiProperty({ example: 'https://cdn.jupsoft.com/vectors/hero-banner.svg', required: false })
   @IsString()
   @IsOptional()
   featuredImage?: string;

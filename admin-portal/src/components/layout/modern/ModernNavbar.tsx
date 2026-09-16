@@ -20,7 +20,7 @@ import {
   Sparkles,
   BookOpen
 } from 'lucide-react';
-import { isGlobalScopeRole, canCreateBlog } from '../../../utils/permissions';
+import { isGlobalScopeRole, canCreateBlog, cleanAvatarUrl } from '../../../utils/permissions';
 import { UiThemeSwitcher } from '../UiThemeSwitcher';
 
 export const ModernNavbar: React.FC = () => {
@@ -113,7 +113,7 @@ export const ModernNavbar: React.FC = () => {
   };
 
   const { title, breadcrumb } = getPageInfo();
-  const reviewCount = blogs.filter((b) => b.status === 'Under Review').length;
+  const reviewCount = blogs.filter((b) => (activeWebsiteId === 'all' || b.websiteId === activeWebsiteId) && b.status === 'Under Review').length;
 
   return (
     <header className="h-16 sm:h-20 px-3 sm:px-5 lg:px-6 flex items-center justify-between shrink-0 z-30 bg-[#f0f2f8] w-full min-w-0">
@@ -237,25 +237,24 @@ export const ModernNavbar: React.FC = () => {
           <button 
             onClick={() => router.push(`/workflow${siteQuery}`)}
             className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white text-slate-600 hover:text-[#4c22cf] flex items-center justify-center relative shadow-xs border border-indigo-50/50 hover:shadow-md transition-all cursor-pointer shrink-0"
-            title="Workflow Notifications"
+            title={reviewCount > 0 ? `${reviewCount} articles waiting for review` : "No pending reviews"}
             aria-label="Workflow Notifications"
           >
             <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span className="absolute -top-1 -right-1 bg-[#4c22cf] text-white text-[9px] font-black w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full flex items-center justify-center shadow-xs">
-              {reviewCount > 0 ? reviewCount : 4}
-            </span>
+            {reviewCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-[#4c22cf] text-white text-[9px] font-black w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full flex items-center justify-center shadow-xs animate-in zoom-in-50">
+                {reviewCount}
+              </span>
+            )}
           </button>
 
           <button 
             onClick={() => router.push(`/blogs${siteQuery}`)}
             className="hidden 2xl:flex w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white text-slate-600 hover:text-[#4c22cf] items-center justify-center relative shadow-xs border border-indigo-50/50 hover:shadow-md transition-all cursor-pointer shrink-0"
-            title="Editorial Messages"
-            aria-label="Editorial Messages"
+            title="Editorial Content"
+            aria-label="Editorial Content"
           >
             <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span className="absolute -top-1 -right-1 bg-[#4c22cf] text-white text-[9px] font-black w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full flex items-center justify-center shadow-xs">
-              52
-            </span>
           </button>
         </div>
 
@@ -291,20 +290,23 @@ export const ModernNavbar: React.FC = () => {
             title="Account & Session"
             aria-label="User profile menu"
           >
-            {currentUser?.avatar ? (
-              <img
-                src={currentUser.avatar}
-                alt={currentUser.name}
-                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover border border-[#4c22cf]/20 shrink-0"
-              />
-            ) : (
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#4c22cf]/10 text-[#4c22cf] flex items-center justify-center font-black text-xs shrink-0">
-                {currentUser?.name?.charAt(0) || 'A'}
-              </div>
-            )}
+            {(() => {
+              const safeAvatar = cleanAvatarUrl(currentUser?.avatar);
+              return safeAvatar ? (
+                <img
+                  src={safeAvatar}
+                  alt={currentUser?.name || 'User avatar'}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover border border-[#4c22cf]/20 shrink-0"
+                />
+              ) : (
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#4c22cf]/10 text-[#4c22cf] flex items-center justify-center font-black text-xs shrink-0">
+                  {currentUser?.name?.charAt(0) || activeRole?.charAt(0) || 'U'}
+                </div>
+              );
+            })()}
             <div className="hidden 2xl:flex flex-col text-left pr-2 max-w-[100px]">
               <span className="text-xs font-bold text-slate-900 leading-tight truncate">
-                {(currentUser?.name || 'Aarav').replace(/\s*\(Super Admin\)/i, '')}
+                {(currentUser?.name || activeRole || 'Admin').replace(/\s*\(Super Admin\)/i, '')}
               </span>
               <span className="text-[10px] font-semibold text-[#4c22cf] leading-tight truncate">
                 {activeRole}
@@ -316,10 +318,10 @@ export const ModernNavbar: React.FC = () => {
             <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white p-3 z-50 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
               <div className="px-2 py-1.5 border-b border-slate-100">
                 <div className="text-xs font-bold text-slate-900 truncate">
-                  {(currentUser?.name || 'Aarav Sharma').replace(/\s*\(Super Admin\)/i, '')}
+                  {(currentUser?.name || activeRole || 'Administrator').replace(/\s*\(Super Admin\)/i, '')}
                 </div>
                 <div className="text-[11px] text-slate-400 truncate">
-                  {currentUser?.email || 'admin@jupsoft.com'}
+                  {currentUser?.email || (currentUser?.name ? `${currentUser.name.toLowerCase().replace(/\s+/g, '.')}@jupsoft.com` : 'Active Session')}
                 </div>
                 <div className="mt-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#4c22cf]/10 text-[#4c22cf]">
                   {activeRole}

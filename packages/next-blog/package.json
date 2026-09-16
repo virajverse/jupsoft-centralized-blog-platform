@@ -1,0 +1,72 @@
+{
+  "name": "@jupsoft/next-blog",
+  "version": "1.0.0",
+  "description": "Plug-and-play Next.js 14/15/16 Blog engine for Jupsoft Centralized CMS with Auto-Locale & Zero-Config Setup",
+  "author": "Jupsoft Systems",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "jupsoft-blog": "./bin/cli.js",
+    "create-jupsoft-blog": "./bin/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./webhook": {
+      "types": "./dist/webhook.d.ts",
+      "import": "./dist/webhook.js",
+      "require": "./dist/webhook.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js",
+      "require": "./dist/client.js"
+    }
+  },
+  "files": [
+    "dist",
+    "bin",
+    "README.md"
+  ],
+  "keywords": [
+    "nextjs",
+    "blog",
+    "cms",
+    "jupsoft",
+    "headless-cms",
+    "multi-tenant",
+    "isr",
+    "seo",
+    "i18n"
+  ],
+  "peerDependencies": {
+    "next": ">=14.0.0",
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/virajverse/jupsoft-next-blog.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.3",
+    "@types/react": "^19.3.0",
+    "next": "^16.3.5",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "type": "module"
+}

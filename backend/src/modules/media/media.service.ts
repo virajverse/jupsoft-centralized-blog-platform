@@ -49,13 +49,14 @@ export class MediaService {
     } else if (nodeEnv !== 'production') {
       this.cdnDomain = 'http://localhost:4000/uploads';
     } else {
-      this.cdnDomain = 'https://cdn.jupsoft.com';
+      this.cdnDomain = `https://${this.bucket}.s3.${region}.amazonaws.com`;
     }
 
-    this.s3Client = new S3Client({
-      region,
-      credentials: { accessKeyId, secretAccessKey },
-    });
+    const s3Config: any = { region };
+    if (accessKeyId && !accessKeyId.startsWith('mock_')) {
+      s3Config.credentials = { accessKeyId, secretAccessKey };
+    }
+    this.s3Client = new S3Client(s3Config);
   }
 
   // ─── TRD §10: Step 1 — Generate pre-signed S3 PUT URL ──────────────────────

@@ -250,4 +250,56 @@ export class UsersService {
 
     return { success: true, message: 'User deleted' };
   }
+
+  async resetPassword(userId: string, requester: any, ipAddress: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { roleAssignments: true },
+    });
+    if (!user) {
+      throw new NotFoundException(`User "${userId}" not found`);
+    }
+
+    const isSuperAdmin = requester?.roles?.includes('Super Admin');
+    if (!isSuperAdmin) {
+      const requesterSites = requester?.roleAssignments?.map((ra: any) => ra.websiteId) || [];
+      const userSites = user.roleAssignments.map((ra) => ra.websiteId || 'all');
+      const hasOverlap = userSites.some((s) => requesterSites.includes(s) || requesterSites.includes('all'));
+      if (!hasOverlap) {
+        throw new ForbiddenException('You do not have permission to reset credentials for this user');
+      }
+    }
+
+    // Generate strong 12-char temporary password
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$';
+    let rawPassword = 'Jup@';
+    for (let i = 0; i < 8; i++) {
+      rawPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const passwordHash = await bcrypt.hash(rawPassword, 10);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: requester?.name || 'Admin',
+        role: requester?.roles?.[0] || 'Super Admin',
+        websiteId: user.roleAssignments[0]?.websiteId || 'system',
+        event: 'user.password_reset',
+        ipAddress: ipAddress || '',
+        details: `Reset password credentials for ${user.name} (${user.email}).`,
+      },
+    });
+
+    return {
+      success: true,
+      userId: user.id,
+      email: user.email,
+      tempPassword: rawPassword,
+      message: 'Temporary password generated successfully',
+    };
+  }
 }

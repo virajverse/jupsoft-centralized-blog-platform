@@ -343,7 +343,7 @@ async function runRegressionSuite() {
       '/admin/blogs',
       {
         websiteId: 'site-cloud',
-        featuredImage: 'https://images.unsplash.com/photo-test-regression',
+        featuredImage: 'https://cdn.jupsoft.com/vectors/regression-banner.svg',
         featuredImageAlt: 'Regression Banner',
         readTimeMinutes: 5,
         categoryIds: [],
