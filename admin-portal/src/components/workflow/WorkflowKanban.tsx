@@ -599,7 +599,7 @@ export const WorkflowKanban: React.FC = () => {
             </div>
 
             <p className="text-xs text-slate-600 dark:text-slate-400">
-              Moving article <strong className="text-slate-900 dark:text-white">&quot;{activeNoteModal.blog.translations.en?.title || 'Article'}&quot;</strong> as role <strong className="text-slate-900 dark:text-white">{activeRole}</strong>.
+              Moving blog <strong className="text-slate-900 dark:text-white">&quot;{activeNoteModal.blog.translations.en?.title || 'Blog'}&quot;</strong> as role <strong className="text-slate-900 dark:text-white">{activeRole}</strong>.
             </p>
 
             <div className="space-y-1.5">
