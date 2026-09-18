@@ -123,7 +123,8 @@ export class SupabaseSyncService {
         });
       }
 
-      // 3. Upsert category relations
+      // 3. Upsert category relations (clear old to avoid duplicates)
+      await this.request(`blog_categories?blogId=eq.${blog.id}`, 'DELETE');
       for (const bc of blog.blogCategories) {
         await this.request('blog_categories', 'POST', {
           blogId: bc.blogId,
@@ -131,7 +132,8 @@ export class SupabaseSyncService {
         });
       }
 
-      // 4. Upsert tag relations
+      // 4. Upsert tag relations (clear old to avoid duplicates)
+      await this.request(`blog_tags?blogId=eq.${blog.id}`, 'DELETE');
       for (const bt of blog.blogTags) {
         await this.request('blog_tags', 'POST', {
           blogId: bt.blogId,
