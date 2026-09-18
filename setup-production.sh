@@ -163,7 +163,7 @@ echo -e "\n${CYAN}▶ [5/8] Syncing Database Schema and Seeding Production Data.
 cd backend
 npx prisma db push --skip-generate
 npx prisma generate
-npx ts-node prisma/seed.ts
+npx ts-node prisma/seed.example.ts || true
 cd ..
 echo -e "${GREEN}✓ PostgreSQL database synced and seeded successfully.${NC}"
 

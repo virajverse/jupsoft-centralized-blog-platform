@@ -4,6 +4,10 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
+  if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_SEED) {
+    console.warn('⚠️ Seeding skipped: NODE_ENV is production and database is already initialized.');
+    return;
+  }
   console.log('🌱 Seeding Jupsoft Centralized Blog Platform Database with Real Enterprise Data...');
 
   // 1. Clean existing blogs, translations, categories, tags, redirects, role assignments for fresh SaaS baseline

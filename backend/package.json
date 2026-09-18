@@ -15,7 +15,7 @@
     "start:prod": "node dist/src/main",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "ts-node prisma/seed.ts",
+    "prisma:seed": "ts-node prisma/seed.example.ts",
     "fts:migrate": "ts-node scripts/run-fts-migration.ts",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -23,7 +23,7 @@
     "test:ci": "jest --ci --coverage --forceExit"
   },
   "prisma": {
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "ts-node prisma/seed.example.ts"
   },
   "dependencies": {
     "@aws-sdk/client-cloudwatch-logs": "^3.1131.0",
