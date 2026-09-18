@@ -249,7 +249,7 @@ export const ModernDashboardView: React.FC<ModernDashboardViewProps> = ({
               <div className="divide-y divide-slate-100">
                 {recentBlogs.map((blog) => {
                   const enTrans = blog.translations?.en || Object.values(blog.translations || {})[0];
-                  const titleText = enTrans?.title || 'Untitled Article';
+                  const titleText = enTrans?.title || 'Untitled Blog';
                   const slugText = enTrans?.slug || blog.id;
 
                   const statusColors: Record<string, string> = {

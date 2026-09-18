@@ -241,7 +241,8 @@
 
   function initContainer(container) {
     const siteId = container.getAttribute('data-site') || 'site-cloud';
-    const apiUrl = (container.getAttribute('data-api') || 'http://localhost:4000').replace(/\/$/, '');
+    const defaultApi = (typeof window !== 'undefined' && (window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1'))) ? 'http://localhost:4000' : 'https://blogary.jupsoft.com';
+    const apiUrl = (container.getAttribute('data-api') || defaultApi).replace(/\/$/, '');
     const limit = parseInt(container.getAttribute('data-limit') || '9', 10);
     const detailUrlPattern = container.getAttribute('data-detail-url'); // if null, uses in-place reader!
 

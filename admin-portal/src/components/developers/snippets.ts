@@ -257,7 +257,7 @@ interface BlogListPageProps {
 
 export async function generateMetadata() {
   return {
-    title: 'Blog & Articles | Insights & News',
+    title: 'Blogs | Insights & News',
     description: 'Explore the latest articles, technology guides, and architectural updates.',
   };
 }
@@ -447,7 +447,7 @@ export default async function BlogListPage({ searchParams }: BlogListPageProps) 
 }`;
 
   // 5. Next.js 16 Consumer Dynamic Route with Hreflang Tags & Sleek Micro-Dropdown
-  const nextjsConsumerSnippet = `// app/blog/[slug]/page.tsx (Next.js 16 Article Detail with Auto-Locale, Hreflang SEO & Micro-Dropdown)
+  const nextjsConsumerSnippet = `// app/blog/[slug]/page.tsx (Next.js 16 Blog Detail with Auto-Locale, Hreflang SEO & Micro-Dropdown)
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -471,7 +471,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   const lang = sp?.lang || (acceptLang.includes('hi') ? 'hi' : acceptLang.includes('fr') ? 'fr' : acceptLang.includes('ar') ? 'ar' : 'en');
 
   const blog = await jupsoft.getBlogBySlug(slug, lang);
-  if (!blog) return { title: 'Article Not Found' };
+  if (!blog) return { title: 'Blog Not Found' };
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_DOMAIN || 'https://${activeSite.domain}';
 

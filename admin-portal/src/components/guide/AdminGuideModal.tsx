@@ -118,7 +118,7 @@ Pehle har website (Jupsoft Cloud, DigifyNext, School ERP) ke alag-alag CMS ya Wo
 6. Super Admin / Editor /workflow me jakar review karta hai
 7. "Approve" ──> "Publish" click karta hai
 8. Backend Database update karta hai ──> Redis cache invalidate karta hai
-9. Webhook trigger hota hai ──> localhost:5001 par instant article live ho jata hai!
+9. Webhook trigger hota hai ──> localhost:5001 par instant blog live ho jata hai!
 
 ---
 
@@ -340,7 +340,7 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                   </div>
                 )}
 
-                {/* 2. All Articles & TipTap Editor */}
+                {/* 2. All Blogs & TipTap Editor */}
                 {matchesSearch('articles editor tiptap multi-language translations') && (
                   <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
                     <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
@@ -503,14 +503,14 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
               <div className="space-y-2.5">
                 {[
                   { step: '1', title: 'Writer Logs In & Selects Scope', desc: 'Scope dropdown se target website select karta hai (e.g. "site-cloud").' },
-                  { step: '2', title: 'Create Article (/blogs/new)', desc: 'Title, Content body (TipTap editor), excerpt, aur featured image upload karta hai.' },
+                  { step: '2', title: 'Create Blog (/blogs/new)', desc: 'Title, Content body (TipTap editor), excerpt, aur featured image upload karta hai.' },
                   { step: '3', title: 'Focus Keyword & SEO Audit', desc: 'Focus keyword set karta hai (e.g. "Cloud ERP") — system real-time 8 checks run karke 85/100 score dikhata hai.' },
                   { step: '4', title: 'Multi-Language Translation', desc: 'Hindi (HI) tab me switch karke translated Title aur Content paste karta hai.' },
-                  { step: '5', title: 'Submit for Review', desc: 'Button click karta hai — article "Draft" se "Under Review" state me chala jata hai.' },
-                  { step: '6', title: 'Editor / Super Admin Review', desc: 'Editorial team /workflow kanban board par article ko check karti hai aur "Approve" karti hai.' },
-                  { step: '7', title: 'Publish Triggered', desc: '"Publish Now" click karne par article public database me "Published" mark hota hai.' },
+                  { step: '5', title: 'Submit for Review', desc: 'Button click karta hai — blog "Draft" se "Under Review" state me chala jata hai.' },
+                  { step: '6', title: 'Editor / Super Admin Review', desc: 'Editorial team /workflow kanban board par blog ko check karti hai aur "Approve" karti hai.' },
+                  { step: '7', title: 'Publish Triggered', desc: '"Publish Now" click karne par blog public database me "Published" mark hota hai.' },
                   { step: '8', title: 'Redis Cache & Edge Invalidation', desc: 'Backend Redis cache ko invalidate karta hai aur HMAC SHA-256 webhook consumer site ko dispatch karta hai.' },
-                  { step: '9', title: 'Live on Consumer Site!', desc: 'Target website (e.g. localhost:5001) par bina build restart kiye article instantly live ho jata hai!' },
+                  { step: '9', title: 'Live on Consumer Site!', desc: 'Target website (e.g. localhost:5001) par bina build restart kiye blog instantly live ho jata hai!' },
                 ].map((s) => (
                   <div key={s.step} className="flex items-start gap-3 p-2.5 rounded-xl bg-white/80 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800">
                     <span className="w-6 h-6 rounded-full bg-[#4c22cf] text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">

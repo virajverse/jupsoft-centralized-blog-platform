@@ -34,7 +34,7 @@ export const LandingFooter: React.FC = () => {
             </Link>
 
             <a
-              href="http://localhost:4000/api/docs"
+              href={process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/api/docs` : "/api/docs"}
               target="_blank"
               rel="noopener noreferrer"
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl border border-indigo-400/30 bg-indigo-950/50 hover:bg-indigo-900/50 text-white font-medium text-sm transition-all whitespace-nowrap"
@@ -77,7 +77,7 @@ export const LandingFooter: React.FC = () => {
             <a href="#architecture" className="hover:text-slate-800 dark:hover:text-slate-200 transition-colors">
               Architecture
             </a>
-            <a href="http://localhost:4000/api/docs" target="_blank" rel="noopener noreferrer" className="hover:text-slate-800 dark:hover:text-slate-200 transition-colors">
+            <a href={process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/api/docs` : "/api/docs"} target="_blank" rel="noopener noreferrer" className="hover:text-slate-800 dark:hover:text-slate-200 transition-colors">
               API Docs
             </a>
           </div>

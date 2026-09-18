@@ -518,7 +518,7 @@ export const useBlogStore = create<BlogState>()(
               blogs: newBlogs,
               auditLogs: [auditLog, ...state.auditLogs],
               editingBlogId: finalBlog.id,
-              notification: { message: exists ? 'Article updated ✅' : 'Article created ✅', type: 'success' },
+              notification: { message: exists ? 'Blog updated ✅' : 'Blog created ✅', type: 'success' },
             };
           });
         } catch (err: unknown) {
@@ -552,7 +552,7 @@ export const useBlogStore = create<BlogState>()(
             const updatedBlog: Blog = { ...blog!, ...apiResult, workflowLogs: [newLog, ...(blog?.workflowLogs || [])] };
             return {
               blogs: state.blogs.map((b) => (b.id === blogId ? updatedBlog : b)),
-              notification: { message: `Article moved to "${newStatus}" âœ…`, type: 'success' },
+              notification: { message: `Blog moved to "${newStatus}" ✅`, type: 'success' },
             };
           });
         } catch (err: unknown) {

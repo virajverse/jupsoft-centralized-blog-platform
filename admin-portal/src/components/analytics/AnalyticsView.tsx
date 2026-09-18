@@ -546,7 +546,7 @@ export const AnalyticsView: React.FC = () => {
               href={`/blogs/new?site=${effectiveSiteId}`}
               className="inline-block px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 text-xs font-medium shadow-xs cursor-pointer"
             >
-              Draft First Article
+              Draft First Blog
             </Link>
           </div>
         ) : (
@@ -554,7 +554,7 @@ export const AnalyticsView: React.FC = () => {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-                  <th className="py-3 px-4">Article</th>
+                  <th className="py-3 px-4">Blog</th>
                   {!isFilteredSingleSite && <th className="py-3 px-4">Website</th>}
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4">Author</th>

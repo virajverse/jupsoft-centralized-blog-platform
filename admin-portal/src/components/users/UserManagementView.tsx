@@ -75,7 +75,7 @@ const PERMISSIONS_MATRIX: RBACPermission[] = [
   },
   {
     id: 'blog.edit_assigned',
-    label: 'Edit Any Article',
+    label: 'Edit Any Blog',
     description: 'Can edit blogs written by any author across tenant',
     allowedRoles: ['Super Admin', 'Website Admin', 'Role Admin', 'Editor'],
   },

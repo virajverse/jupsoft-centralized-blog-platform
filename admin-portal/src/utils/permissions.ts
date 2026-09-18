@@ -172,8 +172,10 @@ export function cleanAvatarUrl(avatar?: string | null): string | null {
   if (!avatar || typeof avatar !== 'string') return null;
   let trimmed = avatar.trim();
   if (trimmed === '') return null;
-  // Normalize local upload URLs to relative /uploads
-  if (trimmed.startsWith('http://localhost:4000/uploads/')) {
+  // Normalize upload URLs to relative /uploads
+  if (trimmed.startsWith('https://blogary.jupsoft.com/uploads/')) {
+    trimmed = trimmed.replace('https://blogary.jupsoft.com', '');
+  } else if (trimmed.startsWith('http://localhost:4000/uploads/')) {
     trimmed = trimmed.replace('http://localhost:4000', '');
   } else if (trimmed.startsWith('http://localhost:3000/uploads/')) {
     trimmed = trimmed.replace('http://localhost:3000', '');

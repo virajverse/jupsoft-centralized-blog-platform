@@ -283,7 +283,7 @@ export const BlogList: React.FC = () => {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-900/60 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  <th className="py-3 px-5">Article</th>
+                  <th className="py-3 px-5">Blog</th>
                   {isAllSites && <th className="py-3 px-4">Website</th>}
                   <th className="py-3 px-4">Languages</th>
                   <th className="py-3 px-4">Status</th>
@@ -413,7 +413,7 @@ export const BlogList: React.FC = () => {
                           <Link
                             href={`/blogs/${blog.id}?site=${blog.websiteId}`}
                             className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
-                            title="Edit Article"
+                            title="Edit Blog"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </Link>
@@ -425,7 +425,7 @@ export const BlogList: React.FC = () => {
                                 }
                               }}
                               className="p-1.5 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
-                              title="Delete Article"
+                              title="Delete Blog"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>

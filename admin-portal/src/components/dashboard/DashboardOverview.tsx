@@ -459,7 +459,7 @@ export const DashboardOverview: React.FC = () => {
                     href={`/blogs/new?site=${activeWebsiteId}`}
                     className="inline-block px-4 py-2 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs font-medium shadow-xs hover:bg-slate-800 cursor-pointer"
                   >
-                    Create First Article
+                    Create First Blog
                   </Link>
                 )}
               </div>

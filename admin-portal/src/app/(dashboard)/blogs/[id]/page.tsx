@@ -1,7 +1,7 @@
 import { BlogEditor } from '../../../../components/editor/BlogEditor';
 
 export const metadata = {
-  title: 'Edit Article | Jupsoft CMS',
+  title: 'Edit Blog | Jupsoft CMS',
   description: 'Edit and optimize an existing article',
 };
 

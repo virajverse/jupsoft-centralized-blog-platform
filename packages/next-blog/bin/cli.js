@@ -17,7 +17,7 @@ if (args.includes('--help') || args.includes('-h')) {
 \x1b[33mOptions:\x1b[0m
   --site=<siteId>     Your Website/Tenant ID (e.g. site-cloud, site-portal)
   --key=<apiKey>      Your Tenant Private API Key
-  --url=<apiUrl>      CMS API Base URL (default: http://localhost:4000)
+  --url=<apiUrl>      CMS API Base URL (default: https://blogary.jupsoft.com)
   --secret=<secret>   Webhook signature verification secret
   --netlify           Auto-generate Netlify configuration (netlify.toml & _redirects)
   -h, --help          Show this manual
@@ -41,7 +41,7 @@ args.forEach(arg => {
 const cwd = process.cwd();
 const apiKey = params.key || process.env.CMS_TENANT_API_KEY || '';
 const websiteId = params.site || process.env.CMS_WEBSITE_ID || '';
-const apiUrl = (params.url || process.env.NEXT_PUBLIC_CMS_API_URL || 'http://localhost:4000').replace(/\/$/, '');
+const apiUrl = (params.url || process.env.NEXT_PUBLIC_CMS_API_URL || 'https://blogary.jupsoft.com').replace(/\/$/, '');
 const webhookSec = params.secret || process.env.CMS_WEBHOOK_SECRET || '';
 
 // Detect project type

@@ -663,7 +663,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
             <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3 flex items-center space-x-3 text-xs text-amber-800 dark:text-amber-300 shadow-xs">
               <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
               <span>
-                <strong>SEO Continuity:</strong> Article is published. Modifying the slug will automatically establish a 301 Permanent Redirect.
+                <strong>SEO Continuity:</strong> Blog is published. Modifying the slug will automatically establish a 301 Permanent Redirect.
               </span>
             </div>
           )}
@@ -1133,7 +1133,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                         {activeTrans.seo.ogTitle || activeTrans.title || 'Untitled Post'}
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">
-                        {activeTrans.seo.ogDescription || activeTrans.excerpt || 'Article summary description.'}
+                        {activeTrans.seo.ogDescription || activeTrans.excerpt || 'Blog summary description.'}
                       </div>
                     </div>
                   </div>
@@ -1606,9 +1606,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                         onClick={() => {
                           const url = `https://${activeSite?.domain || 'company.com'}/blog/${activeTrans.slug || 'article'}`;
                           navigator.clipboard?.writeText(url);
-                          showNotification(`Article link copied to clipboard: ${url}`, 'success');
+                          showNotification(`Blog link copied to clipboard: ${url}`, 'success');
                         }}
-                        title="Copy Public Article URL"
+                        title="Copy Public Blog URL"
                         className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-slate-600 dark:text-slate-300"
                       >
                         <Share2 className="w-3.5 h-3.5" />

@@ -190,7 +190,7 @@ export const WorkflowKanban: React.FC = () => {
 
     if (!canTransition(blog.status, targetStatus, activeRole)) {
       showNotification(
-        `Role "${activeRole}" is not authorized to transition "${blog.translations.en?.title || 'Article'}" from "${blog.status}" to "${targetStatus}".`,
+        `Role "${activeRole}" is not authorized to transition "${blog.translations.en?.title || 'Blog'}" from "${blog.status}" to "${targetStatus}".`,
         'warning'
       );
       return;
@@ -217,7 +217,7 @@ export const WorkflowKanban: React.FC = () => {
       activeNoteModal.targetStatus === 'Scheduled' ? scheduledDate : undefined
     );
     showNotification(
-      `"${activeNoteModal.blog.translations.en?.title || 'Article'}" moved to "${activeNoteModal.targetStatus}" successfully!`,
+      `"${activeNoteModal.blog.translations.en?.title || 'Blog'}" moved to "${activeNoteModal.targetStatus}" successfully!`,
       'success'
     );
     closeTransitionModal();
@@ -657,7 +657,7 @@ export const WorkflowKanban: React.FC = () => {
                   Workflow History
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-sm mt-0.5">
-                  {selectedAuditBlog.translations.en?.title || 'Article'}
+                  {selectedAuditBlog.translations.en?.title || 'Blog'}
                 </p>
               </div>
               <button

@@ -93,7 +93,7 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ onNavigate }) => {
         {/* Actions */}
         <div className="flex items-center gap-3">
           <a
-            href="http://localhost:4000/api/docs"
+            href={process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/api/docs` : "/api/docs"}
             target="_blank"
             rel="noopener noreferrer"
             className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-mono font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-all"
