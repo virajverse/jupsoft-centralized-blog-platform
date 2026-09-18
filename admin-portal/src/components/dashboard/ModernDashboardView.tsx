@@ -112,7 +112,7 @@ export const ModernDashboardView: React.FC<ModernDashboardViewProps> = ({
 
       {/* Main Grid: 8 Columns Left + 4 Columns Right (modern Theme Layout) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start">
-        {/* Left Side: KPIs + Recent Articles Table (8 Cols) */}
+        {/* Left Side: KPIs + Recent Blogs Table (8 Cols) */}
         <div className="lg:col-span-8 space-y-6 sm:space-y-8">
           {/* Section: GENERALS */}
           <div>
@@ -131,7 +131,7 @@ export const ModernDashboardView: React.FC<ModernDashboardViewProps> = ({
                 className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-indigo-50/50 hover:shadow-md hover:border-indigo-100 transition-all cursor-pointer group"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-500">Articles</span>
+                  <span className="text-xs font-bold text-slate-500">Blogs</span>
                   <div className="w-9 h-9 rounded-xl bg-[#4c22cf]/10 text-[#4c22cf] flex items-center justify-center group-hover:scale-105 transition-transform">
                     <FileText className="w-4 h-4" />
                   </div>
@@ -170,7 +170,7 @@ export const ModernDashboardView: React.FC<ModernDashboardViewProps> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400 font-medium mt-1.5 truncate">
-                  {underReviewBlogs.length > 0 ? 'Articles awaiting sign-off' : 'All reviews completed'}
+                  {underReviewBlogs.length > 0 ? 'Blogs awaiting sign-off' : 'All reviews completed'}
                 </p>
               </div>
 
@@ -221,12 +221,12 @@ export const ModernDashboardView: React.FC<ModernDashboardViewProps> = ({
             </div>
           </div>
 
-          {/* Section: RECENT ARTICLES TABLE */}
+          {/* Section: RECENT BLOGS TABLE */}
           <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-7 shadow-[0_4px_24px_rgba(0,0,0,0.03)] border border-indigo-50/50">
             <div className="flex items-center justify-between mb-4 sm:mb-5">
               <div className="flex items-center gap-2 sm:gap-2.5">
                 <span className="text-[10px] sm:text-[11px] font-black tracking-widest text-slate-400 uppercase">
-                  Recent Articles
+                  Recent Blogs
                 </span>
                 <span className="px-2 py-0.2 rounded-full text-[10px] font-bold bg-[#4c22cf]/10 text-[#4c22cf]">
                   {displayedBlogs.length} Total
@@ -243,7 +243,7 @@ export const ModernDashboardView: React.FC<ModernDashboardViewProps> = ({
 
             {recentBlogs.length === 0 ? (
               <div className="text-center py-10 text-slate-400 text-xs">
-                No articles found for this scope.
+                No blogs found for this scope.
               </div>
             ) : (
               <div className="divide-y divide-slate-100">
@@ -346,7 +346,7 @@ export const ModernDashboardView: React.FC<ModernDashboardViewProps> = ({
                   {displayedBlogs.length}
                 </div>
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Articles
+                  Blogs
                 </div>
               </div>
               <div className="text-center border-l border-slate-100">

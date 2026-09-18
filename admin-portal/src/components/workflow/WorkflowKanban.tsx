@@ -369,7 +369,7 @@ export const WorkflowKanban: React.FC = () => {
                         ? 'border-indigo-400 text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/30'
                         : 'text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-800'
                     }`}>
-                      <div className="text-xs font-medium">{isDragOver ? 'Drop to move here' : `No articles in ${col.label}`}</div>
+                      <div className="text-xs font-medium">{isDragOver ? 'Drop to move here' : `No blogs in ${col.label}`}</div>
                       {!isDragOver && col.status === 'Draft' && canCreateBlog(activeRole) && (
                         <Link
                           href={`/blogs/new?site=${effectiveSiteId}`}

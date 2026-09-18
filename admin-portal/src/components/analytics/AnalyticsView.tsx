@@ -242,7 +242,7 @@ export const AnalyticsView: React.FC = () => {
           className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-xl p-5 space-y-2 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-colors block"
         >
           <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
-            <span>{isFilteredSingleSite ? 'Total Articles' : 'Network Articles'}</span>
+            <span>{isFilteredSingleSite ? 'Total Blogs' : 'Network Blogs'}</span>
             <FileText className="w-3.5 h-3.5 text-blue-500" />
           </div>
           <div className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{totalArticles}</div>
@@ -294,7 +294,7 @@ export const AnalyticsView: React.FC = () => {
               <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400">
                 <th className="py-3 px-4 font-semibold">Rank &amp; Author</th>
                 <th className="py-3 px-4 font-semibold text-center">Drafts Written</th>
-                <th className="py-3 px-4 font-semibold text-center">Published Articles</th>
+                <th className="py-3 px-4 font-semibold text-center">Published Blogs</th>
                 <th className="py-3 px-4 font-semibold text-center">Est. Views</th>
                 <th className="py-3 px-4 font-semibold text-center">Approval Rate</th>
                 <th className="py-3 px-4 font-semibold text-right">Performance Tier</th>
@@ -374,7 +374,7 @@ export const AnalyticsView: React.FC = () => {
                 <tr className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 uppercase text-[10px] tracking-wider font-semibold">
                   <th className="py-3 px-4">Tenant</th>
                   <th className="py-3 px-4">Domain</th>
-                  <th className="py-3 px-4 text-center">Total Articles</th>
+                  <th className="py-3 px-4 text-center">Total Blogs</th>
                   <th className="py-3 px-4 text-center">Published</th>
                   <th className="py-3 px-4 text-center">Under Review</th>
                   <th className="py-3 px-4 text-center">Words Authored</th>
@@ -529,11 +529,11 @@ export const AnalyticsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Articles Inventory */}
+      {/* Blogs Inventory */}
       <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 space-y-4 shadow-xs">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-            {isFilteredSingleSite ? `Articles Inventory (${activeSite.name})` : 'Network Articles Inventory'}
+            {isFilteredSingleSite ? `Blogs Inventory (${activeSite.name})` : 'Network Blogs Inventory'}
           </h3>
           <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">{totalArticles} total items</span>
         </div>
@@ -541,7 +541,7 @@ export const AnalyticsView: React.FC = () => {
         {totalArticles === 0 ? (
           <div className="py-12 text-center text-slate-400 text-xs space-y-3 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
             <FileText className="w-8 h-8 mx-auto text-slate-400" />
-            <div>No articles authored in this scope yet.</div>
+            <div>No blogs authored in this scope yet.</div>
             <Link
               href={`/blogs/new?site=${effectiveSiteId}`}
               className="inline-block px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 text-xs font-medium shadow-xs cursor-pointer"

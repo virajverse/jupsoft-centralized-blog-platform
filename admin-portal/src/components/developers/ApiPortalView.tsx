@@ -58,7 +58,7 @@ const API_ENDPOINTS: ApiEndpointDef[] = [
     method: 'GET',
     path: '/v1/blogs',
     title: 'List Published Blogs',
-    description: 'Paginated list of published articles with taxonomy and language filtering.',
+    description: 'Paginated list of published blogs with taxonomy and language filtering.',
     hasLimit: true,
   },
   {
@@ -74,7 +74,7 @@ const API_ENDPOINTS: ApiEndpointDef[] = [
     method: 'GET',
     path: '/v1/blogs/latest',
     title: 'Get Latest Blogs',
-    description: 'Retrieve newest published articles for homepage or sidebar widgets.',
+    description: 'Retrieve newest published blogs for homepage or sidebar widgets.',
     hasLimit: true,
   },
   {
@@ -103,7 +103,7 @@ const API_ENDPOINTS: ApiEndpointDef[] = [
     id: 'search-blogs',
     method: 'GET',
     path: '/v1/search',
-    title: 'Search Articles',
+    title: 'Search Blogs',
     description: 'Full-text search matching article titles, excerpts, and content keywords.',
     hasSearch: true,
     hasLimit: true,
@@ -334,7 +334,7 @@ export default async function BlogPage() {
 
   return (
     <main className="max-w-5xl mx-auto py-10 px-4">
-      <h1 className="text-2xl font-bold mb-6">Latest Articles</h1>
+      <h1 className="text-2xl font-bold mb-6">Latest Blogs</h1>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {blogs?.map((blog: any) => (
           <article key={blog.id} className="border border-slate-200 rounded-lg p-4">

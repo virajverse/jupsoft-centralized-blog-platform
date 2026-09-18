@@ -237,7 +237,7 @@ export const ModernNavbar: React.FC = () => {
           <button 
             onClick={() => router.push(`/workflow${siteQuery}`)}
             className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white text-slate-600 hover:text-[#4c22cf] flex items-center justify-center relative shadow-xs border border-indigo-50/50 hover:shadow-md transition-all cursor-pointer shrink-0"
-            title={reviewCount > 0 ? `${reviewCount} articles waiting for review` : "No pending reviews"}
+            title={reviewCount > 0 ? `${reviewCount} blogs waiting for review` : "No pending reviews"}
             aria-label="Workflow Notifications"
           >
             <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -270,7 +270,7 @@ export const ModernNavbar: React.FC = () => {
           </button>
         )}
 
-        {/* Primary Action Button (New Article) - Desktop */}
+        {/* Primary Action Button (New Blog) - Desktop */}
         {canCreateBlog(activeRole) && (
           <Link
             href={`/blogs/new${siteQuery}`}

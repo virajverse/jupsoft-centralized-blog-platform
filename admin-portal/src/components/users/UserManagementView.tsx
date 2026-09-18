@@ -40,7 +40,7 @@ export const DELEGATABLE_ROLES: { role: UserRole; label: string; desc: string }[
   { role: 'Editor', label: 'Editor', desc: 'Reviews drafts, requests revisions & approves' },
   { role: 'Content Writer', label: 'Content Writer', desc: 'Authors drafts and submits for review' },
   { role: 'SEO Manager', label: 'SEO Manager', desc: 'Configures metadata, canonicals and tags' },
-  { role: 'Publisher', label: 'Publisher', desc: 'Releases approved articles live to CDN' },
+  { role: 'Publisher', label: 'Publisher', desc: 'Releases approved blogs live to CDN' },
 ];
 
 const ALL_ROLES: UserRole[] = [
@@ -63,8 +63,8 @@ interface RBACPermission {
 const PERMISSIONS_MATRIX: RBACPermission[] = [
   {
     id: 'blog.create',
-    label: 'Create Draft Articles',
-    description: 'Can initiate new article drafts in editor',
+    label: 'Create Draft Blogs',
+    description: 'Can initiate new blog drafts in editor',
     allowedRoles: ['Super Admin', 'Website Admin', 'Role Admin', 'Editor', 'Content Writer'],
   },
   {
@@ -76,7 +76,7 @@ const PERMISSIONS_MATRIX: RBACPermission[] = [
   {
     id: 'blog.edit_assigned',
     label: 'Edit Any Article',
-    description: 'Can edit posts written by any author across tenant',
+    description: 'Can edit blogs written by any author across tenant',
     allowedRoles: ['Super Admin', 'Website Admin', 'Role Admin', 'Editor'],
   },
   {

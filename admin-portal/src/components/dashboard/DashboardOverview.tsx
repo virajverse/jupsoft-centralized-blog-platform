@@ -160,7 +160,7 @@ export const DashboardOverview: React.FC = () => {
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              {isAllSites ? 'Total Network Articles' : 'Total Articles'}
+              {isAllSites ? 'Total Network Blogs' : 'Total Blogs'}
             </span>
             <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400">
               <FileText className="w-4 h-4" />
@@ -232,7 +232,7 @@ export const DashboardOverview: React.FC = () => {
                 </span>
               </div>
               <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Across {displayedBlogs.length} active articles
+                Across {displayedBlogs.length} active blogs
               </div>
             </>
           );
@@ -303,7 +303,7 @@ export const DashboardOverview: React.FC = () => {
               <h2 className="text-base font-bold text-slate-900 dark:text-white">Connected Websites &amp; Libraries</h2>
             </div>
             <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-              Total Network Articles: <strong className="text-slate-900 dark:text-white">{blogs.length}</strong>
+              Total Network Blogs: <strong className="text-slate-900 dark:text-white">{blogs.length}</strong>
             </span>
           </div>
 
@@ -313,7 +313,7 @@ export const DashboardOverview: React.FC = () => {
                 <tr className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 uppercase text-[10px] tracking-wider font-semibold">
                   <th className="py-3 px-4">Tenant / Website</th>
                   <th className="py-3 px-4">Consumer Domain</th>
-                  <th className="py-3 px-4 text-center">Total Articles</th>
+                  <th className="py-3 px-4 text-center">Total Blogs</th>
                   <th className="py-3 px-4 text-center">Live / Published</th>
                   <th className="py-3 px-4 text-center">In Review</th>
                   <th className="py-3 px-4 text-center">Words Authored</th>
@@ -435,7 +435,7 @@ export const DashboardOverview: React.FC = () => {
         <div className="lg:col-span-2 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 space-y-4 shadow-xs">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-slate-900 dark:text-white">
-              {isAllSites ? 'Recent Network Articles' : `Articles for ${activeSite.name}`}
+              {isAllSites ? 'Recent Network Blogs' : `Blogs for ${activeSite.name}`}
             </h2>
             {displayedBlogs.length > 0 && (
               <Link
@@ -452,7 +452,7 @@ export const DashboardOverview: React.FC = () => {
               <div className="py-14 text-center text-slate-500 dark:text-slate-400 space-y-3 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
                 <FileText className="w-8 h-8 mx-auto text-slate-400" />
                 <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                  {isAllSites ? 'No articles created yet' : 'No articles in this library yet'}
+                  {isAllSites ? 'No blogs created yet' : 'No blogs in this library yet'}
                 </div>
                 {canCreateBlog(activeRole) && (
                   <Link

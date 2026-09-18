@@ -505,7 +505,7 @@ export const SettingsView: React.FC = () => {
         <div className="p-3.5 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1">
           <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
             <Layers className="w-3.5 h-3.5 text-indigo-500" />
-            Total Articles
+            Total Blogs
           </div>
           <div className="text-lg font-bold text-slate-900 dark:text-white font-mono">
             {blogs.length}
@@ -612,7 +612,7 @@ export const SettingsView: React.FC = () => {
                     <th className="py-3 px-4 font-semibold">Tenant Name &amp; Domain</th>
                     <th className="py-3 px-4 font-semibold">S3 Folder Prefix</th>
                     <th className="py-3 px-4 font-semibold">Status</th>
-                    <th className="py-3 px-4 font-semibold">Articles</th>
+                    <th className="py-3 px-4 font-semibold">Blogs</th>
                     <th className="py-3 px-4 font-semibold">API Key Identifier</th>
                     <th className="py-3 px-4 font-semibold text-right">Actions</th>
                   </tr>

@@ -81,7 +81,7 @@ Pehle har website (Jupsoft Cloud, DigifyNext, School ERP) ke alag-alag CMS ya Wo
 ## 📱 3. Har Ek Module Ka Walkthrough (All 12 Modules)
 
 1. **Dashboard (/dashboard)**: Stat cards, attention alerts, live published vs draft metric, quick shortcuts.
-2. **All Articles & TipTap Editor (/blogs)**: Rich text editor, multi-language tabs (EN, HI, FR, AR), auto-slug, word counter.
+2. **Blogs & TipTap Editor (/blogs)**: Rich text editor, multi-language tabs (EN, HI, FR, AR), auto-slug, word counter.
 3. **Editorial Workflow Kanban (/workflow)**: 6-Stage sequential pipeline:
    Draft ➔ Under Review ➔ Approved ➔ Published (or Scheduled / Archived).
 4. **Automated SEO Audit Engine (0-100 Score)**: 8 real-time checks:
@@ -307,7 +307,7 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                     <span>Tenant Scope (?site=site-cloud)</span>
                   </div>
                   <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                    Selected site filter ho jati hai — Articles, Categories, Tags, Media Assets, aur 301 Redirects usi single site ke context me display aur edit hote hain.
+                    Selected site filter ho jati hai — Blogs, Categories, Tags, Media Assets, aur 301 Redirects usi single site ke context me display aur edit hote hain.
                   </p>
                 </div>
               </div>
@@ -334,7 +334,7 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                     </div>
                     <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-400 text-[11px]">
                       <li><strong>KPI Stat Cards</strong>: Live blogs count, Under Review items, and Media assets.</li>
-                      <li><strong>Recent Articles Table</strong>: Status pills, views, and instant 1-click edit shortcuts.</li>
+                      <li><strong>Recent Blogs Table</strong>: Status pills, views, and instant 1-click edit shortcuts.</li>
                       <li><strong>Admin Profile Widget</strong>: Logged-in admin avatar, active role, and assigned domains.</li>
                     </ul>
                   </div>
@@ -345,7 +345,7 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                   <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
                     <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
                       <FileText className="w-4 h-4 text-indigo-600" />
-                      <span>2️⃣ Articles &amp; TipTap Editor (/blogs)</span>
+                      <span>2️⃣ Blogs &amp; TipTap Editor (/blogs)</span>
                     </div>
                     <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-400 text-[11px]">
                       <li><strong>TipTap Canvas</strong>: H2/H3 headings, bold, italic, code blocks, images, hyperlinks.</li>
