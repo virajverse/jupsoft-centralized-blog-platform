@@ -15,7 +15,7 @@ if (args.includes('--help') || args.includes('-h')) {
   npx @jupsoft/next-blog [options]
 
 \x1b[33mOptions:\x1b[0m
-  --site=<siteId>     Your Website/Tenant ID (e.g. site-gaming, site-portal)
+  --site=<siteId>     Your Website/Tenant ID (e.g. site-cloud, site-portal)
   --key=<apiKey>      Your Tenant Private API Key
   --url=<apiUrl>      CMS API Base URL (default: http://localhost:4000)
   --secret=<secret>   Webhook signature verification secret
@@ -123,7 +123,7 @@ if (!isNextJs) {
 </head>
 <body>
   <div class="container">
-    <div id="jupsoft-blog-feed" data-site="${websiteId || 'site-gaming'}" data-api="${apiUrl}" data-theme="dark"></div>
+    <div id="jupsoft-blog-feed" data-site="${websiteId || 'site-cloud'}" data-api="${apiUrl}" data-theme="dark"></div>
   </div>
   <script src="${apiUrl}/widget/blog.js" async></script>
 </body>
@@ -192,5 +192,5 @@ if (toAppend.length > 0) {
 console.log('\x1b[35m%s\x1b[0m', '\n=============================================================');
 console.log('\x1b[32m%s\x1b[0m', '🎉 Jupsoft SaaS Blog Integration Complete!');
 console.log('\x1b[36m%s\x1b[0m', `👉 Your blog is ready at: /blog`);
-console.log('\x1b[36m%s\x1b[0m', `👉 Connected to CMS Tenant: ${websiteId || 'site-gaming'}`);
+console.log('\x1b[36m%s\x1b[0m', `👉 Connected to CMS Tenant: ${websiteId || 'site-cloud'}`);
 console.log('\x1b[35m%s\x1b[0m', '=============================================================\n');

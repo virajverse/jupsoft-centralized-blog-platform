@@ -85,31 +85,31 @@ export const INITIAL_WEBSITES: Website[] = [
 ];
 
 export const INITIAL_CATEGORIES: Record<string, Category[]> = {
-  'site-jupsoft': [
-    { id: 'cat-erp', websiteId: 'site-jupsoft', name: 'ERP Solutions', slug: 'erp-solutions', description: 'Enterprise planning architectures' },
-    { id: 'cat-cloud', websiteId: 'site-jupsoft', name: 'Cloud Infrastructure', slug: 'cloud-infrastructure', description: 'AWS, Hybrid & Multi-cloud deployments' },
-    { id: 'cat-ai', websiteId: 'site-jupsoft', name: 'Artificial Intelligence', slug: 'artificial-intelligence', description: 'Generative AI and automated workflows' },
+  'site-cloud': [
+    { id: 'cat-erp', websiteId: 'site-cloud', name: 'ERP Solutions', slug: 'erp-solutions', description: 'Enterprise planning architectures' },
+    { id: 'cat-cloud', websiteId: 'site-cloud', name: 'Cloud Infrastructure', slug: 'cloud-infrastructure', description: 'AWS, Hybrid & Multi-cloud deployments' },
+    { id: 'cat-ai', websiteId: 'site-cloud', name: 'Artificial Intelligence', slug: 'artificial-intelligence', description: 'Generative AI and automated workflows' },
   ],
-  'site-digifynext': [
-    { id: 'cat-growth', websiteId: 'site-digifynext', name: 'Growth Marketing', slug: 'growth-marketing', description: 'B2B acquisition strategies' },
-    { id: 'cat-seo', websiteId: 'site-digifynext', name: 'Technical SEO', slug: 'technical-seo', description: 'Core Web Vitals and SERP indexation' },
+  'site-growth': [
+    { id: 'cat-growth', websiteId: 'site-growth', name: 'Growth Marketing', slug: 'growth-marketing', description: 'B2B acquisition strategies' },
+    { id: 'cat-seo', websiteId: 'site-growth', name: 'Technical SEO', slug: 'technical-seo', description: 'Core Web Vitals and SERP indexation' },
   ],
-  'site-schoolerp': [
-    { id: 'cat-k12', websiteId: 'site-schoolerp', name: 'K-12 Administration', slug: 'k-12-administration', description: 'School board governance' },
-    { id: 'cat-edtech', websiteId: 'site-schoolerp', name: 'EdTech Solutions', slug: 'edtech-solutions', description: 'Digital classroom and gradebook systems' },
+  'site-edtech': [
+    { id: 'cat-k12', websiteId: 'site-edtech', name: 'K-12 Administration', slug: 'k-12-administration', description: 'School board governance' },
+    { id: 'cat-edtech', websiteId: 'site-edtech', name: 'EdTech Solutions', slug: 'edtech-solutions', description: 'Digital classroom and gradebook systems' },
   ],
 };
 
 export const INITIAL_TAGS: Record<string, Tag[]> = {
-  'site-jupsoft': [
-    { id: 'tag-aws', websiteId: 'site-jupsoft', name: 'AWS Cloud', slug: 'aws-cloud' },
-    { id: 'tag-automation', websiteId: 'site-jupsoft', name: 'Automation', slug: 'automation' },
+  'site-cloud': [
+    { id: 'tag-aws', websiteId: 'site-cloud', name: 'AWS Cloud', slug: 'aws-cloud' },
+    { id: 'tag-automation', websiteId: 'site-cloud', name: 'Automation', slug: 'automation' },
   ],
-  'site-digifynext': [
-    { id: 'tag-performance', websiteId: 'site-digifynext', name: 'Performance', slug: 'performance' },
+  'site-growth': [
+    { id: 'tag-performance', websiteId: 'site-growth', name: 'Performance', slug: 'performance' },
   ],
-  'site-schoolerp': [
-    { id: 'tag-sis', websiteId: 'site-schoolerp', name: 'Student Records', slug: 'student-records' },
+  'site-edtech': [
+    { id: 'tag-sis', websiteId: 'site-edtech', name: 'Student Records', slug: 'student-records' },
   ],
 };
 
@@ -121,9 +121,9 @@ export const INITIAL_USERS: UserAccount[] = [
     email: 'aarav.sharma@jupsoft.com',
     avatar: '/uploads/avatars/avatar-1.webp',
     roleAssignments: {
-      'site-jupsoft': 'Super Admin',
-      'site-digifynext': 'Super Admin',
-      'site-schoolerp': 'Super Admin',
+      'site-cloud': 'Super Admin',
+      'site-growth': 'Super Admin',
+      'site-edtech': 'Super Admin',
     },
     tempPassword: 'Jupsoft@2026!Admin',
     status: 'active',
@@ -136,8 +136,8 @@ export const INITIAL_USERS: UserAccount[] = [
     email: 'priya.verma@jupsoft.com',
     avatar: '/uploads/avatars/avatar-2.webp',
     roleAssignments: {
-      'site-jupsoft': 'Editor',
-      'site-digifynext': 'Content Writer',
+      'site-cloud': 'Editor',
+      'site-growth': 'Content Writer',
     },
     tempPassword: 'Jupsoft@4829!Priya',
     status: 'active',
@@ -150,9 +150,9 @@ export const INITIAL_USERS: UserAccount[] = [
     email: 'vikram.mehta@jupsoft.com',
     avatar: '/uploads/avatars/avatar-3.webp',
     roleAssignments: {
-      'site-jupsoft': 'SEO Manager',
-      'site-digifynext': 'SEO Manager',
-      'site-schoolerp': 'SEO Manager',
+      'site-cloud': 'SEO Manager',
+      'site-growth': 'SEO Manager',
+      'site-edtech': 'SEO Manager',
     },
     tempPassword: 'Jupsoft@8192!Vikram',
     status: 'active',
@@ -165,8 +165,8 @@ export const INITIAL_USERS: UserAccount[] = [
     email: 'rohan.gupta@jupsoft.com',
     avatar: '/uploads/avatars/avatar-4.webp',
     roleAssignments: {
-      'site-jupsoft': 'Publisher',
-      'site-schoolerp': 'Publisher',
+      'site-cloud': 'Publisher',
+      'site-edtech': 'Publisher',
     },
     tempPassword: 'Jupsoft@5314!Rohan',
     status: 'active',
@@ -179,8 +179,8 @@ export const INITIAL_USERS: UserAccount[] = [
     email: 'ananya.roy@jupsoft.com',
     avatar: '/uploads/avatars/avatar-5.webp',
     roleAssignments: {
-      'site-jupsoft': 'Role Admin',
-      'site-digifynext': 'Role Admin',
+      'site-cloud': 'Role Admin',
+      'site-growth': 'Role Admin',
     },
     managedRoles: ['Editor', 'Content Writer'],
     tempPassword: 'Jupsoft@9382!Ananya',
@@ -194,7 +194,7 @@ export const INITIAL_USERS: UserAccount[] = [
 export const INITIAL_REDIRECTS: RedirectItem[] = [
   {
     id: 'red-1',
-    websiteId: 'site-jupsoft',
+    websiteId: 'site-cloud',
     fromSlug: 'legacy-school-erp-system-2025',
     toSlug: 'cloud-erp-transformation-guide',
     statusCode: 301,
@@ -203,7 +203,7 @@ export const INITIAL_REDIRECTS: RedirectItem[] = [
   },
   {
     id: 'red-2',
-    websiteId: 'site-digifynext',
+    websiteId: 'site-growth',
     fromSlug: 'old-b2b-seo-checklist',
     toSlug: 'technical-seo-b2b-framework-2026',
     statusCode: 301,
@@ -219,7 +219,7 @@ export const INITIAL_AUDIT_LOGS: SystemAuditLog[] = [
     timestamp: '2026-09-13T18:30:00Z',
     userName: 'Aarav Sharma',
     role: 'Super Admin',
-    websiteId: 'site-jupsoft',
+    websiteId: 'site-cloud',
     event: 'api_key.rotated',
     ipAddress: '192.168.1.42',
     details: 'Rotated consumer API key for Jupsoft Systems tenant.',
@@ -229,7 +229,7 @@ export const INITIAL_AUDIT_LOGS: SystemAuditLog[] = [
     timestamp: '2026-09-13T17:15:00Z',
     userName: 'Priya Verma',
     role: 'Editor',
-    websiteId: 'site-jupsoft',
+    websiteId: 'site-cloud',
     event: 'blog.approved',
     ipAddress: '10.0.4.19',
     details: 'Approved editorial sign-off for Cloud ERP Transformation article.',
@@ -239,7 +239,7 @@ export const INITIAL_AUDIT_LOGS: SystemAuditLog[] = [
     timestamp: '2026-09-13T16:00:00Z',
     userName: 'Vikram Mehta',
     role: 'SEO Manager',
-    websiteId: 'site-digifynext',
+    websiteId: 'site-growth',
     event: 'seo.audit_passed',
     ipAddress: '172.16.0.8',
     details: 'Validated automated 100/100 score and canonical URL structure.',
@@ -250,7 +250,7 @@ export const INITIAL_AUDIT_LOGS: SystemAuditLog[] = [
 export const INITIAL_BLOGS: Blog[] = [
   {
     id: 'blog-gaming-1',
-    websiteId: 'site-gaming',
+    websiteId: 'site-cloud',
     authorId: 'usr-1',
     authorName: 'Nexus Commander',
     authorAvatar: '/uploads/avatars/avatar-6.webp',
@@ -276,7 +276,7 @@ export const INITIAL_BLOGS: Blog[] = [
           metaTitle: 'Neural Interface Revolution: How Brain-Computer Links Redefined Gaming',
           metaDescription: 'Direct neural links are replacing physical controllers in next-gen competitive arenas.',
           metaKeywords: 'Neural Interface, Brain Computer Interface, Gaming 2026, Esports Tech',
-          canonicalUrl: 'https://testing016.netlify.app/blog/neural-interface-revolution-nexus-city',
+          canonicalUrl: 'https://cloud.jupsoft.com/blog/neural-interface-revolution-nexus-city',
           focusKeyword: 'Neural Interface Gaming',
           robots: 'index, follow',
           ogTitle: 'Neural Interface Revolution: How Brain-Computer Links Redefined Gaming',
@@ -308,7 +308,7 @@ export const INITIAL_BLOGS: Blog[] = [
   },
   {
     id: 'blog-jupsoft-1',
-    websiteId: 'site-jupsoft',
+    websiteId: 'site-cloud',
     authorId: 'usr-1',
     authorName: 'Aarav Sharma',
     authorAvatar: '/uploads/avatars/avatar-6.webp',
@@ -408,7 +408,7 @@ export const INITIAL_BLOGS: Blog[] = [
   },
   {
     id: 'blog-digify-1',
-    websiteId: 'site-digifynext',
+    websiteId: 'site-growth',
     authorId: 'usr-2',
     authorName: 'Priya Verma',
     authorAvatar: '/uploads/avatars/avatar-7.webp',
@@ -467,7 +467,7 @@ export const INITIAL_BLOGS: Blog[] = [
   },
   {
     id: 'blog-school-1',
-    websiteId: 'site-schoolerp',
+    websiteId: 'site-edtech',
     authorId: 'usr-4',
     authorName: 'Rohan Gupta',
     authorAvatar: '/uploads/avatars/avatar-8.webp',
@@ -551,7 +551,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   // ────────────── SITE CLOUD ──────────────
   {
     id: 'med-cloud-logo',
-    websiteId: 'site-jupsoft',
+    websiteId: 'site-cloud',
     fileName: 'jupsoft-cloud-logo.webp',
     fileType: 'image/webp',
     fileSizeBytes: 5662,
@@ -564,7 +564,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   },
   {
     id: 'med-cloud-erp-arch',
-    websiteId: 'site-jupsoft',
+    websiteId: 'site-cloud',
     fileName: 'cloud-erp-architecture.webp',
     fileType: 'image/webp',
     fileSizeBytes: 33932,
@@ -577,7 +577,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   },
   {
     id: 'med-cloud-k8s',
-    websiteId: 'site-jupsoft',
+    websiteId: 'site-cloud',
     fileName: 'kubernetes-microservices.webp',
     fileType: 'image/webp',
     fileSizeBytes: 35292,
@@ -590,7 +590,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   },
   {
     id: 'med-cloud-ai-agents',
-    websiteId: 'site-jupsoft',
+    websiteId: 'site-cloud',
     fileName: 'enterprise-ai-agents.webp',
     fileType: 'image/webp',
     fileSizeBytes: 32068,
@@ -603,7 +603,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   },
   {
     id: 'med-avatar-aarav',
-    websiteId: 'site-jupsoft',
+    websiteId: 'site-cloud',
     fileName: 'avatar-1.webp',
     fileType: 'image/webp',
     fileSizeBytes: 13364,
@@ -616,7 +616,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   },
   {
     id: 'med-avatar-priya',
-    websiteId: 'site-jupsoft',
+    websiteId: 'site-cloud',
     fileName: 'avatar-2.webp',
     fileType: 'image/webp',
     fileSizeBytes: 13506,
@@ -629,7 +629,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   },
   {
     id: 'med-avatar-kabir',
-    websiteId: 'site-jupsoft',
+    websiteId: 'site-cloud',
     fileName: 'avatar-7.webp',
     fileType: 'image/webp',
     fileSizeBytes: 13886,
@@ -644,7 +644,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   // ────────────── SITE GROWTH ──────────────
   {
     id: 'med-growth-logo',
-    websiteId: 'site-digifynext',
+    websiteId: 'site-growth',
     fileName: 'digifynext-growth-logo.webp',
     fileType: 'image/webp',
     fileSizeBytes: 5982,
@@ -657,7 +657,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   },
   {
     id: 'med-growth-tech-seo',
-    websiteId: 'site-digifynext',
+    websiteId: 'site-growth',
     fileName: 'technical-seo-playbook.webp',
     fileType: 'image/webp',
     fileSizeBytes: 35988,
@@ -670,7 +670,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   },
   {
     id: 'med-growth-b2b-funnel',
-    websiteId: 'site-digifynext',
+    websiteId: 'site-growth',
     fileName: 'b2b-saas-funnel.webp',
     fileType: 'image/webp',
     fileSizeBytes: 33970,
@@ -683,7 +683,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   },
   {
     id: 'med-growth-ai-search',
-    websiteId: 'site-digifynext',
+    websiteId: 'site-growth',
     fileName: 'ai-search-optimization.webp',
     fileType: 'image/webp',
     fileSizeBytes: 34684,
@@ -696,7 +696,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   },
   {
     id: 'med-growth-cro',
-    websiteId: 'site-digifynext',
+    websiteId: 'site-growth',
     fileName: 'cro-conversion-audit.webp',
     fileType: 'image/webp',
     fileSizeBytes: 38672,
@@ -709,7 +709,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   },
   {
     id: 'med-growth-ppc',
-    websiteId: 'site-digifynext',
+    websiteId: 'site-growth',
     fileName: 'ppc-google-ads-roi.webp',
     fileType: 'image/webp',
     fileSizeBytes: 34662,
@@ -722,7 +722,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   },
   {
     id: 'med-avatar-vikram',
-    websiteId: 'site-digifynext',
+    websiteId: 'site-growth',
     fileName: 'avatar-3.webp',
     fileType: 'image/webp',
     fileSizeBytes: 14106,
@@ -735,7 +735,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   },
   {
     id: 'med-avatar-neha',
-    websiteId: 'site-digifynext',
+    websiteId: 'site-growth',
     fileName: 'avatar-4.webp',
     fileType: 'image/webp',
     fileSizeBytes: 13770,
@@ -750,7 +750,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   // ────────────── SITE EDTECH ──────────────
   {
     id: 'med-edtech-logo',
-    websiteId: 'site-schoolerp',
+    websiteId: 'site-edtech',
     fileName: 'school-erp-logo.webp',
     fileType: 'image/webp',
     fileSizeBytes: 5378,
@@ -763,7 +763,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   },
   {
     id: 'med-edtech-campus',
-    websiteId: 'site-schoolerp',
+    websiteId: 'site-edtech',
     fileName: 'smart-campus-automation.webp',
     fileType: 'image/webp',
     fileSizeBytes: 33248,
@@ -776,7 +776,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   },
   {
     id: 'med-edtech-exams',
-    websiteId: 'site-schoolerp',
+    websiteId: 'site-edtech',
     fileName: 'examination-gradebook-portal.webp',
     fileType: 'image/webp',
     fileSizeBytes: 34702,
@@ -789,7 +789,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   },
   {
     id: 'med-edtech-analytics',
-    websiteId: 'site-schoolerp',
+    websiteId: 'site-edtech',
     fileName: 'student-analytics-retention.webp',
     fileType: 'image/webp',
     fileSizeBytes: 33486,
@@ -802,7 +802,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   },
   {
     id: 'med-avatar-ananya',
-    websiteId: 'site-schoolerp',
+    websiteId: 'site-edtech',
     fileName: 'avatar-5.webp',
     fileType: 'image/webp',
     fileSizeBytes: 15158,
@@ -815,7 +815,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   },
   {
     id: 'med-avatar-rohan',
-    websiteId: 'site-schoolerp',
+    websiteId: 'site-edtech',
     fileName: 'avatar-6.webp',
     fileType: 'image/webp',
     fileSizeBytes: 14988,
@@ -828,7 +828,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   },
   {
     id: 'med-avatar-riya',
-    websiteId: 'site-schoolerp',
+    websiteId: 'site-edtech',
     fileName: 'avatar-8.webp',
     fileType: 'image/webp',
     fileSizeBytes: 14966,
@@ -841,7 +841,7 @@ export const INITIAL_MEDIA: MediaItem[] = [
   },
   {
     id: 'med-avatar-default',
-    websiteId: 'site-jupsoft',
+    websiteId: 'site-cloud',
     fileName: 'avatar-default.webp',
     fileType: 'image/webp',
     fileSizeBytes: 11928,

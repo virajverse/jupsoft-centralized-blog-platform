@@ -28,7 +28,7 @@ export const ClientHandoverModal: React.FC<ClientHandoverModalProps> = ({
   isOpen,
   onClose,
   site,
-  apiBaseUrl = (typeof window !== 'undefined' ? window.location.origin.replace(':3000', ':4000') : 'http://localhost:4000')
+  apiBaseUrl = (typeof window !== 'undefined' ? (window.location.origin.includes('localhost') ? window.location.origin.replace(':3000', ':4000') : window.location.origin) : (process.env.NEXT_PUBLIC_API_URL || 'https://blogary.jupsoft.com'))
 }) => {
   const [activeTab, setActiveTab] = useState<'cli' | 'widget' | 'whatsapp'>('cli');
   const [copiedId, setCopiedId] = useState<string | null>(null);

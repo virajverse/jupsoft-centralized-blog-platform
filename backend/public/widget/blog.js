@@ -240,7 +240,7 @@
   }
 
   function initContainer(container) {
-    const siteId = container.getAttribute('data-site') || 'site-gaming';
+    const siteId = container.getAttribute('data-site') || 'site-cloud';
     const apiUrl = (container.getAttribute('data-api') || 'http://localhost:4000').replace(/\/$/, '');
     const limit = parseInt(container.getAttribute('data-limit') || '9', 10);
     const detailUrlPattern = container.getAttribute('data-detail-url'); // if null, uses in-place reader!

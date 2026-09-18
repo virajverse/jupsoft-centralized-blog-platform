@@ -119,7 +119,7 @@ const API_ENDPOINTS: ApiEndpointDef[] = [
 
 export const ApiPortalView: React.FC = () => {
   const { websites, activeWebsiteId, blogs } = useBlogStore();
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' && !window.location.origin.includes('localhost') ? window.location.origin : 'https://blogary.jupsoft.com');
 
   // Active Tenant Selection
   const [selectedSiteId, setSelectedSiteId] = useState<string>(() => {
