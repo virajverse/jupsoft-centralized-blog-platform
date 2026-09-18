@@ -14,7 +14,8 @@ import {
   Database,
   Search,
   Lock,
-  RefreshCw
+  RefreshCw,
+  Award  // Added for SEO score
 } from 'lucide-react';
 
 export const LandingBentoGrid: React.FC = () => {
@@ -41,11 +42,11 @@ export const LandingBentoGrid: React.FC = () => {
           {/* Card A: Tiptap Editorial Studio (Col Span 2) */}
           <div className="md:col-span-2 relative p-8 rounded-3xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden group hover:border-slate-300 dark:hover:border-slate-700 transition-all">
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-3 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+              <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                 <FileEdit className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-xs font-mono text-indigo-500 font-semibold uppercase tracking-wider">Pillar 01</span>
+                <span className="text-xs font-mono text-blue-500 font-semibold uppercase tracking-wider">Pillar 01</span>
                 <h4 className="text-xl font-bold text-slate-900 dark:text-white">
                   Linear-Grade Tiptap Editorial Studio
                 </h4>
@@ -80,7 +81,7 @@ export const LandingBentoGrid: React.FC = () => {
           <div className="relative p-8 rounded-3xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-xl flex flex-col justify-between group hover:border-slate-300 dark:hover:border-slate-700 transition-all">
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-3 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                   <Kanban className="w-6 h-6" />
                 </div>
                 <div>
@@ -119,7 +120,7 @@ export const LandingBentoGrid: React.FC = () => {
           <div className="relative p-8 rounded-3xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-xl flex flex-col justify-between group hover:border-slate-300 dark:hover:border-slate-700 transition-all">
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                   <GitMerge className="w-6 h-6" />
                 </div>
                 <div>
@@ -154,7 +155,7 @@ export const LandingBentoGrid: React.FC = () => {
           {/* Card D: AWS S3 & WebP Pipeline (Col Span 2) */}
           <div className="md:col-span-2 relative p-8 rounded-3xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden group hover:border-slate-300 dark:hover:border-slate-700 transition-all">
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+              <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                 <ImageIcon className="w-6 h-6" />
               </div>
               <div>

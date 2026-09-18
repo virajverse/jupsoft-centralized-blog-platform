@@ -234,23 +234,22 @@ export const SettingsView: React.FC = () => {
     }
 
     const cleanSlug = (newSlug.trim() || newName.toLowerCase().replace(/[^a-z0-9]/g, '-')).replace(/^-+|-+$/g, '');
-    const cleanDomain = newDomain.trim().toLowerCase().replace(/^https?:\/\//, '');
-    const randomHex = Math.random().toString(36).substring(2, 10);
+    const cleanDomain = newDomain
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\//, '')
+      .replace(/\/+$/, '');
     const newSiteId = `site-${cleanSlug}`;
 
-    const newWebsite: Website = {
+    const newWebsite = {
       id: newSiteId,
       name: newName.trim(),
       domain: cleanDomain,
       logoUrl: newLogoUrl.trim() || '/uploads/logos/jupsoft-cloud-logo.webp',
       description: newDescription.trim() || `${newName.trim()} content network.`,
-      apiKey: `jup_live_sec_${cleanSlug}_${randomHex}`,
-      s3Prefix: `blogs/${cleanSlug}/`,
-      status: 'active',
       defaultLanguage: newLang,
       supportedLanguages: ['en', 'hi', 'fr', 'ar'],
       revalidateWebhookUrl: `https://${cleanDomain}/api/revalidate`,
-      createdAt: new Date().toISOString(),
     };
 
     setIsOnboardSubmitting(true);
@@ -1543,7 +1542,7 @@ export const SettingsView: React.FC = () => {
                 <div className="font-semibold text-slate-700 dark:text-slate-300">Automated Provisioning:</div>
                 <div>&bull; Generates secure secret API key `jup_live_sec_...`</div>
                 <div>&bull; Isolates AWS S3 prefix `blogs/{newSlug || 'slug'}/`</div>
-                <div>&bull; Pre-configures Next.js revalidation endpoint `https://{newDomain || 'domain'}/api/revalidate`</div>
+                <div>&bull; Pre-configures Next.js revalidation endpoint `https://{newDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '') || 'domain'}/api/revalidate`</div>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">

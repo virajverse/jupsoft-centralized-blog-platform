@@ -151,7 +151,8 @@ export const Navbar: React.FC = () => {
             <div className="w-6 h-6 rounded-md overflow-hidden bg-transparent p-0.5 border border-slate-200/60 dark:border-slate-800/60 flex items-center justify-center">
               <img src="/jupsoft-icon.png?v=2" alt="Jupsoft" className="w-full h-full object-contain" />
             </div>
-            <span className="font-bold text-xs tracking-tight text-slate-900 dark:text-white">JUPSOFT</span>
+            <span className="font-bold text-xs tracking-tight text-slate-900 dark:text-white">Blogary</span>
+<span className="text-[9px] uppercase px-1 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold border border-slate-200 dark:border-slate-700">by Jupsoft</span>
           </Link>
         )}
 

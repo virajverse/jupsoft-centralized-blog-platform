@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Zap, Shield, Globe2, Languages } from 'lucide-react';
+import { Zap, Shield, Globe2, Languages, Star } from 'lucide-react';
 
 export const LandingMetrics: React.FC = () => {
   const metrics = [
@@ -32,6 +32,13 @@ export const LandingMetrics: React.FC = () => {
       sublabel: 'EN, HI, FR, AR with RTL Support',
       icon: Languages,
       color: 'from-blue-500 to-indigo-500',
+    },
+    {
+      value: '85 / 100',
+      label: 'Avg SEO Score',
+      sublabel: '80+ Gate - Product Differentiator',
+      icon: Star,
+      color: 'from-emerald-500 to-emerald-600',
     },
   ];
 

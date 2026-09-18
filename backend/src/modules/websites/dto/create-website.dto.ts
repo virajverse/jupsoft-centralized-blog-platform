@@ -42,6 +42,21 @@ export class CreateWebsiteDto {
   @IsString()
   @IsOptional()
   revalidateWebhookUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  apiKey?: string;
+
+  @IsString()
+  @IsOptional()
+  s3Prefix?: string;
+
+  @IsString()
+  @IsOptional()
+  status?: string;
+
+  @IsOptional()
+  createdAt?: any;
 }
 
 export class UpdateWebsiteDto {

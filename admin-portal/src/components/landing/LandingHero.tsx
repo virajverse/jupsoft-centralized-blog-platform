@@ -17,7 +17,9 @@ import {
   Zap, 
   ShieldCheck,
   Database,
-  Cpu
+  Cpu,
+  Medal,
+  Star
 } from 'lucide-react';
 
 export const LandingHero: React.FC = () => {
@@ -25,6 +27,7 @@ export const LandingHero: React.FC = () => {
   const [editorText, setEditorText] = useState(
     "Architecture Blueprint 2026: Multi-Tenant Headless Content Hubs powering Next.js consumer frontends from a centralized NestJS 11 API engine."
   );
+  const [avgSeoScore, setAvgSeoScore] = useState(85);
 
   return (
     <section className="relative pt-12 pb-20 md:pt-20 md:pb-28 overflow-hidden">
@@ -51,6 +54,14 @@ export const LandingHero: React.FC = () => {
               Unlimited Brands & Sites.
             </span>
           </h1>
+
+          {/* Avg SEO Score Card - Product Differentiator */}
+          <div className="flex justify-center mb-6">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-sm font-medium">
+              <Star className="w-3.5 h-3.5" />
+              <span>Avg SEO Score: {avgSeoScore} / 100 <span className="text-xs font-medium bg-emerald-100 text-emerald-600 rounded px-2 py-0.5">80+ Gate ✓</span></span>
+            </div>
+          </div>
 
           <p className="text-lg sm:text-xl text-slate-600 dark:text-slate-300 max-w-2xl mx-auto font-normal leading-relaxed mb-8">
             Enterprise multi-tenant content management hub designed to write, audit, optimize, and publish content across 10+ client domains in sub-300ms latency.

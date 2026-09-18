@@ -83,6 +83,7 @@ export const Sidebar: React.FC = () => {
     badge: string | null;
     badgeColor?: string;
     isActive: boolean;
+    category: 'content' | 'growth' | 'platform';
   }[] = [
     {
       href: `/dashboard${siteQuery}`,
@@ -92,6 +93,7 @@ export const Sidebar: React.FC = () => {
       icon: LayoutDashboard,
       badge: null,
       isActive: pathname === '/dashboard' || pathname === '/',
+      category: 'content',
     },
     {
       href: `/blogs${siteQuery}`,
@@ -101,6 +103,7 @@ export const Sidebar: React.FC = () => {
       icon: FileText,
       badge: displayedBlogs.length > 0 ? displayedBlogs.length.toString() : null,
       isActive: pathname.startsWith('/blogs') && !pathname.includes('/new'),
+      category: 'content',
     },
     {
       href: `/workflow${siteQuery}`,
@@ -109,8 +112,9 @@ export const Sidebar: React.FC = () => {
       label: 'Workflow Kanban',
       icon: Kanban,
       badge: underReviewCount > 0 ? underReviewCount.toString() : null,
-      badgeColor: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 dark:border-amber-800/60',
+      badgeColor: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 dark:border-blue-800/60',
       isActive: pathname === '/workflow',
+      category: 'content',
     },
     {
       href: `/media${siteQuery}`,
@@ -120,6 +124,7 @@ export const Sidebar: React.FC = () => {
       icon: ImageIcon,
       badge: null,
       isActive: pathname === '/media',
+      category: 'content',
     },
     {
       href: `/taxonomy${siteQuery}`,
@@ -129,6 +134,17 @@ export const Sidebar: React.FC = () => {
       icon: Tags,
       badge: null,
       isActive: pathname === '/taxonomy',
+      category: 'content',
+    },
+    {
+      href: `/seo${siteQuery}`,
+      basePath: '/seo',
+      module: 'seo',
+      label: 'SEO',
+      icon: ShieldCheck,
+      badge: null,
+      isActive: pathname === '/seo',
+      category: 'content',
     },
     {
       href: `/redirects${siteQuery}`,
@@ -137,8 +153,9 @@ export const Sidebar: React.FC = () => {
       label: '301 Redirects',
       icon: ArrowRightLeft,
       badge: redirects.length > 0 ? redirects.length.toString() : null,
-      badgeColor: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60',
+      badgeColor: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 dark:border-blue-800/60',
       isActive: pathname === '/redirects',
+      category: 'content',
     },
     {
       href: `/analytics${siteQuery}`,
@@ -148,6 +165,7 @@ export const Sidebar: React.FC = () => {
       icon: BarChart3,
       badge: null,
       isActive: pathname === '/analytics',
+      category: 'content',
     },
     {
       href: `/developers${siteQuery}`,
@@ -157,6 +175,7 @@ export const Sidebar: React.FC = () => {
       icon: Code2,
       badge: null,
       isActive: pathname === '/developers',
+      category: 'platform',
     },
     {
       href: `/users${siteQuery}`,
@@ -166,6 +185,7 @@ export const Sidebar: React.FC = () => {
       icon: Users,
       badge: null,
       isActive: pathname === '/users',
+      category: 'platform',
     },
     {
       href: `/settings${siteQuery}`,
@@ -175,6 +195,7 @@ export const Sidebar: React.FC = () => {
       icon: Settings,
       badge: null,
       isActive: pathname === '/settings',
+      category: 'platform',
     },
   ];
 
@@ -214,7 +235,7 @@ export const Sidebar: React.FC = () => {
               </div>
               <div>
                 <div className="font-bold text-xs tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
-                  JUPSOFT <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold border border-slate-200 dark:border-slate-700">CMS</span>
+                  Blogary <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold border border-slate-200 dark:border-slate-700">by Jupsoft</span>
                 </div>
                 <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">v1.0 &middot; Multi-Tenant</div>
               </div>
