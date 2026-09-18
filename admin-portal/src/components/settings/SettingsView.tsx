@@ -43,6 +43,7 @@ export const SettingsView: React.FC = () => {
     activeWebsiteId, 
     activeRole,
     fetchWebsites,
+    fetchBlogs,
     updateWebsite, 
     addWebsite,
     deleteWebsite,
@@ -56,7 +57,8 @@ export const SettingsView: React.FC = () => {
 
   useEffect(() => {
     fetchWebsites();
-  }, [fetchWebsites]);
+    fetchBlogs();
+  }, [fetchWebsites, fetchBlogs]);
 
   useEffect(() => {
     fetchAuditLogs(activeWebsiteId === 'all' ? undefined : activeWebsiteId);
@@ -619,7 +621,7 @@ export const SettingsView: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                   {websites.map((w) => {
-                    const articleCount = blogs.filter((b) => b.websiteId === w.id).length;
+                    const blogCount = blogs.filter((b) => b.websiteId === w.id).length;
                     const isSelected = w.id === targetSiteId;
                     return (
                       <tr 
@@ -669,7 +671,7 @@ export const SettingsView: React.FC = () => {
                         </td>
 
                         <td className="py-3 px-4 font-mono font-semibold text-slate-800 dark:text-slate-200">
-                          {articleCount}
+                          {blogCount}
                         </td>
 
                         <td className="py-3 px-4 font-mono text-slate-500 dark:text-slate-400 text-[11px]">
