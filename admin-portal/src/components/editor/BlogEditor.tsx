@@ -73,7 +73,10 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     activeRole,
     addRedirect,
     currentUser,
+    uiTheme,
   } = useBlogStore();
+
+  const isZoho = uiTheme === 'zoho';
 
   const targetBlogId = blogId !== undefined ? blogId : editingBlogId;
 
@@ -525,7 +528,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-transparent">
       {/* Editor Sub-Bar: Breadcrumb, language switcher, AI translate & save */}
-      <div className="h-12 bg-white dark:bg-[#0f172a] border-b border-slate-200 dark:border-slate-800 px-3 sm:px-4 flex items-center justify-between shrink-0 gap-2 overflow-x-auto no-scrollbar">
+      <div className={`border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0 gap-2 overflow-x-auto no-scrollbar ${isZoho ? 'h-10 bg-white dark:bg-[#0c1322] px-3' : 'h-12 bg-white dark:bg-[#0f172a] px-3 sm:px-4'}`}>
         {/* Left: Breadcrumbs with auto-truncation for long article titles */}
         <div className="flex items-center space-x-1.5 text-xs min-w-0 max-w-[150px] sm:max-w-[220px] lg:max-w-[300px] shrink">
           <Link
@@ -558,7 +561,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   onClick={() => handleLanguageTabClick(lang)}
                   className={`px-2 py-0.5 rounded-md text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
                     isActive
-                      ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-2xs'
+                      ? (isZoho ? 'bg-red-600 text-white shadow-2xs font-bold' : 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-2xs')
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
@@ -643,7 +646,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50 shrink-0 ${isZoho ? 'bg-red-600 hover:bg-red-700 text-white font-bold' : 'bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 rounded-md'}`}
           >
             <Save className={`w-3.5 h-3.5 ${isSaving ? 'animate-spin' : ''}`} />
             <span>{isSaving ? 'Saving...' : 'Save'}</span>
@@ -654,7 +657,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       {/* Main Authoring Canvas & Inspector */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Document Area */}
-        <div className="flex-1 flex flex-col overflow-y-auto px-6 sm:px-12 py-6 space-y-4">
+        <div className={`flex-1 flex flex-col overflow-y-auto ${isZoho ? 'px-4 sm:px-8 py-3 space-y-2.5' : 'px-6 sm:px-12 py-6 space-y-4'}`}>
           {/* Published Slug 301 Warning Notice (TRD Section 7) */}
           {status === 'Published' && (
             <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3 flex items-center space-x-3 text-xs text-amber-800 dark:text-amber-300 shadow-xs">
@@ -697,7 +700,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
               value={activeTrans.title}
               onChange={(e) => handleTitleChange(e.target.value)}
               dir={isRTL ? 'rtl' : 'ltr'}
-              className="w-full bg-transparent text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none tracking-tight pb-2 transition-colors border-b border-slate-200 dark:border-slate-800 focus:border-slate-400 dark:focus:border-slate-600"
+              className={`w-full bg-transparent font-bold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none tracking-tight pb-1.5 transition-colors border-b border-slate-200 dark:border-slate-800 ${isZoho ? 'text-xl sm:text-2xl focus:border-red-500' : 'text-2xl sm:text-3xl pb-2 focus:border-slate-400 dark:focus:border-slate-600'}`}
             />
             <div className="flex items-center space-x-2 text-xs text-slate-500 dark:text-slate-400 font-mono">
               <span>https://{activeSite.domain}/blog/</span>
@@ -719,13 +722,13 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
               onChange={(e) => updateActiveTransField('excerpt', e.target.value)}
               rows={2}
               dir={isRTL ? 'rtl' : 'ltr'}
-              className="w-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs sm:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-400 shadow-xs transition-colors"
+              className={`w-full border placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none transition-colors ${isZoho ? 'bg-white dark:bg-[#0c1322] border-slate-300 dark:border-slate-700 rounded p-2 text-xs text-slate-800 dark:text-slate-200 focus:border-red-500 shadow-none' : 'bg-white dark:bg-[#0f172a] border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs sm:text-sm text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-slate-400 shadow-xs'}`}
             />
           </div>
 
           {/* Tiptap Floating Toolbar */}
           {editor && (
-            <div className="sticky top-0 z-20 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-xl p-1.5 flex flex-wrap items-center gap-1 shadow-xs">
+            <div className={`sticky top-0 z-20 backdrop-blur-md border flex flex-wrap items-center ${isZoho ? 'bg-slate-50/95 dark:bg-[#0c1322]/95 border-slate-300 dark:border-slate-700 rounded p-1 gap-0.5 shadow-none' : 'bg-white/95 dark:bg-[#0f172a]/95 border-slate-200 dark:border-slate-800 rounded-xl p-1.5 gap-1 shadow-xs'}`}>
               <button
                 onClick={() => editor.chain().focus().toggleBold().run()}
                 className={`p-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
@@ -858,9 +861,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         </div>
 
         {/* Right: Inspector Sidebar */}
-        <div className="w-80 sm:w-96 bg-white dark:bg-[#0f172a] border-l border-slate-200 dark:border-slate-800 flex flex-col shrink-0 overflow-hidden">
+        <div className={`border-l flex flex-col shrink-0 overflow-hidden ${isZoho ? 'w-72 sm:w-80 bg-white dark:bg-[#0c1322] border-slate-200 dark:border-slate-800 text-xs' : 'w-80 sm:w-96 bg-white dark:bg-[#0f172a] border-slate-200 dark:border-slate-800'}`}>
           {/* Tabs header - URL bound */}
-          <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 p-1.5 gap-1">
+          <div className={`flex border-b border-slate-200 dark:border-slate-800 p-1 gap-0.5 ${isZoho ? 'bg-slate-100 dark:bg-slate-900' : 'bg-slate-50/60 dark:bg-slate-900/40 p-1.5 gap-1'}`}>
             <button
               onClick={() => handleInspectorTabClick('seo')}
               className={`flex-1 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer ${
@@ -913,12 +916,34 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           </div>
 
           {/* Inspector Content */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className={`flex-1 overflow-y-auto ${isZoho ? 'p-2.5 space-y-2.5' : 'p-4 space-y-4'}`}>
             {/* TAB 1: SEO AUDITOR & SCHEMA */}
             {activeInspectorTab === 'seo' && (
               <div className="space-y-4">
                 {/* Score Gauge Card */}
-                <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center space-y-2">
+                {isZoho ? (
+                  <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded p-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-8 h-8 rounded flex items-center justify-center font-bold text-xs shrink-0 ${
+                        seoResult.score >= 80 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' :
+                        seoResult.score >= 50 ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' :
+                        'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+                      }`}>
+                        {seoResult.score}
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Content SEO Score</div>
+                        <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                          {seoResult.status === 'good' && 'Ready for Production'}
+                          {seoResult.status === 'average' && 'Fair Optimization'}
+                          {seoResult.status === 'poor' && 'Needs Optimization'}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-400 font-bold">{seoResult.score}/100 pts</span>
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center space-y-2">
                   <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Automated Content SEO Score
                   </div>
@@ -960,6 +985,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     {seoResult.status === 'poor' && 'Needs Optimization'}
                   </div>
                 </div>
+                )}
 
                 {/* Focus Keyword Input */}
                 <div className="space-y-1.5">
