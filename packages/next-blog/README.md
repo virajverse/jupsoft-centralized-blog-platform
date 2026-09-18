@@ -45,3 +45,14 @@ export default JupsoftBlogDetail;
 ```ts
 export { POST } from '@jupsoft/next-blog/webhook';
 ```
+
+## Environment Variables (`.env.local`)
+
+```env
+NEXT_PUBLIC_CMS_API_URL=https://blogary.jupsoft.com/api
+CMS_WEBSITE_ID=your-website-id
+CMS_TENANT_API_KEY=your-api-key
+CMS_WEBHOOK_SECRET=wh_sec_jupsoft_default_revalidate_2026
+```
+> *Note: If `CMS_WEBHOOK_SECRET` is not provided, the SDK automatically defaults to `wh_sec_jupsoft_default_revalidate_2026` for seamless zero-config webhook verification.*
+

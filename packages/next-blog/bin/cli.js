@@ -42,7 +42,7 @@ const cwd = process.cwd();
 const apiKey = params.key || process.env.CMS_TENANT_API_KEY || '';
 const websiteId = params.site || process.env.CMS_WEBSITE_ID || '';
 const apiUrl = (params.url || process.env.NEXT_PUBLIC_CMS_API_URL || 'https://blogary.jupsoft.com').replace(/\/$/, '');
-const webhookSec = params.secret || process.env.CMS_WEBHOOK_SECRET || '';
+const webhookSec = params.secret || process.env.CMS_WEBHOOK_SECRET || 'wh_sec_jupsoft_default_revalidate_2026';
 
 // Detect project type
 let isNextJs = false;
@@ -169,7 +169,7 @@ const envEntries = [
   `CMS_API_URL=${apiUrl}`,
   `CMS_TENANT_API_KEY=${apiKey || 'YOUR_TENANT_API_KEY_HERE'}`,
   `CMS_WEBSITE_ID=${websiteId || 'YOUR_WEBSITE_ID_HERE'}`,
-  `CMS_WEBHOOK_SECRET=${webhookSec || 'YOUR_WEBHOOK_SECRET_HERE'}`
+  `CMS_WEBHOOK_SECRET=${webhookSec || 'wh_sec_jupsoft_default_revalidate_2026'}`
 ];
 
 let existingEnv = '';
