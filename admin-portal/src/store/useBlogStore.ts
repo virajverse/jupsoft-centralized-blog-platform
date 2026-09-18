@@ -35,9 +35,9 @@ interface BlogState {
   editorLang: LanguageCode;
   notification: { message: string; type: 'success' | 'info' | 'warning' } | null;
   theme: 'light' | 'dark';
-  uiTheme: 'classic' | 'modern';
+  uiTheme: 'classic' | 'modern' | 'zoho';
   isUiThemeSwitching: boolean;
-  uiThemeSwitchTarget: 'classic' | 'modern' | null;
+  uiThemeSwitchTarget: 'classic' | 'modern' | 'zoho' | null;
   sidebarOpen: boolean;
   isGuideOpen: boolean;
 
@@ -69,7 +69,7 @@ interface BlogState {
   setEditorLang: (lang: LanguageCode) => void;
   setTheme: (theme: 'light' | 'dark') => void;
   toggleTheme: () => void;
-  setUiTheme: (uiTheme: 'classic' | 'modern') => void;
+  setUiTheme: (uiTheme: 'classic' | 'modern' | 'zoho') => void;
   toggleUiTheme: () => void;
   startCreateBlog: () => void;
   startEditBlog: (id: string) => void;
@@ -476,7 +476,8 @@ export const useBlogStore = create<BlogState>()(
       },
 
       toggleUiTheme: () => {
-        const next = get().uiTheme === 'modern' ? 'classic' : 'modern';
+        const current = get().uiTheme;
+        const next = current === 'modern' ? 'classic' : current === 'classic' ? 'zoho' : 'modern';
         get().setUiTheme(next);
       },
 

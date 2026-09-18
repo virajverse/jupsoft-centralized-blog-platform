@@ -2,16 +2,15 @@
 
 import React, { useEffect, useState } from 'react';
 import { useBlogStore } from '../../store/useBlogStore';
-import { Sparkles, Layout, ArrowRight, Zap, Layers, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Layout, ArrowRight, Zap, Layers, CheckCircle2, Briefcase } from 'lucide-react';
 
 export const ThemeTransitionOverlay: React.FC = () => {
   const { isUiThemeSwitching, uiThemeSwitchTarget } = useBlogStore();
   const [progress, setProgress] = useState(0);
   const [isExiting, setIsExiting] = useState(false);
 
-  // Target theme determination
+  // Target theme determination ('modern' | 'classic' | 'zoho')
   const targetTheme = uiThemeSwitchTarget || 'modern';
-  const isToModern = targetTheme === 'modern';
 
   useEffect(() => {
     if (!isUiThemeSwitching) {
@@ -48,18 +47,28 @@ export const ThemeTransitionOverlay: React.FC = () => {
     return null;
   }
 
-  // Live status ticker based on progress
+  // Live status ticker based on progress & target theme
   let phaseText = 'Initializing layout engine...';
   if (progress >= 25 && progress < 60) {
-    phaseText = isToModern 
-      ? 'Mounting royal purple canvas & curved navigation...' 
-      : 'Switching to dense enterprise data grid...';
+    if (targetTheme === 'modern') {
+      phaseText = 'Mounting royal purple canvas & curved navigation...';
+    } else if (targetTheme === 'zoho') {
+      phaseText = 'Mounting two-tier icon rail & contextual sub-drawer...';
+    } else {
+      phaseText = 'Switching to dense enterprise data grid...';
+    }
   } else if (progress >= 60 && progress < 88) {
-    phaseText = isToModern 
-      ? 'Applying responsive cards & ergonomic widgets...' 
-      : 'Restoring classic workspace & technical workbench...';
+    if (targetTheme === 'modern') {
+      phaseText = 'Applying responsive cards & ergonomic widgets...';
+    } else if (targetTheme === 'zoho') {
+      phaseText = 'Initializing Zoho omnibox search & quick actions...';
+    } else {
+      phaseText = 'Restoring classic workspace & technical workbench...';
+    }
   } else if (progress >= 88) {
-    phaseText = isToModern ? 'Modern UI Ready!' : 'Classic UI Ready!';
+    if (targetTheme === 'modern') phaseText = 'Modern UI Ready!';
+    else if (targetTheme === 'zoho') phaseText = 'Zoho Enterprise Ready!';
+    else phaseText = 'Classic UI Ready!';
   }
 
   return (
@@ -74,13 +83,21 @@ export const ThemeTransitionOverlay: React.FC = () => {
     >
       {/* Dynamic Ambient Background Glow Orbs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {isToModern ? (
+        {targetTheme === 'modern' && (
           <>
             <div className="absolute -top-32 left-1/4 w-[500px] h-[500px] rounded-full bg-[#4c22cf]/30 blur-[120px] animate-pulse-glow" />
             <div className="absolute -bottom-32 right-1/4 w-[450px] h-[450px] rounded-full bg-[#7c3aed]/25 blur-[120px] animate-pulse-glow" />
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full bg-amber-400/10 blur-[90px] animate-float-gentle" />
           </>
-        ) : (
+        )}
+        {targetTheme === 'zoho' && (
+          <>
+            <div className="absolute -top-32 left-1/4 w-[500px] h-[500px] rounded-full bg-red-600/25 blur-[120px] animate-pulse-glow" />
+            <div className="absolute -bottom-32 right-1/4 w-[450px] h-[450px] rounded-full bg-rose-500/25 blur-[120px] animate-pulse-glow" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full bg-amber-400/15 blur-[90px] animate-float-gentle" />
+          </>
+        )}
+        {targetTheme === 'classic' && (
           <>
             <div className="absolute -top-32 right-1/4 w-[500px] h-[500px] rounded-full bg-cyan-500/20 blur-[120px] animate-pulse-glow" />
             <div className="absolute -bottom-32 left-1/4 w-[450px] h-[450px] rounded-full bg-indigo-600/25 blur-[120px] animate-pulse-glow" />
@@ -98,65 +115,40 @@ export const ThemeTransitionOverlay: React.FC = () => {
 
         {/* Top Transformation Badge */}
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[11px] font-bold tracking-wider uppercase mb-6 shadow-sm border border-white/10 bg-white/5 text-white/90">
-          <Zap className={`w-3.5 h-3.5 ${isToModern ? 'text-amber-300' : 'text-cyan-400'}`} />
-          <span>{isToModern ? 'Transforming to Modern UI' : 'Switching to Classic UI'}</span>
+          <Zap className={`w-3.5 h-3.5 ${targetTheme === 'modern' ? 'text-amber-300' : targetTheme === 'zoho' ? 'text-red-400' : 'text-cyan-400'}`} />
+          <span>
+            {targetTheme === 'modern' ? 'Transforming to Modern UI' : targetTheme === 'zoho' ? 'Activating Zoho Enterprise' : 'Switching to Classic Studio'}
+          </span>
         </div>
 
-        {/* Interactive Motion Node Flow (Source -> Laser Beam -> Destination Hero) */}
+        {/* Destination Hero Icon Node */}
         <div className="flex items-center justify-center gap-3 sm:gap-4 my-3 w-full">
-          {/* Source Node (Previous Mode) */}
-          <div className="flex flex-col items-center gap-2 opacity-50 scale-95 transition-opacity">
-            <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center text-white/70 shadow-inner">
-              {isToModern ? (
-                <Layout className="w-5 h-5 text-slate-300" />
-              ) : (
-                <Sparkles className="w-5 h-5 text-amber-300" />
-              )}
-            </div>
-            <span className="text-[10px] font-semibold text-white/50 tracking-wider uppercase">
-              {isToModern ? 'Classic' : 'Modern'}
-            </span>
-          </div>
-
-          {/* Energy Pulse Laser Beam Channel */}
-          <div className="flex-1 max-w-[120px] sm:max-w-[140px] flex flex-col items-center gap-1">
-            <div className="w-full h-1.5 rounded-full bg-white/10 relative overflow-hidden">
-              <div 
-                className={`absolute inset-y-0 w-16 rounded-full animate-beam-travel ${
-                  isToModern 
-                    ? 'bg-gradient-to-r from-[#4c22cf] via-amber-300 to-white shadow-[0_0_12px_#4c22cf]' 
-                    : 'bg-gradient-to-r from-cyan-500 via-blue-400 to-white shadow-[0_0_12px_#06b6d4]'
-                }`}
-              />
-            </div>
-            <ArrowRight className={`w-4 h-4 animate-pulse ${isToModern ? 'text-amber-300/80' : 'text-cyan-400/80'}`} />
-          </div>
-
-          {/* Destination Hero Node (Target Mode) */}
           <div className="flex flex-col items-center gap-2 relative scale-105">
-            {/* Pulsing orbital aura behind hero node */}
+            {/* Pulsing orbital aura */}
             <div 
               className={`absolute -inset-2 rounded-3xl blur-md opacity-60 animate-pulse ${
-                isToModern ? 'bg-[#4c22cf]' : 'bg-cyan-500'
+                targetTheme === 'modern' ? 'bg-[#4c22cf]' : targetTheme === 'zoho' ? 'bg-red-500' : 'bg-cyan-500'
               }`} 
             />
 
             <div 
-              className={`w-14 h-14 rounded-2xl flex items-center justify-center relative z-10 shadow-xl transition-transform ${
-                isToModern 
+              className={`w-16 h-16 rounded-2xl flex items-center justify-center relative z-10 shadow-xl transition-transform ${
+                targetTheme === 'modern' 
                   ? 'bg-gradient-to-br from-[#4c22cf] to-[#7c3aed] text-white border-2 border-indigo-300/40 shadow-indigo-500/50' 
+                  : targetTheme === 'zoho'
+                  ? 'bg-gradient-to-br from-red-600 to-rose-700 text-white border-2 border-red-400/50 shadow-red-500/50'
                   : 'bg-gradient-to-br from-slate-900 to-[#1e293b] text-cyan-300 border-2 border-cyan-400/50 shadow-cyan-500/40'
               }`}
             >
-              {isToModern ? (
-                <Sparkles className="w-7 h-7 text-amber-300" />
-              ) : (
-                <Layout className="w-7 h-7 text-cyan-400" />
-              )}
+              {targetTheme === 'modern' && <Sparkles className="w-8 h-8 text-amber-300" />}
+              {targetTheme === 'zoho' && <Briefcase className="w-8 h-8 text-white" />}
+              {targetTheme === 'classic' && <Layout className="w-8 h-8 text-cyan-400" />}
             </div>
 
-            <span className={`text-[11px] font-black tracking-wider uppercase ${isToModern ? 'text-amber-300' : 'text-cyan-300'}`}>
-              {isToModern ? 'Modern' : 'Classic'}
+            <span className={`text-[12px] font-black tracking-wider uppercase ${
+              targetTheme === 'modern' ? 'text-amber-300' : targetTheme === 'zoho' ? 'text-red-400' : 'text-cyan-300'
+            }`}>
+              {targetTheme === 'modern' ? 'Modern' : targetTheme === 'zoho' ? 'Zoho' : 'Classic'}
             </span>
           </div>
         </div>
@@ -164,12 +156,19 @@ export const ThemeTransitionOverlay: React.FC = () => {
         {/* Dynamic Title & Subtitle */}
         <div className="mt-5 space-y-1.5">
           <h3 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center justify-center gap-2">
-            {isToModern ? (
+            {targetTheme === 'modern' && (
               <>
                 <span>Activating Modern UI</span>
                 <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
               </>
-            ) : (
+            )}
+            {targetTheme === 'zoho' && (
+              <>
+                <span>Activating Zoho UI</span>
+                <Briefcase className="w-4 h-4 text-red-400 shrink-0" />
+              </>
+            )}
+            {targetTheme === 'classic' && (
               <>
                 <span>Restoring Classic Studio</span>
                 <Layers className="w-4 h-4 text-cyan-400 shrink-0" />
@@ -177,9 +176,9 @@ export const ThemeTransitionOverlay: React.FC = () => {
             )}
           </h3>
           <p className="text-xs text-white/60 max-w-xs mx-auto leading-relaxed">
-            {isToModern 
-              ? 'Fluid curved canvas, ergonomic cards & royal purple theme' 
-              : 'High-density operational data tables & compact workbench'}
+            {targetTheme === 'modern' && 'Fluid curved canvas, ergonomic cards & royal purple theme'}
+            {targetTheme === 'zoho' && 'Two-tier navigation, 50px omnibox header & high data density'}
+            {targetTheme === 'classic' && 'High-density operational data tables & compact workbench'}
           </p>
         </div>
 
@@ -198,8 +197,10 @@ export const ThemeTransitionOverlay: React.FC = () => {
           <div className="w-full h-2 rounded-full bg-white/10 p-0.5 overflow-hidden relative">
             <div
               className={`h-full rounded-full transition-all duration-75 relative overflow-hidden ${
-                isToModern
+                targetTheme === 'modern'
                   ? 'bg-gradient-to-r from-[#4c22cf] via-[#7c3aed] to-amber-300'
+                  : targetTheme === 'zoho'
+                  ? 'bg-gradient-to-r from-red-600 via-rose-500 to-amber-400'
                   : 'bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500'
               }`}
               style={{ width: `${progress}%` }}

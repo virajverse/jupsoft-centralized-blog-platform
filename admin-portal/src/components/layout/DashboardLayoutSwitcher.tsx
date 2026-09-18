@@ -5,6 +5,7 @@ import { useBlogStore } from '../../store/useBlogStore';
 import { Sidebar } from './Sidebar';
 import { Navbar } from './Navbar';
 import { ModernDashboardLayout } from './modern/ModernDashboardLayout';
+import { ZohoDashboardLayout } from './zoho/ZohoDashboardLayout';
 import { ThemeTransitionOverlay } from './ThemeTransitionOverlay';
 import { AdminGuideModal } from '../guide/AdminGuideModal';
 
@@ -37,6 +38,8 @@ export const DashboardLayoutSwitcher: React.FC<{ children: React.ReactNode }> = 
       <AdminGuideModal />
       {uiTheme === 'modern' ? (
         <ModernDashboardLayout>{children}</ModernDashboardLayout>
+      ) : uiTheme === 'zoho' ? (
+        <ZohoDashboardLayout>{children}</ZohoDashboardLayout>
       ) : (
         <div className="h-screen w-screen overflow-hidden flex bg-slate-50 dark:bg-[#090d16] font-sans">
           {/* Full-Height Left Sidebar */}
