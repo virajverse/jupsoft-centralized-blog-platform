@@ -240,7 +240,7 @@ export const Sidebar: React.FC = () => {
               className="w-full inline-flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>New Article</span>
+              <span>New Blog</span>
             </Link>
           </div>
         )}

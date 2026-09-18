@@ -537,11 +537,11 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           </Link>
           <div className="flex items-center gap-1 font-medium min-w-0 truncate">
             <Link href={`/blogs?site=${selectedWebsiteId}`} className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 shrink-0">
-              Articles
+              Blogs
             </Link>
             <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
-            <span className="text-slate-900 dark:text-white font-semibold truncate" title={existingBlog ? (activeTrans.title || 'Edit Article') : 'New Article'}>
-              {existingBlog ? (activeTrans.title || 'Edit Article') : 'New Article'}
+            <span className="text-slate-900 dark:text-white font-semibold truncate" title={existingBlog ? (activeTrans.title || 'Edit Blog') : 'New Blog'}>
+              {existingBlog ? (activeTrans.title || 'Edit Blog') : 'New Blog'}
             </span>
           </div>
         </div>

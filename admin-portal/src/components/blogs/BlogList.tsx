@@ -131,7 +131,7 @@ export const BlogList: React.FC = () => {
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-medium text-xs shadow-xs transition-colors shrink-0"
             >
               <Plus className="w-4 h-4" />
-              <span>New Article</span>
+              <span>New Blog</span>
             </Link>
           )}
         </div>

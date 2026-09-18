@@ -94,7 +94,7 @@ export const ModernDashboardView: React.FC<ModernDashboardViewProps> = ({
               className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full bg-[#4c22cf] hover:bg-[#3d1bb0] text-white font-bold text-xs shadow-sm shadow-indigo-600/25 transition-all hover:scale-102 cursor-pointer whitespace-nowrap"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>New Article</span>
+              <span>New Blog</span>
             </Link>
           )}
 

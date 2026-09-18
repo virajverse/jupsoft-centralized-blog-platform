@@ -98,9 +98,9 @@ export const ModernNavbar: React.FC = () => {
 
   // Compute concise dynamic page title and breadcrumbs
   const getPageInfo = () => {
-    if (pathname.startsWith('/blogs/new')) return { title: 'New Article', breadcrumb: 'Articles / Create' };
-    if (pathname.startsWith('/blogs/edit')) return { title: 'Edit Article', breadcrumb: 'Articles / Edit' };
-    if (pathname.startsWith('/blogs')) return { title: 'Articles', breadcrumb: 'Content / All' };
+    if (pathname.startsWith('/blogs/new')) return { title: 'New Blog', breadcrumb: 'Blogs / Create' };
+    if (pathname.startsWith('/blogs/edit')) return { title: 'Edit Blog', breadcrumb: 'Blogs / Edit' };
+    if (pathname.startsWith('/blogs')) return { title: 'Blogs', breadcrumb: 'Content / Blogs' };
     if (pathname.startsWith('/workflow')) return { title: 'Workflow', breadcrumb: 'Kanban / Review' };
     if (pathname.startsWith('/media')) return { title: 'Media', breadcrumb: 'Assets / CDN' };
     if (pathname.startsWith('/taxonomy')) return { title: 'Taxonomy', breadcrumb: 'Categories / Tags' };
@@ -143,7 +143,7 @@ export const ModernNavbar: React.FC = () => {
       <div className="hidden xl:flex items-center flex-1 min-w-0 max-w-[180px] 2xl:max-w-xs relative mx-2">
         <input
           type="text"
-          placeholder="Search articles, slugs..."
+          placeholder="Search blogs, slugs..."
           value={localSearch}
           onChange={(e) => handleSearchChange(e.target.value)}
           onKeyDown={handleSearchKeyDown}
@@ -275,7 +275,7 @@ export const ModernNavbar: React.FC = () => {
           <Link
             href={`/blogs/new${siteQuery}`}
             className="hidden sm:inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#4c22cf] hover:bg-[#3d1bb0] text-white font-bold text-xs shadow-xs transition-all hover:scale-102 shrink-0"
-            title="Create New Article"
+            title="Create New Blog"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>New</span>
