@@ -20,12 +20,12 @@ async function main() {
   await prisma.user.deleteMany({});
   await prisma.website.deleteMany({});
 
-  // 2. Seed 3 High-Performance Multi-Tenant Websites
+  // 2. Seed 3 High-Performance Multi-Tenant Websites (TRD §1 & §6 Production Domains)
   const websites = [
     {
       id: 'site-cloud',
       name: 'Jupsoft Cloud & ERP',
-      domain: 'localhost:5001',
+      domain: 'cloud.jupsoft.com',
       logoUrl: '/uploads/logos/jupsoft-cloud-logo.webp',
       description: 'Enterprise Cloud ERP, Distributed Systems & AI Infrastructure.',
       apiKey: 'jup_live_sec_cloud_9934afbc82a104',
@@ -33,12 +33,12 @@ async function main() {
       status: 'active',
       defaultLanguage: 'en',
       supportedLanguages: ['en', 'hi', 'fr', 'ar'],
-      revalidateWebhookUrl: 'http://localhost:5001/api/revalidate',
+      revalidateWebhookUrl: 'https://cloud.jupsoft.com/api/revalidate',
     },
     {
       id: 'site-growth',
       name: 'DigifyNext Marketing',
-      domain: 'localhost:5002',
+      domain: 'digifynext.com',
       logoUrl: '/uploads/logos/digifynext-growth-logo.webp',
       description: 'Performance SEO, Conversion Funnels & Growth Marketing Analytics.',
       apiKey: 'digi_live_sec_growth_8821ecde71a209',
@@ -46,12 +46,12 @@ async function main() {
       status: 'active',
       defaultLanguage: 'en',
       supportedLanguages: ['en', 'hi'],
-      revalidateWebhookUrl: 'http://localhost:5002/api/revalidate',
+      revalidateWebhookUrl: 'https://digifynext.com/api/revalidate',
     },
     {
       id: 'site-edtech',
       name: 'School ERP Platform',
-      domain: 'localhost:5003',
+      domain: 'schoolerp.in',
       logoUrl: '/uploads/logos/school-erp-logo.webp',
       description: 'K-12 School Management, Exam Portals & Student Information Systems.',
       apiKey: 'erp_live_sec_edtech_7710bba190c301',
@@ -59,118 +59,153 @@ async function main() {
       status: 'active',
       defaultLanguage: 'en',
       supportedLanguages: ['en', 'hi', 'ar'],
-      revalidateWebhookUrl: 'http://localhost:5003/api/revalidate',
+      revalidateWebhookUrl: 'https://schoolerp.in/api/revalidate',
     },
   ];
 
   for (const site of websites) {
     await prisma.website.create({ data: site });
   }
-  console.log('✅ Seeded ' + websites.length + ' high-performance websites.');
+  console.log('✅ Seeded ' + websites.length + ' production websites.');
 
-  // 3. Seed Enterprise Organization Users across all Tiers (Password: Admin@12345)
-  const defaultPasswordHash = await bcrypt.hash('Admin@12345', 10);
-
+  // 3. Seed Enterprise Organization Users with Distinct, Unique Passwords
   const users = [
     {
       id: 'usr-superadmin',
       name: 'Aarav Sharma (Super Admin)',
-      email: 'admin@jupsoft.com',
+      email: 'superadmin@jupsoft.com',
+      password: 'Jupsoft#SuperAdmin2026!$',
       avatar: '/uploads/avatars/avatar-1.webp',
       status: 'active',
       lastLoginIp: '192.168.1.1',
       roles: [
-        { websiteId: 'site-cloud', role: 'Super Admin' },
-        { websiteId: 'site-growth', role: 'Super Admin' },
-        { websiteId: 'site-edtech', role: 'Super Admin' },
+        { websiteId: null, isGlobal: true, role: 'Super Admin' },
+        { websiteId: 'site-cloud', isGlobal: false, role: 'Super Admin' },
+        { websiteId: 'site-growth', isGlobal: false, role: 'Super Admin' },
+        { websiteId: 'site-edtech', isGlobal: false, role: 'Super Admin' },
+      ],
+    },
+    {
+      id: 'usr-admin-alias',
+      name: 'Aarav Sharma (Admin Alias)',
+      email: 'admin@jupsoft.com',
+      password: 'Jupsoft#SuperAdmin2026!$',
+      avatar: '/uploads/avatars/avatar-1.webp',
+      status: 'active',
+      lastLoginIp: '192.168.1.1',
+      roles: [
+        { websiteId: null, isGlobal: true, role: 'Super Admin' },
+        { websiteId: 'site-cloud', isGlobal: false, role: 'Super Admin' },
+        { websiteId: 'site-growth', isGlobal: false, role: 'Super Admin' },
+        { websiteId: 'site-edtech', isGlobal: false, role: 'Super Admin' },
       ],
     },
     {
       id: 'usr-siteadmin-cloud',
       name: 'Rohit Verma (Cloud Admin)',
       email: 'admin@cloud.jupsoft.com',
+      password: 'CloudAdmin#Jupsoft2026@',
       avatar: '/uploads/avatars/avatar-2.webp',
       status: 'active',
       lastLoginIp: '192.168.1.15',
       roles: [
-        { websiteId: 'site-cloud', role: 'Website Admin' },
+        { websiteId: 'site-cloud', isGlobal: false, role: 'Website Admin' },
       ],
     },
     {
       id: 'usr-siteadmin-growth',
       name: 'Neha Kapoor (Growth Admin)',
-      email: 'admin@growth.digifynext.com',
+      email: 'admin@digifynext.com',
+      password: 'GrowthAdmin#Digify2026%',
       avatar: '/uploads/avatars/avatar-3.webp',
       status: 'active',
       lastLoginIp: '10.0.1.22',
       roles: [
-        { websiteId: 'site-growth', role: 'Website Admin' },
+        { websiteId: 'site-growth', isGlobal: false, role: 'Website Admin' },
+      ],
+    },
+    {
+      id: 'usr-siteadmin-edtech',
+      name: 'Rajesh Nair (School ERP Admin)',
+      email: 'admin@schoolerp.in',
+      password: 'SchoolAdmin#EdTech2026^',
+      avatar: '/uploads/avatars/avatar-4.webp',
+      status: 'active',
+      lastLoginIp: '10.0.2.33',
+      roles: [
+        { websiteId: 'site-edtech', isGlobal: false, role: 'Website Admin' },
       ],
     },
     {
       id: 'usr-roleadmin-editor',
       name: 'Sameer Joshi (Lead Editor)',
       email: 'lead.editor@jupsoft.com',
+      password: 'LeadEditor#Jupsoft2026!',
       avatar: '/uploads/avatars/avatar-4.webp',
       status: 'active',
       lastLoginIp: '192.168.1.42',
       roles: [
-        { websiteId: 'site-cloud', role: 'Role Admin' },
+        { websiteId: 'site-cloud', isGlobal: false, role: 'Role Admin' },
       ],
     },
     {
       id: 'usr-editor',
       name: 'Priya Sen (Editor)',
       email: 'editor@jupsoft.com',
+      password: 'Editor#Jupsoft2026!',
       avatar: '/uploads/avatars/avatar-5.webp',
       status: 'active',
       lastLoginIp: '192.168.1.55',
       roles: [
-        { websiteId: 'site-cloud', role: 'Editor' },
+        { websiteId: 'site-cloud', isGlobal: false, role: 'Editor' },
       ],
     },
     {
       id: 'usr-writer',
       name: 'Ananya Roy (Content Writer)',
       email: 'writer@jupsoft.com',
+      password: 'Writer#Jupsoft2026!',
       avatar: '/uploads/avatars/avatar-6.webp',
       status: 'active',
       lastLoginIp: '192.168.1.88',
       roles: [
-        { websiteId: 'site-cloud', role: 'Content Writer' },
+        { websiteId: 'site-cloud', isGlobal: false, role: 'Content Writer' },
       ],
     },
     {
       id: 'usr-seo',
       name: 'Vikram Mehta (SEO Manager)',
       email: 'seo@jupsoft.com',
+      password: 'SeoManager#Jupsoft2026!',
       avatar: '/uploads/avatars/avatar-7.webp',
       status: 'active',
       lastLoginIp: '192.168.1.99',
       roles: [
-        { websiteId: 'site-cloud', role: 'SEO Manager' },
-        { websiteId: 'site-growth', role: 'SEO Manager' },
+        { websiteId: 'site-cloud', isGlobal: false, role: 'SEO Manager' },
+        { websiteId: 'site-growth', isGlobal: false, role: 'SEO Manager' },
       ],
     },
     {
       id: 'usr-publisher',
       name: 'Karan Malhotra (Publisher)',
       email: 'publisher@jupsoft.com',
+      password: 'Publisher#Jupsoft2026!',
       avatar: '/uploads/avatars/avatar-8.webp',
       status: 'active',
       lastLoginIp: '192.168.1.101',
       roles: [
-        { websiteId: 'site-cloud', role: 'Publisher' },
+        { websiteId: 'site-cloud', isGlobal: false, role: 'Publisher' },
       ],
     },
   ];
 
   for (const u of users) {
+    const passwordHash = await bcrypt.hash(u.password, 10);
     const createdUser = await prisma.user.create({
       data: {
         id: u.id,
         email: u.email,
-        passwordHash: defaultPasswordHash,
+        passwordHash,
         name: u.name,
         avatar: u.avatar,
         status: u.status,
@@ -183,12 +218,13 @@ async function main() {
         data: {
           userId: createdUser.id,
           websiteId: r.websiteId,
+          isGlobal: r.isGlobal,
           role: r.role,
         },
       });
     }
   }
-  console.log('✅ Seeded ' + users.length + ' enterprise users across Super Admin, Website Admin, Role Admin, and Contributor tiers.');
+  console.log('✅ Seeded ' + users.length + ' enterprise users with distinct passwords across Super Admin, Website Admin, Role Admin, and Contributor tiers.');
 
   // 4. Seed Taxonomy: Categories & Tags for all 3 Sites
   const categories = [

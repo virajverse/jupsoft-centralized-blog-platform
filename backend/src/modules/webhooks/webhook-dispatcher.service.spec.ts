@@ -41,6 +41,7 @@ describe('WebhookDispatcherService', () => {
     fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       status: 200,
+      text: jest.fn().mockResolvedValue('{"revalidated":true}'),
     } as any);
   });
 
@@ -75,12 +76,11 @@ describe('WebhookDispatcherService', () => {
     expect(headers['x-signature']).toMatch(/^sha256=/);
     expect(headers['x-timestamp']).toBeTruthy();
 
-    // Verify the HMAC is valid
-    const timestamp = headers['x-timestamp'];
+    // Verify the HMAC is valid using the payloadString and defaultSecret
     const body = opts.body as string;
     const expected = 'sha256=' + crypto
-      .createHmac('sha256', mockWebsite.webhookSecret)
-      .update(`${timestamp}.${body}`)
+      .createHmac('sha256', 'test-default-secret')
+      .update(body)
       .digest('hex');
     expect(headers['x-signature']).toBe(expected);
   });
@@ -88,7 +88,11 @@ describe('WebhookDispatcherService', () => {
   it('logs delivery to webhookDeliveryLog even on HTTP failure', async () => {
     (prisma.website.findUnique as jest.Mock).mockResolvedValue(mockWebsite);
     (prisma.webhookDeliveryLog.create as jest.Mock).mockResolvedValue({});
-    fetchSpy.mockResolvedValue({ ok: false, status: 502 } as any);
+    fetchSpy.mockResolvedValue({
+      ok: false,
+      status: 502,
+      text: jest.fn().mockResolvedValue('Bad Gateway'),
+    } as any);
 
     // Should NOT throw
     await expect(
@@ -97,18 +101,22 @@ describe('WebhookDispatcherService', () => {
 
     expect(prisma.webhookDeliveryLog.create).toHaveBeenCalled();
     const logCall = (prisma.webhookDeliveryLog.create as jest.Mock).mock.calls[0][0];
-    expect(logCall.data.success).toBe(false);
+    expect(logCall.data.delivered).toBe(false);
   });
 
   it('logs delivery success when HTTP 200', async () => {
     (prisma.website.findUnique as jest.Mock).mockResolvedValue(mockWebsite);
     (prisma.webhookDeliveryLog.create as jest.Mock).mockResolvedValue({});
-    fetchSpy.mockResolvedValue({ ok: true, status: 200 } as any);
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: jest.fn().mockResolvedValue('{"success":true}'),
+    } as any);
 
     await service.dispatchWebhook('web-1', 'blog.published', 'my-slug');
 
     const logCall = (prisma.webhookDeliveryLog.create as jest.Mock).mock.calls[0][0];
-    expect(logCall.data.success).toBe(true);
+    expect(logCall.data.delivered).toBe(true);
     expect(logCall.data.statusCode).toBe(200);
   });
 });

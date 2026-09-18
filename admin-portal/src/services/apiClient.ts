@@ -46,7 +46,7 @@ export interface WebhookDeliveryLogItem {
 }
 
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.cms.jupsoft.com';
 
 // Cookie helpers for Edge Middleware compatibility
 function getCookie(name: string): string | null {

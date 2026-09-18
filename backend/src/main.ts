@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import { AppModule } from './app.module';
 import helmet from 'helmet';
 import { JsonLogger } from './common/logger/json-logger';
+import { PrismaService } from './prisma/prisma.service';
 
 async function bootstrap() {
   const nodeEnv = process.env.NODE_ENV || 'development';
@@ -61,22 +62,98 @@ async function bootstrap() {
     }),
   );
 
-  // 3. CORS — allow admin-portal and test client sites
-  const allowedOrigins = (
-    configService.get<string>('ALLOWED_ORIGINS') ||
-    'http://localhost:3000,http://localhost:3001,http://localhost:5001,http://localhost:5002,http://localhost:5003'
-  )
-    .split(',')
-    .map((o) => o.trim());
+  // 3. CORS — Dynamic Multi-Tenant Whitelist (TRD §15)
+  // Static core platform origins (Admin portal, backend API, CDN)
+  const staticAllowedOrigins = new Set(
+    (
+      configService.get<string>('ALLOWED_ORIGINS') ||
+      'https://blogary.jupsoft.com,http://blogary.jupsoft.com,https://cms.jupsoft.com,https://api.cms.jupsoft.com,https://cloud.jupsoft.com,https://jupsoft.com,https://digifynext.com,https://schoolerp.in'
+    )
+      .split(',')
+      .map((o) => o.trim().toLowerCase().replace(/\/+$/, '')),
+  );
+
+  // Dynamic In-Memory Cache for registered tenant domains (Zero DB query overhead)
+  const prisma = app.get(PrismaService);
+  let activeTenantDomains = new Set<string>();
+  let lastTenantFetch = 0;
+
+  async function getTenantDomains(): Promise<Set<string>> {
+    const now = Date.now();
+    if (now - lastTenantFetch > 60_000 || activeTenantDomains.size === 0) {
+      try {
+        const websites = await prisma.website.findMany({
+          where: { status: 'active' },
+          select: { domain: true },
+        });
+        const domains = new Set<string>();
+        for (const w of websites) {
+          if (w.domain) {
+            const cleanDomain = w.domain.toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+            domains.add(cleanDomain);
+          }
+        }
+        activeTenantDomains = domains;
+        lastTenantFetch = now;
+      } catch (err) {
+        logger.warn(`Could not refresh tenant CORS domains from database: ${(err as Error).message}`);
+      }
+    }
+    return activeTenantDomains;
+  }
+
+  // Pre-fetch active domains at server startup
+  await getTenantDomains().catch(() => {});
 
   app.enableCors({
-    origin: (origin, callback) => {
+    origin: async (origin, callback) => {
+      // 1. Allow non-browser requests (cURL, server-to-server, SSR/ISR, webhooks)
       if (!origin) return callback(null, true);
-      // In development, permit all localhost / 127.0.0.1 origins for seamless multi-site testing
+
+      // 2. In development, permit localhost / 127.0.0.1 origins
       if (nodeEnv !== 'production' && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
         return callback(null, true);
       }
-      if (allowedOrigins.includes(origin) || origin.endsWith('.netlify.app')) return callback(null, true);
+
+      const normalizedOrigin = origin.toLowerCase().replace(/\/+$/, '');
+
+      // 3. Instant O(1) in-memory check for static platform origins
+      if (staticAllowedOrigins.has(normalizedOrigin)) {
+        return callback(null, true);
+      }
+
+      // 4. Dynamic check for registered tenant websites in database (O(1) memory lookup)
+      try {
+        let hostname = '';
+        try {
+          const parsed = new URL(origin);
+          hostname = parsed.hostname.toLowerCase();
+        } catch {
+          hostname = normalizedOrigin.replace(/^https?:\/\//, '');
+        }
+
+        const tenantDomains = await getTenantDomains();
+        if (tenantDomains.has(hostname) || tenantDomains.has(normalizedOrigin.replace(/^https?:\/\//, ''))) {
+          return callback(null, true);
+        }
+
+        // 5. Cache-miss fallback: if a tenant domain was just added seconds ago in Admin UI
+        const exists = await prisma.website.findFirst({
+          where: {
+            status: 'active',
+            domain: { equals: hostname, mode: 'insensitive' },
+          },
+          select: { id: true },
+        });
+
+        if (exists) {
+          activeTenantDomains.add(hostname);
+          return callback(null, true);
+        }
+      } catch (err) {
+        logger.warn(`Dynamic CORS check error: ${(err as Error).message}`);
+      }
+
       return callback(new Error('CORS blocked: origin not allowed: ' + origin));
     },
     credentials: true,
