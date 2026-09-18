@@ -82,7 +82,7 @@ interface BlogState {
   deleteCategory: (id: string, websiteId: string) => Promise<void>;
   addTag: (tag: Partial<Tag> & { websiteId: string; name: string }) => Promise<Tag | void>;
   deleteTag: (id: string, websiteId: string) => Promise<void>;
-  addWebsite: (site: Partial<Website>) => Promise<void> | void;
+  addWebsite: (site: Partial<Website>) => Promise<Website | void>;
   updateWebsite: (id: string, updates: Partial<Website>) => Promise<void> | void;
   deleteWebsite: (id: string) => Promise<void> | void;
   addUser: (user: UserAccount) => Promise<void> | void;
@@ -713,11 +713,13 @@ export const useBlogStore = create<BlogState>()(
             websites: [...state.websites.filter((w) => w.id !== created.id), created],
             notification: { message: `New tenant "${created.name}" registered successfully`, type: 'success' },
           }));
+          return created;
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : 'Failed to register website';
           set({
             notification: { message: msg, type: 'warning' },
           });
+          throw err;
         }
       },
 

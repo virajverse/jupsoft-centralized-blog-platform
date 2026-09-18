@@ -87,6 +87,8 @@ export const SettingsView: React.FC = () => {
   const [newDescription, setNewDescription] = useState('');
   const [newLang, setNewLang] = useState<LanguageCode>('en');
   const [handoverSite, setHandoverSite] = useState<Website | null>(null);
+  const [isOnboardSubmitting, setIsOnboardSubmitting] = useState(false);
+  const [onboardError, setOnboardError] = useState<string | null>(null);
 
   // Copy & Webhook tester states
   const [copiedKey, setCopiedKey] = useState(false);
@@ -251,15 +253,27 @@ export const SettingsView: React.FC = () => {
       createdAt: new Date().toISOString(),
     };
 
-    await addWebsite(newWebsite);
-    setParam('tenant', newWebsite.id);
-    setIsOnboardOpen(false);
-    setHandoverSite(newWebsite);
-    setNewName('');
-    setNewDomain('');
-    setNewSlug('');
-    setNewLogoUrl('');
-    setNewDescription('');
+    setIsOnboardSubmitting(true);
+    setOnboardError(null);
+
+    try {
+      const created = await addWebsite(newWebsite);
+      const targetSite = (created as Website) || newWebsite;
+      setParam('tenant', targetSite.id);
+      setIsOnboardOpen(false);
+      setHandoverSite(targetSite);
+      setNewName('');
+      setNewDomain('');
+      setNewSlug('');
+      setNewLogoUrl('');
+      setNewDescription('');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to register website';
+      setOnboardError(msg);
+      showNotification(`❌ ${msg}`, 'warning');
+    } finally {
+      setIsOnboardSubmitting(false);
+    }
   };
 
     // ─── Real Webhooks & Multi-Endpoint Logic (TRD §13 & §15) ─────────────
@@ -1434,6 +1448,12 @@ export const SettingsView: React.FC = () => {
             </div>
 
             <form onSubmit={handleCreateWebsite} className="space-y-4 text-xs">
+              {onboardError && (
+                <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                  <span>{onboardError}</span>
+                </div>
+              )}
               <div>
                 <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Website Name <span className="text-rose-500">*</span>
@@ -1536,9 +1556,17 @@ export const SettingsView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold cursor-pointer shadow-xs"
+                  disabled={isOnboardSubmitting}
+                  className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-2"
                 >
-                  Provision &amp; Save Tenant
+                  {isOnboardSubmitting ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Provisioning...</span>
+                    </>
+                  ) : (
+                    <span>Provision &amp; Save Tenant</span>
+                  )}
                 </button>
               </div>
             </form>
