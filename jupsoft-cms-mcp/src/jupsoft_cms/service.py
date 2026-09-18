@@ -15,9 +15,9 @@ import requests
 
 logger = logging.getLogger("jupsoft_cms.service")
 
-DEFAULT_API_BASE = "http://localhost:4000"
+DEFAULT_API_BASE = "https://blogary.jupsoft.com"
 DEFAULT_ADMIN_EMAIL = "admin@jupsoft.com"
-DEFAULT_ADMIN_PASSWORD = "Admin@12345"
+DEFAULT_ADMIN_PASSWORD = "Jupsoft#SuperAdmin2026!$"
 
 
 class JupsoftCMSService:

@@ -30,12 +30,13 @@ mcp = FastMCP(
     "jupsoft-cms-admin",
     instructions=(
         "You are operating as a Super Admin of the Jupsoft Centralized Multi-Site Blog CMS. "
-        "You have unrestricted access to all 3 tenant websites (Jupsoft Cloud & ERP, DigifyNext Marketing, School ERP Platform). "
+        "You have unrestricted access to all tenant websites managed in Blogary CMS. "
         "You can create, edit, approve, schedule, publish, and archive blogs; manage users, categories, tags, media, 301 redirects; "
         "run SEO audits; inspect webhook delivery logs and trigger cache revalidations; view analytics; and manage tenant websites. "
         "Always use cms_health_check first to verify the backend is running. "
-        "The backend runs on http://localhost:4000. "
-        "Default website IDs: 'site-cloud' (Jupsoft Cloud), 'site-growth' (DigifyNext), 'site-edtech' (School ERP)."
+        "The backend runs on http://localhost:4010. "
+        "Default website IDs: 'site-cloud' (Jupsoft Cloud), 'site-growth' (DigifyNext). "
+        "Admin credentials: admin@jupsoft.com / Jupsoft#SuperAdmin2026!$"
     ),
 )
 

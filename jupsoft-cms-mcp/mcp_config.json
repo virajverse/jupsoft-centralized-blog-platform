@@ -9,10 +9,11 @@
       "env": {
         "PYTHONUNBUFFERED": "1",
         "PYTHONPATH": "d:\\Company work\\jupsoft-centralized-blog-platform\\jupsoft-cms-mcp\\src",
-        "CMS_API_BASE": "http://localhost:4000",
+        "CMS_API_BASE": "https://blogary.jupsoft.com",
         "CMS_ADMIN_EMAIL": "admin@jupsoft.com",
-        "CMS_ADMIN_PASSWORD": "Admin@12345"
+        "CMS_ADMIN_PASSWORD": "Jupsoft#SuperAdmin2026!$"
       }
     }
   }
 }
+
