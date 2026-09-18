@@ -133,7 +133,7 @@ export class WebhookDispatcherService {
       return;
     }
 
-    const defaultSecret = this.configService.get<string>('WEBHOOK_DEFAULT_SECRET') || 'cms-default-revalidation-secret-key-prod-32';
+    const defaultSecret = this.configService.get<string>('WEBHOOK_DEFAULT_SECRET') || 'wh_sec_jupsoft_default_revalidate_2026';
 
     const payload: WebhookPayload = {
       event,
@@ -155,6 +155,7 @@ export class WebhookDispatcherService {
           `⚡ Dispatching Webhook [${endpoint.name}] → ${endpoint.url} (event: ${event}, slug: ${slug})`,
         );
 
+        const startTime = Date.now();
         let statusCode = 0;
         let responseBody = '';
         let delivered = false;
@@ -166,10 +167,13 @@ export class WebhookDispatcherService {
               'Content-Type': 'application/json',
               'x-signature': `sha256=${signature}`,
               'x-timestamp': String(payload.timestamp),
-              'User-Agent': 'Jupsoft-CMS-Webhook-Dispatcher/1.0',
+              'x-event': event,
+              'x-cms-webhook-secret': secret,
+              'Authorization': `Bearer ${secret}`,
+              'User-Agent': 'Jupsoft-CMS-Webhook/1.0',
             },
             body: payloadString,
-            signal: AbortSignal.timeout(6000), // 6s timeout
+            signal: AbortSignal.timeout(10000),
           });
 
           statusCode = res.status;
@@ -219,12 +223,18 @@ export class WebhookDispatcherService {
       throw new NotFoundException(`Website not found: ${websiteId}`);
     }
 
+    const endpoints = this.parseWebhookEndpoints(website.revalidateWebhookUrl);
     let targetUrl = (customUrl || '').trim();
+    let configuredSecret: string | undefined;
+
     if (!targetUrl) {
-      const endpoints = this.parseWebhookEndpoints(website.revalidateWebhookUrl);
       if (endpoints.length > 0 && endpoints[0].url) {
         targetUrl = endpoints[0].url;
+        configuredSecret = endpoints[0].secret;
       }
+    } else {
+      const match = endpoints.find((ep) => ep.url === targetUrl);
+      if (match?.secret) configuredSecret = match.secret;
     }
 
     if (!targetUrl) {
@@ -244,7 +254,8 @@ export class WebhookDispatcherService {
       throw new BadRequestException('Webhook URL must start with http:// or https://');
     }
 
-    const defaultSecret = this.configService.get<string>('WEBHOOK_DEFAULT_SECRET') || 'cms-default-revalidation-secret-key-prod-32';
+    const defaultSecret = this.configService.get<string>('WEBHOOK_DEFAULT_SECRET') || 'wh_sec_jupsoft_default_revalidate_2026';
+    const secret = configuredSecret?.trim() || defaultSecret;
     const payload: WebhookPayload = {
       event,
       website: website.domain,
@@ -253,7 +264,7 @@ export class WebhookDispatcherService {
     };
 
     const payloadString = JSON.stringify(payload);
-    const signature = crypto.createHmac('sha256', defaultSecret).update(payloadString).digest('hex');
+    const signature = crypto.createHmac('sha256', secret).update(payloadString).digest('hex');
 
     const startTime = Date.now();
     let statusCode = 0;
@@ -269,6 +280,8 @@ export class WebhookDispatcherService {
           'Content-Type': 'application/json',
           'x-signature': `sha256=${signature}`,
           'x-timestamp': String(payload.timestamp),
+          'x-cms-webhook-secret': secret,
+          'Authorization': `Bearer ${secret}`,
           'User-Agent': 'Jupsoft-CMS-Webhook-Tester/1.0',
         },
         body: payloadString,

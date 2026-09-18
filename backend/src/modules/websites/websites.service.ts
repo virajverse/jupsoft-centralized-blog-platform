@@ -36,34 +36,49 @@ export class WebsitesService {
   }
 
   async create(dto: CreateWebsiteDto, user?: any, ipAddress?: string) {
+    const cleanDomain = dto.domain
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\//, '')
+      .replace(/\/+$/, '')
+      .split('/')[0]
+      .trim();
+
     const existing = await this.prisma.website.findFirst({
       where: {
-        OR: [{ id: dto.id }, { domain: dto.domain }],
+        OR: [{ id: dto.id }, { domain: cleanDomain }],
       },
     });
 
     if (existing) {
-      throw new ConflictException(`A website with domain "${dto.domain}" already exists`);
+      throw new ConflictException(`A website with domain "${cleanDomain}" already exists`);
     }
 
-    // FIX 15: Validate webhook URL format if provided
-    if (dto.revalidateWebhookUrl && !dto.revalidateWebhookUrl.startsWith('https://') && !dto.revalidateWebhookUrl.startsWith('http://')) {
-      throw new BadRequestException('revalidateWebhookUrl must be a valid URL starting with http:// or https://');
+    let webhookUrl = dto.revalidateWebhookUrl?.trim();
+    if (webhookUrl) {
+      if (!webhookUrl.startsWith('https://') && !webhookUrl.startsWith('http://')) {
+        throw new BadRequestException('revalidateWebhookUrl must be a valid URL starting with http:// or https://');
+      }
+      if (webhookUrl.includes('/blog/api/revalidate')) {
+        webhookUrl = webhookUrl.replace('/blog/api/revalidate', '/api/revalidate');
+      }
+    } else {
+      webhookUrl = `https://${cleanDomain}/api/revalidate`;
     }
 
     const website = await this.prisma.website.create({
       data: {
         id: dto.id || `web-${Date.now()}`,
         name: dto.name,
-        domain: dto.domain,
+        domain: cleanDomain,
         logoUrl: dto.logoUrl?.trim() || '/uploads/logos/default-website-logo.webp',
         description: dto.description || '',
         apiKey: dto.apiKey?.trim() || `jup_sec_${crypto.randomUUID().replace(/-/g, '')}`,
-        s3Prefix: dto.s3Prefix?.trim() || `blogs/${dto.domain.replace(/[^a-zA-Z0-9]/g, '_')}/`,
+        s3Prefix: dto.s3Prefix?.trim() || `blogs/${cleanDomain.replace(/[^a-zA-Z0-9]/g, '_')}/`,
         status: dto.status || 'active',
         defaultLanguage: dto.defaultLanguage || 'en',
         supportedLanguages: dto.supportedLanguages || ['en', 'hi', 'fr', 'ar'],
-        revalidateWebhookUrl: dto.revalidateWebhookUrl || `https://${dto.domain}/api/revalidate`,
+        revalidateWebhookUrl: webhookUrl,
       },
     });
 

@@ -238,7 +238,9 @@ export const SettingsView: React.FC = () => {
       .trim()
       .toLowerCase()
       .replace(/^https?:\/\//, '')
-      .replace(/\/+$/, '');
+      .replace(/\/+$/, '')
+      .split('/')[0]
+      .trim();
     const newSiteId = `site-${cleanSlug}`;
 
     const newWebsite = {
