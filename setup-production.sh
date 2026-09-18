@@ -79,12 +79,12 @@ echo -e "${GREEN}✓ Node.js $(node -v) and npm $(npm -v) active${NC}"
 npm install -g pnpm@latest pm2@latest
 echo -e "${GREEN}✓ pnpm and PM2 installed${NC}"
 
-# Ensure at least 2GB swap space exists (prevents Linux OOM killer on 1GB RAM instances)
+# Ensure 1GB swap space exists (prevents Linux OOM killer while preserving disk space)
 SWAP_SIZE=$(free -m | awk '/^Swap:/ {print $2}')
-if [ "${SWAP_SIZE:-0}" -lt 1024 ]; then
-  echo -e "${YELLOW}Configuring 2GB swap space to prevent memory exhaustion during builds...${NC}"
+if [ "${SWAP_SIZE:-0}" -lt 512 ]; then
+  echo -e "${YELLOW}Configuring 1GB swap space to conserve disk and prevent memory exhaustion...${NC}"
   if [ ! -f /swapfile ]; then
-    fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+    fallocate -l 1G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=1024
     chmod 600 /swapfile
     mkswap /swapfile
   fi
@@ -92,7 +92,7 @@ if [ "${SWAP_SIZE:-0}" -lt 1024 ]; then
   if ! grep -q '/swapfile' /etc/fstab; then
     echo '/swapfile none swap sw 0 0' >> /etc/fstab
   fi
-  echo -e "${GREEN}✓ 2GB swap space active${NC}"
+  echo -e "${GREEN}✓ 1GB swap space active${NC}"
 fi
 
 # ------------------------------------------------------------------------------
@@ -149,7 +149,7 @@ echo -e "${GREEN}✓ Production environment files created with secure cryptograp
 # 4. Install Project Dependencies & Prisma Generate
 # ------------------------------------------------------------------------------
 echo -e "\n${CYAN}▶ [4/8] Installing Monorepo Dependencies via pnpm...${NC}"
-export NODE_OPTIONS="--max-old-space-size=1536"
+export NODE_OPTIONS="--max-old-space-size=1024"
 pnpm install
 
 # ------------------------------------------------------------------------------
@@ -170,6 +170,10 @@ echo -e "\n${CYAN}▶ [6/8] Compiling Production Builds...${NC}"
 pnpm --filter jupsoft-blog-backend run build
 pnpm --filter admin-portal run build
 echo -e "${GREEN}✓ Both Backend and Next.js Admin Portal built successfully.${NC}"
+
+# Cleanup build caches to conserve disk space
+pnpm store prune || true
+apt-get clean || true
 
 # ------------------------------------------------------------------------------
 # 7. Start Services with PM2 (Auto-restart on reboot)
