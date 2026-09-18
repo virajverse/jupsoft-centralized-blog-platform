@@ -28,7 +28,12 @@ export class JsonLogger implements LoggerService {
       level,
       service:  this.service,
       context:  context || 'Application',
-      message:  typeof message === 'string' ? message : JSON.stringify(message),
+      message:
+        typeof message === 'string'
+          ? message
+          : message instanceof Error
+          ? (message.stack || message.message)
+          : (message?.message || JSON.stringify(message)),
       env:      process.env.NODE_ENV || 'development',
       ...meta,
     });
