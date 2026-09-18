@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { LanguageCode } from '../../types';
 import { canDeleteBlog, canCreateBlog } from '../../utils/permissions';
+import { ZohoBlogListView } from './ZohoBlogListView';
 
 const ALL_LANGUAGES: LanguageCode[] = ['en', 'hi', 'fr', 'ar'];
 
@@ -30,6 +31,7 @@ export const BlogList: React.FC = () => {
     activeWebsiteId, 
     websites, 
     activeRole,
+    uiTheme,
     deleteBlog,
     fetchBlogs,
     isLoading
@@ -92,6 +94,38 @@ export const BlogList: React.FC = () => {
     { label: 'Drafts', value: 'Draft', count: baseBlogs.filter((b) => b.status === 'Draft').length },
     { label: 'Archived', value: 'Archived', count: baseBlogs.filter((b) => b.status === 'Archived').length },
   ];
+
+  if (uiTheme === 'zoho') {
+    return (
+      <ZohoBlogListView
+        blogs={blogs}
+        baseBlogs={baseBlogs}
+        filteredBlogs={filteredBlogs}
+        activeWebsiteId={activeWebsiteId}
+        websites={websites}
+        activeRole={activeRole}
+        isAllSites={isAllSites}
+        activeSite={activeSite}
+        selectedStatus={selectedStatus}
+        selectedTenantFilter={selectedTenantFilter}
+        searchVal={searchVal}
+        queryParam={queryParam}
+        handleStatusChange={handleStatusChange}
+        handleTenantChange={handleTenantChange}
+        handleSearchChange={(val) => {
+          setSearchVal(val);
+          setParam('q', val.trim() || null);
+        }}
+        clearSearch={() => {
+          setSearchVal('');
+          setParam('q', null);
+        }}
+        deleteBlog={deleteBlog}
+        fetchBlogs={fetchBlogs}
+        isLoading={isLoading}
+      />
+    );
+  }
 
   return (
     <div className="p-6 sm:p-8 max-w-7xl mx-auto space-y-6">

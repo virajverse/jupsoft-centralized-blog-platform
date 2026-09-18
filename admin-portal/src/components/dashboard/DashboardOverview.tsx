@@ -20,9 +20,10 @@ import {
   ArrowRightLeft,
   Users
 } from 'lucide-react';
-import { LanguageCode } from '../../types';
 import { canCreateBlog, canAccessModule } from '../../utils/permissions';
+import { LanguageCode } from '../../types';
 import { ModernDashboardView } from './ModernDashboardView';
+import { ZohoDashboardView } from './ZohoDashboardView';
 
 const ALL_LANGUAGES: LanguageCode[] = ['en', 'hi', 'fr', 'ar'];
 
@@ -65,6 +66,26 @@ export const DashboardOverview: React.FC = () => {
   if (uiTheme === 'modern') {
     return (
       <ModernDashboardView
+        blogs={blogs}
+        displayedBlogs={displayedBlogs}
+        publishedBlogs={publishedBlogs}
+        underReviewBlogs={underReviewBlogs}
+        approvedBlogs={approvedBlogs}
+        draftBlogs={draftBlogs}
+        totalWords={totalWords}
+        websites={websites}
+        activeWebsiteId={activeWebsiteId}
+        activeSite={activeSite}
+        isAllSites={isAllSites}
+        activeRole={activeRole}
+        currentUser={currentUser}
+      />
+    );
+  }
+
+  if (uiTheme === 'zoho') {
+    return (
+      <ZohoDashboardView
         blogs={blogs}
         displayedBlogs={displayedBlogs}
         publishedBlogs={publishedBlogs}
