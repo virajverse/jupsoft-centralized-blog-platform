@@ -3,41 +3,33 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useBlogStore } from '../../store/useBlogStore';
 import { Website } from '../../types';
-import { getIntegrationSnippets } from './snippets';
+import { apiClient, WebhookTestResult } from '../../services/apiClient';
 import { ClientHandoverModal } from '../common/ClientHandoverModal';
-import { 
-  Code2, 
-  Copy, 
-  Check, 
-  Play, 
-  Terminal, 
-  Globe, 
-  ShieldCheck, 
-  Key, 
-  Zap, 
-  BookOpen, 
-  FileCode2, 
+import {
+  Code2,
+  Copy,
+  Check,
+  Play,
+  Terminal,
+  Globe,
+  Key,
   RefreshCw,
-  Sparkles,
   CheckCircle2,
   AlertCircle,
-  Laptop,
-  ArrowRight,
   Eye,
-  Hash,
-  FolderTree,
-  Search,
+  EyeOff,
+  Send,
   ExternalLink,
-  ChevronRight,
-  Layers,
-  FileText,
-  Package
+  Search,
+  Share2,
+  Radio,
+  FileCode2,
 } from 'lucide-react';
 
 const FALLBACK_SITE: Website = {
   id: 'site-cloud',
   name: 'Jupsoft Cloud & ERP',
-  domain: 'localhost:5001',
+  domain: 'cloud.jupsoft.com',
   logoUrl: '/uploads/logos/jupsoft-cloud-logo.webp',
   description: 'Enterprise Cloud ERP, Distributed Systems & AI Infrastructure.',
   apiKey: 'jup_live_sec_cloud_9934afbc82a104',
@@ -45,21 +37,96 @@ const FALLBACK_SITE: Website = {
   status: 'active',
   defaultLanguage: 'en',
   supportedLanguages: ['en', 'hi', 'fr', 'ar'],
-  revalidateWebhookUrl: 'http://localhost:5001/api/revalidate',
+  revalidateWebhookUrl: 'https://cloud.jupsoft.com/api/revalidate',
   createdAt: new Date().toISOString(),
 };
+
+interface ApiEndpointDef {
+  id: string;
+  method: 'GET' | 'POST';
+  path: string;
+  title: string;
+  description: string;
+  hasSlug?: boolean;
+  hasSearch?: boolean;
+  hasLimit?: boolean;
+}
+
+const API_ENDPOINTS: ApiEndpointDef[] = [
+  {
+    id: 'blogs-list',
+    method: 'GET',
+    path: '/v1/blogs',
+    title: 'List Published Blogs',
+    description: 'Paginated list of published articles with taxonomy and language filtering.',
+    hasLimit: true,
+  },
+  {
+    id: 'blog-by-slug',
+    method: 'GET',
+    path: '/v1/blogs/:slug',
+    title: 'Get Blog by Slug',
+    description: 'Full published article including SEO metadata, author details, and JSON-LD schema.',
+    hasSlug: true,
+  },
+  {
+    id: 'blogs-latest',
+    method: 'GET',
+    path: '/v1/blogs/latest',
+    title: 'Get Latest Blogs',
+    description: 'Retrieve newest published articles for homepage or sidebar widgets.',
+    hasLimit: true,
+  },
+  {
+    id: 'blogs-popular',
+    method: 'GET',
+    path: '/v1/blogs/popular',
+    title: 'Get Popular Blogs',
+    description: 'Most-viewed published blogs based on verified reader telemetry.',
+    hasLimit: true,
+  },
+  {
+    id: 'categories-list',
+    method: 'GET',
+    path: '/v1/categories',
+    title: 'Get Categories',
+    description: 'Hierarchical taxonomy category tree configured for this website.',
+  },
+  {
+    id: 'tags-list',
+    method: 'GET',
+    path: '/v1/tags',
+    title: 'Get Tags',
+    description: 'All active taxonomy tags and article association counts.',
+  },
+  {
+    id: 'search-blogs',
+    method: 'GET',
+    path: '/v1/search',
+    title: 'Search Articles',
+    description: 'Full-text search matching article titles, excerpts, and content keywords.',
+    hasSearch: true,
+    hasLimit: true,
+  },
+  {
+    id: 'website-meta',
+    method: 'GET',
+    path: '/v1/website',
+    title: 'Get Website Info',
+    description: 'Website tenant configuration, domain settings, and supported languages.',
+  },
+];
 
 export const ApiPortalView: React.FC = () => {
   const { websites, activeWebsiteId, blogs } = useBlogStore();
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
-  // Interactive Tenant State
+  // Active Tenant Selection
   const [selectedSiteId, setSelectedSiteId] = useState<string>(() => {
     if (activeWebsiteId && activeWebsiteId !== 'all') return activeWebsiteId;
     return websites[0]?.id || 'site-cloud';
   });
 
-  // Keep selected site synced if global activeWebsiteId changes and is not 'all'
   useEffect(() => {
     if (activeWebsiteId && activeWebsiteId !== 'all') {
       setSelectedSiteId(activeWebsiteId);
@@ -70,129 +137,128 @@ export const ApiPortalView: React.FC = () => {
     return websites.find((w) => w.id === selectedSiteId) || websites[0] || FALLBACK_SITE;
   }, [websites, selectedSiteId]);
 
-  // Find a real sample slug for this website if available
+  // Derive real sample slug from current tenant blogs
   const sampleSlug = useMemo(() => {
     const siteBlog = blogs.find((b) => b.websiteId === activeSite.id);
     const trans = siteBlog?.translations?.en || (siteBlog?.translations ? Object.values(siteBlog.translations)[0] : undefined);
-    return trans?.slug || (activeSite.id === 'site-growth' ? 'enterprise-technical-seo-playbook-2026' : 'zero-downtime-migration-nextjs-micro-frontends');
+    return trans?.slug || 'enterprise-technical-seo-playbook-2026';
   }, [blogs, activeSite.id]);
 
-  // Tab State
-  const [activeTab, setActiveTab] = useState<'tester' | 'snippets' | 'specs'>('snippets');
-  const [activeSnippetFilter, setActiveSnippetFilter] = useState<'all' | 'npm' | 'widget' | 'env' | 'nextconfig' | 'sdk' | 'listing' | 'detail' | 'revalidate' | 'sitemap'>('all');
-  const [scaffoldShell, setScaffoldShell] = useState<'powershell' | 'bash'>('powershell');
-  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  // UI States
+  const [activeTab, setActiveTab] = useState<'endpoints' | 'quickstart' | 'webhooks' | 'credentials'>('endpoints');
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [showApiKey, setShowApiKey] = useState(false);
   const [isHandoverOpen, setIsHandoverOpen] = useState(false);
 
-  // Tab 1 (Tester) State
-  const [selectedEndpoint, setSelectedEndpoint] = useState<string>('/v1/blogs');
-  const [selectedLang, setSelectedLang] = useState<string>('en');
-  const [slugParam, setSlugParam] = useState<string>('');
-  const [searchQueryParam, setSearchQueryParam] = useState<string>('enterprise');
+  // Interactive Tester States
+  const [selectedEndpointId, setSelectedEndpointId] = useState<string>('blogs-list');
+  const [testSlug, setTestSlug] = useState<string>('');
+  const [testSearch, setTestSearch] = useState<string>('cloud');
+  const [testLimit, setTestLimit] = useState<number>(5);
+  const [testLang, setTestLang] = useState<string>('en');
   const [isLoadingTest, setIsLoadingTest] = useState(false);
   const [testResponse, setTestResponse] = useState<{
-    status: number;
-    latencyMs: number;
-    headers: Record<string, string>;
-    body: unknown;
-  } | null>(null);
-
-  // Tab 2 (Live SDK Playground) State
-  const [sdkMethod, setSdkMethod] = useState<'getBlogs' | 'getLatest' | 'getPopular' | 'getCategories' | 'getTags' | 'getBlogBySlug' | 'search' | 'getWebsiteInfo'>('getBlogs');
-  const [sdkSlugInput, setSdkSlugInput] = useState<string>('');
-  const [sdkSearchInput, setSdkSearchInput] = useState<string>('enterprise');
-  const [sdkLimitInput, setSdkLimitInput] = useState<number>(5);
-  const [isSdkRunning, setIsSdkRunning] = useState<boolean>(false);
-  const [sdkResponse, setSdkResponse] = useState<{
-    method: string;
     url: string;
     status: number;
+    statusText: string;
     latencyMs: number;
     headers: Record<string, string>;
     body: unknown;
-    error?: string;
   } | null>(null);
 
-  // Auto-sync slug input when website changes
+  // Webhook Tab States
+  const [webhookUrlInput, setWebhookUrlInput] = useState<string>('');
+  const [isTestingWebhook, setIsTestingWebhook] = useState(false);
+  const [webhookResult, setWebhookResult] = useState<WebhookTestResult | null>(null);
+
+  // Quick Start Tab State
+  const [codeLanguage, setCodeLanguage] = useState<'curl' | 'javascript' | 'nextjs' | 'php'>('curl');
+
+  // Sync test inputs when tenant or sample slug changes
   useEffect(() => {
-    setSdkSlugInput(sampleSlug);
-    setSlugParam(sampleSlug);
-  }, [sampleSlug]);
+    setTestSlug(sampleSlug);
+    setWebhookUrlInput(activeSite.revalidateWebhookUrl || `https://${activeSite.domain}/api/revalidate`);
+  }, [sampleSlug, activeSite]);
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
-    setCopiedCode(id);
-    setTimeout(() => setCopiedCode(null), 2000);
+    setCopiedKey(id);
+    setTimeout(() => setCopiedKey(null), 2000);
   };
 
-  // Get dynamically generated production snippets for active site
-  const {
-    npmCliSnippet,
-    universalWidgetSnippet,
-    envConfigSnippet,
-    nextConfigSnippet,
-    nextjsSdkSnippet,
-    nextjsListingSnippet,
-    nextjsConsumerSnippet,
-    webhookHandlerSnippet,
-    sitemapSnippet,
-    cliScaffoldPowerShell,
-    cliScaffoldBash,
-  } = useMemo(() => getIntegrationSnippets(apiBaseUrl, activeSite), [apiBaseUrl, activeSite]);
+  const activeEndpointDef = useMemo(() => {
+    return API_ENDPOINTS.find((e) => e.id === selectedEndpointId) || API_ENDPOINTS[0];
+  }, [selectedEndpointId]);
 
-  // Tab 1 API execution (Direct HTTP probe)
-  const handleExecuteApi = async () => {
+  // Construct real path for selected endpoint
+  const resolvedApiPath = useMemo(() => {
+    let p = activeEndpointDef.path;
+    if (activeEndpointDef.hasSlug) {
+      const slugVal = testSlug.trim() || sampleSlug;
+      p = p.replace(':slug', encodeURIComponent(slugVal));
+    }
+    const params = new URLSearchParams();
+    if (activeEndpointDef.hasLimit) {
+      params.set('limit', String(testLimit));
+    }
+    if (activeEndpointDef.hasSearch && testSearch.trim()) {
+      params.set('q', testSearch.trim());
+    }
+    if (testLang) {
+      params.set('lang', testLang);
+    }
+    const qs = params.toString();
+    return qs ? `${p}?${qs}` : p;
+  }, [activeEndpointDef, testSlug, sampleSlug, testLimit, testSearch, testLang]);
+
+  // Execute 100% Real HTTP API Request
+  const handleExecuteRequest = async () => {
     setIsLoadingTest(true);
     const startTime = performance.now();
-
-    let resolvedPath = selectedEndpoint;
-    if (selectedEndpoint === '/v1/blogs/{slug}') {
-      resolvedPath = `/v1/blogs/${slugParam || sampleSlug}`;
-    } else if (selectedEndpoint === '/v1/search') {
-      resolvedPath = `/v1/search?q=${encodeURIComponent(searchQueryParam)}&lang=${selectedLang}`;
-    } else if (selectedEndpoint === '/v1/blogs') {
-      resolvedPath = `/v1/blogs?lang=${selectedLang}`;
-    }
+    const targetUrl = `${apiBaseUrl}${resolvedApiPath}`;
 
     try {
-      const res = await fetch(`${apiBaseUrl}${resolvedPath}`, {
+      const res = await fetch(targetUrl, {
+        method: activeEndpointDef.method,
         headers: {
-          'Authorization': `Bearer ${activeSite.apiKey}`,
-          'X-Tenant-ID': activeSite.id,
-          'Accept': 'application/json',
+          Authorization: `Bearer ${activeSite.apiKey}`,
+          Accept: 'application/json',
         },
       });
 
-      const data = await res.json();
-      const latency = Math.round(performance.now() - startTime);
+      const latencyMs = Math.round(performance.now() - startTime);
+      let bodyData: unknown;
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        bodyData = await res.json();
+      } else {
+        bodyData = await res.text();
+      }
 
       setTestResponse({
+        url: targetUrl,
         status: res.status,
-        latencyMs: latency,
+        statusText: res.statusText || (res.status === 200 ? 'OK' : 'Error'),
+        latencyMs,
         headers: {
-          'Content-Type': res.headers.get('content-type') || 'application/json; charset=utf-8',
-          'X-Tenant-ID': activeSite.id,
-          'X-RateLimit-Limit': res.headers.get('x-ratelimit-limit') || '1000',
-          'X-RateLimit-Remaining': res.headers.get('x-ratelimit-remaining') || '996',
-          'X-Cache': res.headers.get('x-cache') || 'MISS (Live NestJS Server)',
+          'content-type': contentType,
+          'x-tenant-id': res.headers.get('x-tenant-id') || activeSite.id,
+          'cache-control': res.headers.get('cache-control') || 'no-cache',
         },
-        body: data,
+        body: bodyData,
       });
     } catch (err: any) {
-      const latency = Math.round(performance.now() - startTime);
+      const latencyMs = Math.round(performance.now() - startTime);
       setTestResponse({
+        url: targetUrl,
         status: 0,
-        latencyMs: latency,
-        headers: {
-          'X-Status': 'Network Connection Failed',
-          'X-Tenant-ID': activeSite.id,
-          'X-Target-URL': `${apiBaseUrl}${resolvedPath}`,
-        },
+        statusText: 'Network / Connection Failed',
+        latencyMs,
+        headers: {},
         body: {
-          error: 'NetworkConnectionError',
-          message: err?.message || `Failed to connect to backend server. Make sure NestJS is running on ${apiBaseUrl}`,
-          endpoint: resolvedPath,
-          timestamp: new Date().toISOString(),
+          error: 'ConnectionError',
+          message: err?.message || 'Could not connect to API server. Ensure backend is running.',
+          targetUrl,
         },
       });
     } finally {
@@ -200,1031 +266,678 @@ export const ApiPortalView: React.FC = () => {
     }
   };
 
-  // Tab 2 Live SDK Runner
-  const handleRunSdkMethod = async (targetMethod: typeof sdkMethod) => {
-    setSdkMethod(targetMethod);
-    setIsSdkRunning(true);
-    const startTime = performance.now();
-
-    let path = '/v1/blogs';
-    let methodDisplay = '';
-
-    if (targetMethod === 'getBlogs') {
-      path = `/v1/blogs?limit=${sdkLimitInput}&lang=${selectedLang}`;
-      methodDisplay = `jupsoft.getBlogs({ limit: ${sdkLimitInput}, lang: '${selectedLang}' })`;
-    } else if (targetMethod === 'getLatest') {
-      path = `/v1/blogs/latest?limit=${sdkLimitInput}&lang=${selectedLang}`;
-      methodDisplay = `jupsoft.getLatest(${sdkLimitInput}, '${selectedLang}')`;
-    } else if (targetMethod === 'getPopular') {
-      path = `/v1/blogs/popular?limit=${sdkLimitInput}&lang=${selectedLang}`;
-      methodDisplay = `jupsoft.getPopular(${sdkLimitInput}, '${selectedLang}')`;
-    } else if (targetMethod === 'getCategories') {
-      path = `/v1/categories`;
-      methodDisplay = `jupsoft.getCategories()`;
-    } else if (targetMethod === 'getTags') {
-      path = `/v1/tags`;
-      methodDisplay = `jupsoft.getTags()`;
-    } else if (targetMethod === 'getBlogBySlug') {
-      const slug = sdkSlugInput || sampleSlug;
-      path = `/v1/blogs/${encodeURIComponent(slug)}?lang=${selectedLang}`;
-      methodDisplay = `jupsoft.getBlogBySlug('${slug}', '${selectedLang}')`;
-    } else if (targetMethod === 'search') {
-      const q = sdkSearchInput || 'enterprise';
-      path = `/v1/search?q=${encodeURIComponent(q)}&lang=${selectedLang}&limit=${sdkLimitInput}`;
-      methodDisplay = `jupsoft.search('${q}', '${selectedLang}', ${sdkLimitInput})`;
-    } else if (targetMethod === 'getWebsiteInfo') {
-      path = `/v1/website`;
-      methodDisplay = `jupsoft.getWebsiteInfo()`;
-    }
-
+  // Execute 100% Real Webhook Ping
+  const handleSendWebhookPing = async () => {
+    setIsTestingWebhook(true);
     try {
-      const targetUrl = `${apiBaseUrl}${path}`;
-      const res = await fetch(targetUrl, {
-        headers: {
-          'Authorization': `Bearer ${activeSite.apiKey}`,
-          'Accept': 'application/json',
-        },
-      });
-      const data = await res.json();
-      const latency = Math.round(performance.now() - startTime);
-
-      setSdkResponse({
-        method: methodDisplay,
-        url: targetUrl,
-        status: res.status,
-        latencyMs: latency,
-        headers: {
-          'Content-Type': res.headers.get('content-type') || 'application/json; charset=utf-8',
-          'X-Tenant-ID': activeSite.id,
-          'X-Cache': res.headers.get('x-cache') || 'MISS (Live NestJS Server)',
-        },
-        body: data,
-      });
+      const res = await apiClient.testWebhookPing(
+        activeSite.id,
+        webhookUrlInput.trim() || undefined,
+        'test.ping'
+      );
+      setWebhookResult(res);
     } catch (err: any) {
-      const latency = Math.round(performance.now() - startTime);
-      setSdkResponse({
-        method: methodDisplay,
-        url: `${apiBaseUrl}${path}`,
-        status: 0,
-        latencyMs: latency,
-        headers: {
-          'X-Status': 'Failed',
-        },
-        body: {
-          error: 'NetworkError',
-          message: err?.message || 'Connection failed to backend API',
-        },
-        error: err?.message,
+      setWebhookResult({
+        success: false,
+        statusCode: 500,
+        statusText: 'Request Failed',
+        responseBody: err?.message || 'Network error triggering webhook',
+        latencyMs: 0,
+        url: webhookUrlInput,
+        timestamp: new Date().toISOString(),
+        message: err?.message || 'Failed to dispatch test ping',
       });
     } finally {
-      setIsSdkRunning(false);
+      setIsTestingWebhook(false);
     }
   };
 
-  const curlCommand = `curl -X GET "${apiBaseUrl}${selectedEndpoint.replace('{slug}', slugParam || sampleSlug)}?website_id=${activeSite.id}&lang=${selectedLang}" \\
-  -H "Authorization: Bearer ${activeSite.apiKey}" \\
+  // Real Code Snippets for Quick Start
+  const snippets = useMemo(() => {
+    const siteKey = activeSite.apiKey;
+    const lang = activeSite.defaultLanguage || 'en';
+
+    const curl = `curl -X GET "${apiBaseUrl}/v1/blogs?limit=10&lang=${lang}" \\
+  -H "Authorization: Bearer ${siteKey}" \\
   -H "Accept: application/json"`;
 
+    const js = `// Fetch published blogs (JavaScript / Browser / Node)
+async function getPublishedBlogs() {
+  const response = await fetch('${apiBaseUrl}/v1/blogs?limit=10&lang=${lang}', {
+    headers: {
+      'Authorization': 'Bearer ${siteKey}',
+      'Accept': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(\`Failed to fetch blogs: \${response.status}\`);
+  }
+
+  const { data } = await response.json();
+  return data;
+}`;
+
+    const nextjs = `// app/blog/page.tsx (Next.js 15/16 Server Component with ISR)
+export default async function BlogPage() {
+  const res = await fetch('${apiBaseUrl}/v1/blogs?limit=12&lang=${lang}', {
+    headers: {
+      'Authorization': 'Bearer ${siteKey}',
+    },
+    next: {
+      revalidate: 3600, // Revalidate in background every hour
+      tags: ['blogs-${activeSite.id}'], // On-demand webhook cache tag
+    },
+  });
+
+  const { data: blogs } = await res.json();
+
   return (
-    <div className="p-6 sm:p-8 max-w-7xl mx-auto space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-              Developer API Portal &amp; SDK
-            </h1>
-            <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800">
-              Next.js 16 Ready
-            </span>
-            <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              Live Backend
-            </span>
+    <main className="max-w-5xl mx-auto py-10 px-4">
+      <h1 className="text-2xl font-bold mb-6">Latest Articles</h1>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {blogs?.map((blog: any) => (
+          <article key={blog.id} className="border border-slate-200 rounded-lg p-4">
+            <h2 className="font-semibold text-lg">{blog.title}</h2>
+            <p className="text-sm text-slate-600 mt-2">{blog.excerpt}</p>
+          </article>
+        ))}
+      </div>
+    </main>
+  );
+}`;
+
+    const php = `<?php
+// WordPress / PHP Integration
+$response = wp_remote_get('${apiBaseUrl}/v1/blogs?limit=10&lang=${lang}', array(
+    'headers' => array(
+        'Authorization' => 'Bearer ${siteKey}',
+        'Accept'        => 'application/json',
+    ),
+    'timeout' => 15,
+));
+
+if (is_wp_error($response)) {
+    return array();
+}
+
+$body = wp_remote_retrieve_body($response);
+$result = json_decode($body, true);
+$blogs = $result['data'] ?? array();
+?>`;
+
+    return { curl, js, nextjs, php };
+  }, [apiBaseUrl, activeSite]);
+
+  return (
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
+      {/* ─── ZOHO COMPACT HEADER & TENANT BAR ─────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-[#111827] p-3.5 px-4 rounded-lg border border-slate-200 dark:border-slate-800 shadow-2xs">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded bg-slate-900 dark:bg-slate-800 flex items-center justify-center text-white shrink-0">
+            <Code2 className="w-4 h-4 text-[#e42528]" />
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Real-time TypeScript SDK, endpoints, on-demand revalidation webhooks &amp; multi-tenant scaffolds.
-          </p>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
+                API &amp; Integrations
+              </h1>
+              <span className="text-[11px] font-mono px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                v1 Active
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              REST endpoints, live test console &amp; cache invalidation for client websites
+            </p>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            onClick={() => setIsHandoverOpen(true)}
-            className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-bold shadow-xs hover:shadow-md transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
-            title="Copy 1-command installer or ready message to send to client"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>⚡ Share Code with Client</span>
-          </button>
-
-          {/* Interactive Tenant Switcher */}
-          <div className="flex items-center gap-2 p-1.5 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-2xs">
-          <Globe className="w-4 h-4 text-blue-500 ml-1.5 shrink-0" />
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 leading-none">Target Tenant</span>
+        {/* Right Controls: Tenant Switcher + Fast Actions */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Tenant Selector */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs">
+            <Globe className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span className="text-[11px] text-slate-400 uppercase font-semibold">Tenant:</span>
             <select
               value={selectedSiteId}
               onChange={(e) => setSelectedSiteId(e.target.value)}
-              className="text-xs font-bold text-slate-900 dark:text-white bg-transparent border-0 outline-none cursor-pointer pr-4 py-0.5"
+              className="bg-transparent font-semibold text-xs text-slate-800 dark:text-slate-200 outline-none cursor-pointer pr-1"
             >
               {websites.map((w) => (
-                <option key={w.id} value={w.id} className="dark:bg-slate-900 dark:text-white">
-                  {w.name} ({w.domain})
+                <option key={w.id} value={w.id} className="dark:bg-slate-900">
+                  {w.name}
                 </option>
               ))}
             </select>
           </div>
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-            {activeSite.id}
-          </span>
+
+          {/* Quick API Key Copy */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono">
+            <Key className="w-3 h-3 text-amber-500 shrink-0" />
+            <span className="text-slate-600 dark:text-slate-300 text-[11px]">
+              {showApiKey ? activeSite.apiKey : `${activeSite.apiKey.slice(0, 12)}••••`}
+            </span>
+            <button
+              onClick={() => setShowApiKey(!showApiKey)}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 cursor-pointer"
+              title={showApiKey ? 'Hide Key' : 'Show Key'}
+            >
+              {showApiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+            </button>
+            <button
+              onClick={() => copyToClipboard(activeSite.apiKey, 'hdr-key')}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 ml-0.5 cursor-pointer"
+              title="Copy API Key"
+            >
+              {copiedKey === 'hdr-key' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+            </button>
+          </div>
+
+          {/* Share Access Modal */}
+          <button
+            onClick={() => setIsHandoverOpen(true)}
+            className="px-2.5 py-1 rounded bg-[#e42528] hover:bg-[#c91e21] text-white text-xs font-medium flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+          >
+            <Share2 className="w-3 h-3" />
+            <span>Share Access</span>
+          </button>
         </div>
       </div>
-    </div>
 
-      {/* Main Tab Navigation */}
-      <div className="flex items-center gap-1 bg-white dark:bg-[#0f172a] p-1 rounded-xl w-fit border border-slate-200 dark:border-slate-800 shadow-2xs">
-        <button
-          onClick={() => setActiveTab('snippets')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'snippets'
-              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <FileCode2 className="w-3.5 h-3.5" />
-          <span>Next.js 16 SDK &amp; Integration</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('tester')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'tester'
-              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <Terminal className="w-3.5 h-3.5" />
-          <span>Interactive Endpoint Tester</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('specs')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'specs'
-              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <BookOpen className="w-3.5 h-3.5" />
-          <span>API Specs &amp; Headers</span>
-        </button>
+      {/* ─── ZOHO TABS BAR (36px Compact) ─────────────────────────────── */}
+      <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-800 pb-0">
+        {[
+          { id: 'endpoints', label: 'Endpoints & Test Console', icon: Terminal },
+          { id: 'quickstart', label: 'Code Snippets', icon: FileCode2 },
+          { id: 'webhooks', label: 'Webhooks & Cache', icon: Radio },
+          { id: 'credentials', label: 'Credentials & Details', icon: Key },
+        ].map((t) => {
+          const Icon = t.icon;
+          const isActive = activeTab === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id as any)}
+              className={`px-3.5 py-2 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-colors cursor-pointer ${
+                isActive
+                  ? 'border-[#e42528] text-[#e42528] dark:text-[#f87171]'
+                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              <span>{t.label}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* TAB: NEXT.JS 16 SDK & INTEGRATION */}
-      {activeTab === 'snippets' && (
-        <div className="space-y-6">
-          {/* Active Tenant Credentials Banner */}
-          <div className="bg-linear-to-r from-blue-900/10 via-indigo-900/10 to-violet-900/10 dark:from-blue-950/40 dark:via-indigo-950/30 dark:to-violet-950/40 border border-blue-200 dark:border-blue-900/60 rounded-2xl p-4 sm:p-5">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-                    Active Scaffolding Context
-                  </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-medium">
-                    Verified Database Key
-                  </span>
-                </div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <span>{activeSite.name}</span>
-                  <span className="text-xs font-mono font-normal text-slate-500 dark:text-slate-400">({activeSite.domain})</span>
-                </h2>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                  <Key className="w-3.5 h-3.5 text-amber-500" />
-                  <span className="text-slate-400">API Key:</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-200">{activeSite.apiKey}</span>
-                  <button
-                    onClick={() => copyToClipboard(activeSite.apiKey, 'badge-key')}
-                    className="ml-1 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
-                    title="Copy API Key"
-                  >
-                    {copiedCode === 'badge-key' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                  <Hash className="w-3.5 h-3.5 text-blue-500" />
-                  <span className="text-slate-400">Tenant:</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-200">{activeSite.id}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ⚡ LIVE SDK PLAYGROUND CONSOLE */}
-          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-4">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-amber-500" />
-                  Live SDK Playground (Zero-Mock Real HTTP Execution)
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Click any SDK method below to execute live against NestJS <code className="font-mono text-blue-600 dark:text-blue-400">{apiBaseUrl}/v1</code> with credentials for <span className="font-semibold">{activeSite.name}</span>.
-                </p>
-              </div>
-
-              {sdkResponse && (
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs px-2.5 py-1 rounded-md font-mono font-bold flex items-center gap-1 ${
-                    sdkResponse.status >= 200 && sdkResponse.status < 300
-                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
-                      : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
-                  }`}>
-                    {sdkResponse.status === 200 && <CheckCircle2 className="w-3 h-3" />}
-                    {sdkResponse.status} {sdkResponse.status === 200 ? 'OK' : 'Error'}
-                  </span>
-                  <span className="text-xs px-2 py-1 rounded-md font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                    {sdkResponse.latencyMs}ms
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Playground Method Buttons */}
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => handleRunSdkMethod('getBlogs')}
-                disabled={isSdkRunning}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
-                  sdkMethod === 'getBlogs' && sdkResponse
-                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 shadow-2xs'
-                    : 'bg-slate-50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                <Play className="w-3 h-3 text-blue-500 fill-blue-500" />
-                <span>jupsoft.getBlogs()</span>
-              </button>
-
-              <button
-                onClick={() => handleRunSdkMethod('getLatest')}
-                disabled={isSdkRunning}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
-                  sdkMethod === 'getLatest' && sdkResponse
-                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 shadow-2xs'
-                    : 'bg-slate-50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                <Play className="w-3 h-3 text-blue-500 fill-blue-500" />
-                <span>jupsoft.getLatest(3)</span>
-              </button>
-
-              <button
-                onClick={() => handleRunSdkMethod('getPopular')}
-                disabled={isSdkRunning}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
-                  sdkMethod === 'getPopular' && sdkResponse
-                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 shadow-2xs'
-                    : 'bg-slate-50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                <Play className="w-3 h-3 text-blue-500 fill-blue-500" />
-                <span>jupsoft.getPopular(3)</span>
-              </button>
-
-              <button
-                onClick={() => handleRunSdkMethod('getCategories')}
-                disabled={isSdkRunning}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
-                  sdkMethod === 'getCategories' && sdkResponse
-                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 shadow-2xs'
-                    : 'bg-slate-50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                <FolderTree className="w-3 h-3 text-emerald-500" />
-                <span>jupsoft.getCategories()</span>
-              </button>
-
-              <button
-                onClick={() => handleRunSdkMethod('getTags')}
-                disabled={isSdkRunning}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
-                  sdkMethod === 'getTags' && sdkResponse
-                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 shadow-2xs'
-                    : 'bg-slate-50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                <Hash className="w-3 h-3 text-purple-500" />
-                <span>jupsoft.getTags()</span>
-              </button>
-
-              <button
-                onClick={() => handleRunSdkMethod('getBlogBySlug')}
-                disabled={isSdkRunning}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
-                  sdkMethod === 'getBlogBySlug' && sdkResponse
-                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 shadow-2xs'
-                    : 'bg-slate-50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                <FileText className="w-3 h-3 text-amber-500" />
-                <span>jupsoft.getBlogBySlug('{sampleSlug.slice(0, 20)}...')</span>
-              </button>
-
-              <button
-                onClick={() => handleRunSdkMethod('getWebsiteInfo')}
-                disabled={isSdkRunning}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
-                  sdkMethod === 'getWebsiteInfo' && sdkResponse
-                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 shadow-2xs'
-                    : 'bg-slate-50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                <Globe className="w-3 h-3 text-cyan-500" />
-                <span>jupsoft.getWebsiteInfo()</span>
-              </button>
-            </div>
-
-            {/* Live Playground Output Box */}
-            {isSdkRunning ? (
-              <div className="py-12 text-center space-y-2 bg-slate-900/80 rounded-xl border border-slate-800 text-slate-400">
-                <RefreshCw className="w-6 h-6 animate-spin text-blue-400 mx-auto" />
-                <div className="text-xs font-mono">Executing live SDK query on NestJS /v1...</div>
-              </div>
-            ) : sdkResponse ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-900 text-slate-300 text-xs font-mono border border-slate-800">
-                  <div className="flex items-center gap-2 truncate">
-                    <span className="text-emerald-400">Method:</span>
-                    <span className="text-white font-semibold">{sdkResponse.method}</span>
-                    <span className="text-slate-500 hidden sm:inline">&rarr;</span>
-                    <span className="text-slate-400 hidden sm:inline truncate">{sdkResponse.url}</span>
-                  </div>
-                  <button
-                    onClick={() => copyToClipboard(JSON.stringify(sdkResponse.body, null, 2), 'sdk-resp')}
-                    className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-mono flex items-center gap-1 cursor-pointer shrink-0 ml-2"
-                  >
-                    {copiedCode === 'sdk-resp' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                    <span>{copiedCode === 'sdk-resp' ? 'Copied' : 'Copy JSON'}</span>
-                  </button>
-                </div>
-
-                <pre className="p-4 bg-[#0a0f1d] text-emerald-400 rounded-xl text-xs font-mono overflow-auto max-h-72 leading-relaxed border border-slate-800">
-                  {JSON.stringify(sdkResponse.body, null, 2)}
-                </pre>
-              </div>
-            ) : (
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-blue-500" />
-                  <span>Click any method above to run a genuine live SDK call against the PostgreSQL-backed API.</span>
-                </div>
-                <button
-                  onClick={() => handleRunSdkMethod('getBlogs')}
-                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1"
-                >
-                  <Play className="w-3 h-3 fill-white" />
-                  <span>Run Initial Test</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* 1-CLICK CLI TERMINAL SCAFFOLDING COMMAND */}
-          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Terminal className="w-4 h-4 text-emerald-500" />
-                  1-Click Terminal Scaffolding Command
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Run this single command inside your Next.js 16 project root to initialize folders and create <code className="font-mono text-emerald-600">.env.local</code>.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-xs font-semibold">
-                  <button
-                    onClick={() => setScaffoldShell('powershell')}
-                    className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
-                      scaffoldShell === 'powershell'
-                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
-                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
-                    }`}
-                  >
-                    PowerShell
-                  </button>
-                  <button
-                    onClick={() => setScaffoldShell('bash')}
-                    className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
-                      scaffoldShell === 'bash'
-                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
-                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
-                    }`}
-                  >
-                    Bash / macOS
-                  </button>
-                </div>
-
-                <button
-                  onClick={() => copyToClipboard(
-                    scaffoldShell === 'powershell' ? cliScaffoldPowerShell : cliScaffoldBash,
-                    'cli-scaffold'
-                  )}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-                >
-                  {copiedCode === 'cli-scaffold' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedCode === 'cli-scaffold' ? 'Copied' : 'Copy Script'}</span>
-                </button>
-              </div>
-            </div>
-
-            <pre className="p-4 bg-slate-900 text-emerald-400 rounded-xl text-xs font-mono overflow-x-auto leading-relaxed border border-slate-800">
-              {scaffoldShell === 'powershell' ? cliScaffoldPowerShell : cliScaffoldBash}
-            </pre>
-          </div>
-
-          {/* CODE SNIPPET JUMP TABS */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
-            <span className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Filter Files:</span>
-            {[
-              { id: 'all', label: 'All Options' },
-              { id: 'npm', label: '⚡ 1-Command CLI Wizard' },
-              { id: 'widget', label: '🌐 Universal HTML/PHP Widget' },
-              { id: 'env', label: '1. .env.local' },
-              { id: 'nextconfig', label: '2. next.config.ts' },
-              { id: 'sdk', label: '3. lib/jupsoft-sdk.ts' },
-              { id: 'listing', label: '4. app/blog/page.tsx' },
-              { id: 'detail', label: '5. app/blog/[slug]/page.tsx' },
-              { id: 'revalidate', label: '6. app/api/revalidate/route.ts' },
-              { id: 'sitemap', label: '7. app/sitemap.ts' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveSnippetFilter(tab.id as any)}
-                className={`px-3 py-1 rounded-lg font-medium whitespace-nowrap transition-colors cursor-pointer ${
-                  activeSnippetFilter === tab.id
-                    ? 'bg-blue-600 text-white shadow-2xs font-semibold'
-                    : 'bg-white dark:bg-[#0f172a] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* CARD 0: 1-COMMAND NPM PACKAGE CLI */}
-          {(activeSnippetFilter === 'all' || activeSnippetFilter === 'npm') && (
-            <div className="bg-linear-to-r from-blue-900/5 via-indigo-900/10 to-purple-900/5 dark:from-blue-950/30 dark:via-indigo-950/20 dark:to-purple-950/30 border-2 border-indigo-500/40 dark:border-indigo-500/50 rounded-2xl p-6 space-y-4 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300">
-                      Recommended • Zero-Config Setup
-                    </span>
-                    <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Next.js 14/15/16 Ready
-                    </span>
-                  </div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mt-1">
-                    <Package className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                    1-Command Auto-Installer (<code className="font-mono text-indigo-600 dark:text-indigo-400">@jupsoft/next-blog</code>)
-                  </h3>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                    Run this single command in your Next.js root. It auto-installs the package, generates listing &amp; reader pages with sleek auto-locale dropdown, sets up webhook cache revalidation, and configures <code className="font-mono text-indigo-600">.env.local</code> for <strong>{activeSite.name}</strong>.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => copyToClipboard(npmCliSnippet, 'npm-cli')}
-                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-md shrink-0"
-                >
-                  {copiedCode === 'npm-cli' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  <span>{copiedCode === 'npm-cli' ? 'Copied Command' : 'Copy CLI Command'}</span>
-                </button>
-              </div>
-
-              <pre className="p-4 bg-slate-950 text-indigo-300 rounded-xl text-xs font-mono overflow-x-auto leading-relaxed border border-indigo-900/50 shadow-inner">
-                {npmCliSnippet}
-              </pre>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
-                <div className="p-3 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex items-start gap-2.5">
-                  <span className="text-indigo-500 font-bold">1.</span>
-                  <div>
-                    <strong className="text-slate-800 dark:text-slate-200">Auto-installs package:</strong>
-                    <p className="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">Detects your package manager and installs missing dependencies.</p>
-                  </div>
-                </div>
-                <div className="p-3 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex items-start gap-2.5">
-                  <span className="text-indigo-500 font-bold">2.</span>
-                  <div>
-                    <strong className="text-slate-800 dark:text-slate-200">Generates all routes:</strong>
-                    <p className="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">Creates <code>app/blog</code>, <code>[slug]</code>, and webhook API route.</p>
-                  </div>
-                </div>
-                <div className="p-3 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex items-start gap-2.5">
-                  <span className="text-indigo-500 font-bold">3.</span>
-                  <div>
-                    <strong className="text-slate-800 dark:text-slate-200">Auto-Locale Dropdown:</strong>
-                    <p className="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">Detects browser language with compact micro-dropdown &amp; SEO tags.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* CARD: UNIVERSAL HTML/PHP EMBED WIDGET */}
-          {(activeSnippetFilter === 'all' || activeSnippetFilter === 'widget') && (
-            <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400">
-                      Non-Next.js / Universal
-                    </span>
-                    <span className="text-xs text-slate-500">HTML · PHP · WordPress · Laravel · Shopify</span>
-                  </div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 mt-1">
-                    <Globe className="w-4 h-4 text-emerald-500" />
-                    Universal Blog Feed Widget (2-Line Drop-in)
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    For non-Next.js websites: embed your live blog feed with auto-locale micro-dropdown and responsive grid cards anywhere.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => copyToClipboard(universalWidgetSnippet, 'universal-widget')}
-                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 shrink-0"
-                >
-                  {copiedCode === 'universal-widget' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedCode === 'universal-widget' ? 'Copied' : 'Copy Widget Code'}</span>
-                </button>
-              </div>
-
-              <pre className="p-4 bg-slate-900 text-emerald-400 rounded-xl text-xs font-mono overflow-x-auto leading-relaxed border border-slate-800">
-                {universalWidgetSnippet}
-              </pre>
-            </div>
-          )}
-
-          {/* CARD 1: .env.local */}
-          {(activeSnippetFilter === 'all' || activeSnippetFilter === 'env') && (
-            <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Key className="w-4 h-4 text-amber-500" />
-                    1. Environment Configuration (<code className="font-mono text-blue-600 dark:text-blue-400">.env.local</code>)
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Tenant-specific secrets automatically calibrated for {activeSite.name}.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => copyToClipboard(envConfigSnippet, 'env-config')}
-                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-                >
-                  {copiedCode === 'env-config' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedCode === 'env-config' ? 'Copied' : 'Copy Env'}</span>
-                </button>
-              </div>
-
-              <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto leading-relaxed border border-slate-800">
-                {envConfigSnippet}
-              </pre>
-            </div>
-          )}
-
-          {/* CARD 2: next.config.ts */}
-          {(activeSnippetFilter === 'all' || activeSnippetFilter === 'nextconfig') && (
-            <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Laptop className="w-4 h-4 text-cyan-500" />
-                    2. WebP Image Optimization Config (<code className="font-mono text-blue-600 dark:text-blue-400">next.config.ts</code>)
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Permits remote WebP image loading from S3, CMS uploads, and tenant domains without host errors.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => copyToClipboard(nextConfigSnippet, 'next-config')}
-                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-                >
-                  {copiedCode === 'next-config' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedCode === 'next-config' ? 'Copied' : 'Copy Config'}</span>
-                </button>
-              </div>
-
-              <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[380px] leading-relaxed border border-slate-800">
-                {nextConfigSnippet}
-              </pre>
-            </div>
-          )}
-
-          {/* CARD 3: lib/jupsoft-sdk.ts */}
-          {(activeSnippetFilter === 'all' || activeSnippetFilter === 'sdk') && (
-            <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Code2 className="w-4 h-4 text-blue-500" />
-                    3. Turnkey Next.js 16 Type-Safe Client SDK (<code className="font-mono text-blue-600 dark:text-blue-400">lib/jupsoft-sdk.ts</code>)
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Complete client with ISR cache tags, crypto HMAC signature verification, search, taxonomy &amp; fire-and-forget view telemetry.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => copyToClipboard(nextjsSdkSnippet, 'next-sdk')}
-                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-                >
-                  {copiedCode === 'next-sdk' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedCode === 'next-sdk' ? 'Copied' : 'Copy SDK'}</span>
-                </button>
-              </div>
-
-              <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[500px] leading-relaxed border border-slate-800">
-                {nextjsSdkSnippet}
-              </pre>
-            </div>
-          )}
-
-          {/* CARD 4: app/blog/page.tsx */}
-          {(activeSnippetFilter === 'all' || activeSnippetFilter === 'listing') && (
-            <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-indigo-500" />
-                    4. Blog Archive &amp; Category Grid (<code className="font-mono text-blue-600 dark:text-blue-400">app/blog/page.tsx</code>)
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Next.js 16 Server Component: async searchParams, category pills, responsive grid of article cards, author, WebP thumbnail &amp; pagination.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => copyToClipboard(nextjsListingSnippet, 'next-listing')}
-                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-                >
-                  {copiedCode === 'next-listing' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedCode === 'next-listing' ? 'Copied' : 'Copy Listing'}</span>
-                </button>
-              </div>
-
-              <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[500px] leading-relaxed border border-slate-800">
-                {nextjsListingSnippet}
-              </pre>
-            </div>
-          )}
-
-          {/* CARD 5: app/blog/[slug]/page.tsx */}
-          {(activeSnippetFilter === 'all' || activeSnippetFilter === 'detail') && (
-            <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <FileCode2 className="w-4 h-4 text-emerald-500" />
-                    5. Dynamic Article Post Detail (<code className="font-mono text-blue-600 dark:text-blue-400">app/blog/[slug]/page.tsx</code>)
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Next.js 16 Server Component: async params Promise, automated OpenGraph metadata, Schema.org JSON-LD &amp; background ISR.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => copyToClipboard(nextjsConsumerSnippet, 'next-page')}
-                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-                >
-                  {copiedCode === 'next-page' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedCode === 'next-page' ? 'Copied' : 'Copy Detail'}</span>
-                </button>
-              </div>
-
-              <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[500px] leading-relaxed border border-slate-800">
-                {nextjsConsumerSnippet}
-              </pre>
-            </div>
-          )}
-
-          {/* CARD 6: app/api/revalidate/route.ts */}
-          {(activeSnippetFilter === 'all' || activeSnippetFilter === 'revalidate') && (
-            <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-violet-500" />
-                    6. On-Demand ISR Cache Purge Webhook (<code className="font-mono text-blue-600 dark:text-blue-400">app/api/revalidate/route.ts</code>)
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Next.js 16 App Router Route Handler: validates HMAC SHA-256 signatures and executes zero-downtime cache purges.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => copyToClipboard(webhookHandlerSnippet, 'webhook-route')}
-                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-                >
-                  {copiedCode === 'webhook-route' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedCode === 'webhook-route' ? 'Copied' : 'Copy Webhook'}</span>
-                </button>
-              </div>
-
-              <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[460px] leading-relaxed border border-slate-800">
-                {webhookHandlerSnippet}
-              </pre>
-            </div>
-          )}
-
-          {/* CARD 7: app/sitemap.ts */}
-          {(activeSnippetFilter === 'all' || activeSnippetFilter === 'sitemap') && (
-            <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-teal-500" />
-                    7. Dynamic Automated Sitemap (<code className="font-mono text-blue-600 dark:text-blue-400">app/sitemap.ts</code>)
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Generates dynamic XML sitemaps for search engines querying all published articles via the SDK.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => copyToClipboard(sitemapSnippet, 'sitemap-code')}
-                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-                >
-                  {copiedCode === 'sitemap-code' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedCode === 'sitemap-code' ? 'Copied' : 'Copy Sitemap'}</span>
-                </button>
-              </div>
-
-              <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[380px] leading-relaxed border border-slate-800">
-                {sitemapSnippet}
-              </pre>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB: INTERACTIVE ENDPOINT TESTER */}
-      {activeTab === 'tester' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Request Builder Panel (5 Cols) */}
-          <div className="lg:col-span-5 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 shadow-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/80">
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Terminal className="w-4 h-4 text-blue-500" />
-                Live Request Builder
-              </h2>
-              <span className="text-xs px-2 py-0.5 rounded font-mono font-semibold bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/60">
-                GET
+      {/* ─── TAB 1: ENDPOINTS & INTERACTIVE TESTER ───────────────────────── */}
+      {activeTab === 'endpoints' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          {/* Left Column: Compact Endpoints Table (7 cols) */}
+          <div className="lg:col-span-7 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden shadow-2xs flex flex-col">
+            <div className="p-3 px-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/30">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                Available v1 Endpoints ({API_ENDPOINTS.length})
+              </span>
+              <span className="text-[11px] text-slate-400 font-mono">
+                Base: {apiBaseUrl}
               </span>
             </div>
 
-            {/* Endpoint Selector */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Endpoint Route</label>
-              <select
-                value={selectedEndpoint}
-                onChange={(e) => setSelectedEndpoint(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono text-slate-900 dark:text-white outline-none cursor-pointer focus:border-blue-500"
-              >
-                <option value="/v1/blogs">GET /v1/blogs (List Published Posts)</option>
-                <option value="/v1/blogs/{slug}">GET /v1/blogs/:slug (Single Post by Slug)</option>
-                <option value="/v1/blogs/latest">GET /v1/blogs/latest (Latest Posts)</option>
-                <option value="/v1/blogs/popular">GET /v1/blogs/popular (Most Viewed Posts)</option>
-                <option value="/v1/categories">GET /v1/categories (Taxonomy Tree)</option>
-                <option value="/v1/tags">GET /v1/tags (Website Tags)</option>
-                <option value="/v1/search">GET /v1/search (Full-Text Search)</option>
-                <option value="/v1/website">GET /v1/website (Tenant Metadata)</option>
-              </select>
-            </div>
-
-            {/* Dynamic Param Inputs */}
-            {selectedEndpoint === '/v1/blogs/{slug}' && (
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Article Slug</label>
-                <input
-                  type="text"
-                  value={slugParam}
-                  onChange={(e) => setSlugParam(e.target.value)}
-                  placeholder={sampleSlug}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono text-slate-900 dark:text-white outline-none focus:border-blue-500"
-                />
-              </div>
-            )}
-
-            {selectedEndpoint === '/v1/search' && (
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Search Query (q)</label>
-                <input
-                  type="text"
-                  value={searchQueryParam}
-                  onChange={(e) => setSearchQueryParam(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono text-slate-900 dark:text-white outline-none focus:border-blue-500"
-                />
-              </div>
-            )}
-
-            {/* Language Selector */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Language Locale</label>
-              <div className="flex items-center gap-2">
-                {['en', 'hi', 'fr', 'ar'].map((lang) => (
-                  <button
-                    key={lang}
-                    onClick={() => setSelectedLang(lang)}
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold uppercase transition-colors cursor-pointer border ${
-                      selectedLang === lang
-                        ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                        : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
+            <div className="divide-y divide-slate-100 dark:divide-slate-800/80 overflow-y-auto max-h-[580px]">
+              {API_ENDPOINTS.map((ep) => {
+                const isSelected = selectedEndpointId === ep.id;
+                return (
+                  <div
+                    key={ep.id}
+                    onClick={() => {
+                      setSelectedEndpointId(ep.id);
+                      setTestResponse(null);
+                    }}
+                    className={`p-3 px-4 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
+                      isSelected
+                        ? 'bg-slate-50 dark:bg-slate-800/60 border-l-2 border-l-[#e42528]'
+                        : 'hover:bg-slate-50/60 dark:hover:bg-slate-800/30'
                     }`}
                   >
-                    {lang}
-                  </button>
-                ))}
-              </div>
-            </div>
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                          {ep.method}
+                        </span>
+                        <code className="text-xs font-mono font-semibold text-slate-800 dark:text-slate-200 truncate">
+                          {ep.path}
+                        </code>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                        {ep.title} — {ep.description}
+                      </p>
+                    </div>
 
-            {/* Auth Token Preview */}
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1 text-xs">
-              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Resolved Authorization Header</div>
-              <div className="font-mono text-[11px] text-slate-800 dark:text-slate-300 truncate">
-                Bearer {activeSite.apiKey}
-              </div>
-            </div>
-
-            {/* Execute Button */}
-            <button
-              onClick={handleExecuteApi}
-              disabled={isLoadingTest}
-              className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
-            >
-              {isLoadingTest ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>Executing Live Request...</span>
-                </>
-              ) : (
-                <>
-                  <Play className="w-3.5 h-3.5 fill-white" />
-                  <span>Send Request to NestJS Server</span>
-                </>
-              )}
-            </button>
-
-            {/* Generated cURL */}
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-700 dark:text-slate-300">Equivalent cURL</span>
-                <button
-                  onClick={() => copyToClipboard(curlCommand, 'curl')}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer"
-                >
-                  {copiedCode === 'curl' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                  <span>{copiedCode === 'curl' ? 'Copied' : 'Copy'}</span>
-                </button>
-              </div>
-              <pre className="p-2.5 rounded-lg bg-slate-900 text-slate-200 font-mono text-[11px] overflow-x-auto leading-relaxed border border-slate-800">
-                {curlCommand}
-              </pre>
+                    <button
+                      type="button"
+                      className={`px-2 py-1 rounded text-[11px] font-medium transition-colors shrink-0 flex items-center gap-1 ${
+                        isSelected
+                          ? 'bg-[#e42528] text-white'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                      }`}
+                    >
+                      <Play className="w-2.5 h-2.5 fill-current" />
+                      <span>Test</span>
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* Response Inspector Panel (7 Cols) */}
-          <div className="lg:col-span-7 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/80">
-                <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                  Live Response Inspector
-                </h2>
+          {/* Right Column: Live Interactive Execution Console (5 cols) */}
+          <div className="lg:col-span-5 bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 p-4 shadow-2xs flex flex-col space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+              <div>
+                <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <Terminal className="w-3.5 h-3.5 text-slate-500" />
+                  Live Request Console
+                </span>
+                <p className="text-[11px] text-slate-400 font-mono mt-0.5 truncate max-w-[280px]">
+                  {activeEndpointDef.path}
+                </p>
+              </div>
 
-                {testResponse && (
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs px-2.5 py-0.5 rounded-md font-mono font-bold ${
-                      testResponse.status >= 200 && testResponse.status < 300
-                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
-                        : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
-                    }`}>
-                      {testResponse.status} {testResponse.status === 200 ? 'OK' : 'Error'}
-                    </span>
-                    <span className="text-xs px-2 py-0.5 rounded-md font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                      {testResponse.latencyMs}ms
-                    </span>
+              {testResponse && (
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                      testResponse.status === 200
+                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                        : 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border-rose-200 dark:border-rose-800'
+                    }`}
+                  >
+                    {testResponse.status} {testResponse.statusText}
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-500">
+                    {testResponse.latencyMs}ms
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Parameter Inputs */}
+            <div className="space-y-2 bg-slate-50/70 dark:bg-slate-900/50 p-2.5 rounded border border-slate-200/80 dark:border-slate-800/80 text-xs">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Request Parameters
+              </div>
+
+              {activeEndpointDef.hasSlug && (
+                <div>
+                  <label className="block text-[11px] text-slate-600 dark:text-slate-400 mb-0.5 font-medium">
+                    Slug (:slug):
+                  </label>
+                  <input
+                    type="text"
+                    value={testSlug}
+                    onChange={(e) => setTestSlug(e.target.value)}
+                    placeholder="e.g. blog-slug-here"
+                    className="w-full text-xs font-mono px-2.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 outline-none"
+                  />
+                </div>
+              )}
+
+              {activeEndpointDef.hasSearch && (
+                <div>
+                  <label className="block text-[11px] text-slate-600 dark:text-slate-400 mb-0.5 font-medium">
+                    Keyword Search (?q=):
+                  </label>
+                  <input
+                    type="text"
+                    value={testSearch}
+                    onChange={(e) => setTestSearch(e.target.value)}
+                    placeholder="Search keywords..."
+                    className="w-full text-xs font-mono px-2.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 outline-none"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                {activeEndpointDef.hasLimit && (
+                  <div>
+                    <label className="block text-[11px] text-slate-600 dark:text-slate-400 mb-0.5 font-medium">
+                      Limit:
+                    </label>
+                    <select
+                      value={testLimit}
+                      onChange={(e) => setTestLimit(Number(e.target.value))}
+                      className="w-full text-xs px-2 py-1 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 outline-none"
+                    >
+                      <option value={3}>3 items</option>
+                      <option value={5}>5 items</option>
+                      <option value={10}>10 items</option>
+                      <option value={20}>20 items</option>
+                    </select>
                   </div>
+                )}
+
+                <div>
+                  <label className="block text-[11px] text-slate-600 dark:text-slate-400 mb-0.5 font-medium">
+                    Language:
+                  </label>
+                  <select
+                    value={testLang}
+                    onChange={(e) => setTestLang(e.target.value)}
+                    className="w-full text-xs px-2 py-1 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 outline-none"
+                  >
+                    <option value="en">English (en)</option>
+                    <option value="hi">Hindi (hi)</option>
+                    <option value="fr">French (fr)</option>
+                    <option value="ar">Arabic (ar)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Resolved URL Preview & Send Button */}
+              <div className="pt-1.5 flex items-center justify-between gap-2">
+                <span className="text-[10px] font-mono text-slate-400 truncate">
+                  {resolvedApiPath}
+                </span>
+                <button
+                  onClick={handleExecuteRequest}
+                  disabled={isLoadingTest}
+                  className="px-3 py-1.5 rounded bg-slate-900 hover:bg-black text-white dark:bg-white dark:text-slate-900 text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0 transition-colors"
+                >
+                  {isLoadingTest ? (
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Play className="w-3 h-3 fill-current" />
+                  )}
+                  <span>{isLoadingTest ? 'Executing...' : 'Send Request'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Output View */}
+            <div className="flex-1 flex flex-col min-h-0 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono">
+                <span>Response Body</span>
+                {testResponse && (
+                  <button
+                    onClick={() => copyToClipboard(JSON.stringify(testResponse.body, null, 2), 'resp-body')}
+                    className="hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer"
+                  >
+                    {copiedKey === 'resp-body' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedKey === 'resp-body' ? 'Copied' : 'Copy JSON'}</span>
+                  </button>
                 )}
               </div>
 
-              {testResponse ? (
-                <div className="mt-3 space-y-3">
-                  <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-[11px] font-mono space-y-0.5 text-slate-500 dark:text-slate-400">
-                    <div>Content-Type: {testResponse.headers['Content-Type']}</div>
-                    <div>X-Tenant-ID: {testResponse.headers['X-Tenant-ID']}</div>
-                    <div>X-RateLimit-Remaining: {testResponse.headers['X-RateLimit-Remaining']} / 1000</div>
-                    <div>X-Cache: {testResponse.headers['X-Cache']}</div>
-                  </div>
+              <div className="bg-[#0b101b] rounded border border-slate-800 p-3 text-[11px] font-mono text-emerald-400 overflow-auto max-h-[300px] leading-relaxed select-text">
+                {testResponse ? (
+                  <pre>{JSON.stringify(testResponse.body, null, 2)}</pre>
+                ) : (
+                  <span className="text-slate-500">
+                    Click &quot;Send Request&quot; above to execute a real HTTP query against the live NestJS backend API.
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-                  <div className="relative">
-                    <button
-                      onClick={() => copyToClipboard(JSON.stringify(testResponse.body, null, 2), 'body')}
-                      className="absolute right-3 top-3 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono flex items-center gap-1 cursor-pointer border border-slate-700"
-                    >
-                      {copiedCode === 'body' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                      <span>{copiedCode === 'body' ? 'Copied' : 'Copy JSON'}</span>
-                    </button>
-                    <pre className="p-4 bg-[#0a0f1d] text-emerald-400 rounded-xl text-xs font-mono overflow-auto max-h-[440px] leading-relaxed border border-slate-800">
-                      {JSON.stringify(testResponse.body, null, 2)}
-                    </pre>
-                  </div>
+      {/* ─── TAB 2: QUICK START CODE SNIPPETS ────────────────────────────── */}
+      {activeTab === 'quickstart' && (
+        <div className="bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 p-4 shadow-2xs space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div>
+              <h2 className="text-xs font-bold text-slate-900 dark:text-white">
+                Integration Code Snippet
+              </h2>
+              <p className="text-[11px] text-slate-500">
+                Pre-configured with credentials for <strong className="text-slate-700 dark:text-slate-300">{activeSite.name}</strong>
+              </p>
+            </div>
+
+            {/* Language Selector Tabs */}
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-0.5 rounded border border-slate-200 dark:border-slate-800 text-xs font-medium">
+              {[
+                { id: 'curl', label: 'cURL' },
+                { id: 'javascript', label: 'JavaScript (Fetch)' },
+                { id: 'nextjs', label: 'Next.js App Router' },
+                { id: 'php', label: 'PHP / WordPress' },
+              ].map((lang) => (
+                <button
+                  key={lang.id}
+                  onClick={() => setCodeLanguage(lang.id as any)}
+                  className={`px-2.5 py-1 rounded text-[11px] transition-colors cursor-pointer ${
+                    codeLanguage === lang.id
+                      ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-semibold shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  {lang.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Snippet Code Box */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                const code =
+                  codeLanguage === 'curl'
+                    ? snippets.curl
+                    : codeLanguage === 'javascript'
+                    ? snippets.js
+                    : codeLanguage === 'nextjs'
+                    ? snippets.nextjs
+                    : snippets.php;
+                copyToClipboard(code, 'quickstart-code');
+              }}
+              className="absolute top-3 right-3 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-mono flex items-center gap-1 cursor-pointer transition-colors z-10 border border-slate-700"
+            >
+              {copiedKey === 'quickstart-code' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+              <span>{copiedKey === 'quickstart-code' ? 'Copied' : 'Copy Code'}</span>
+            </button>
+
+            <pre className="p-4 bg-[#0b101b] text-slate-200 rounded-lg text-xs font-mono overflow-x-auto leading-relaxed border border-slate-800 max-h-[460px]">
+              {codeLanguage === 'curl' && snippets.curl}
+              {codeLanguage === 'javascript' && snippets.js}
+              {codeLanguage === 'nextjs' && snippets.nextjs}
+              {codeLanguage === 'php' && snippets.php}
+            </pre>
+          </div>
+        </div>
+      )}
+
+      {/* ─── TAB 3: WEBHOOKS & CACHE INVALIDATION ───────────────────────── */}
+      {activeTab === 'webhooks' && (
+        <div className="bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 p-4 shadow-2xs space-y-4">
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+            <h2 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+              <Radio className="w-4 h-4 text-[#e42528]" />
+              On-Demand Cache Revalidation Webhook
+            </h2>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              When an article is published, updated, or unpublished in Jupsoft CMS, the backend sends an instant HTTP POST ping to this webhook to purge Next.js ISR / CDN cache.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2 space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Target Webhook URL
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="url"
+                    value={webhookUrlInput}
+                    onChange={(e) => setWebhookUrlInput(e.target.value)}
+                    placeholder="https://your-domain.com/api/revalidate"
+                    className="flex-1 text-xs font-mono px-3 py-2 rounded bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 outline-none"
+                  />
+                  <button
+                    onClick={handleSendWebhookPing}
+                    disabled={isTestingWebhook}
+                    className="px-3.5 py-2 rounded bg-[#e42528] hover:bg-[#c91e21] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-colors shadow-2xs shrink-0"
+                  >
+                    {isTestingWebhook ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Send className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isTestingWebhook ? 'Sending...' : 'Test Ping'}</span>
+                  </button>
                 </div>
-              ) : (
-                <div className="py-24 text-center text-xs text-slate-400 space-y-2">
-                  <Code2 className="w-8 h-8 text-slate-300 dark:text-slate-700 mx-auto" />
-                  <div>Click "Send Request to NestJS Server" to execute a live probe.</div>
+                <p className="text-[10px] text-slate-400 mt-1 font-mono">
+                  Payload includes: <code>event</code>, <code>websiteId</code>, <code>slug</code>, and timestamp.
+                </p>
+              </div>
+
+              {/* Webhook Test Result Display */}
+              {webhookResult && (
+                <div className="p-3 rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      {webhookResult.success ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-500" />
+                      )}
+                      <span>Ping Result: {webhookResult.statusCode} {webhookResult.statusText}</span>
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400">
+                      {webhookResult.latencyMs}ms
+                    </span>
+                  </div>
+                  <pre className="p-2 bg-[#0b101b] text-emerald-400 rounded text-[11px] font-mono overflow-auto max-h-36">
+                    {webhookResult.responseBody || webhookResult.message}
+                  </pre>
                 </div>
               )}
             </div>
 
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-              <span>REST API v1 (NestJS)</span>
-              <span>PostgreSQL + Redis Cached</span>
+            {/* Next.js Webhook Sample Handler */}
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                Sample Handler (<code>app/api/revalidate/route.ts</code>)
+              </span>
+              <pre className="p-2.5 bg-[#0b101b] text-slate-300 rounded text-[10px] font-mono overflow-x-auto max-h-[160px] border border-slate-800 leading-relaxed">
+{`import { revalidatePath, revalidateTag } from 'next/cache';
+import { NextResponse } from 'next/server';
+
+export async function POST(req: Request) {
+  const body = await req.json();
+  if (body.slug) {
+    revalidatePath(\`/blog/\${body.slug}\`);
+  }
+  revalidateTag('blogs');
+  return NextResponse.json({ revalidated: true });
+}`}
+              </pre>
             </div>
           </div>
         </div>
       )}
 
-      {/* TAB: SPECS & HEADERS */}
-      {activeTab === 'specs' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Key className="w-4 h-4 text-slate-500" />
-              Required Request Headers
-            </h3>
-            <div className="space-y-3 text-xs">
-              <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 font-mono font-semibold text-slate-800 dark:text-slate-200">
-                Authorization: Bearer &lt;API_KEY&gt;
-              </div>
-
-              <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 font-mono font-semibold text-slate-800 dark:text-slate-200">
-                Accept: application/json
-              </div>
-
-              <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 font-mono font-semibold text-slate-800 dark:text-slate-200">
-                x-signature: &lt;HMAC_SHA256&gt;
-              </div>
-            </div>
+      {/* ─── TAB 4: CREDENTIALS & DETAILS ──────────────────────────────── */}
+      {activeTab === 'credentials' && (
+        <div className="bg-white dark:bg-[#111827] rounded-lg border border-slate-200 dark:border-slate-800 p-4 shadow-2xs space-y-4">
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-2.5">
+            <h2 className="text-xs font-bold text-slate-900 dark:text-white">
+              Website Integration Credentials
+            </h2>
+            <p className="text-[11px] text-slate-500">
+              Unique security identifiers for tenant authentication against the REST API.
+            </p>
           </div>
 
-          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-slate-500" />
-              Status Codes &amp; Errors
-            </h3>
-            <div className="space-y-2 text-xs font-mono">
-              <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">
-                <span className="font-bold">200 OK</span>
-                <span>Request successful &amp; payload returned</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Website ID */}
+            <div className="p-3 rounded border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400">Tenant Website ID</span>
+                <div className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 mt-0.5">
+                  {activeSite.id}
+                </div>
               </div>
-              <div className="flex items-center justify-between p-2 rounded-lg bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40">
-                <span className="font-bold">301 Moved Permanently</span>
-                <span>Slug redirected to new URL</span>
+              <button
+                onClick={() => copyToClipboard(activeSite.id, 'c-id')}
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                {copiedKey === 'c-id' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+
+            {/* API Key */}
+            <div className="p-3 rounded border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400">Secret API Key</span>
+                <div className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 mt-0.5">
+                  {showApiKey ? activeSite.apiKey : `${activeSite.apiKey.slice(0, 16)}••••••••••••`}
+                </div>
               </div>
-              <div className="flex items-center justify-between p-2 rounded-lg bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/40">
-                <span className="font-bold">401 Unauthorized</span>
-                <span>Missing or invalid API key</span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  {showApiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+                <button
+                  onClick={() => copyToClipboard(activeSite.apiKey, 'c-key')}
+                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  {copiedKey === 'c-key' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
               </div>
-              <div className="flex items-center justify-between p-2 rounded-lg bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/40">
-                <span className="font-bold">404 Not Found</span>
-                <span>Slug does not exist or unpublished</span>
+            </div>
+
+            {/* API Base URL */}
+            <div className="p-3 rounded border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400">REST API Base URL</span>
+                <div className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 mt-0.5">
+                  {apiBaseUrl}
+                </div>
               </div>
-              <div className="flex items-center justify-between p-2 rounded-lg bg-purple-50 dark:bg-purple-950/20 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-800/40">
-                <span className="font-bold">429 Too Many Requests</span>
-                <span>Exceeded 1,000 req/min rate limit</span>
+              <button
+                onClick={() => copyToClipboard(apiBaseUrl, 'c-url')}
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                {copiedKey === 'c-url' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+
+            {/* Domain & S3 Prefix */}
+            <div className="p-3 rounded border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400">Registered Domain &amp; Prefix</span>
+                <div className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 mt-0.5">
+                  {activeSite.domain} <span className="text-slate-400 font-normal">({activeSite.s3Prefix})</span>
+                </div>
               </div>
+              <a
+                href={`https://${activeSite.domain}`}
+                target="_blank"
+                rel="noreferrer"
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
             </div>
           </div>
         </div>
       )}
 
-      {/* CLIENT HANDOVER & INSTALL MODAL */}
+      {/* Share Code Modal */}
       <ClientHandoverModal
         isOpen={isHandoverOpen}
-        site={activeSite}
         onClose={() => setIsHandoverOpen(false)}
+        site={activeSite}
+        apiBaseUrl={apiBaseUrl}
       />
     </div>
   );
