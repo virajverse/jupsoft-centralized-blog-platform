@@ -79,6 +79,22 @@ echo -e "${GREEN}✓ Node.js $(node -v) and npm $(npm -v) active${NC}"
 npm install -g pnpm@latest pm2@latest
 echo -e "${GREEN}✓ pnpm and PM2 installed${NC}"
 
+# Ensure at least 2GB swap space exists (prevents Linux OOM killer on 1GB RAM instances)
+SWAP_SIZE=$(free -m | awk '/^Swap:/ {print $2}')
+if [ "${SWAP_SIZE:-0}" -lt 1024 ]; then
+  echo -e "${YELLOW}Configuring 2GB swap space to prevent memory exhaustion during builds...${NC}"
+  if [ ! -f /swapfile ]; then
+    fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+    chmod 600 /swapfile
+    mkswap /swapfile
+  fi
+  swapon /swapfile || true
+  if ! grep -q '/swapfile' /etc/fstab; then
+    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  fi
+  echo -e "${GREEN}✓ 2GB swap space active${NC}"
+fi
+
 # ------------------------------------------------------------------------------
 # 3. Generate Secure Production Environment Files (.env)
 # ------------------------------------------------------------------------------
@@ -133,6 +149,7 @@ echo -e "${GREEN}✓ Production environment files created with secure cryptograp
 # 4. Install Project Dependencies & Prisma Generate
 # ------------------------------------------------------------------------------
 echo -e "\n${CYAN}▶ [4/8] Installing Monorepo Dependencies via pnpm...${NC}"
+export NODE_OPTIONS="--max-old-space-size=1536"
 pnpm install
 
 # ------------------------------------------------------------------------------
