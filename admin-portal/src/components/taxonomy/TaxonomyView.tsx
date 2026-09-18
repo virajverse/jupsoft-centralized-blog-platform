@@ -125,7 +125,7 @@ export const TaxonomyView: React.FC = () => {
       <div>
         <div className="flex items-center gap-2 mb-1">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-            Categories &amp; Tags
+            Taxonomy
           </h1>
           <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700">
             {activeSite.name}

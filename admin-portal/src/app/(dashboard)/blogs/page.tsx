@@ -1,8 +1,8 @@
 import { BlogList } from '../../../components/blogs/BlogList';
 
 export const metadata = {
-  title: 'Articles Repository | Jupsoft CMS',
-  description: 'Manage, search, and filter multi-tenant articles across all connected websites',
+  title: 'Blogs | Jupsoft CMS',
+  description: 'Manage, search, and filter multi-tenant blogs across all connected websites',
 };
 
 export default function BlogsPage() {

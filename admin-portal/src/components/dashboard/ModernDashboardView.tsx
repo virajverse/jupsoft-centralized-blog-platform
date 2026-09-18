@@ -441,7 +441,7 @@ export const ModernDashboardView: React.FC<ModernDashboardViewProps> = ({
               href={`/taxonomy${siteQuery}`}
               className="flex items-center justify-between p-2.5 rounded-xl hover:bg-[#f0f2f8] text-xs font-bold text-slate-700 hover:text-[#4c22cf] transition-all group"
             >
-              <span>Manage Categories & Tags</span>
+              <span>Manage Taxonomy</span>
               <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
             </Link>
 

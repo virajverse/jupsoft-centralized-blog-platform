@@ -84,7 +84,7 @@ export const BlogList: React.FC = () => {
   });
 
   const statuses: { label: string; value: string; count: number }[] = [
-    { label: 'All Articles', value: 'All', count: baseBlogs.length },
+    { label: 'All Blogs', value: 'All', count: baseBlogs.length },
     { label: 'Published', value: 'Published', count: baseBlogs.filter((b) => b.status === 'Published').length },
     { label: 'Scheduled', value: 'Scheduled', count: baseBlogs.filter((b) => b.status === 'Scheduled').length },
     { label: 'Under Review', value: 'Under Review', count: baseBlogs.filter((b) => b.status === 'Under Review').length },
@@ -100,7 +100,7 @@ export const BlogList: React.FC = () => {
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-              Articles Repository
+              Blogs
             </h1>
             <span className={`text-xs px-2.5 py-0.5 rounded-md font-semibold border ${
               isAllSites
@@ -110,14 +110,17 @@ export const BlogList: React.FC = () => {
               {isAllSites ? 'All Websites' : activeSite.name}
             </span>
           </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Centrally curate, edit, translate, and publish content across multi-tenant domains
+          </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0">
           <button
             onClick={() => fetchBlogs()}
             disabled={isLoading}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium text-xs transition-colors cursor-pointer disabled:opacity-50"
-            title="Refresh articles from server"
+            title="Refresh blogs from server"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
             <span>{isLoading ? 'Syncing...' : 'Refresh'}</span>
@@ -191,7 +194,7 @@ export const BlogList: React.FC = () => {
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Search articles..."
+              placeholder="Search blogs..."
               value={searchVal}
               onChange={(e) => {
                 setSearchVal(e.target.value);
@@ -214,16 +217,16 @@ export const BlogList: React.FC = () => {
         </div>
       </div>
 
-      {/* Articles Table */}
+      {/* Blogs Table */}
       <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl overflow-hidden shadow-xs">
         {filteredBlogs.length === 0 ? (
           <div className="py-20 text-center space-y-3">
             <Globe className="w-10 h-10 mx-auto text-slate-400 dark:text-slate-500" />
-            <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">No articles found</div>
+            <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">No blogs found</div>
             <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
               {queryParam 
-                ? `No articles match the current search query "${queryParam}".` 
-                : 'No articles created for this filter yet.'}
+                ? `No blogs match the current search query "${queryParam}".` 
+                : 'No blogs created for this filter yet.'}
             </p>
             {queryParam ? (
               <button
