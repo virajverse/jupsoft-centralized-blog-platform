@@ -117,8 +117,14 @@ async function bootstrap() {
 
       const normalizedOrigin = origin.toLowerCase().replace(/\/+$/, '');
 
-      // 3. Instant O(1) in-memory check for static platform origins
-      if (staticAllowedOrigins.has(normalizedOrigin)) {
+      // 3. Instant check for platform domain (*.jupsoft.com, blogary.jupsoft.com, static origins)
+      if (
+        normalizedOrigin.includes('blogary.jupsoft.com') ||
+        normalizedOrigin.endsWith('.jupsoft.com') ||
+        normalizedOrigin === 'https://jupsoft.com' ||
+        normalizedOrigin === 'http://jupsoft.com' ||
+        staticAllowedOrigins.has(normalizedOrigin)
+      ) {
         return callback(null, true);
       }
 
@@ -130,6 +136,10 @@ async function bootstrap() {
           hostname = parsed.hostname.toLowerCase();
         } catch {
           hostname = normalizedOrigin.replace(/^https?:\/\//, '');
+        }
+
+        if (hostname.endsWith('.jupsoft.com') || hostname === 'jupsoft.com') {
+          return callback(null, true);
         }
 
         const tenantDomains = await getTenantDomains();
@@ -154,7 +164,8 @@ async function bootstrap() {
         logger.warn(`Dynamic CORS check error: ${(err as Error).message}`);
       }
 
-      return callback(new Error('CORS blocked: origin not allowed: ' + origin));
+      logger.warn(`CORS rejected origin: ${origin}`);
+      return callback(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
