@@ -6,6 +6,7 @@ import { AuthenticatedUser } from '../../common/interfaces/auth-user.interface';
 import { RedisProvider } from '../../common/providers/redis.provider';
 import { sanitizeContent } from '../../common/pipes/html-sanitize.pipe'; // TRD §15: XSS protection
 import { EmailService } from '../email/email.service'; // AWS SES workflow notifications
+import { SupabaseSyncService } from '../supabase-sync/supabase-sync.service';
 
 @Injectable()
 export class BlogsService {
@@ -14,6 +15,7 @@ export class BlogsService {
     private webhookDispatcher: WebhookDispatcherService,
     private redis: RedisProvider,
     private emailService: EmailService,
+    private supabaseSync: SupabaseSyncService,
   ) {}
 
   async findAll(params: {
@@ -287,6 +289,9 @@ export class BlogsService {
       }
     }
 
+    // Mirror to Supabase Cloud Backup (non-blocking)
+    this.supabaseSync.syncBlog(blog.id).catch(() => {});
+
     return this.findOne(blog.id);
   }
 
@@ -445,9 +450,13 @@ export class BlogsService {
       }
     });
 
-    // TRD Â§13: Invalidate Redis cache on update so consuming sites get fresh content
+    // TRD §13: Invalidate Redis cache on update so consuming sites get fresh content
     const updated = await this.findOne(id);
     await this.invalidateCache(existing.websiteId, existing.translations);
+
+    // Mirror to Supabase Cloud Backup (non-blocking)
+    this.supabaseSync.syncBlog(id).catch(() => {});
+
     return updated;
   }
 
@@ -561,6 +570,9 @@ export class BlogsService {
       );
     }
 
+    // Mirror to Supabase Cloud Backup (non-blocking)
+    this.supabaseSync.syncBlog(id).catch(() => {});
+
     return this.findOne(id);
   }
 
@@ -572,7 +584,10 @@ export class BlogsService {
 
     await this.prisma.blog.delete({ where: { id } });
 
-    // TRD Â§13: Invalidate cache when blog is deleted
+    // Mirror to Supabase Cloud Backup (non-blocking)
+    this.supabaseSync.deleteBlog(id).catch(() => {});
+
+    // TRD §13: Invalidate cache when blog is deleted
     await this.invalidateCache(blog.websiteId, []);
     await this.redis.delPattern(`blogs:${blog.websiteId}:*`);
 

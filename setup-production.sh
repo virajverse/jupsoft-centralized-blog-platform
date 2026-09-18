@@ -136,6 +136,10 @@ CLOUDFRONT_DOMAIN=https://cdn.jupsoft.com
 
 # Webhook Revalidation Secret (HMAC SHA-256)
 WEBHOOK_DEFAULT_SECRET=${WEBHOOK_DEFAULT_SECRET}
+
+# Supabase Real-Time Cloud Backup
+SUPABASE_URL=https://wctuwnpeipqmipljplmy.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjdHV3bnBlaXBxbWlwbGpwbG15Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4OTU0MTA1NSwiZXhwIjoyMTA1MTE3MDU1fQ.xPPx3TLSqvIWCUtItxOyawiTauCiyCXwvPwbkZ6qe_8
 EOF
 
 # Admin Portal .env.local

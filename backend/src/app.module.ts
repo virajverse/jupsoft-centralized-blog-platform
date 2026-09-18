@@ -24,6 +24,7 @@ import { TranslationModule } from './modules/translation/translation.module';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { LoggerModule } from './common/logger/logger.module';
 import { EmailModule } from './modules/email/email.module';
+import { SupabaseSyncModule } from './modules/supabase-sync/supabase-sync.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { EmailModule } from './modules/email/email.module';
     AnalyticsModule,
     TaxonomyModule,
     TranslationModule,
+    SupabaseSyncModule,
   ],
   providers: [
     Reflector,

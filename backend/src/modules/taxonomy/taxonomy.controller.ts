@@ -8,12 +8,17 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
+import { SupabaseSyncService } from '../supabase-sync/supabase-sync.service';
+
 @ApiTags('Admin / Taxonomy')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('admin')
 export class TaxonomyController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly supabaseSync: SupabaseSyncService,
+  ) {}
 
   // ─── Categories ──────────────────────────────────────────────
 
@@ -74,6 +79,9 @@ export class TaxonomyController {
       },
     });
 
+    // Mirror to Supabase Cloud Backup (non-blocking)
+    this.supabaseSync.syncCategory(category.id).catch(() => {});
+
     return category;
   }
 
@@ -91,6 +99,9 @@ export class TaxonomyController {
     }
 
     await this.prisma.category.delete({ where: { id } });
+
+    // Mirror to Supabase Cloud Backup (non-blocking)
+    this.supabaseSync.deleteCategory(id).catch(() => {});
 
     await this.prisma.systemAuditLog.create({
       data: {
@@ -156,6 +167,9 @@ export class TaxonomyController {
       },
     });
 
+    // Mirror to Supabase Cloud Backup (non-blocking)
+    this.supabaseSync.syncTag(tag.id).catch(() => {});
+
     return tag;
   }
 
@@ -173,6 +187,9 @@ export class TaxonomyController {
     }
 
     await this.prisma.tag.delete({ where: { id } });
+
+    // Mirror to Supabase Cloud Backup (non-blocking)
+    this.supabaseSync.deleteTag(id).catch(() => {});
 
     await this.prisma.systemAuditLog.create({
       data: {
