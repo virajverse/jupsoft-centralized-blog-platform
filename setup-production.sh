@@ -107,7 +107,7 @@ WEBHOOK_DEFAULT_SECRET=$(openssl rand -hex 24)
 # Backend .env
 cat <<EOF > backend/.env
 # Server
-PORT=4000
+PORT=4010
 NODE_ENV=production
 PLATFORM_BASE_URL=https://blogary.jupsoft.com
 ALLOWED_ORIGINS=https://blogary.jupsoft.com,http://blogary.jupsoft.com,https://cms.jupsoft.com,https://api.cms.jupsoft.com,https://cloud.jupsoft.com,https://jupsoft.com,https://digifynext.com,https://schoolerp.in
@@ -199,9 +199,9 @@ server {
 
     client_max_body_size 50M;
 
-    # 1. Backend REST API & Static Uploads (NestJS Port 4000)
+    # 1. Backend REST API & Static Uploads (NestJS Port 4010)
     location ~ ^/(admin|v1|uploads|api/docs|widget)(/|$) {
-        proxy_pass http://127.0.0.1:4000;
+        proxy_pass http://127.0.0.1:4010;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
