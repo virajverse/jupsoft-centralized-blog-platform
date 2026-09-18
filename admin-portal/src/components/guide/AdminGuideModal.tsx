@@ -63,11 +63,11 @@ Pehle har website (Jupsoft Cloud, DigifyNext, School ERP) ke alag-alag CMS ya Wo
 - Single post ko multiple sites ya multiple languages me manage karna mushkil tha.
 
 ### 🌟 Centralized Headless Architecture:
-- **Single Source of Truth**: Saara content, media, aur users ek hi backend (localhost:4000) me store hote hain.
+- **Single Source of Truth**: Saara content, media, aur users ek hi centralized platform (blogary.jupsoft.com) me store hote hain.
 - **3 Connected Tenant Websites**:
-  1. \`site-cloud\` ➔ Jupsoft Cloud & ERP (localhost:5001)
-  2. \`site-growth\` ➔ DigifyNext Marketing (localhost:5002)
-  3. \`site-edtech\` ➔ School ERP Platform (localhost:5003)
+  1. \`site-cloud\` ➔ Jupsoft Cloud & ERP (cloud.jupsoft.com)
+  2. \`site-growth\` ➔ DigifyNext Marketing (digifynext.com)
+  3. \`site-edtech\` ➔ School ERP Platform (schoolerp.in)
 - **Instant Delivery via Webhooks & Edge Cache**: Jab aap Admin panel me blog publish karte hain, toh consumer websites ko HMAC signed webhook jata hai aur unka cache instantly purge ho jata hai.
 
 ---
@@ -118,7 +118,7 @@ Pehle har website (Jupsoft Cloud, DigifyNext, School ERP) ke alag-alag CMS ya Wo
 6. Super Admin / Editor /workflow me jakar review karta hai
 7. "Approve" ──> "Publish" click karta hai
 8. Backend Database update karta hai ──> Redis cache invalidate karta hai
-9. Webhook trigger hota hai ──> localhost:5001 par instant blog live ho jata hai!
+9. Webhook trigger hota hai ──> cloud.jupsoft.com par instant blog live ho jata hai!
 
 ---
 
@@ -258,14 +258,14 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
                   <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800">
                     <div className="font-bold text-slate-900 dark:text-slate-100 mb-1">Single Source of Truth</div>
-                    <p className="text-[11px] text-slate-500">Saara content, media aur user accounts ek centralized backend (<code className="font-mono text-indigo-600">localhost:4000</code>) me manage hote hain.</p>
+                    <p className="text-[11px] text-slate-500">Saara content, media aur user accounts ek centralized backend (<code className="font-mono text-indigo-600">blogary.jupsoft.com</code>) me manage hote hain.</p>
                   </div>
                   <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800">
                     <div className="font-bold text-slate-900 dark:text-slate-100 mb-1">3 Connected Tenants</div>
                     <p className="text-[11px] text-slate-500">
-                      <strong>site-cloud</strong> ➔ ERP (:5001)<br />
-                      <strong>site-growth</strong> ➔ Marketing (:5002)<br />
-                      <strong>site-edtech</strong> ➔ School (:5003)
+                      <strong>site-cloud</strong> ➔ cloud.jupsoft.com<br />
+                      <strong>site-growth</strong> ➔ digifynext.com<br />
+                      <strong>site-edtech</strong> ➔ schoolerp.in
                     </p>
                   </div>
                   <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800">
@@ -510,7 +510,7 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                   { step: '6', title: 'Editor / Super Admin Review', desc: 'Editorial team /workflow kanban board par blog ko check karti hai aur "Approve" karti hai.' },
                   { step: '7', title: 'Publish Triggered', desc: '"Publish Now" click karne par blog public database me "Published" mark hota hai.' },
                   { step: '8', title: 'Redis Cache & Edge Invalidation', desc: 'Backend Redis cache ko invalidate karta hai aur HMAC SHA-256 webhook consumer site ko dispatch karta hai.' },
-                  { step: '9', title: 'Live on Consumer Site!', desc: 'Target website (e.g. localhost:5001) par bina build restart kiye blog instantly live ho jata hai!' },
+                  { step: '9', title: 'Live on Consumer Site!', desc: 'Target website (e.g. cloud.jupsoft.com) par bina build restart kiye blog instantly live ho jata hai!' },
                 ].map((s) => (
                   <div key={s.step} className="flex items-start gap-3 p-2.5 rounded-xl bg-white/80 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800">
                     <span className="w-6 h-6 rounded-full bg-[#4c22cf] text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">

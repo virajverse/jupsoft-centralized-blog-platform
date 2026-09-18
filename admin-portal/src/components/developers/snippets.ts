@@ -1,7 +1,7 @@
 import type { Website } from '../../types/index';
 
 export function getIntegrationSnippets(apiBaseUrl: string, activeSite: Website) {
-  const cleanDomain = (activeSite.domain || 'localhost:5001').split(':')[0];
+  const cleanDomain = (activeSite.domain || 'cloud.jupsoft.com').split(':')[0];
 
   const envConfigSnippet = `# .env.local (Next.js 16 Consumer Configuration)
 NEXT_PUBLIC_CMS_API_URL=${apiBaseUrl}
@@ -17,6 +17,11 @@ const nextConfig: NextConfig = {
   images: {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'blogary.jupsoft.com',
+        pathname: '/uploads/**',
+      },
       {
         protocol: 'http',
         hostname: 'localhost',

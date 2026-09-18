@@ -362,7 +362,7 @@ export const ModernDashboardView: React.FC<ModernDashboardViewProps> = ({
             {/* Contact / Domain list */}
             <div className="space-y-2 text-left">
               {(() => {
-                const rawDomain = activeSite?.domain || 'localhost:5001';
+                const rawDomain = activeSite?.domain || 'cloud.jupsoft.com';
                 const siteUrl = rawDomain.startsWith('http')
                   ? rawDomain
                   : rawDomain.includes('localhost') || rawDomain.includes('127.0.0.1')
