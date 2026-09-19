@@ -35,9 +35,9 @@ interface BlogState {
   editorLang: LanguageCode;
   notification: { message: string; type: 'success' | 'info' | 'warning' } | null;
   theme: 'light' | 'dark';
-  uiTheme: 'classic' | 'modern' | 'zoho';
+  uiTheme: 'modern' | 'zoho';
   isUiThemeSwitching: boolean;
-  uiThemeSwitchTarget: 'classic' | 'modern' | 'zoho' | null;
+  uiThemeSwitchTarget: 'modern' | 'zoho' | null;
   sidebarOpen: boolean;
   isGuideOpen: boolean;
 
@@ -69,7 +69,7 @@ interface BlogState {
   setEditorLang: (lang: LanguageCode) => void;
   setTheme: (theme: 'light' | 'dark') => void;
   toggleTheme: () => void;
-  setUiTheme: (uiTheme: 'classic' | 'modern' | 'zoho') => void;
+  setUiTheme: (uiTheme: 'modern' | 'zoho') => void;
   toggleUiTheme: () => void;
   startCreateBlog: () => void;
   startEditBlog: (id: string) => void;
@@ -479,7 +479,7 @@ export const useBlogStore = create<BlogState>()(
 
       toggleUiTheme: () => {
         const current = get().uiTheme;
-        const next = current === 'modern' ? 'classic' : current === 'classic' ? 'zoho' : 'modern';
+        const next = current === 'modern' ? 'zoho' : 'modern';
         get().setUiTheme(next);
       },
 
@@ -954,6 +954,11 @@ export const useBlogStore = create<BlogState>()(
         isAuthenticated: state.isAuthenticated,
         currentUser: state.currentUser,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state && ((state.uiTheme as string) === 'classic' || !state.uiTheme)) {
+          state.uiTheme = 'modern';
+        }
+      },
     }
   )
 );

@@ -39,6 +39,10 @@ export class PublicV1Service {
     }
   }
 
+  async checkRedis(): Promise<boolean> {
+    return this.redis.ping();
+  }
+
   private normalizeMediaUrl(url?: string): string {
     if (!url) return '';
     if (url.startsWith('data:') || url.startsWith('blob:')) return url;

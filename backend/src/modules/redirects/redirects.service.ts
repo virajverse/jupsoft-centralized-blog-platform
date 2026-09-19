@@ -11,18 +11,25 @@ export class RedirectsService {
   ) {}
 
   async findAll(websiteId?: string) {
+    const cacheKey = `admin:redirects:${websiteId || 'all'}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
     const where: any = {};
     if (websiteId && websiteId !== 'all') {
       where.websiteId = websiteId;
     }
 
-    return this.prisma.redirect.findMany({
+    const redirects = await this.prisma.redirect.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       include: {
         website: { select: { name: true, domain: true } },
       },
     });
+
+    await this.redis.set(cacheKey, redirects, 120);
+    return redirects;
   }
 
   async create(dto: CreateRedirectDto, user: any, ipAddress?: string) {
@@ -51,6 +58,7 @@ export class RedirectsService {
     // Invalidate Redis caches
     await this.redis.del(`redirects:${dto.websiteId}`);
     await this.redis.delPattern(`blog:${dto.websiteId}:${cleanFrom}:*`);
+    await this.redis.delPattern('admin:redirects:*');
 
     // Record in audit log
     await this.prisma.systemAuditLog.create({
@@ -78,6 +86,7 @@ export class RedirectsService {
     // Invalidate Redis caches
     await this.redis.del(`redirects:${redirect.websiteId}`);
     await this.redis.delPattern(`blog:${redirect.websiteId}:${redirect.fromSlug}:*`);
+    await this.redis.delPattern('admin:redirects:*');
 
     await this.prisma.systemAuditLog.create({
       data: {

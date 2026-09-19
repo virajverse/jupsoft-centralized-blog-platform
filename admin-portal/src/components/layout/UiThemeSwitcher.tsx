@@ -2,10 +2,10 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useBlogStore } from '../../store/useBlogStore';
-import { Sparkles, Layout, Briefcase, ChevronDown, Check } from 'lucide-react';
+import { Sparkles, Briefcase, ChevronDown, Check } from 'lucide-react';
 
 const THEMES: {
-  id: 'modern' | 'classic' | 'zoho';
+  id: 'modern' | 'zoho';
   label: string;
   badge: string;
   desc: string;
@@ -23,15 +23,6 @@ const THEMES: {
     activeBg: 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300',
   },
   {
-    id: 'classic',
-    label: 'Classic',
-    badge: 'Studio',
-    desc: 'Traditional clean admin CMS layout',
-    icon: Layout,
-    color: 'text-slate-600 dark:text-slate-400',
-    activeBg: 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white',
-  },
-  {
     id: 'zoho',
     label: 'Zoho',
     badge: 'Enterprise',
@@ -42,7 +33,7 @@ const THEMES: {
   },
 ];
 
-export const UiThemeSwitcher: React.FC<{ variant?: 'modern' | 'classic' | 'zoho' }> = ({ variant = 'classic' }) => {
+export const UiThemeSwitcher: React.FC<{ variant?: 'modern' | 'zoho' }> = ({ variant = 'modern' }) => {
   const { uiTheme, setUiTheme, isUiThemeSwitching, uiThemeSwitchTarget } = useBlogStore();
   const [mounted, setMounted] = useState(false);
   const [isOpen, setIsOpen] = useState(false);

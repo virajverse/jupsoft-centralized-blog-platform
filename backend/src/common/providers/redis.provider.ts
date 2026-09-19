@@ -87,6 +87,20 @@ export class RedisProvider implements OnModuleDestroy {
     }
   }
 
+  isHealthy(): boolean {
+    return this.isConnected;
+  }
+
+  async ping(): Promise<boolean> {
+    if (!this.client || !this.isConnected) return false;
+    try {
+      const pong = await this.client.ping();
+      return pong === 'PONG';
+    } catch {
+      return false;
+    }
+  }
+
   // ─── Core Get / Set / Del ────────────────────────────────────────────────
 
   async get<T>(key: string): Promise<T | null> {

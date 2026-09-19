@@ -15,6 +15,7 @@
 import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisProvider } from '../../common/providers/redis.provider';
 import { PresignedUrlRequestDto, ConfirmMediaUploadDto } from './dto/media.dto';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -36,6 +37,7 @@ export class MediaService {
   constructor(
     private prisma: PrismaService,
     private configService: ConfigService,
+    private redis: RedisProvider,
   ) {
     const region = this.configService.get<string>('AWS_REGION') || 'ap-south-1';
     const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID') || '';
@@ -187,6 +189,7 @@ export class MediaService {
     });
 
     this.logger.log(`TRD §10: WebP pipeline complete — full: ${fullKey}, thumb: ${thumbKey}, medium: ${mediumKey}`);
+    await this.redis.delPattern('admin:media:*');
 
     // TRD §10: Step 5 — Return CDN URLs for all sizes
     return {
@@ -300,10 +303,17 @@ export class MediaService {
       this.logger.warn(`Could not ensure local asset for ${s3Key}: ${(diskErr as Error).message}`);
     }
 
+    // Invalidate media cache
+    await this.redis.delPattern('admin:media:*');
+
     return media;
   }
 
   async findAll(websiteId?: string) {
+    const cacheKey = `admin:media:${websiteId || 'all'}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
     const where: Record<string, unknown> = {};
     if (websiteId && websiteId !== 'all') {
       where.websiteId = websiteId;
@@ -315,7 +325,7 @@ export class MediaService {
     });
 
     // Auto-heal existing database records: strip domain prefix from s3Key & rewrite inactive cdn.jupsoft.com
-    return assets.map((asset) => {
+    const result = assets.map((asset) => {
       let s3Key = asset.s3Key || '';
       if (s3Key.startsWith('http://') || s3Key.startsWith('https://')) {
         const blogsIdx = s3Key.indexOf('blogs/');
@@ -336,6 +346,9 @@ export class MediaService {
         cdnUrl,
       };
     });
+
+    await this.redis.set(cacheKey, result, 120);
+    return result;
   }
 
   // TRD §10: "Soft-delete with lifecycle cleanup" — marks deletedAt timestamp
@@ -357,6 +370,7 @@ export class MediaService {
       },
     });
 
+    await this.redis.delPattern('admin:media:*');
     return { success: true, message: 'Media asset deleted' };
   }
 }

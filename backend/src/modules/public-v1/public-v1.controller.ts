@@ -16,9 +16,11 @@ export class PublicV1Controller {
 
   @Get('health')
   @ApiOperation({ summary: 'Health check endpoint for status monitoring' })
-  healthCheck() {
+  async healthCheck() {
+    const isRedisActive = await this.publicV1Service.checkRedis();
     return {
       status: 'ok',
+      redis: isRedisActive ? 'connected' : 'offline',
       service: 'Jupsoft Centralized CMS Backend',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),

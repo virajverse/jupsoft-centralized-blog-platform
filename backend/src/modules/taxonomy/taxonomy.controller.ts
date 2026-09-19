@@ -3,6 +3,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisProvider } from '../../common/providers/redis.provider';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -18,6 +19,7 @@ export class TaxonomyController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly supabaseSync: SupabaseSyncService,
+    private readonly redis: RedisProvider,
   ) {}
 
   // ─── Categories ──────────────────────────────────────────────
@@ -26,14 +28,21 @@ export class TaxonomyController {
   @ApiOperation({ summary: 'List categories for a website' })
   @ApiQuery({ name: 'websiteId', required: false })
   async listCategories(@Query('websiteId') websiteId?: string) {
+    const cacheKey = `admin:categories:${websiteId || 'all'}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
     const where: any = {};
     if (websiteId && websiteId !== 'all') {
       where.websiteId = websiteId;
     }
-    return this.prisma.category.findMany({
+    const categories = await this.prisma.category.findMany({
       where,
       orderBy: { name: 'asc' },
     });
+
+    await this.redis.set(cacheKey, categories, 300);
+    return categories;
   }
 
   @Post('categories')
@@ -81,6 +90,7 @@ export class TaxonomyController {
 
     // Mirror to Supabase Cloud Backup (non-blocking)
     this.supabaseSync.syncCategory(category.id).catch(() => {});
+    await this.redis.delPattern('admin:categories:*');
 
     return category;
   }
@@ -102,6 +112,7 @@ export class TaxonomyController {
 
     // Mirror to Supabase Cloud Backup (non-blocking)
     this.supabaseSync.deleteCategory(id).catch(() => {});
+    await this.redis.delPattern('admin:categories:*');
 
     await this.prisma.systemAuditLog.create({
       data: {
@@ -123,14 +134,21 @@ export class TaxonomyController {
   @ApiOperation({ summary: 'List tags for a website' })
   @ApiQuery({ name: 'websiteId', required: false })
   async listTags(@Query('websiteId') websiteId?: string) {
+    const cacheKey = `admin:tags:${websiteId || 'all'}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
     const where: any = {};
     if (websiteId && websiteId !== 'all') {
       where.websiteId = websiteId;
     }
-    return this.prisma.tag.findMany({
+    const tags = await this.prisma.tag.findMany({
       where,
       orderBy: { name: 'asc' },
     });
+
+    await this.redis.set(cacheKey, tags, 300);
+    return tags;
   }
 
   @Post('tags')
@@ -169,6 +187,7 @@ export class TaxonomyController {
 
     // Mirror to Supabase Cloud Backup (non-blocking)
     this.supabaseSync.syncTag(tag.id).catch(() => {});
+    await this.redis.delPattern('admin:tags:*');
 
     return tag;
   }
@@ -190,6 +209,7 @@ export class TaxonomyController {
 
     // Mirror to Supabase Cloud Backup (non-blocking)
     this.supabaseSync.deleteTag(id).catch(() => {});
+    await this.redis.delPattern('admin:tags:*');
 
     await this.prisma.systemAuditLog.create({
       data: {

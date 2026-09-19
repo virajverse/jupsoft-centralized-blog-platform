@@ -25,11 +25,13 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { LoggerModule } from './common/logger/logger.module';
 import { EmailModule } from './modules/email/email.module';
 import { SupabaseSyncModule } from './modules/supabase-sync/supabase-sync.module';
+import { RedisModule } from './common/providers/redis.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
     ScheduleModule.forRoot(),
+    RedisModule,
 
     // TRD §15: Dual-tier rate limiting
     // Tier 1: 'global'     → 60 req/min per IP  (admin routes)

@@ -1,18 +1,26 @@
 import { Injectable, ConflictException, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisProvider } from '../../common/providers/redis.provider';
 import { InviteUserDto, UpdateUserRoleDto } from './dto/user.dto';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisProvider,
+  ) {}
 
   async findAll(viewer?: any) {
     const isSuperAdmin = viewer?.roles?.includes('Super Admin');
+    const allowedWebsites = viewer?.roleAssignments?.map((ra: any) => ra.websiteId) || [];
+    const cacheKey = `admin:users:${isSuperAdmin ? 'super' : (allowedWebsites.sort().join('_') || 'viewer')}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
     const where: any = {};
 
     if (!isSuperAdmin && viewer?.roleAssignments && viewer.roleAssignments.length > 0) {
-      const allowedWebsites = viewer.roleAssignments.map((ra: any) => ra.websiteId);
       where.roleAssignments = {
         some: {
           websiteId: { in: allowedWebsites },
@@ -32,7 +40,7 @@ export class UsersService {
       },
     });
 
-    return users.map((u) => ({
+    const result = users.map((u) => ({
       id: u.id,
       name: u.name,
       email: u.email,
@@ -47,6 +55,9 @@ export class UsersService {
       createdAt: u.createdAt.toISOString(),
       updatedAt: u.updatedAt.toISOString(),
     }));
+
+    await this.redis.set(cacheKey, result, 120);
+    return result;
   }
 
   async invite(dto: InviteUserDto, inviter: any, ipAddress: string) {
@@ -122,6 +133,8 @@ export class UsersService {
         details: `Invited user ${user.name} (${user.email}) with role ${dto.role}.`,
       },
     });
+
+    await this.invalidateUserCache();
 
     return {
       id: user.id,
@@ -201,6 +214,7 @@ export class UsersService {
       },
     });
 
+    await this.invalidateUserCache();
     return { success: true, message: 'Role updated successfully' };
   }
 
@@ -226,6 +240,7 @@ export class UsersService {
       },
     });
 
+    await this.invalidateUserCache();
     return updated;
   }
 
@@ -248,6 +263,7 @@ export class UsersService {
       },
     });
 
+    await this.invalidateUserCache();
     return { success: true, message: 'User deleted' };
   }
 
@@ -294,6 +310,7 @@ export class UsersService {
       },
     });
 
+    await this.invalidateUserCache();
     return {
       success: true,
       userId: user.id,
@@ -301,5 +318,12 @@ export class UsersService {
       tempPassword: rawPassword,
       message: 'Temporary password generated successfully',
     };
+  }
+
+  private async invalidateUserCache() {
+    await Promise.allSettled([
+      this.redis.delPattern('admin:users:*'),
+      this.redis.delPattern('auth:user:*'),
+    ]);
   }
 }

@@ -260,7 +260,7 @@ export const Navbar: React.FC = () => {
       {/* Right: Controls & Actions */}
       <div className="flex items-center space-x-2">
         {/* Instant Dual UI Switcher */}
-        <UiThemeSwitcher variant="classic" />
+        <UiThemeSwitcher variant="modern" />
 
         {/* Light / Dark Mode Toggle */}
         <button

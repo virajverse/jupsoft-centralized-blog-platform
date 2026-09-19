@@ -23,31 +23,24 @@ export class LoggingInterceptor implements NestInterceptor {
 
     return next.handle().pipe(
       tap({
-        next: async () => {
+        next: () => {
           const statusCode = context.switchToHttp().getResponse().statusCode;
           const durationMs = Date.now() - startTime;
 
           // Skip health checks from logs to avoid noise
           if (url.includes('/v1/health')) return;
 
-          try {
-            await this.prisma.apiLog.create({
-              data: { method, path: url, statusCode, websiteId, durationMs },
-            });
-          } catch {
-            // Non-blocking: log failure should never break the request
-          }
+          // Non-blocking fire-and-forget: do not hold up HTTP response for remote DB roundtrip
+          this.prisma.apiLog.create({
+            data: { method, path: url, statusCode, websiteId, durationMs },
+          }).catch(() => {});
         },
-        error: async (err: any) => {
+        error: (err: any) => {
           const statusCode = err?.status || 500;
           const durationMs = Date.now() - startTime;
-          try {
-            await this.prisma.apiLog.create({
-              data: { method, path: url, statusCode, websiteId, durationMs },
-            });
-          } catch {
-            // Non-blocking
-          }
+          this.prisma.apiLog.create({
+            data: { method, path: url, statusCode, websiteId, durationMs },
+          }).catch(() => {});
         },
       }),
     );

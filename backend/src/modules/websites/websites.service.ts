@@ -1,14 +1,22 @@
 import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisProvider } from '../../common/providers/redis.provider';
 import { CreateWebsiteDto, UpdateWebsiteDto } from './dto/create-website.dto';
 import * as crypto from 'crypto';
 
 @Injectable()
 export class WebsitesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisProvider,
+  ) {}
 
   async findAll() {
-    return this.prisma.website.findMany({
+    const cacheKey = 'admin:websites:all';
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
+    const websites = await this.prisma.website.findMany({
       orderBy: { createdAt: 'asc' },
       include: {
         _count: {
@@ -16,6 +24,9 @@ export class WebsitesService {
         },
       },
     });
+
+    await this.redis.set(cacheKey, websites, 300);
+    return websites;
   }
 
   async findOne(id: string) {
@@ -125,6 +136,7 @@ export class WebsitesService {
       },
     });
 
+    await this.redis.del('admin:websites:all');
     return website;
   }
 
@@ -135,10 +147,13 @@ export class WebsitesService {
       throw new BadRequestException('revalidateWebhookUrl must be a valid URL starting with http:// or https://');
     }
 
-    return this.prisma.website.update({
+    const updated = await this.prisma.website.update({
       where: { id },
       data: dto,
     });
+
+    await this.redis.del('admin:websites:all');
+    return updated;
   }
 
   async delete(id: string, user?: any, ipAddress?: string) {
@@ -160,6 +175,7 @@ export class WebsitesService {
       },
     });
 
+    await this.redis.del('admin:websites:all');
     return { success: true, message: `Website tenant "${website.name}" removed.` };
   }
 }
