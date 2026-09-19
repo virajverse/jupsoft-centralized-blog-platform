@@ -1,6 +1,6 @@
 {
   "name": "@jupsoft/next-blog",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Plug-and-play Next.js 14/15/16 Blog engine for Jupsoft Centralized CMS with Auto-Locale & Zero-Config Setup",
   "author": "Jupsoft Systems",
   "license": "MIT",

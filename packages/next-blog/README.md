@@ -133,7 +133,100 @@ export default function BlogDetailPage(props: BlogDetailPageProps) {
 
 ---
 
-### 3. On-Demand ISR Revalidation Webhook (`app/api/revalidate/route.ts`)
+### 3. 🎨 100% Custom Headless Mode (Zero Vibe Clash — Recommended for Custom Brands)
+
+If your website has a custom design system, luxury aesthetic, dark mode, or unique typography, you don't have to use the pre-built UI components. You can use the **Headless SDK** directly — CMS provides the data, and **YOU control 100% of the UI, styles, fonts, headers, and footers**:
+
+#### Custom Blog Listing (`app/blog/page.tsx`):
+```tsx
+import Link from 'next/link';
+import Image from 'next/image';
+import { jupsoft, type BlogPost } from '@jupsoft/next-blog';
+import { Navbar } from '@/components/Navbar';
+import { Footer } from '@/components/Footer';
+
+export const revalidate = 3600;
+
+export default async function CustomBlogPage() {
+  const { data: posts } = await jupsoft.getBlogs({ page: 1, limit: 12 });
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-white">
+      <Navbar />
+      <main className="max-w-7xl mx-auto px-6 py-16">
+        <h1 className="text-5xl font-bold font-display">Our Journal</h1>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
+          {posts.map((post: BlogPost) => (
+            <article key={post.id} className="rounded-2xl border border-slate-800 p-6 bg-slate-950/50">
+              {post.featuredImage && (
+                <div className="relative aspect-video rounded-xl overflow-hidden mb-4">
+                  <Image src={post.featuredImage} alt={post.title} fill className="object-cover" />
+                </div>
+              )}
+              <span className="text-xs text-indigo-400 font-semibold">{post.readTimeMinutes} min read</span>
+              <h2 className="text-2xl font-bold mt-2 hover:text-indigo-400">
+                <Link href={`/blog/${post.slug}`}>{post.title}</Link>
+              </h2>
+              <p className="text-slate-400 text-sm mt-3 line-clamp-2">{post.excerpt}</p>
+            </article>
+          ))}
+        </div>
+      </main>
+      <Footer />
+    </div>
+  );
+}
+```
+
+#### Custom Article Reader (`app/blog/[slug]/page.tsx`):
+```tsx
+import { notFound } from 'next/navigation';
+import { jupsoft, generateBlogMeta, type BlogPost } from '@jupsoft/next-blog';
+import { Navbar } from '@/components/Navbar';
+import { Footer } from '@/components/Footer';
+
+type Props = {
+  params: Promise<{ slug: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export async function generateMetadata(props: Props) {
+  return generateBlogMeta(props);
+}
+
+export default async function CustomBlogDetail(props: Props) {
+  const { slug } = await props.params;
+  const post = await jupsoft.getBlogBySlug(slug);
+
+  if (!post) notFound();
+
+  // Record real-time analytics
+  jupsoft.recordView(slug, post.id);
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-white">
+      <Navbar />
+      <article className="max-w-4xl mx-auto px-6 py-20">
+        <h1 className="text-5xl font-extrabold font-display leading-tight">{post.title}</h1>
+        <div className="flex items-center gap-4 text-xs text-slate-400 mt-4 pb-8 border-b border-slate-800">
+          <span>By {post.authorName || 'Editorial Team'}</span>
+          <span>&middot;</span>
+          <span>{post.readTimeMinutes} min read</span>
+        </div>
+        <div 
+          className="prose prose-invert prose-lg max-w-none mt-10"
+          dangerouslySetInnerHTML={{ __html: post.content }} 
+        />
+      </article>
+      <Footer />
+    </div>
+  );
+}
+```
+
+---
+
+### 4. On-Demand ISR Revalidation Webhook (`app/api/revalidate/route.ts`)
 
 ```ts
 export { POST } from '@jupsoft/next-blog/webhook';
