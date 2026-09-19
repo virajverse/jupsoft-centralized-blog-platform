@@ -31,6 +31,7 @@ export const ClientHandoverModal: React.FC<ClientHandoverModalProps> = ({
   apiBaseUrl = (typeof window !== 'undefined' ? (window.location.origin.includes('localhost') ? window.location.origin.replace(':3000', ':4000') : window.location.origin) : (process.env.NEXT_PUBLIC_API_URL || 'https://blogary.jupsoft.com'))
 }) => {
   const [activeTab, setActiveTab] = useState<'cli' | 'widget' | 'whatsapp'>('cli');
+  const [htmlMode, setHtmlMode] = useState<'turnkey' | 'custom'>('turnkey');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   if (!isOpen || !site) return null;
@@ -40,11 +41,16 @@ export const ClientHandoverModal: React.FC<ClientHandoverModalProps> = ({
   // 1. Next.js 1-Command CLI
   const cliCommand = `npx github:virajverse/jupsoft-next-blog --site=${site.id} --key=${site.apiKey} --url=${resolvedApiUrl}`;
 
-  // 2. HTML 2-Line Embed Widget
+  // 2A. HTML 2-Line All-in-One Embed Widget (Zero Code: Feed + In-Place Reader)
   const htmlWidget = `<!-- Jupsoft Blog Feed & Reader for ${site.name} -->\n<div id="jupsoft-blog-feed" data-site="${site.id}" data-api="${resolvedApiUrl}" data-lang="auto"></div>\n<script src="${resolvedApiUrl}/widget/blog.js" async></script>`;
 
+  // 2B. Custom HTML Blog Detail Reader (For existing templates like blogdetail.html)
+  const customDetailScript = `<!-- Dynamic CMS Blog Detail Reader for ${site.name} -->\n<script>\n(function () {\n  const params = new URLSearchParams(window.location.search);\n  const slug = params.get('slug');\n  if (!slug) return;\n\n  fetch('${resolvedApiUrl}/v1/blogs/' + encodeURIComponent(slug) + '?websiteId=${site.id}')\n    .then(r => r.json())\n    .then(result => {\n      const blog = result.data || result;\n      if (!blog || !blog.title) return;\n\n      document.title = blog.title;\n      const t = document.getElementById('postTitle'); if (t) t.innerText = blog.title;\n      const a = document.getElementById('postAuthor'); if (a) a.innerText = blog.authorName || 'Editorial Team';\n      const d = document.getElementById('postDate'); if (d) d.innerText = new Date(blog.publishedAt).toLocaleDateString();\n      const img = document.getElementById('postFeaturedImage'); if (img && blog.featuredImage) img.src = blog.featuredImage;\n      const body = document.getElementById('postContent'); if (body && blog.content) body.innerHTML = blog.content;\n    })\n    .catch(err => console.error('CMS Reader Error:', err));\n})();\n</script>`;
+
+  const htmlWidgetWithDetail = `<!-- Blog Feed linked to your custom blogdetail.html -->\n<div id="jupsoft-blog-feed" data-site="${site.id}" data-api="${resolvedApiUrl}" data-detail-url="blogdetail.html?slug={slug}"></div>\n<script src="${resolvedApiUrl}/widget/blog.js" async></script>`;
+
   // 3. Ready Handover Message for Client (WhatsApp / Slack / Email)
-  const clientMessage = `🚀 Connect Jupsoft Centralized Blog to ${site.name}\n\nWebsite Name: ${site.name}\nWebsite ID: ${site.id}\nAPI Key: ${site.apiKey}\nAPI Endpoint: ${resolvedApiUrl}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nOPTION 1: Next.js / React (1-Step Automatic Setup)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nRun this single command inside your project root:\n${cliCommand}\n\nWhat this does automatically:\n✔ Configures .env.local with credentials\n✔ Installs @jupsoft/next-blog engine\n✔ Generates /blog listing with EN/HI/FR/AR language switcher\n✔ Generates /[slug] reader with SEO metadata & social sharing\n✔ Generates /api/revalidate webhook for instant cache refresh\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nOPTION 2: Plain HTML, WordPress, Shopify, PHP, Laravel\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nPaste these 2 lines where you want the blog feed to appear:\n${htmlWidget}\n\nZero build step or npm required!\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+  const clientMessage = `🚀 Connect Jupsoft Centralized Blog to ${site.name}\n\nWebsite Name: ${site.name}\nWebsite ID: ${site.id}\nAPI Key: ${site.apiKey}\nAPI Endpoint: ${resolvedApiUrl}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nOPTION 1: Next.js / React (1-Step Automatic Setup)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nRun this single command inside your project root:\n${cliCommand}\n\nWhat this does automatically:\n✔ Configures .env.local with credentials\n✔ Installs @jupsoft/next-blog engine\n✔ Generates /blog listing with EN/HI/FR/AR language switcher\n✔ Generates /[slug] reader with SEO metadata & social sharing\n✔ Generates /api/revalidate webhook for instant cache refresh\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nOPTION 2A: Plain HTML / WordPress (2-Line Turnkey Embed)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nPaste these 2 lines where you want the all-in-one blog feed & reader to appear:\n${htmlWidget}\n\nZero build step or npm required!\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nOPTION 2B: Custom HTML Blog Detail Reader (Existing Template)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nIf your website has its own custom blogdetail.html page, paste this connector at the bottom of blogdetail.html:\n${customDetailScript}\n\nAnd link your feed with data-detail-url:\n${htmlWidgetWithDetail}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 
   const copyText = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -183,39 +189,112 @@ export const ClientHandoverModal: React.FC<ClientHandoverModalProps> = ({
             </div>
           )}
 
-          {/* TAB 2: HTML EMBED WIDGET */}
+          {/* TAB 2: HTML EMBED WIDGET & CUSTOM BLOGDETAIL */}
           {activeTab === 'widget' && (
             <div className="space-y-4 animate-in fade-in duration-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <Globe className="w-4 h-4 text-emerald-600" />
-                    Paste into HTML, PHP, WordPress, Laravel or Shopify
-                  </h4>
-                  <p className="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">
-                    Zero build step, zero npm. Auto-loads responsive card grid, language selector and in-place reader.
-                  </p>
-                </div>
-
+              {/* Sub-mode switcher */}
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                 <button
-                  onClick={() => copyText(htmlWidget, 'tab-widget')}
-                  className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs shrink-0"
+                  type="button"
+                  onClick={() => setHtmlMode('turnkey')}
+                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    htmlMode === 'turnkey'
+                      ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
                 >
-                  {copiedId === 'tab-widget' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedId === 'tab-widget' ? 'Copied HTML!' : 'Copy HTML Script'}</span>
+                  ⚡ Option A: 2-Line Turnkey Widget (Zero Code)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHtmlMode('custom')}
+                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    htmlMode === 'custom'
+                      ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  🎨 Option B: Custom Detail Reader (blogdetail.html)
                 </button>
               </div>
 
-              <pre className="p-4 bg-slate-950 text-emerald-400 rounded-xl font-mono text-xs overflow-x-auto leading-relaxed border border-emerald-900/40 shadow-inner select-all">
-                {htmlWidget}
-              </pre>
+              {/* MODE A: 2-LINE WIDGET */}
+              {htmlMode === 'turnkey' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <Globe className="w-4 h-4 text-emerald-600" />
+                        Paste into HTML, PHP, WordPress, Laravel or Shopify
+                      </h4>
+                      <p className="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">
+                        Zero build step, zero npm. Auto-loads responsive card grid, language selector and in-place reader.
+                      </p>
+                    </div>
 
-              <div className="p-3 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 text-[11px] text-emerald-800 dark:text-emerald-300 flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <strong>Works on literally any website:</strong> Plain HTML pages, PHP, WordPress (Custom HTML block), Webflow, Wix, Squarespace, Laravel Blade, or Django templates!
+                    <button
+                      onClick={() => copyText(htmlWidget, 'tab-widget')}
+                      className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs shrink-0"
+                    >
+                      {copiedId === 'tab-widget' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedId === 'tab-widget' ? 'Copied HTML!' : 'Copy 2-Line Script'}</span>
+                    </button>
+                  </div>
+
+                  <pre className="p-4 bg-slate-950 text-emerald-400 rounded-xl font-mono text-xs overflow-x-auto leading-relaxed border border-emerald-900/40 shadow-inner select-all">
+                    {htmlWidget}
+                  </pre>
+
+                  <div className="p-3 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 text-[11px] text-emerald-800 dark:text-emerald-300 flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <strong>All-in-One Solution:</strong> Cards and full in-place article reader work out of the box in this single container.
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* MODE B: CUSTOM BLOGDETAIL.HTML READER */}
+              {htmlMode === 'custom' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <Code2 className="w-4 h-4 text-indigo-600" />
+                        Connector for Existing Custom Templates (blogdetail.html)
+                      </h4>
+                      <p className="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">
+                        Paste this script at the bottom of your custom <code>blogdetail.html</code> page. It binds to <code>#postTitle</code>, <code>#postContent</code>, etc.
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => copyText(customDetailScript, 'tab-detail-script')}
+                      className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs shrink-0"
+                    >
+                      {copiedId === 'tab-detail-script' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedId === 'tab-detail-script' ? 'Copied Reader Script!' : 'Copy Reader Script'}</span>
+                    </button>
+                  </div>
+
+                  <pre className="p-4 bg-slate-950 text-indigo-300 rounded-xl font-mono text-[11px] overflow-x-auto leading-relaxed border border-indigo-900/40 shadow-inner select-all max-h-48">
+                    {customDetailScript}
+                  </pre>
+
+                  <div className="p-3 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/40 text-[11px] text-indigo-900 dark:text-indigo-300 space-y-1.5">
+                    <div className="flex items-center gap-2 font-bold">
+                      <Layers className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <span>How to link the feed to your custom blogdetail page:</span>
+                    </div>
+                    <p className="text-slate-600 dark:text-slate-400">
+                      Add <code className="text-indigo-600 dark:text-indigo-300">data-detail-url="blogdetail.html?slug=&#123;slug&#125;"</code> to your feed widget so card clicks redirect to your bespoke template:
+                    </p>
+                    <pre className="p-2 bg-slate-950 text-indigo-300 rounded-lg font-mono text-[10px] overflow-x-auto select-all">
+                      {htmlWidgetWithDetail}
+                    </pre>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
