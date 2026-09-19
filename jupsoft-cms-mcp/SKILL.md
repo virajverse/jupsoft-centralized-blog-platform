@@ -47,14 +47,12 @@ Whenever you start an operation with the Jupsoft CMS MCP tool or when the MCP se
    * Expected: `data.email: "admin@jupsoft.com"`, `data.isSuperAdmin: true`.  
    * If 401 Unauthorized: Call `cms_login(email, password)` using `CMS_ADMIN_EMAIL` and `CMS_ADMIN_PASSWORD`.
 
-3. **Step 3: Audit All Tenant Websites**  
+3. **Step 3: Dynamically Audit All Tenant Websites in Database**  
    Call tool: `cms_list_websites()`  
-   * Check every tenant in the returned array:
-     - `site-cloud` (Jupsoft Cloud & ERP) ➔ Domain: `cloud.jupsoft.com`
-     - `site-growth` (DigifyNext Marketing) ➔ Domain: `digifynext.com`
-     - Custom tenants (e.g. `site-test`, `site-edtech`, or partner sites)
+   * **Do NOT assume or limit to any hardcoded website IDs.** The database stores all tenants dynamically.
+   * Iterate through all tenants returned in the array (e.g. `site-cloud`, `site-growth`, `site-hey`, or any newly added client site).
    * Verify each tenant has:
-     - Non-empty `id` (e.g. `site-cloud`)
+     - Dynamic non-empty `id` (e.g. `site-<slug>`)
      - Clean `domain` (hostname only, NO `http://`, NO trailing slashes, NO `/blog`)
      - Valid `apiKey` (`jup_live_sec_...` or `jup_sec_...`)
      - Valid `revalidateWebhookUrl` (must be `https://<domain>/api/revalidate`)
@@ -75,7 +73,18 @@ Whenever you start an operation with the Jupsoft CMS MCP tool or when the MCP se
 
 ---
 
-## 2. Environment Variables Matrix
+## 2. Dynamic Database-Driven Multi-Tenancy (Zero Hardcoded IDs)
+
+> **Architectural Law:**  
+> Blogary CMS is an **infinite multi-tenant engine**.  
+> Website tenants are **NEVER hardcoded or restricted to fixed IDs**.  
+> All website IDs are stored dynamically in the PostgreSQL database (`Website` table).  
+> Whenever an AI Agent or developer connects, they MUST dynamically fetch all active website IDs using `cms_list_websites()`.  
+> Any website created via the UI or `cms_create_website` (e.g. `site-hey`, `site-school`, `site-finance`, `site-company`) is immediately controllable with full CRUD, blog publishing, taxonomy, media, and webhook revalidation.
+
+---
+
+## 3. Environment Variables Matrix
 
 ### A. MCP Server & Backend Environment
 | Variable | Default Value / Production | Description |

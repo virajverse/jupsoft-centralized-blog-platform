@@ -31,15 +31,19 @@ mcp = FastMCP(
     instructions=(
         "You are operating as a Super Admin of the Jupsoft Centralized Multi-Site Blog CMS (Blogary). "
         "You have unrestricted operational authority over all tenant websites, blogs, taxonomies, media, and SEO.\n\n"
+        "DYNAMIC DATABASE-DRIVEN TENANCY (ZERO HARDCODED IDS):\n"
+        "All website tenants are stored and queried dynamically from the PostgreSQL database. "
+        "Website IDs are NEVER fixed or hardcoded. Any number of website tenants can exist or be created. "
+        "ALWAYS call cms_list_websites() first to discover all currently active tenant website IDs and their domains.\n\n"
         "MANDATORY PRE-FLIGHT AUDIT PROTOCOL:\n"
         "Whenever you connect or start a session, you MUST execute a 4-step pre-flight check:\n"
         "1. Call cms_health_check() to verify the backend API is live (production: https://blogary.jupsoft.com, local: http://localhost:4010).\n"
         "2. Call cms_get_profile() to confirm Super Admin authentication (admin@jupsoft.com).\n"
-        "3. Call cms_list_websites() to inspect all tenant websites (e.g. 'site-cloud', 'site-growth') and verify status, domain, API keys, and revalidateWebhookUrl.\n"
+        "3. Call cms_list_websites() to dynamically load all tenant websites from the database and verify status, domain, API keys, and revalidateWebhookUrl.\n"
         "4. Print a concise Connection Scorecard confirming all website IDs are properly connected.\n\n"
         "ENTITIES & FIELD KNOWLEDGE:\n"
-        "• Website: id ('site-cloud'), name, domain (clean hostname, no paths), apiKey ('jup_sec_...'), s3Prefix ('blogs/<slug>/'), status ('active'), defaultLanguage, supportedLanguages, revalidateWebhookUrl ('https://<domain>/api/revalidate').\n"
-        "• Blog Post: id, websiteId, status ('Draft' -> 'Under Review' -> 'Approved' -> 'Scheduled' -> 'Published' -> 'Archived'), featuredImage, categoryIds, tagIds, scheduledAt, publishedAt.\n"
+        "• Website: id (dynamic from database, e.g. 'site-<slug>'), name, domain (clean hostname, no paths), apiKey ('jup_sec_...'), s3Prefix ('blogs/<slug>/'), status ('active'), defaultLanguage, supportedLanguages, revalidateWebhookUrl ('https://<domain>/api/revalidate').\n"
+        "• Blog Post: id, websiteId (dynamic foreign key), status ('Draft' -> 'Under Review' -> 'Approved' -> 'Scheduled' -> 'Published' -> 'Archived'), featuredImage, categoryIds, tagIds, scheduledAt, publishedAt.\n"
         "• Translations: language ('en'/'hi'/'fr'/'ar'), title, slug, content (rich HTML), excerpt, metaTitle (50-60 chars), metaDescription (150-160 chars), focusKeyword, canonicalUrl, ogTitle, ogDescription.\n"
         "• Taxonomy: Categories (hierarchical with parentId) & Tags scoped per websiteId.\n"
         "• Webhooks: Dispatched on publishing/archiving with HMAC SHA-256 (CMS_WEBHOOK_SECRET) to revalidate remote caches."
@@ -88,9 +92,9 @@ def cms_logout() -> Dict[str, Any]:
 @mcp.tool()
 def cms_list_websites() -> Dict[str, Any]:
     """
-    List all tenant websites managed in the CMS.
+    List all tenant websites dynamically managed in the PostgreSQL database.
     Returns id, name, domain, status, apiKey, supportedLanguages.
-    Known site IDs: 'site-cloud', 'site-growth', 'site-edtech'.
+    Always call this first to get all currently active website IDs.
     """
     return service.list_websites()
 
@@ -99,7 +103,7 @@ def cms_list_websites() -> Dict[str, Any]:
 def cms_get_website(website_id: str) -> Dict[str, Any]:
     """
     Retrieve single website tenant details including domain, API key, webhook URL, and article count.
-    website_id: e.g. 'site-cloud', 'site-growth', or 'site-edtech'.
+    website_id: Target tenant website ID (dynamically obtained via cms_list_websites()).
     """
     return service.get_website(website_id)
 
@@ -132,7 +136,7 @@ def cms_update_website(
 ) -> Dict[str, Any]:
     """
     Update an existing website's config (domain, name, logo, description, status, webhook URL).
-    website_id: 'site-cloud', 'site-growth', or 'site-edtech'
+    website_id: Target tenant website ID to update
     domain: e.g. change from 'localhost:5001' to 'cloud.jupsoft.com'
     status: 'active' or 'inactive'
     """
@@ -160,7 +164,7 @@ def cms_list_blogs(
 ) -> Dict[str, Any]:
     """
     List blogs from the CMS with optional filters.
-    website_id: Filter by tenant ('site-cloud', 'site-growth', 'site-edtech'). Omit for all sites.
+    website_id: Filter by tenant ID (from cms_list_websites()). Omit to fetch blogs across all websites.
     status: Filter by workflow stage — 'Draft', 'Under Review', 'Approved', 'Scheduled', 'Published', 'Archived'
     search: Search in titles and content
     author_id: Filter by author user ID
@@ -195,7 +199,7 @@ def cms_create_blog(
 ) -> Dict[str, Any]:
     """
     Create a new blog draft in the CMS.
-    website_id: Which tenant website this blog belongs to ('site-cloud', 'site-growth', 'site-edtech')
+    website_id: Target tenant website ID (dynamically obtained from cms_list_websites())
     content: HTML content of the blog post
     Returns the created blog with its ID for further workflow operations.
     """
@@ -498,7 +502,7 @@ def cms_upload_media_file(
     Directly upload an image file from the local file system into the CMS Media Library (TRD §10).
     The backend automatically converts the image to WebP and generates responsive thumbnail sizes.
     file_path: Absolute local path to the image file (e.g. 'C:/images/banner.png')
-    website_id: Tenant website ('site-cloud', 'site-growth', 'site-edtech')
+    website_id: Target tenant website ID
     """
     return service.upload_media_file(file_path, website_id, alt_text)
 
@@ -586,7 +590,7 @@ def cms_get_analytics_dashboard(
 ) -> Dict[str, Any]:
     """
     Get website-level analytics dashboard data.
-    website_id: 'site-cloud', 'site-growth', or 'site-edtech'
+    website_id: Target tenant website ID
     days: Time range — 7, 30, 90, or 365
     Returns: totalViews, uniqueVisitors, avgReadPercent, topBlogs, topReferrers, topAuthors
     """
