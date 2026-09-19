@@ -24,13 +24,12 @@ jupsoft-cms-mcp\install.bat
 
 Then import `mcp_config.json` in Antigravity IDE → Settings → MCP Servers.
 
-## Backend Requirement
+## Backend & AI Agent Playbook
 
-The CMS backend must be running on `http://localhost:4000`.
+The CMS backend runs on `https://blogary.jupsoft.com` (Production) or `http://localhost:4010` (Local Development).
 
-```bat
-start-all-services.bat
-```
+For complete database field schemas, REST API references, and mandatory pre-flight health audit protocols, read [SKILL.md](./SKILL.md).
+
 
 ## Tool Categories
 
