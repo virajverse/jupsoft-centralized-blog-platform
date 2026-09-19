@@ -13,15 +13,49 @@
  */
 
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisProvider } from '../../common/providers/redis.provider';
 
 @Injectable()
 export class PublicV1Service {
+  private mediaBaseUrl: string;
+
   constructor(
     private prisma: PrismaService,
     private redis: RedisProvider,
-  ) {}
+    private configService: ConfigService,
+  ) {
+    const envCdn = this.configService.get<string>('CLOUDFRONT_DOMAIN');
+    const nodeEnv = this.configService.get<string>('NODE_ENV') || 'development';
+    const platformBase = this.configService.get<string>('PLATFORM_BASE_URL') || 'https://blogary.jupsoft.com';
+
+    if (envCdn && !envCdn.includes('cdn.jupsoft.com')) {
+      this.mediaBaseUrl = envCdn.replace(/\/+$/, '');
+    } else if (nodeEnv === 'production') {
+      this.mediaBaseUrl = `${platformBase.replace(/\/+$/, '')}/uploads`;
+    } else {
+      this.mediaBaseUrl = 'http://localhost:4000/uploads';
+    }
+  }
+
+  private normalizeMediaUrl(url?: string): string {
+    if (!url) return '';
+    if (url.startsWith('data:') || url.startsWith('blob:')) return url;
+    if (url.includes('cdn.jupsoft.com')) {
+      const blogsIdx = url.indexOf('blogs/');
+      const rel = blogsIdx !== -1 ? url.substring(blogsIdx) : url.replace(/^https?:\/\/[^/]+\/(uploads\/)?/, '');
+      return `${this.mediaBaseUrl}/${rel}`;
+    }
+    if (url.startsWith('/uploads/')) {
+      const baseWithoutUploads = this.mediaBaseUrl.replace(/\/uploads$/, '');
+      return `${baseWithoutUploads}${url}`;
+    }
+    if (url.startsWith('blogs/')) {
+      return `${this.mediaBaseUrl}/${url}`;
+    }
+    return url;
+  }
 
   // ─── TRD §13: key format blogs:{website}:{page}:{lang}[:{category}][:{tag}]
   async getPublishedBlogs(params: {
@@ -74,26 +108,29 @@ export class PublicV1Service {
         take: limit,
         orderBy: { publishDate: 'desc' },
         include: {
-          translations: { where: { lang } },
+          translations: true,
           website: { select: { domain: true, name: true } },
         },
       }),
     ]);
 
     const data = blogs.map((b) => {
-      const tr = b.translations[0];
+      const tr =
+        b.translations.find((t) => t.lang === lang) ||
+        b.translations.find((t) => t.lang === 'en') ||
+        b.translations[0];
       return {
         id: b.id,
         slug: tr?.slug || b.id,
         title: tr?.title || 'Untitled',
         excerpt: tr?.excerpt || '',
-        featuredImage: b.featuredImage,
+        featuredImage: this.normalizeMediaUrl(b.featuredImage),
         authorName: b.authorName,
         publishedAt: b.publishDate?.toISOString(),
         readTimeMinutes: b.readTimeMinutes,
         seo: {
-          metaTitle: tr?.metaTitle,
-          metaDescription: tr?.metaDescription,
+          metaTitle: tr?.metaTitle || tr?.title,
+          metaDescription: tr?.metaDescription || tr?.excerpt,
           canonicalUrl: tr?.canonicalUrl || `https://${b.website.domain}/blog/${tr?.slug}`,
         },
         categoryIds: b.categoryIds,
@@ -112,6 +149,66 @@ export class PublicV1Service {
     return result;
   }
 
+  private formatBlogDetail(translation: any, redirect?: { statusCode: number; fromSlug: string; toSlug: string }) {
+    const b = translation.blog;
+
+    // Increment viewCount asynchronously — TRD §14 (Analytics: view_count)
+    if (b?.id) {
+      this.prisma.blog
+        .update({ where: { id: b.id }, data: { viewCount: { increment: 1 } } })
+        .catch(() => {});
+    }
+
+    return {
+      success: true,
+      ...(redirect ? { redirect } : {}),
+      data: {
+        id: b.id,
+        slug: translation.slug,
+        title: translation.title,
+        content: translation.content,
+        excerpt: translation.excerpt,
+        featuredImage: this.normalizeMediaUrl(b.featuredImage),
+        authorName: b.authorName,
+        publishedAt: b.publishDate instanceof Date ? b.publishDate.toISOString() : b.publishDate,
+        readTimeMinutes: b.readTimeMinutes,
+        // TRD §11 SEO fields
+        seo: {
+          metaTitle: translation.metaTitle || translation.title,
+          metaDescription: translation.metaDescription || translation.excerpt,
+          metaKeywords: translation.metaKeywords,
+          canonicalUrl:
+            translation.canonicalUrl ||
+            `https://${b.website?.domain || ''}/blog/${translation.slug}`,
+          focusKeyword: translation.focusKeyword,
+          robots: translation.robots,
+          ogTitle: translation.ogTitle || translation.title,
+          ogDescription: translation.ogDescription || translation.excerpt,
+          ogImage: this.normalizeMediaUrl(translation.ogImage || b.featuredImage),
+          twitterTitle: translation.twitterTitle || translation.title,
+          twitterDescription: translation.twitterDescription || translation.excerpt,
+          twitterImage: this.normalizeMediaUrl(translation.twitterImage || b.featuredImage),
+          // TRD §11: "The API also exposes canonical and hreflang data so consuming sites can emit correct <head> tags"
+          hreflang: (b.translations || []).map((t: any) => ({
+            lang: t.lang,
+            href: `https://${b.website?.domain || ''}/blog/${t.slug}?lang=${t.lang}`,
+          })),
+        },
+        // TRD §11: Schema.org JSON-LD for consuming sites
+        schemaJsonLd: {
+          '@context': 'https://schema.org',
+          '@type': 'BlogPosting',
+          headline: translation.title,
+          image: b.featuredImage ? [this.normalizeMediaUrl(b.featuredImage)] : [],
+          datePublished: b.publishDate instanceof Date ? b.publishDate.toISOString() : b.publishDate,
+          dateModified: b.updatedAt instanceof Date ? b.updatedAt.toISOString() : new Date().toISOString(),
+          author: { '@type': 'Person', name: b.authorName },
+          description: translation.excerpt,
+        },
+      },
+    };
+  }
+
   // ─── TRD §13: key format blog:{website}:{slug}:{lang}
   async getBlogBySlug(slug: string, websiteId: string, lang = 'en') {
     // TRD §13: "checks Redis first (key: blog:{website}:{slug}:{lang})"
@@ -119,7 +216,8 @@ export class PublicV1Service {
     const cached = await this.redis.get<unknown>(cacheKey);
     if (cached) return cached;
 
-    const translation = await this.prisma.blogTranslation.findFirst({
+    // 1. Direct match by slug, lang, and website
+    let translation = await this.prisma.blogTranslation.findFirst({
       where: {
         slug,
         lang,
@@ -129,71 +227,84 @@ export class PublicV1Service {
         blog: {
           include: {
             website: true,
-            translations: { select: { lang: true, slug: true } },
+            translations: { select: { lang: true, slug: true, title: true } },
           },
         },
       },
     });
 
+    // 2. Fallback: Check if slug exists in ANY language for this website
     if (!translation) {
+      const matchAny = await this.prisma.blogTranslation.findFirst({
+        where: {
+          slug,
+          blog: { websiteId, status: 'Published' },
+        },
+        include: {
+          blog: {
+            include: {
+              website: true,
+              translations: true,
+            },
+          },
+        },
+      });
+
+      if (matchAny) {
+        const resolved =
+          matchAny.blog.translations.find((t) => t.lang === lang) ||
+          matchAny.blog.translations.find((t) => t.lang === 'en') ||
+          matchAny;
+
+        translation = {
+          ...resolved,
+          blog: matchAny.blog,
+        };
+      }
+    }
+
+    // 3. 301 Redirect Check: Check if slug was modified and redirected
+    if (!translation) {
+      const redirect = await this.prisma.redirect.findFirst({
+        where: { websiteId, fromSlug: slug },
+      });
+
+      if (redirect) {
+        // Fetch target article by new slug
+        const targetTranslation = await this.prisma.blogTranslation.findFirst({
+          where: {
+            slug: redirect.toSlug,
+            blog: { websiteId, status: 'Published' },
+          },
+          include: {
+            blog: {
+              include: {
+                website: true,
+                translations: true,
+              },
+            },
+          },
+        });
+
+        if (targetTranslation) {
+          const resolved =
+            targetTranslation.blog.translations.find((t) => t.lang === lang) ||
+            targetTranslation.blog.translations.find((t) => t.lang === 'en') ||
+            targetTranslation;
+
+          const redirectResult = this.formatBlogDetail(
+            { ...resolved, blog: targetTranslation.blog },
+            { statusCode: redirect.statusCode || 301, fromSlug: slug, toSlug: redirect.toSlug },
+          );
+          await this.redis.set(cacheKey, redirectResult, 300);
+          return redirectResult;
+        }
+      }
+
       throw new NotFoundException(`No published article found for slug "${slug}"`);
     }
 
-    const b = translation.blog;
-
-    // Increment viewCount asynchronously — TRD §14 (Analytics: view_count)
-    this.prisma.blog
-      .update({ where: { id: b.id }, data: { viewCount: { increment: 1 } } })
-      .catch(() => {});
-
-    const result = {
-      success: true,
-      data: {
-        id: b.id,
-        slug: translation.slug,
-        title: translation.title,
-        content: translation.content,
-        excerpt: translation.excerpt,
-        featuredImage: b.featuredImage,
-        authorName: b.authorName,
-        publishedAt: b.publishDate?.toISOString(),
-        readTimeMinutes: b.readTimeMinutes,
-        // TRD §11 SEO fields
-        seo: {
-          metaTitle: translation.metaTitle || translation.title,
-          metaDescription: translation.metaDescription || translation.excerpt,
-          metaKeywords: translation.metaKeywords,
-          canonicalUrl:
-            translation.canonicalUrl ||
-            `https://${b.website.domain}/blog/${translation.slug}`,
-          focusKeyword: translation.focusKeyword,
-          robots: translation.robots,
-          ogTitle: translation.ogTitle || translation.title,
-          ogDescription: translation.ogDescription || translation.excerpt,
-          ogImage: translation.ogImage || b.featuredImage,
-          twitterTitle: translation.twitterTitle || translation.title,
-          twitterDescription: translation.twitterDescription || translation.excerpt,
-          twitterImage: translation.twitterImage || b.featuredImage,
-          // TRD §11: "The API also exposes canonical and hreflang data so consuming sites can emit correct <head> tags"
-          hreflang: b.translations.map((t) => ({
-            lang: t.lang,
-            href: `https://${b.website.domain}/blog/${t.slug}?lang=${t.lang}`,
-          })),
-        },
-        // TRD §11: Schema.org JSON-LD for consuming sites
-        schemaJsonLd: {
-          '@context': 'https://schema.org',
-          '@type': 'BlogPosting',
-          headline: translation.title,
-          image: b.featuredImage ? [b.featuredImage] : [],
-          datePublished: b.publishDate?.toISOString(),
-          dateModified: b.updatedAt.toISOString(),
-          author: { '@type': 'Person', name: b.authorName },
-          description: translation.excerpt,
-        },
-      },
-    };
-
+    const result = this.formatBlogDetail(translation);
     // TRD §16: Populate cache — TTL 3600s for individual blog detail
     await this.redis.set(cacheKey, result, 3600);
     return result;
@@ -320,7 +431,7 @@ export class PublicV1Service {
         title:        m.title,
         slug:         m.slug,
         excerpt:      m.excerpt,
-        featuredImage: m.featuredImage,
+        featuredImage: this.normalizeMediaUrl(m.featuredImage),
         publishDate:  m.publishDate instanceof Date
           ? m.publishDate.toISOString()
           : m.publishDate,
@@ -344,19 +455,22 @@ export class PublicV1Service {
       take: limit,
       orderBy: { publishDate: 'desc' },
       include: {
-        translations: { where: { lang } },
+        translations: true,
         website: { select: { domain: true, name: true } },
       },
     });
 
     const data = blogs.map((b) => {
-      const tr = b.translations[0];
+      const tr =
+        b.translations.find((t) => t.lang === lang) ||
+        b.translations.find((t) => t.lang === 'en') ||
+        b.translations[0];
       return {
         id: b.id,
         slug: tr?.slug || b.id,
         title: tr?.title || 'Untitled',
         excerpt: tr?.excerpt || '',
-        featuredImage: b.featuredImage,
+        featuredImage: this.normalizeMediaUrl(b.featuredImage),
         authorName: b.authorName,
         publishDate: b.publishDate?.toISOString(),
         readTimeMinutes: b.readTimeMinutes,
@@ -380,19 +494,22 @@ export class PublicV1Service {
       take: limit,
       orderBy: { viewCount: 'desc' },
       include: {
-        translations: { where: { lang } },
+        translations: true,
         website: { select: { domain: true, name: true } },
       },
     });
 
     const data = blogs.map((b) => {
-      const tr = b.translations[0];
+      const tr =
+        b.translations.find((t) => t.lang === lang) ||
+        b.translations.find((t) => t.lang === 'en') ||
+        b.translations[0];
       return {
         id: b.id,
         slug: tr?.slug || b.id,
         title: tr?.title || 'Untitled',
         excerpt: tr?.excerpt || '',
-        featuredImage: b.featuredImage,
+        featuredImage: this.normalizeMediaUrl(b.featuredImage),
         authorName: b.authorName,
         publishDate: b.publishDate?.toISOString(),
         readTimeMinutes: b.readTimeMinutes,
@@ -402,6 +519,28 @@ export class PublicV1Service {
 
     const result = { success: true, count: data.length, data };
     await this.redis.set(cacheKey, result, 300); // 5 min TTL
+    return result;
+  }
+
+  // ─── TRD §10: GET /v1/redirects (301 Permanent Redirects for Edge Middleware)
+  async getRedirects(websiteId: string) {
+    const cacheKey = `redirects:${websiteId}`;
+    const cached = await this.redis.get<unknown>(cacheKey);
+    if (cached) return cached;
+
+    const redirects = await this.prisma.redirect.findMany({
+      where: { websiteId },
+      select: {
+        fromSlug: true,
+        toSlug: true,
+        statusCode: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const result = { success: true, count: redirects.length, data: redirects };
+    await this.redis.set(cacheKey, result, 3600); // 1 hour TTL
     return result;
   }
 
@@ -420,5 +559,9 @@ export class PublicV1Service {
   async invalidateTaxonomyCache(websiteId: string): Promise<void> {
     await this.redis.del(`cats:${websiteId}`);
     await this.redis.del(`tags:${websiteId}`);
+  }
+
+  async invalidateRedirectsCache(websiteId: string): Promise<void> {
+    await this.redis.del(`redirects:${websiteId}`);
   }
 }

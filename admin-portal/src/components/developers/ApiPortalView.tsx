@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useBlogStore } from '../../store/useBlogStore';
 import { Website } from '../../types';
-import { apiClient, WebhookTestResult } from '../../services/apiClient';
+import { apiClient, WebhookTestResult, API_BASE } from '../../services/apiClient';
 import { ClientHandoverModal } from '../common/ClientHandoverModal';
 import {
   Code2,
@@ -53,6 +53,13 @@ interface ApiEndpointDef {
 }
 
 const API_ENDPOINTS: ApiEndpointDef[] = [
+  {
+    id: 'health-check',
+    method: 'GET',
+    path: '/v1/health',
+    title: 'Health Check',
+    description: 'System health check endpoint for uptime and service monitoring.',
+  },
   {
     id: 'blogs-list',
     method: 'GET',
@@ -109,6 +116,13 @@ const API_ENDPOINTS: ApiEndpointDef[] = [
     hasLimit: true,
   },
   {
+    id: 'redirects-list',
+    method: 'GET',
+    path: '/v1/redirects',
+    title: 'Get 301 Redirects',
+    description: 'Active 301 permanent redirect rules for consuming website edge routing.',
+  },
+  {
     id: 'website-meta',
     method: 'GET',
     path: '/v1/website',
@@ -119,7 +133,7 @@ const API_ENDPOINTS: ApiEndpointDef[] = [
 
 export const ApiPortalView: React.FC = () => {
   const { websites, activeWebsiteId, blogs } = useBlogStore();
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' && !window.location.origin.includes('localhost') ? window.location.origin : 'https://blogary.jupsoft.com');
+  const apiBaseUrl = API_BASE;
 
   // Active Tenant Selection
   const [selectedSiteId, setSelectedSiteId] = useState<string>(() => {

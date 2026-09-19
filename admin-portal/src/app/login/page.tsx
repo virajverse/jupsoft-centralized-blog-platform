@@ -19,15 +19,37 @@ export default function LoginPage() {
   const { login, isAuthenticated } = useBlogStore();
 
   React.useEffect(() => {
-    const token =
-      typeof window !== 'undefined'
-        ? document.cookie
-            .split('; ')
-            .find((c) => c.startsWith('jupsoft_auth_token='))
-            ?.split('=')[1]
-        : null;
+    if (typeof window === 'undefined') return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const isSessionExpired = urlParams.get('session') === 'expired';
+
+    if (isSessionExpired) {
+      useBlogStore.getState().logout();
+      setErrorMsg('Your session has expired. Please sign in again.');
+      return;
+    }
+
+    const getActiveToken = () => {
+      const cookieToken = document.cookie
+        .split('; ')
+        .find((c) => c.startsWith('jupsoft_auth_token='))
+        ?.split('=')[1];
+      return cookieToken || localStorage.getItem('jupsoft_auth_token');
+    };
+
+    const token = getActiveToken();
+
+    if (!token && isAuthenticated) {
+      useBlogStore.getState().logout();
+      return;
+    }
+
     if (isAuthenticated && token) {
-      router.replace('/dashboard');
+      if (!document.cookie.includes('jupsoft_auth_token=')) {
+        document.cookie = `jupsoft_auth_token=${token}; path=/; max-age=86400; SameSite=Lax`;
+      }
+      const redirect = urlParams.get('redirect') || '/dashboard';
+      router.replace(redirect);
     }
   }, [isAuthenticated, router]);
 
@@ -50,7 +72,9 @@ export default function LoginPage() {
     try {
       const res = await login(email.trim(), password);
       if (res.success) {
-        router.push('/dashboard');
+        const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const redirect = urlParams?.get('redirect') || '/dashboard';
+        router.push(redirect);
       } else {
         setErrorMsg(res.message || 'Authentication failed. Please check your credentials.');
       }

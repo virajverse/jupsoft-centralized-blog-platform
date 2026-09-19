@@ -169,7 +169,7 @@ export const AnalyticsView: React.FC = () => {
               Content Metrics &amp; Analytics
             </h1>
             <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700">
-              {isFilteredSingleSite ? activeSite.name : 'All Websites'}
+              {isFilteredSingleSite ? (activeSite?.name || 'Website') : 'All Websites'}
             </span>
             {tenantParam && (
               <button
@@ -177,7 +177,7 @@ export const AnalyticsView: React.FC = () => {
                 className="text-xs px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 flex items-center gap-1 hover:bg-indigo-100 cursor-pointer"
                 title="Clear tenant filter"
               >
-                <span>Filtered: {activeSite.name}</span>
+                <span>Filtered: {activeSite?.name || 'Website'}</span>
                 <X className="w-3 h-3" />
               </button>
             )}
@@ -533,7 +533,7 @@ export const AnalyticsView: React.FC = () => {
       <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 space-y-4 shadow-xs">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-            {isFilteredSingleSite ? `Blogs Inventory (${activeSite.name})` : 'Network Blogs Inventory'}
+            {isFilteredSingleSite ? `Blogs Inventory (${activeSite?.name || 'Website'})` : 'Network Blogs Inventory'}
           </h3>
           <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">{totalArticles} total items</span>
         </div>

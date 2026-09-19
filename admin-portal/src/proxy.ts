@@ -1,13 +1,26 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/api/auth'];
+const PUBLIC_PATHS = ['/', '/login', '/api/auth'];
+
+const PROTECTED_PREFIXES = [
+  '/dashboard',
+  '/blogs',
+  '/workflow',
+  '/media',
+  '/taxonomy',
+  '/redirects',
+  '/analytics',
+  '/developers',
+  '/users',
+  '/settings',
+];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 1. Allow public authentication paths
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+  // 1. Allow root homepage and public paths
+  if (pathname === '/' || PUBLIC_PATHS.some((p) => p !== '/' && pathname.startsWith(p))) {
     return NextResponse.next();
   }
 
@@ -21,15 +34,18 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 3. Check for auth token in cookies
+  // 3. Check if current path requires authentication
+  const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
+  if (!isProtected) {
+    return NextResponse.next();
+  }
+
+  // 4. Check for auth token in cookies
   const token = request.cookies.get('jupsoft_auth_token')?.value;
 
   if (!token) {
-    // If accessing root or dashboard without token, redirect to /login
     const loginUrl = new URL('/login', request.url);
-    if (pathname !== '/') {
-      loginUrl.searchParams.set('redirect', pathname);
-    }
+    loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
   }
 

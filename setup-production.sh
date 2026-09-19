@@ -132,7 +132,7 @@ AWS_REGION=ap-south-1
 AWS_ACCESS_KEY_ID=mock_aws_access_key
 AWS_SECRET_ACCESS_KEY=mock_aws_secret_key
 AWS_S3_BUCKET=jupsoft-blogs-storage
-CLOUDFRONT_DOMAIN=https://cdn.jupsoft.com
+CLOUDFRONT_DOMAIN=https://blogary.jupsoft.com/uploads
 
 # Webhook Revalidation Secret (HMAC SHA-256)
 WEBHOOK_DEFAULT_SECRET=${WEBHOOK_DEFAULT_SECRET}

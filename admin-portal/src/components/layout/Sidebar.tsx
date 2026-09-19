@@ -377,7 +377,7 @@ export const Sidebar: React.FC = () => {
               ) : (
                 <>
                   <Radio className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <span className="truncate max-w-[110px]">{activeSite.name}</span>
+                  <span className="truncate max-w-[110px]">{activeSite?.name || 'Loading...'}</span>
                 </>
               )}
             </div>
@@ -392,7 +392,7 @@ export const Sidebar: React.FC = () => {
 
           <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 font-mono">
             <span className="truncate max-w-[120px]">
-              {isAllSites ? `${websites.length} Domains` : activeSite.domain}
+              {isAllSites ? `${websites.length} Domains` : (activeSite?.domain || 'Multi-Tenant')}
             </span>
             <button
               onClick={() => {

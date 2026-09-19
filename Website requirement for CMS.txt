@@ -1,0 +1,44 @@
+You are a Lead Software Architect conducting a Technical Compatibility Audit (TRD Compliance Check) on this codebase. 
+
+We want to integrate our website with a Headless Centralized Blog CMS (Blogary CMS). 
+Please inspect the repository files (package.json, router structure, config files) and evaluate whether this website meets the following 5 Technical Compatibility Gates:
+
+---
+
+### 1. Architecture & Framework Capability (Gate 1)
+- [ ] What framework is this site using? (e.g., Next.js App Router, Next.js Pages Router, React Vite, Remix, Astro, or Static HTML).
+- [ ] Does the project support **Dynamic Routing** for articles (e.g., `/blog/[slug]` or `/blog/:slug`)?
+- [ ] Can it render dynamic HTML/Rich-Text content safely without breaking existing styles?
+
+### 2. Instant Cache Purge / Webhook Support (Gate 2)
+- [ ] Can this project host a server-side endpoint / API route (e.g., `/api/revalidate` or equivalent)?
+  - *Requirement*: When CMS publishes an article, it sends an HTTP POST webhook to purge the cache. If it is a purely static site without a backend/serverless function, can it use a build hook (e.g., Vercel / Netlify webhook)?
+
+### 3. Remote Image & Media Optimization (Gate 3)
+- [ ] Inspect image configuration (e.g., `next.config.js`, `vite.config.js`, or CSP headers).
+- [ ] Does it permit loading external images from remote domains (AWS S3, Supabase, and `blogary.jupsoft.com`)?
+
+### 4. Dynamic SEO & Metadata Injection (Gate 4)
+- [ ] Does the project have a mechanism to dynamically inject:
+  - `<title>` and `<meta name="description">` per article?
+  - OpenGraph / Twitter card images (`og:image`)?
+  - Canonical URL links and Schema.org JSON-LD structured data?
+
+### 5. Styling & Typography Conflict Check (Gate 5)
+- [ ] Does the project use Tailwind CSS, CSS Modules, or Styled-Components?
+- [ ] Does it have `@tailwindcss/typography` (`prose` class) or custom styling ready to render rich editorial content (headings, blockquotes, code blocks, lists) cleanly?
+
+---
+
+### OUTPUT FORMAT REQUIRED:
+
+Provide your audit findings in the following structured report:
+
+1. **Compatibility Status**: [ ✅ FULLY COMPATIBLE | ⚠️ PARTIALLY COMPATIBLE | ❌ NOT COMPATIBLE ]
+2. **Compatibility Score**: [ Score out of 100 ]
+3. **Framework Detected**: [ Framework Name & Version ]
+4. **Gap Analysis**:
+   - What is already supported?
+   - What is missing or needs configuration?
+5. **Exact Action Items to Make it 100% Ready**:
+   - Provide the exact files to create or modify with code snippets (e.g., route creation, image config update, revalidation endpoint).

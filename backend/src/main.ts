@@ -67,7 +67,7 @@ async function bootstrap() {
   const staticAllowedOrigins = new Set(
     (
       configService.get<string>('ALLOWED_ORIGINS') ||
-      'https://blogary.jupsoft.com,http://blogary.jupsoft.com,https://cms.jupsoft.com,https://api.cms.jupsoft.com,https://cloud.jupsoft.com,https://jupsoft.com,https://digifynext.com,https://schoolerp.in'
+      'http://localhost:3000,http://localhost:4000,https://blogary.jupsoft.com,http://blogary.jupsoft.com,https://cms.jupsoft.com,https://api.cms.jupsoft.com,https://cloud.jupsoft.com,https://jupsoft.com,https://digifynext.com,https://schoolerp.in'
     )
       .split(',')
       .map((o) => o.trim().toLowerCase().replace(/\/+$/, '')),

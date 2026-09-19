@@ -401,9 +401,11 @@ export const useBlogStore = create<BlogState>()(
       },
 
       logout: () => {
+        apiClient.clearTokens();
         set({ isAuthenticated: false, currentUser: null, activeWebsiteId: 'all' });
         if (typeof window !== 'undefined') {
           localStorage.removeItem('jupsoft_auth_token');
+          localStorage.removeItem('jupsoft_refresh_token');
         }
       },
 
@@ -940,14 +942,18 @@ export const useBlogStore = create<BlogState>()(
       clearNotification: () => set({ notification: null }),
     }),
     {
-      name: 'jupsoft_cms_platform_store_v6',
+      name: 'jupsoft_cms_platform_store_v7',
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => {
-        // Exclude transient switching state so page reload never gets stuck
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { isUiThemeSwitching, uiThemeSwitchTarget, ...rest } = state;
-        return rest;
-      },
+      partialize: (state) => ({
+        // ONLY persist preferences and user session (prevents mobile QuotaExceededError)
+        theme: state.theme,
+        uiTheme: state.uiTheme,
+        sidebarOpen: state.sidebarOpen,
+        activeWebsiteId: state.activeWebsiteId,
+        activeRole: state.activeRole,
+        isAuthenticated: state.isAuthenticated,
+        currentUser: state.currentUser,
+      }),
     }
   )
 );

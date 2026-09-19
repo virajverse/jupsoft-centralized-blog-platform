@@ -50,6 +50,7 @@ import { LanguageCode, BlogStatus, Blog, BlogTranslation, BlogSEO } from '../../
 import { createEmptySEO } from '../../data/initialData';
 import { canPublish, canApprove } from '../../utils/permissions';
 import { apiClient } from '../../services/apiClient';
+import { resolveMediaUrl } from '../../utils/mediaUtils';
 
 interface BlogEditorProps {
   blogId?: string | null;
@@ -1121,7 +1122,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-900">
                     <div className="aspect-video bg-slate-200 dark:bg-slate-800 relative">
                       {featuredImage ? (
-                        <img src={featuredImage} alt="OG Preview" className="w-full h-full object-cover" />
+                        <img src={resolveMediaUrl(featuredImage)} alt="OG Preview" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">
                           Featured Image will render here
@@ -1148,7 +1149,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-[#0f172a]">
                     <div className="aspect-video bg-slate-200 dark:bg-slate-800 relative">
                       {featuredImage ? (
-                        <img src={featuredImage} alt="Twitter Preview" className="w-full h-full object-cover" />
+                        <img src={resolveMediaUrl(featuredImage)} alt="Twitter Preview" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">
                           Featured Image
@@ -1332,7 +1333,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   {featuredImage ? (
                     <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 relative group aspect-video bg-slate-100 dark:bg-slate-900 shadow-xs">
                       <img
-                        src={featuredImage}
+                        src={resolveMediaUrl(featuredImage)}
                         alt={featuredImageAlt || 'Cover'}
                         className="w-full h-full object-cover"
                       />
@@ -1367,7 +1368,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                               : 'border-slate-200 dark:border-slate-800 hover:border-slate-400'
                           }`}
                         >
-                          <img src={m.cdnUrl} alt={m.altText} className="w-full h-full object-cover" />
+                          <img src={resolveMediaUrl(m.cdnUrl)} alt={m.altText} className="w-full h-full object-cover" />
                         </button>
                       ))}
                     </div>
@@ -1622,7 +1623,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 {featuredImage && (
                   <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm">
                     <img
-                      src={featuredImage}
+                      src={resolveMediaUrl(featuredImage)}
                       alt={featuredImageAlt || activeTrans.title}
                       className="w-full h-auto object-cover max-h-[440px]"
                     />

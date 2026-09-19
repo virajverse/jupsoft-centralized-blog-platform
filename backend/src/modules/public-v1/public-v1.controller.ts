@@ -157,5 +157,12 @@ export class PublicV1Controller {
       },
     };
   }
+
+  @Get('redirects')
+  @UseGuards(ApiKeyGuard)
+  @ApiOperation({ summary: 'Retrieve active 301 permanent redirect rules for consuming website (Edge Middleware ready)' })
+  async getRedirects(@Req() req: any) {
+    return this.publicV1Service.getRedirects(req.tenant.id);
+  }
 }
 

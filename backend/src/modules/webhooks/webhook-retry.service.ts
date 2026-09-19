@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Webhook Retry Service — TRD §13 + §15
  *
  * Runs every 5 minutes and retries failed webhook deliveries.
@@ -38,17 +38,38 @@ export class WebhookRetryService {
 
     this.logger.log(`⚡ Retrying ${failedWebhooks.length} failed webhook(s)...`);
 
-    const secret = this.configService.get<string>('WEBHOOK_DEFAULT_SECRET');
-    if (!secret) {
-      this.logger.error('[SECURITY] WEBHOOK_DEFAULT_SECRET not set — skipping retry');
-      return;
-    }
+    const defaultSecret =
+      this.configService.get<string>('WEBHOOK_DEFAULT_SECRET') ||
+      'wh_sec_jupsoft_default_revalidate_2026';
 
     for (const wh of failedWebhooks) {
       try {
+        const website = await this.prisma.website.findUnique({
+          where: { id: wh.websiteId },
+        });
+
+        const domain = website?.domain || wh.websiteId;
+        let secret = defaultSecret;
+
+        // Check if website has custom endpoint secret
+        if (website?.revalidateWebhookUrl) {
+          const raw = website.revalidateWebhookUrl.trim();
+          if (raw.startsWith('[')) {
+            try {
+              const endpoints = JSON.parse(raw);
+              if (Array.isArray(endpoints)) {
+                const match = endpoints.find((e: any) => e.url === wh.targetUrl);
+                if (match?.secret?.trim()) {
+                  secret = match.secret.trim();
+                }
+              }
+            } catch {}
+          }
+        }
+
         const payload = {
           event: wh.event,
-          website: wh.websiteId,
+          website: domain,
           slug: wh.slug,
           timestamp: Date.now(),
         };
@@ -65,10 +86,13 @@ export class WebhookRetryService {
             'Content-Type': 'application/json',
             'x-signature': `sha256=${signature}`,
             'x-timestamp': String(payload.timestamp),
+            'x-event': wh.event,
+            'x-cms-webhook-secret': secret,
+            'Authorization': `Bearer ${secret}`,
             'User-Agent': 'Jupsoft-CMS-Webhook-Retry/1.0',
           },
           body: payloadString,
-          signal: AbortSignal.timeout(5000),
+          signal: AbortSignal.timeout(6000),
         });
 
         const statusCode = res.status;

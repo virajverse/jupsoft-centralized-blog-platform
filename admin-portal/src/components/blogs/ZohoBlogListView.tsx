@@ -69,6 +69,18 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const siteQuery = `?site=${activeWebsiteId}`;
 
+  // Pagination state (0-delay performance)
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(15);
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedStatus, selectedTenantFilter, queryParam]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredBlogs.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedBlogs = filteredBlogs.slice((safeCurrentPage - 1) * pageSize, safeCurrentPage * pageSize);
+
   const statuses = [
     { label: 'All', value: 'All', count: baseBlogs.length },
     { label: 'Published', value: 'Published', count: baseBlogs.filter((b) => b.status === 'Published').length },
@@ -258,7 +270,7 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                {filteredBlogs.map((blog) => {
+                {paginatedBlogs.map((blog) => {
                   const isChecked = selectedIds.includes(blog.id);
                   const defaultTrans = blog.translations['en'] || Object.values(blog.translations)[0];
                   const tenant = websites.find((w) => w.id === blog.websiteId);
@@ -381,27 +393,46 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
           </div>
         )}
 
-        {/* 4. Compact Footer (Height ~30px) */}
+        {/* 4. Compact Footer with Active Pagination */}
         <div className="px-3 py-1.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 flex items-center justify-between text-[11px] text-slate-500 font-mono">
-          <span>
-            Showing 1-{filteredBlogs.length} of {filteredBlogs.length} records
-          </span>
+          <div className="flex items-center gap-2">
+            <span>
+              Showing {(safeCurrentPage - 1) * pageSize + 1}-{Math.min(safeCurrentPage * pageSize, filteredBlogs.length)} of {filteredBlogs.length} records
+            </span>
+            <span className="text-slate-300 dark:text-slate-700">|</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="bg-transparent border border-slate-200 dark:border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-slate-700 dark:text-slate-300 cursor-pointer"
+            >
+              <option value={15}>15 / page</option>
+              <option value={30}>30 / page</option>
+              <option value={50}>50 / page</option>
+            </select>
+          </div>
 
           <div className="flex items-center gap-1">
             <button
               type="button"
-              disabled
-              className="p-1 rounded text-slate-300 dark:text-slate-600 cursor-not-allowed"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={safeCurrentPage <= 1}
+              className="p-1 rounded text-slate-500 hover:text-slate-900 dark:hover:text-white disabled:text-slate-300 dark:disabled:text-slate-600 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              title="Previous Page"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
             </button>
             <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[10px]">
-              1
+              {safeCurrentPage} / {totalPages}
             </span>
             <button
               type="button"
-              disabled
-              className="p-1 rounded text-slate-300 dark:text-slate-600 cursor-not-allowed"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safeCurrentPage >= totalPages}
+              className="p-1 rounded text-slate-500 hover:text-slate-900 dark:hover:text-white disabled:text-slate-300 dark:disabled:text-slate-600 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              title="Next Page"
             >
               <ChevronRight className="w-3.5 h-3.5" />
             </button>

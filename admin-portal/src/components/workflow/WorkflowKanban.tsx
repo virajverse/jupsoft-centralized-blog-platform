@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { BlogStatus, Blog, UserRole, WorkflowLog } from '../../types';
 import { canCreateBlog } from '../../utils/permissions';
+import { resolveMediaUrl } from '../../utils/mediaUtils';
 
 export const WorkflowKanban: React.FC = () => {
   const searchParams = useSearchParams();
@@ -245,7 +246,7 @@ export const WorkflowKanban: React.FC = () => {
                 ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
             }`}>
-              {isAllSites ? 'All Websites' : activeSite.name}
+              {isAllSites ? 'All Websites' : (activeSite?.name || 'Website')}
             </span>
           </div>
 
@@ -402,7 +403,7 @@ export const WorkflowKanban: React.FC = () => {
                             <GripVertical className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 group-hover:text-slate-500 transition-colors shrink-0 mt-0.5 cursor-grab" />
                             {blog.featuredImage ? (
                               <img
-                                src={blog.featuredImage}
+                                src={resolveMediaUrl(blog.featuredImage)}
                                 alt=""
                                 className="w-10 h-10 rounded-lg object-cover border border-slate-200 dark:border-slate-800 shrink-0"
                               />
@@ -545,7 +546,7 @@ export const WorkflowKanban: React.FC = () => {
                           {col.status === 'Published' && (
                             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
                               <div className="w-full text-center text-[11px] text-emerald-700 dark:text-emerald-400 font-mono py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60">
-                                ✓ Live on {activeSite.domain}
+                                ✓ Live on {websites.find((w) => w.id === blog.websiteId)?.domain || activeSite?.domain || 'Production'}
                               </div>
                               {canTransition('Published', 'Archived', activeRole) && (
                                 <button

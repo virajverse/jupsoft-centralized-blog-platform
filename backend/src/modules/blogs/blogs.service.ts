@@ -50,6 +50,10 @@ export class BlogsService {
       };
     }
 
+    const cacheKey = `admin:blogs:${websiteId || 'all'}:${status || 'all'}:${page}:${limit}:${search || ''}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
     const [total, blogs] = await Promise.all([
       this.prisma.blog.count({ where }),
       this.prisma.blog.findMany({
@@ -59,7 +63,27 @@ export class BlogsService {
         orderBy: { updatedAt: 'desc' },
         include: {
           website: { select: { id: true, name: true, domain: true } },
-          translations: true,
+          translations: {
+            select: {
+              id: true,
+              lang: true,
+              title: true,
+              slug: true,
+              excerpt: true,
+              metaTitle: true,
+              metaDescription: true,
+              metaKeywords: true,
+              canonicalUrl: true,
+              focusKeyword: true,
+              robots: true,
+              ogTitle: true,
+              ogDescription: true,
+              ogImage: true,
+              twitterTitle: true,
+              twitterDescription: true,
+              twitterImage: true,
+            },
+          },
           workflowLogs: { orderBy: { timestamp: 'desc' }, take: 5 },
         },
       }),
@@ -87,7 +111,7 @@ export class BlogsService {
           title: t.title,
           slug: t.slug,
           excerpt: t.excerpt,
-          content: t.content,
+          content: '', // Omitted in list view for 0-delay performance; loaded in detail view
           seo: {
             metaTitle: t.metaTitle,
             metaDescription: t.metaDescription,
@@ -119,13 +143,18 @@ export class BlogsService {
       updatedAt: b.updatedAt.toISOString(),
     }));
 
-    return {
+    const result = {
       total,
       page,
       limit,
       totalPages: Math.ceil(total / limit),
       data: formatted,
     };
+
+    // Cache list result for 60s
+    await this.redis.set(cacheKey, result, 60);
+
+    return result;
   }
 
   async findOne(id: string) {
@@ -292,6 +321,9 @@ export class BlogsService {
     // Mirror to Supabase Cloud Backup (non-blocking)
     this.supabaseSync.syncBlog(blog.id).catch(() => {});
 
+    // Invalidate admin list caches so new draft appears immediately
+    await this.redis.delPattern('admin:blogs:*');
+
     return this.findOne(blog.id);
   }
 
@@ -453,6 +485,20 @@ export class BlogsService {
     // TRD §13: Invalidate Redis cache on update so consuming sites get fresh content
     const updated = await this.findOne(id);
     await this.invalidateCache(existing.websiteId, existing.translations);
+    if (dto.translations && dto.translations.length > 0) {
+      await this.invalidateCache(existing.websiteId, dto.translations);
+    }
+
+    // TRD §13: On-Demand Webhook ISR Revalidation Trigger on update
+    if (existing.status === 'Published' || dto.status === 'Published') {
+      const primarySlug =
+        dto.translations?.find((t) => t.lang === 'en')?.slug ||
+        existing.translations?.find((t) => t.lang === 'en')?.slug ||
+        existing.translations?.[0]?.slug;
+      if (primarySlug) {
+        await this.webhookDispatcher.dispatchWebhook(existing.websiteId, 'blog.updated', primarySlug);
+      }
+    }
 
     // Mirror to Supabase Cloud Backup (non-blocking)
     this.supabaseSync.syncBlog(id).catch(() => {});
@@ -460,13 +506,14 @@ export class BlogsService {
     return updated;
   }
 
-  // â”€â”€â”€ Helper: invalidate all Redis cache keys for this blog (TRD Â§13)
+  // ─── Helper: invalidate all Redis cache keys for this blog (TRD §13)
   private async invalidateCache(websiteId: string, translations: Array<{ slug: string }>): Promise<void> {
     for (const tr of translations) {
       await this.redis.delPattern(`blog:${websiteId}:${tr.slug}:*`);
     }
     await this.redis.delPattern(`blogs:${websiteId}:*`);
     await this.redis.delPattern(`search:${websiteId}:*`);
+    await this.redis.delPattern('admin:blogs:*');
   }
 
   async transitionStatus(id: string, dto: TransitionBlogStatusDto, user: AuthenticatedUser, ipAddress: string) {
@@ -530,10 +577,12 @@ export class BlogsService {
 
     // TRD §13: On-Demand Webhook ISR Revalidation Trigger!
     const primarySlug = blog.translations.find((t) => t.lang === 'en')?.slug || blog.translations[0]?.slug;
-    if (primarySlug && (isPublishing || isArchiving)) {
+    const isUnpublishing = previousStatus === 'Published' && newStatus !== 'Published' && !isArchiving;
+    if (primarySlug && (isPublishing || isArchiving || isUnpublishing)) {
+      const event = isPublishing ? 'blog.published' : isArchiving ? 'blog.archived' : 'blog.unpublished';
       await this.webhookDispatcher.dispatchWebhook(
         blog.websiteId,
-        isPublishing ? 'blog.published' : 'blog.archived',
+        event,
         primarySlug,
       );
     }
@@ -577,7 +626,10 @@ export class BlogsService {
   }
 
   async delete(id: string, user: AuthenticatedUser, ipAddress: string) {
-    const blog = await this.prisma.blog.findUnique({ where: { id } });
+    const blog = await this.prisma.blog.findUnique({
+      where: { id },
+      include: { translations: true },
+    });
     if (!blog) {
       throw new NotFoundException(`Blog with ID "${id}" not found`);
     }
@@ -587,9 +639,17 @@ export class BlogsService {
     // Mirror to Supabase Cloud Backup (non-blocking)
     this.supabaseSync.deleteBlog(id).catch(() => {});
 
-    // TRD §13: Invalidate cache when blog is deleted
-    await this.invalidateCache(blog.websiteId, []);
+    // TRD §13: Invalidate all cache keys for this blog and lists
+    await this.invalidateCache(blog.websiteId, blog.translations);
     await this.redis.delPattern(`blogs:${blog.websiteId}:*`);
+
+    // Dispatch revalidation webhook if article was published
+    if (blog.status === 'Published') {
+      const primarySlug = blog.translations.find((t) => t.lang === 'en')?.slug || blog.translations[0]?.slug;
+      if (primarySlug) {
+        await this.webhookDispatcher.dispatchWebhook(blog.websiteId, 'blog.archived', primarySlug);
+      }
+    }
 
     await this.prisma.systemAuditLog.create({
       data: {

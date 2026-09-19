@@ -46,7 +46,7 @@ export interface WebhookDeliveryLogItem {
 }
 
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.cms.jupsoft.com';
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 // Cookie helpers for Edge Middleware compatibility
 function getCookie(name: string): string | null {
@@ -199,9 +199,26 @@ class ApiClient {
       this.refreshQueue = [];
 
       if (!newToken) {
-        // Refresh failed — force logout
+        this.clearTokens();
+        // Refresh failed — force clean logout without loop
         if (typeof window !== 'undefined') {
-          window.location.href = '/login?session=expired';
+          try {
+            ['jupsoft_cms_platform_store_v7', 'jupsoft_cms_platform_store_v6'].forEach((key) => {
+              const rawStore = localStorage.getItem(key);
+              if (rawStore) {
+                const parsed = JSON.parse(rawStore);
+                if (parsed?.state) {
+                  parsed.state.isAuthenticated = false;
+                  parsed.state.currentUser = null;
+                  localStorage.setItem(key, JSON.stringify(parsed));
+                }
+              }
+            });
+          } catch {}
+
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login?session=expired';
+          }
         }
         throw new Error('Session expired. Please log in again.');
       }
@@ -409,6 +426,7 @@ class ApiClient {
     cdnUrl: string; 
     thumbnailUrl?: string; 
     mediumUrl?: string; 
+    s3Key?: string;
     fileName: string;
     fileSizeBytes?: number;
     dimensions?: { width: number; height: number };

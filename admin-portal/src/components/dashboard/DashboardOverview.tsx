@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
@@ -42,26 +42,73 @@ export const DashboardOverview: React.FC = () => {
   const isAllSites = activeWebsiteId === 'all';
   const activeSite = websites.find((w) => w.id === activeWebsiteId) || websites[0];
   
-  // Isolated vs Global aggregation
-  const displayedBlogs = isAllSites ? blogs : blogs.filter((b) => b.websiteId === activeWebsiteId);
+  // Isolated vs Global aggregation (Memoized)
+  const displayedBlogs = useMemo(() => {
+    return isAllSites ? blogs : blogs.filter((b) => b.websiteId === activeWebsiteId);
+  }, [isAllSites, blogs, activeWebsiteId]);
 
-  const publishedBlogs = displayedBlogs.filter((b) => b.status === 'Published');
-  const underReviewBlogs = displayedBlogs.filter((b) => b.status === 'Under Review');
-  const approvedBlogs = displayedBlogs.filter((b) => b.status === 'Approved');
-  const draftBlogs = displayedBlogs.filter((b) => b.status === 'Draft');
+  // Single-pass memoized status counts and word count
+  const { publishedBlogs, underReviewBlogs, approvedBlogs, draftBlogs, totalWords } = useMemo(() => {
+    const pub: typeof displayedBlogs = [];
+    const rev: typeof displayedBlogs = [];
+    const app: typeof displayedBlogs = [];
+    const drf: typeof displayedBlogs = [];
+    let words = 0;
 
-  // Real word count computation from actual articles
-  let totalWords = 0;
-  displayedBlogs.forEach((blog) => {
-    Object.values(blog.translations).forEach((trans) => {
-      if (trans?.content) {
-        const plain = trans.content.replace(/<[^>]*>/g, ' ').trim();
-        if (plain) {
-          totalWords += plain.split(/\s+/).filter(Boolean).length;
+    for (const blog of displayedBlogs) {
+      if (blog.status === 'Published') pub.push(blog);
+      else if (blog.status === 'Under Review') rev.push(blog);
+      else if (blog.status === 'Approved') app.push(blog);
+      else if (blog.status === 'Draft') drf.push(blog);
+
+      if (blog.translations) {
+        for (const trans of Object.values(blog.translations)) {
+          if (trans?.content) {
+            const plain = trans.content.replace(/<[^>]*>/g, ' ').trim();
+            if (plain) {
+              words += plain.split(/\s+/).filter(Boolean).length;
+            }
+          }
         }
       }
-    });
-  });
+    }
+
+    return {
+      publishedBlogs: pub,
+      underReviewBlogs: rev,
+      approvedBlogs: app,
+      draftBlogs: drf,
+      totalWords: words,
+    };
+  }, [displayedBlogs]);
+
+  // Pre-compute multi-tenant comparison scorecard stats in a single pass
+  const siteStats = useMemo(() => {
+    const stats = new Map<string, { total: number; pub: number; rev: number; words: number }>();
+    for (const site of websites) {
+      stats.set(site.id, { total: 0, pub: 0, rev: 0, words: 0 });
+    }
+    for (const blog of blogs) {
+      const s = stats.get(blog.websiteId);
+      if (s) {
+        s.total++;
+        if (blog.status === 'Published') s.pub++;
+        else if (blog.status === 'Under Review') s.rev++;
+
+        if (blog.translations) {
+          for (const trans of Object.values(blog.translations)) {
+            if (trans?.content) {
+              const plain = trans.content.replace(/<[^>]*>/g, ' ').trim();
+              if (plain) {
+                s.words += plain.split(/\s+/).filter(Boolean).length;
+              }
+            }
+          }
+        }
+      }
+    }
+    return stats;
+  }, [websites, blogs]);
 
   if (uiTheme === 'modern') {
     return (
@@ -118,7 +165,7 @@ export const DashboardOverview: React.FC = () => {
               <span>
                 {isAllSites 
                   ? `Global Control Plane · All ${websites.length} Websites Aggregated`
-                  : `Isolated Tenant Boundary · ${activeSite.name}`
+                  : `Isolated Tenant Boundary · ${activeSite?.name || 'Workspace'}`
                 }
               </span>
             </div>
@@ -323,19 +370,15 @@ export const DashboardOverview: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-sans">
                 {websites.map((site) => {
-                  const sBlogs = blogs.filter((b) => b.websiteId === site.id);
-                  const sPub = sBlogs.filter((b) => b.status === 'Published').length;
-                  const sRev = sBlogs.filter((b) => b.status === 'Under Review').length;
-                  
-                  let sWords = 0;
-                  sBlogs.forEach((blog) => {
-                    Object.values(blog.translations).forEach((t) => {
-                      if (t?.content) {
-                        const plain = t.content.replace(/<[^>]*>/g, ' ').trim();
-                        if (plain) sWords += plain.split(/\s+/).filter(Boolean).length;
-                      }
-                    });
-                  });
+                  const s = siteStats.get(site.id) || { total: 0, pub: 0, rev: 0, words: 0 };
+                  const siteInitial = site.name ? site.name.charAt(0) : 'W';
+                  const siteUrl = site.domain
+                    ? (site.domain.startsWith('http')
+                        ? site.domain
+                        : site.domain.includes('localhost') || site.domain.includes('127.0.0.1')
+                          ? `http://${site.domain}`
+                          : `https://${site.domain}`)
+                    : '#';
 
                   return (
                     <tr 
@@ -349,57 +392,52 @@ export const DashboardOverview: React.FC = () => {
                       <td className="py-3.5 px-4">
                         <div className="flex items-center space-x-3">
                           <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center font-bold text-xs text-slate-700 dark:text-slate-300">
-                            {site.name.charAt(0)}
+                            {siteInitial}
                           </div>
                           <div>
                             <div className="font-semibold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                              {site.name}
+                              {site.name || 'Tenant'}
                             </div>
                             <div className="text-[10px] text-slate-400 font-mono">UUID: {site.id}</div>
                           </div>
                         </div>
                       </td>
                       <td className="py-3.5 px-4 font-mono text-slate-600 dark:text-slate-400 text-xs">
-                        {(() => {
-                          const siteUrl = site.domain.startsWith('http')
-                            ? site.domain
-                            : site.domain.includes('localhost') || site.domain.includes('127.0.0.1')
-                              ? `http://${site.domain}`
-                              : `https://${site.domain}`;
-                          return (
-                            <a 
-                              href={siteUrl} 
-                              target="_blank" 
-                              rel="noreferrer" 
-                              onClick={(e) => e.stopPropagation()}
-                              className="flex items-center gap-1.5 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline transition-colors"
-                              title={`Open ${site.name} (${siteUrl})`}
-                            >
-                              <span>{site.domain}</span>
-                              <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300" />
-                            </a>
-                          );
-                        })()}
+                        {site.domain ? (
+                          <a 
+                            href={siteUrl} 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center gap-1.5 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline transition-colors"
+                            title={`Open ${site.name || 'Tenant'} (${siteUrl})`}
+                          >
+                            <span>{site.domain}</span>
+                            <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300" />
+                          </a>
+                        ) : (
+                          <span className="text-slate-400">Not configured</span>
+                        )}
                       </td>
                       <td className="py-3.5 px-4 text-center font-semibold text-slate-900 dark:text-white">
-                        {sBlogs.length}
+                        {s.total}
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <span className="text-emerald-700 dark:text-emerald-400 font-medium bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800/60 text-[11px]">
-                          {sPub} Live
+                          {s.pub} Live
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md border ${
-                          sRev > 0 
+                          s.rev > 0 
                             ? 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/60' 
                             : 'text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
                         }`}>
-                          {sRev} Review
+                          {s.rev} Review
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-center font-mono text-slate-600 dark:text-slate-400">
-                        {sWords.toLocaleString()}
+                        {s.words.toLocaleString()}
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800/60">
@@ -435,7 +473,7 @@ export const DashboardOverview: React.FC = () => {
         <div className="lg:col-span-2 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 space-y-4 shadow-xs">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-slate-900 dark:text-white">
-              {isAllSites ? 'Recent Network Blogs' : `Blogs for ${activeSite.name}`}
+              {isAllSites ? 'Recent Network Blogs' : `Blogs for ${activeSite?.name || 'Workspace'}`}
             </h2>
             {displayedBlogs.length > 0 && (
               <Link

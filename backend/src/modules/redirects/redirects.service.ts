@@ -1,10 +1,14 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisProvider } from '../../common/providers/redis.provider';
 import { CreateRedirectDto } from './dto/redirect.dto';
 
 @Injectable()
 export class RedirectsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisProvider,
+  ) {}
 
   async findAll(websiteId?: string) {
     const where: any = {};
@@ -44,6 +48,10 @@ export class RedirectsService {
       },
     });
 
+    // Invalidate Redis caches
+    await this.redis.del(`redirects:${dto.websiteId}`);
+    await this.redis.delPattern(`blog:${dto.websiteId}:${cleanFrom}:*`);
+
     // Record in audit log
     await this.prisma.systemAuditLog.create({
       data: {
@@ -66,6 +74,10 @@ export class RedirectsService {
     }
 
     await this.prisma.redirect.delete({ where: { id } });
+
+    // Invalidate Redis caches
+    await this.redis.del(`redirects:${redirect.websiteId}`);
+    await this.redis.delPattern(`blog:${redirect.websiteId}:${redirect.fromSlug}:*`);
 
     await this.prisma.systemAuditLog.create({
       data: {

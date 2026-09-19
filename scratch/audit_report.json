@@ -1,0 +1,735 @@
+{
+  "localhostOccurrences": [
+    {
+      "file": ".env",
+      "line": 4,
+      "snippet": "PLATFORM_BASE_URL=http://localhost:4000"
+    },
+    {
+      "file": ".env",
+      "line": 7,
+      "snippet": "DATABASE_URL=postgresql://postgres:viraj@localhost:5432/jupsoft_cms?schema=public"
+    },
+    {
+      "file": ".env",
+      "line": 10,
+      "snippet": "REDIS_HOST=localhost"
+    },
+    {
+      "file": "admin-portal/public/widget/blog.js",
+      "line": 5,
+      "snippet": "* <div id=\"jupsoft-blog-feed\" data-site=\"YOUR_WEBSITE_ID\" data-api=\"http://localhost:4000\"></div>"
+    },
+    {
+      "file": "admin-portal/public/widget/blog.js",
+      "line": 6,
+      "snippet": "* <script src=\"http://localhost:4000/widget/blog.js\" async></script>"
+    },
+    {
+      "file": "admin-portal/public/widget/blog.js",
+      "line": 244,
+      "snippet": "const apiUrl = (container.getAttribute('data-api') || 'http://localhost:4000').replace(/\\/$/, '');"
+    },
+    {
+      "file": "admin-portal/src/components/common/ClientHandoverModal.tsx",
+      "line": 31,
+      "snippet": "apiBaseUrl = (typeof window !== 'undefined' ? (window.location.origin.includes('localhost') ? window.location.origin.replace(':3000', ':4000"
+    },
+    {
+      "file": "admin-portal/src/components/dashboard/DashboardOverview.tsx",
+      "line": 366,
+      "snippet": ": site.domain.includes('localhost') || site.domain.includes('127.0.0.1')"
+    },
+    {
+      "file": "admin-portal/src/components/dashboard/ModernDashboardView.tsx",
+      "line": 365,
+      "snippet": "const rawDomain = activeSite?.domain || 'localhost:5001';"
+    },
+    {
+      "file": "admin-portal/src/components/dashboard/ModernDashboardView.tsx",
+      "line": 368,
+      "snippet": ": rawDomain.includes('localhost') || rawDomain.includes('127.0.0.1')"
+    },
+    {
+      "file": "admin-portal/src/components/developers/ApiPortalView.tsx",
+      "line": 122,
+      "snippet": "const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' && !window.location.origin.includes('localhost') ? wind"
+    },
+    {
+      "file": "admin-portal/src/components/developers/snippets.ts",
+      "line": 4,
+      "snippet": "const cleanDomain = (activeSite.domain || 'localhost:5001').split(':')[0];"
+    },
+    {
+      "file": "admin-portal/src/components/developers/snippets.ts",
+      "line": 22,
+      "snippet": "hostname: 'localhost',"
+    },
+    {
+      "file": "admin-portal/src/components/guide/AdminGuideModal.tsx",
+      "line": 66,
+      "snippet": "- **Single Source of Truth**: Saara content, media, aur users ek hi backend (localhost:4000) me store hote hain."
+    },
+    {
+      "file": "admin-portal/src/components/guide/AdminGuideModal.tsx",
+      "line": 68,
+      "snippet": "1. \\`site-cloud\\` ➔ Jupsoft Cloud & ERP (localhost:5001)"
+    },
+    {
+      "file": "admin-portal/src/components/guide/AdminGuideModal.tsx",
+      "line": 69,
+      "snippet": "2. \\`site-growth\\` ➔ DigifyNext Marketing (localhost:5002)"
+    },
+    {
+      "file": "admin-portal/src/components/guide/AdminGuideModal.tsx",
+      "line": 70,
+      "snippet": "3. \\`site-edtech\\` ➔ School ERP Platform (localhost:5003)"
+    },
+    {
+      "file": "admin-portal/src/components/guide/AdminGuideModal.tsx",
+      "line": 121,
+      "snippet": "9. Webhook trigger hota hai ──> localhost:5001 par instant article live ho jata hai!"
+    },
+    {
+      "file": "admin-portal/src/components/guide/AdminGuideModal.tsx",
+      "line": 261,
+      "snippet": "<p className=\"text-[11px] text-slate-500\">Saara content, media aur user accounts ek centralized backend (<code className=\"font-mono text-ind"
+    },
+    {
+      "file": "admin-portal/src/components/guide/AdminGuideModal.tsx",
+      "line": 513,
+      "snippet": "{ step: '9', title: 'Live on Consumer Site!', desc: 'Target website (e.g. localhost:5001) par bina build restart kiye article instantly live"
+    },
+    {
+      "file": "admin-portal/src/components/landing/LandingFooter.tsx",
+      "line": 37,
+      "snippet": "href=\"http://localhost:4000/api/docs\""
+    },
+    {
+      "file": "admin-portal/src/components/landing/LandingFooter.tsx",
+      "line": 80,
+      "snippet": "<a href=\"http://localhost:4000/api/docs\" target=\"_blank\" rel=\"noopener noreferrer\" className=\"hover:text-slate-800 dark:hover:text-slate-200"
+    },
+    {
+      "file": "admin-portal/src/components/landing/LandingNavbar.tsx",
+      "line": 96,
+      "snippet": "href=\"http://localhost:4000/api/docs\""
+    },
+    {
+      "file": "admin-portal/src/components/layout/Navbar.tsx",
+      "line": 221,
+      "snippet": "href={activeSite.domain.startsWith('http') ? activeSite.domain : (activeSite.domain.includes('localhost') || activeSite.domain.includes('127"
+    },
+    {
+      "file": "admin-portal/src/components/settings/SettingsView.tsx",
+      "line": 745,
+      "snippet": "placeholder=\"e.g. localhost:5001 or cloud.jupsoft.com\""
+    },
+    {
+      "file": "admin-portal/src/components/settings/SettingsView.tsx",
+      "line": 749,
+      "snippet": "Localhost during testing (e.g. <code className=\"text-blue-500 font-mono\">localhost:5001</code>). When launching live, enter your production "
+    },
+    {
+      "file": "admin-portal/src/components/settings/SettingsView.tsx",
+      "line": 944,
+      "snippet": "placeholder=\"e.g. https://digifynext.com/api/revalidate or http://localhost:5002/api/revalidate\""
+    },
+    {
+      "file": "admin-portal/src/store/useBlogStore.ts",
+      "line": 514,
+      "snippet": "ipAddress: '127.0.0.1',"
+    },
+    {
+      "file": "admin-portal/src/utils/permissions.ts",
+      "line": 176,
+      "snippet": "if (trimmed.startsWith('http://localhost:4000/uploads/')) {"
+    },
+    {
+      "file": "admin-portal/src/utils/permissions.ts",
+      "line": 177,
+      "snippet": "trimmed = trimmed.replace('http://localhost:4000', '');"
+    },
+    {
+      "file": "admin-portal/src/utils/permissions.ts",
+      "line": 178,
+      "snippet": "} else if (trimmed.startsWith('http://localhost:3000/uploads/')) {"
+    },
+    {
+      "file": "admin-portal/src/utils/permissions.ts",
+      "line": 179,
+      "snippet": "trimmed = trimmed.replace('http://localhost:3000', '');"
+    },
+    {
+      "file": "backend/.env",
+      "line": 10,
+      "snippet": "LOCAL_DATABASE_URL=postgresql://postgres:viraj@localhost:5432/jupsoft_cms?schema=public"
+    },
+    {
+      "file": "backend/.env",
+      "line": 22,
+      "snippet": "REDIS_HOST=127.0.0.1"
+    },
+    {
+      "file": "backend/.env.example",
+      "line": 8,
+      "snippet": "DATABASE_URL=postgresql://jupsoft_admin:jupsoft_secret_2026@localhost:5432/jupsoft_cms?schema=public"
+    },
+    {
+      "file": "backend/.env.example",
+      "line": 11,
+      "snippet": "REDIS_HOST=localhost"
+    },
+    {
+      "file": "backend/prisma/seed.example.ts",
+      "line": 827,
+      "snippet": "ipAddress: '127.0.0.1',"
+    },
+    {
+      "file": "backend/public/widget/blog.js",
+      "line": 5,
+      "snippet": "* <div id=\"jupsoft-blog-feed\" data-site=\"YOUR_WEBSITE_ID\" data-api=\"http://localhost:4000\"></div>"
+    },
+    {
+      "file": "backend/public/widget/blog.js",
+      "line": 6,
+      "snippet": "* <script src=\"http://localhost:4000/widget/blog.js\" async></script>"
+    },
+    {
+      "file": "backend/public/widget/blog.js",
+      "line": 244,
+      "snippet": "const apiUrl = (container.getAttribute('data-api') || 'http://localhost:4000').replace(/\\/$/, '');"
+    },
+    {
+      "file": "backend/README.md",
+      "line": 18,
+      "snippet": "- **PostgreSQL 16** on `localhost:5432` (Database: `jupsoft_cms`, User: `jupsoft_admin`, Password: `jupsoft_secret_2026`)"
+    },
+    {
+      "file": "backend/README.md",
+      "line": 19,
+      "snippet": "- **Redis 7** on `localhost:6379`"
+    },
+    {
+      "file": "backend/README.md",
+      "line": 47,
+      "snippet": "The backend server listens on **`http://localhost:4000`**."
+    },
+    {
+      "file": "backend/README.md",
+      "line": 54,
+      "snippet": "👉 **`http://localhost:4000/api/docs`**"
+    },
+    {
+      "file": "backend/scratch/test-full-regression.ts",
+      "line": 51,
+      "snippet": "hostname: '127.0.0.1',"
+    },
+    {
+      "file": "backend/scratch/test-full-regression.ts",
+      "line": 507,
+      "snippet": "data: { revalidateWebhookUrl: 'http://127.0.0.1:3000/api/revalidate' },"
+    },
+    {
+      "file": "backend/scratch/test-full-regression.ts",
+      "line": 526,
+      "snippet": "webhookLog?.targetUrl === 'http://127.0.0.1:3000/api/revalidate',"
+    },
+    {
+      "file": "backend/scratch/test-trd-page-by-page.ts",
+      "line": 57,
+      "snippet": "hostname: '127.0.0.1',"
+    },
+    {
+      "file": "backend/scripts/verify.js",
+      "line": 50,
+      "snippet": "const redis = new Redis({ host: 'localhost', port: 6379, lazyConnect: true });"
+    },
+    {
+      "file": "backend/src/common/providers/redis.provider.ts",
+      "line": 21,
+      "snippet": "host: this.config.get<string>('REDIS_HOST', 'localhost'),"
+    },
+    {
+      "file": "backend/src/main.ts",
+      "line": 113,
+      "snippet": "// 2. In development, permit localhost / 127.0.0.1 origins"
+    },
+    {
+      "file": "backend/src/main.ts",
+      "line": 114,
+      "snippet": "if (nodeEnv !== 'production' && /^http:\\/\\/(localhost|127\\.0\\.0\\.1)(:\\d+)?$/.test(origin)) {"
+    },
+    {
+      "file": "backend/src/main.ts",
+      "line": 213,
+      "snippet": "logger.log('Swagger docs: http://localhost:' + port + '/api/docs');"
+    },
+    {
+      "file": "backend/src/main.ts",
+      "line": 218,
+      "snippet": "logger.log('Admin API: http://localhost:' + port + '/admin');"
+    },
+    {
+      "file": "backend/src/main.ts",
+      "line": 219,
+      "snippet": "logger.log('Public V1 API: http://localhost:' + port + '/v1');"
+    },
+    {
+      "file": "backend/src/modules/media/media.service.ts",
+      "line": 50,
+      "snippet": "this.cdnDomain = 'http://localhost:4000/uploads';"
+    },
+    {
+      "file": "backend/src/modules/websites/dto/create-website.dto.ts",
+      "line": 41,
+      "snippet": "@IsUrl({ require_tld: false, require_protocol: true }, { message: 'revalidateWebhookUrl must be a valid URL (e.g. https://yourdomain.com/api"
+    },
+    {
+      "file": "backend/src/modules/websites/dto/create-website.dto.ts",
+      "line": 74,
+      "snippet": "@IsUrl({ require_tld: false, require_protocol: true }, { message: 'revalidateWebhookUrl must be a valid URL (e.g. https://yourdomain.com/api"
+    },
+    {
+      "file": "CONTEXT.md",
+      "line": 49,
+      "snippet": "- `jupsoft_postgres` ➔ PostgreSQL 16 Alpine on `localhost:5432`"
+    },
+    {
+      "file": "CONTEXT.md",
+      "line": 50,
+      "snippet": "- `jupsoft_redis` ➔ Redis 7 Alpine on `localhost:6379`"
+    },
+    {
+      "file": "CONTEXT.md",
+      "line": 68,
+      "snippet": "- **Next.js Admin Portal:** [http://localhost:3000](http://localhost:3000)"
+    },
+    {
+      "file": "CONTEXT.md",
+      "line": 69,
+      "snippet": "- **NestJS API & Swagger Docs:** [http://localhost:4000/api/docs](http://localhost:4000/api/docs)"
+    },
+    {
+      "file": "CONTEXT.md",
+      "line": 70,
+      "snippet": "- **Database Studio (Visual UI):** `cd backend && pnpm exec prisma studio` (Opens [http://localhost:5555](http://localhost:5555))"
+    },
+    {
+      "file": "CONTEXT.md",
+      "line": 181,
+      "snippet": "PLATFORM_BASE_URL=http://localhost:4000"
+    },
+    {
+      "file": "CONTEXT.md",
+      "line": 184,
+      "snippet": "DATABASE_URL=postgresql://jupsoft_admin:jupsoft_secret_2026@localhost:5432/jupsoft_cms?schema=public"
+    },
+    {
+      "file": "CONTEXT.md",
+      "line": 187,
+      "snippet": "REDIS_HOST=localhost"
+    },
+    {
+      "file": "docs/CONSUMER_INTEGRATION_GUIDE.md",
+      "line": 36,
+      "snippet": "const CMS_URL = process.env.NEXT_PUBLIC_CMS_API_URL || 'http://localhost:4000';"
+    },
+    {
+      "file": "docs/jupsoft-cms-admin_SKILL.md",
+      "line": 13,
+      "snippet": "This skill empowers any AI agent (**Antigravity IDE, Claude, GPT-4o, Gemini**) with **complete Super Admin control** over the Jupsoft Centra"
+    },
+    {
+      "file": "docs/jupsoft-cms-admin_SKILL.md",
+      "line": 21,
+      "snippet": "| `site-cloud`  | Jupsoft Cloud & ERP         | `localhost:5001`          | Cloud/ERP product blogs  |"
+    },
+    {
+      "file": "docs/jupsoft-cms-admin_SKILL.md",
+      "line": 22,
+      "snippet": "| `site-growth` | DigifyNext Marketing        | `localhost:5002`          | Digital marketing blogs  |"
+    },
+    {
+      "file": "docs/jupsoft-cms-admin_SKILL.md",
+      "line": 23,
+      "snippet": "| `site-edtech` | School ERP Platform         | `localhost:5003`          | EdTech / education blogs |"
+    },
+    {
+      "file": "docs/TRD_DELIVERY_DOCUMENTATION.md",
+      "line": 154,
+      "snippet": "- **API Documentation**: Interactive Swagger OpenAPI at `http://localhost:4000/api/docs`."
+    },
+    {
+      "file": "docs/TRD_DELIVERY_DOCUMENTATION.md",
+      "line": 517,
+      "snippet": "| **Swagger OpenAPI Documentation** | §4, §12, §21 | `http://localhost:4000/api/docs` | ✅ Verified |"
+    },
+    {
+      "file": "docs/TRD_DELIVERY_DOCUMENTATION.md",
+      "line": 538,
+      "snippet": "- Dev server running on `http://localhost:3000`."
+    },
+    {
+      "file": "infra/ecs-task-definition.json",
+      "line": 37,
+      "snippet": "\"command\": [\"CMD-SHELL\", \"wget -qO- http://localhost:4000/v1/health || exit 1\"],"
+    },
+    {
+      "file": "infra/README.md",
+      "line": 66,
+      "snippet": "curl http://localhost:4000/v1/health"
+    },
+    {
+      "file": "jupsoft-cms-mcp/mcp_config.json",
+      "line": 12,
+      "snippet": "\"CMS_API_BASE\": \"http://localhost:4000\","
+    },
+    {
+      "file": "jupsoft-cms-mcp/README.md",
+      "line": 29,
+      "snippet": "The CMS backend must be running on `http://localhost:4000`."
+    },
+    {
+      "file": "packages/next-blog/bin/cli.js",
+      "line": 20,
+      "snippet": "--url=<apiUrl>      CMS API Base URL (default: http://localhost:4000)"
+    },
+    {
+      "file": "packages/next-blog/bin/cli.js",
+      "line": 44,
+      "snippet": "const apiUrl = (params.url || process.env.NEXT_PUBLIC_CMS_API_URL || 'http://localhost:4000').replace(/\\/$/, '');"
+    },
+    {
+      "file": "README.md",
+      "line": 51,
+      "snippet": "- **Admin Studio:** [http://localhost:3000](http://localhost:3000)"
+    },
+    {
+      "file": "README.md",
+      "line": 52,
+      "snippet": "- **API Swagger Documentation:** [http://localhost:4000/api/docs](http://localhost:4000/api/docs)"
+    },
+    {
+      "file": "README.md",
+      "line": 53,
+      "snippet": "- **Database Studio (Visual UI):** `cd backend && pnpm exec prisma studio` (Opens [http://localhost:5555](http://localhost:5555))"
+    },
+    {
+      "file": "test-sites/server.js",
+      "line": 43,
+      "snippet": "const webhookUrl = `http://localhost:${site.port}/api/revalidate`;"
+    },
+    {
+      "file": "test-sites/server.js",
+      "line": 72,
+      "snippet": "const url = new URL(req.url, `http://localhost:${site.port}`);"
+    },
+    {
+      "file": "test-sites/server.js",
+      "line": 203,
+      "snippet": "console.log(`🌐 [Site ${site.port}] ${site.name} is running at: http://localhost:${site.port}`);"
+    },
+    {
+      "file": "test-sites/server.js",
+      "line": 221,
+      "snippet": "console.log('   1. Cloud ERP:  http://localhost:5001');"
+    },
+    {
+      "file": "test-sites/server.js",
+      "line": 222,
+      "snippet": "console.log('   2. Growth:     http://localhost:5002');"
+    },
+    {
+      "file": "test-sites/server.js",
+      "line": 223,
+      "snippet": "console.log('   3. School ERP: http://localhost:5003');"
+    },
+    {
+      "file": "test-sites/site1-cloud/index.html",
+      "line": 73,
+      "snippet": "<a href=\"http://localhost:5002\" class=\"text-slate-300 hover:text-white hover:underline\">Growth (5002)</a>"
+    },
+    {
+      "file": "test-sites/site1-cloud/index.html",
+      "line": 75,
+      "snippet": "<a href=\"http://localhost:5003\" class=\"text-slate-300 hover:text-white hover:underline\">EdTech (5003)</a>"
+    },
+    {
+      "file": "test-sites/site1-cloud/index.html",
+      "line": 78,
+      "snippet": "<a href=\"http://localhost:3000\" target=\"_blank\" class=\"inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 font-semibold\">"
+    },
+    {
+      "file": "test-sites/site1-cloud/index.html",
+      "line": 136,
+      "snippet": "<a href=\"http://localhost:3000/blogs/new\" target=\"_blank\" class=\"hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 "
+    },
+    {
+      "file": "test-sites/site1-cloud/index.html",
+      "line": 366,
+      "snippet": "<a href=\"http://localhost:3000\" target=\"_blank\" class=\"px-4 py-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-xs font"
+    },
+    {
+      "file": "test-sites/site1-cloud/index.html",
+      "line": 402,
+      "snippet": "<li><a href=\"http://localhost:5001\" class=\"text-white font-medium hover:underline\">1. Cloud ERP (:5001)</a></li>"
+    },
+    {
+      "file": "test-sites/site1-cloud/index.html",
+      "line": 403,
+      "snippet": "<li><a href=\"http://localhost:5002\" class=\"hover:text-white transition-colors\">2. Growth Marketing (:5002)</a></li>"
+    },
+    {
+      "file": "test-sites/site1-cloud/index.html",
+      "line": 404,
+      "snippet": "<li><a href=\"http://localhost:5003\" class=\"hover:text-white transition-colors\">3. School ERP (:5003)</a></li>"
+    },
+    {
+      "file": "test-sites/site1-cloud/index.html",
+      "line": 405,
+      "snippet": "<li><a href=\"http://localhost:3000\" target=\"_blank\" class=\"hover:text-white transition-colors\">Admin Portal (:3000)</a></li>"
+    },
+    {
+      "file": "test-sites/site1-cloud/index.html",
+      "line": 436,
+      "snippet": "const API_BASE = 'http://localhost:4000/v1';"
+    },
+    {
+      "file": "test-sites/site2-growth/blogdetail.html",
+      "line": 17,
+      "snippet": "<link rel=\"canonical\" href=\"http://localhost:5002/blogdetail\" />"
+    },
+    {
+      "file": "test-sites/site2-growth/blogdetail.html",
+      "line": 23,
+      "snippet": "<meta property=\"og:url\" content=\"http://localhost:5002/blogdetail\" />"
+    },
+    {
+      "file": "test-sites/site2-growth/blogdetail.html",
+      "line": 24,
+      "snippet": "<meta property=\"og:image\" content=\"http://localhost:5002/uploads/blogs/site-growth/2026/09/technical-seo-playbook.webp\" />"
+    },
+    {
+      "file": "test-sites/site2-growth/blogdetail.html",
+      "line": 33,
+      "snippet": "<meta name=\"twitter:image\" content=\"http://localhost:5002/uploads/blogs/site-growth/2026/09/technical-seo-playbook.webp\" />"
+    },
+    {
+      "file": "test-sites/site2-growth/blogdetail.html",
+      "line": 113,
+      "snippet": "<a href=\"http://localhost:3000/settings\" target=\"_blank\" class=\"text-orange-400 hover:text-orange-300 font-semibold flex items-center gap-1\""
+    },
+    {
+      "file": "test-sites/site2-growth/blogdetail.html",
+      "line": 125,
+      "snippet": "<a href=\"http://localhost:5002\" class=\"flex items-center gap-3 group\">"
+    },
+    {
+      "file": "test-sites/site2-growth/blogdetail.html",
+      "line": 139,
+      "snippet": "<a href=\"http://localhost:5002\" class=\"hover:text-accent transition-colors\">Home</a>"
+    },
+    {
+      "file": "test-sites/site2-growth/blogdetail.html",
+      "line": 145,
+      "snippet": "<a href=\"http://localhost:5002/blogdetail\" class=\"text-accent flex items-center gap-1 font-bold\">"
+    },
+    {
+      "file": "test-sites/site2-growth/blogdetail.html",
+      "line": 390,
+      "snippet": "href=\"https://api.whatsapp.com/send?text=Check%20out%20this%20SEO%20guide:%20http://localhost:5002/blogdetail\""
+    },
+    {
+      "file": "test-sites/site2-growth/blogdetail.html",
+      "line": 401,
+      "snippet": "href=\"https://www.linkedin.com/sharing/share-offsite/?url=http://localhost:5002/blogdetail\""
+    },
+    {
+      "file": "test-sites/site2-growth/blogdetail.html",
+      "line": 412,
+      "snippet": "href=\"https://twitter.com/intent/tweet?text=SEO%20Trends%20for%202026&url=http://localhost:5002/blogdetail\""
+    },
+    {
+      "file": "test-sites/site2-growth/blogdetail.html",
+      "line": 447,
+      "snippet": "<a href=\"http://localhost:5002\" class=\"text-accent hover:underline font-semibold flex items-center gap-1\">"
+    },
+    {
+      "file": "test-sites/site2-growth/blogdetail.html",
+      "line": 485,
+      "snippet": "<a href=\"http://localhost:5002\" class=\"text-xs font-bold text-accent hover:underline flex items-center gap-1\">"
+    },
+    {
+      "file": "test-sites/site2-growth/blogdetail.html",
+      "line": 619,
+      "snippet": "<li><a href=\"http://localhost:5002\" class=\"hover:text-white transition-colors\">Home</a></li>"
+    },
+    {
+      "file": "test-sites/site2-growth/blogdetail.html",
+      "line": 622,
+      "snippet": "<li><a href=\"http://localhost:5002/blogdetail\" class=\"hover:text-white transition-colors text-accent\">Blog & Articles</a></li>"
+    },
+    {
+      "file": "test-sites/site2-growth/index.html",
+      "line": 73,
+      "snippet": "<a href=\"http://localhost:5001\" class=\"text-slate-300 hover:text-white hover:underline\">Cloud (5001)</a>"
+    },
+    {
+      "file": "test-sites/site2-growth/index.html",
+      "line": 75,
+      "snippet": "<a href=\"http://localhost:5003\" class=\"text-slate-300 hover:text-white hover:underline\">EdTech (5003)</a>"
+    },
+    {
+      "file": "test-sites/site2-growth/index.html",
+      "line": 78,
+      "snippet": "<a href=\"http://localhost:3000\" target=\"_blank\" class=\"inline-flex items-center gap-1 text-purple-400 hover:text-purple-300 font-semibold\">"
+    },
+    {
+      "file": "test-sites/site2-growth/index.html",
+      "line": 136,
+      "snippet": "<a href=\"http://localhost:3000/blogs/new\" target=\"_blank\" class=\"hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 "
+    },
+    {
+      "file": "test-sites/site2-growth/index.html",
+      "line": 366,
+      "snippet": "<a href=\"http://localhost:3000\" target=\"_blank\" class=\"px-4 py-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-xs font"
+    },
+    {
+      "file": "test-sites/site2-growth/index.html",
+      "line": 402,
+      "snippet": "<li><a href=\"http://localhost:5001\" class=\"hover:text-white transition-colors\">1. Cloud ERP (:5001)</a></li>"
+    },
+    {
+      "file": "test-sites/site2-growth/index.html",
+      "line": 403,
+      "snippet": "<li><a href=\"http://localhost:5002\" class=\"text-white font-medium hover:underline\">2. Growth Marketing (:5002)</a></li>"
+    },
+    {
+      "file": "test-sites/site2-growth/index.html",
+      "line": 404,
+      "snippet": "<li><a href=\"http://localhost:5003\" class=\"hover:text-white transition-colors\">3. School ERP (:5003)</a></li>"
+    },
+    {
+      "file": "test-sites/site2-growth/index.html",
+      "line": 405,
+      "snippet": "<li><a href=\"http://localhost:3000\" target=\"_blank\" class=\"hover:text-white transition-colors\">Admin Portal (:3000)</a></li>"
+    },
+    {
+      "file": "test-sites/site2-growth/index.html",
+      "line": 436,
+      "snippet": "const API_BASE = 'http://localhost:4000/v1';"
+    },
+    {
+      "file": "test-sites/site3-edtech/index.html",
+      "line": 73,
+      "snippet": "<a href=\"http://localhost:5001\" class=\"text-slate-300 hover:text-white hover:underline\">Cloud (5001)</a>"
+    },
+    {
+      "file": "test-sites/site3-edtech/index.html",
+      "line": 75,
+      "snippet": "<a href=\"http://localhost:5002\" class=\"text-slate-300 hover:text-white hover:underline\">Growth (5002)</a>"
+    },
+    {
+      "file": "test-sites/site3-edtech/index.html",
+      "line": 78,
+      "snippet": "<a href=\"http://localhost:3000\" target=\"_blank\" class=\"inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold\""
+    },
+    {
+      "file": "test-sites/site3-edtech/index.html",
+      "line": 136,
+      "snippet": "<a href=\"http://localhost:3000/blogs/new\" target=\"_blank\" class=\"hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 "
+    },
+    {
+      "file": "test-sites/site3-edtech/index.html",
+      "line": 366,
+      "snippet": "<a href=\"http://localhost:3000\" target=\"_blank\" class=\"px-4 py-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-xs font"
+    },
+    {
+      "file": "test-sites/site3-edtech/index.html",
+      "line": 402,
+      "snippet": "<li><a href=\"http://localhost:5001\" class=\"hover:text-white transition-colors\">1. Cloud ERP (:5001)</a></li>"
+    },
+    {
+      "file": "test-sites/site3-edtech/index.html",
+      "line": 403,
+      "snippet": "<li><a href=\"http://localhost:5002\" class=\"hover:text-white transition-colors\">2. Growth Marketing (:5002)</a></li>"
+    },
+    {
+      "file": "test-sites/site3-edtech/index.html",
+      "line": 404,
+      "snippet": "<li><a href=\"http://localhost:5003\" class=\"text-white font-medium hover:underline\">3. School ERP (:5003)</a></li>"
+    },
+    {
+      "file": "test-sites/site3-edtech/index.html",
+      "line": 405,
+      "snippet": "<li><a href=\"http://localhost:3000\" target=\"_blank\" class=\"hover:text-white transition-colors\">Admin Portal (:3000)</a></li>"
+    },
+    {
+      "file": "test-sites/site3-edtech/index.html",
+      "line": 436,
+      "snippet": "const API_BASE = 'http://localhost:4000/v1';"
+    }
+  ],
+  "oldNonExistentTenantRefs": [],
+  "missingLocalAssetReferences": [
+    {
+      "file": "admin-portal/src/components/developers/snippets.ts",
+      "assetUrl": "/uploads/**"
+    }
+  ],
+  "brokenRelativeImports": [
+    {
+      "file": "packages/next-blog/src/client.ts",
+      "import": "./types.js"
+    },
+    {
+      "file": "packages/next-blog/src/components/BlogDetail.tsx",
+      "import": "../client.js"
+    },
+    {
+      "file": "packages/next-blog/src/components/BlogDetail.tsx",
+      "import": "../types.js"
+    },
+    {
+      "file": "packages/next-blog/src/components/BlogList.tsx",
+      "import": "../client.js"
+    },
+    {
+      "file": "packages/next-blog/src/components/BlogList.tsx",
+      "import": "../types.js"
+    },
+    {
+      "file": "packages/next-blog/src/index.ts",
+      "import": "./types.js"
+    },
+    {
+      "file": "packages/next-blog/src/index.ts",
+      "import": "./client.js"
+    },
+    {
+      "file": "packages/next-blog/src/index.ts",
+      "import": "./metadata.js"
+    },
+    {
+      "file": "packages/next-blog/src/index.ts",
+      "import": "./components/BlogList.js"
+    },
+    {
+      "file": "packages/next-blog/src/index.ts",
+      "import": "./components/BlogDetail.js"
+    },
+    {
+      "file": "packages/next-blog/src/metadata.ts",
+      "import": "./client.js"
+    },
+    {
+      "file": "packages/next-blog/src/metadata.ts",
+      "import": "./types.js"
+    },
+    {
+      "file": "packages/next-blog/src/webhook.ts",
+      "import": "./client.js"
+    }
+  ]
+}

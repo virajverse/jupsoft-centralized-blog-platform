@@ -217,7 +217,7 @@ export const Navbar: React.FC = () => {
         <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-[11px] text-slate-600 dark:text-slate-400 font-mono border border-slate-200 dark:border-slate-700/60">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           <span>{displayDomain}</span>
-          {!isAllSites && activeSite && (
+          {!isAllSites && activeSite?.domain && (
             <a 
               href={activeSite.domain.startsWith('http') ? activeSite.domain : (activeSite.domain.includes('localhost') || activeSite.domain.includes('127.0.0.1') ? `http://${activeSite.domain}` : `https://${activeSite.domain}`)} 
               target="_blank" 

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { MediaItem } from '../../types';
 import { apiClient } from '../../services/apiClient';
+import { resolveMediaUrl, extractS3Key } from '../../utils/mediaUtils';
 
 export const MediaLibraryView: React.FC = () => {
   const searchParams = useSearchParams();
@@ -95,8 +96,8 @@ export const MediaLibraryView: React.FC = () => {
           fileName: res.fileName || cleanName,
           fileType: 'image/webp',
           fileSizeBytes: res.fileSizeBytes || file.size,
-          s3Key: res.cdnUrl,
-          cdnUrl: res.cdnUrl,
+          s3Key: extractS3Key(res.s3Key || res.cdnUrl),
+          cdnUrl: resolveMediaUrl(res.cdnUrl),
           altText: cleanName.replace(/[-_]/g, ' ').replace('.webp', ''),
           dimensions: res.dimensions || { width: 800, height: 600 },
           uploadedBy: activeRole,
@@ -174,7 +175,7 @@ export const MediaLibraryView: React.FC = () => {
               Media Asset Manager
             </h1>
             <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700">
-              {isAllSites ? 'All Websites' : activeSite.name}
+              {isAllSites ? 'All Websites' : (activeSite?.name || 'Website')}
             </span>
           </div>
 
@@ -265,7 +266,7 @@ export const MediaLibraryView: React.FC = () => {
               >
                 <div className="aspect-video bg-slate-100 dark:bg-slate-900 relative overflow-hidden">
                   <img
-                    src={item.cdnUrl}
+                    src={resolveMediaUrl(item.cdnUrl)}
                     alt={item.altText}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
@@ -296,7 +297,7 @@ export const MediaLibraryView: React.FC = () => {
                     <span className="font-mono">{(item.fileSizeBytes / 1024).toFixed(0)} KB</span>
                     <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
                       <button
-                        onClick={() => copyCdnUrl(item.id, item.cdnUrl)}
+                        onClick={() => copyCdnUrl(item.id, resolveMediaUrl(item.cdnUrl))}
                         className="p-1 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                         title="Copy image URL"
                       >
@@ -341,7 +342,7 @@ export const MediaLibraryView: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 aspect-video flex items-center justify-center">
                 <img
-                  src={inspectedItem.cdnUrl}
+                  src={resolveMediaUrl(inspectedItem.cdnUrl)}
                   alt={inspectedItem.altText}
                   className="w-full h-full object-contain"
                 />
@@ -363,14 +364,14 @@ export const MediaLibraryView: React.FC = () => {
                 <div>
                   <span className="text-slate-500 dark:text-slate-400 block font-medium">S3 Key Path</span>
                   <div className="text-slate-700 dark:text-slate-300 font-mono text-[11px] break-all bg-slate-50 dark:bg-slate-900 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
-                    {inspectedItem.s3Key}
+                    {extractS3Key(inspectedItem.s3Key || inspectedItem.cdnUrl)}
                   </div>
                 </div>
 
                 <div>
                   <span className="text-slate-500 dark:text-slate-400 block font-medium mb-1">CDN Data URL</span>
                   <button
-                    onClick={() => copyCdnUrl(inspectedItem.id, inspectedItem.cdnUrl)}
+                    onClick={() => copyCdnUrl(inspectedItem.id, resolveMediaUrl(inspectedItem.cdnUrl))}
                     className="w-full py-2 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1.5 transition-colors font-medium border border-slate-200 dark:border-slate-700 cursor-pointer"
                   >
                     {copiedId === inspectedItem.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}

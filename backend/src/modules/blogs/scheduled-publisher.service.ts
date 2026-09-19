@@ -82,6 +82,8 @@ export class ScheduledPublisherService {
         // Invalidate Redis caches
         await this.redis.delPattern(`blog:${blog.websiteId}:*`);
         await this.redis.delPattern(`blogs:${blog.websiteId}:*`);
+        await this.redis.delPattern(`search:${blog.websiteId}:*`);
+        await this.redis.delPattern('admin:blogs:*');
 
         // Dispatch ISR revalidation webhook for each translation slug
         for (const t of blog.translations) {

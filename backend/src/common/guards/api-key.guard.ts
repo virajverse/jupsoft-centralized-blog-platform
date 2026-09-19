@@ -34,6 +34,8 @@ function isValidAdminJwt(token: string, secret: string): boolean {
   }
 }
 
+const tenantCache = new Map<string, { website: any; expiresAt: number }>();
+
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
   constructor(private prisma: PrismaService) {}
@@ -58,11 +60,22 @@ export class ApiKeyGuard implements CanActivate {
       tokenValue = queryApiKey;
     }
 
+    const now = Date.now();
+
     if (tokenValue) {
-      // 1.A Check if it matches a Tenant API Key
-      const website = await this.prisma.website.findUnique({
-        where: { apiKey: tokenValue },
-      });
+      // 1.A Check if it matches a Tenant API Key (Check Cache First)
+      const cacheKey = `tenant:key:${tokenValue}`;
+      const cached = tenantCache.get(cacheKey);
+      let website = cached && cached.expiresAt > now ? cached.website : null;
+
+      if (!website) {
+        website = await this.prisma.website.findUnique({
+          where: { apiKey: tokenValue },
+        });
+        if (website) {
+          tenantCache.set(cacheKey, { website, expiresAt: now + 300_000 });
+        }
+      }
 
       if (website) {
         if (website.status !== 'active') {
@@ -75,21 +88,30 @@ export class ApiKeyGuard implements CanActivate {
       // 1.B If not a Tenant API Key, check if it's a valid Admin Portal JWT
       const jwtSecret = process.env.JWT_SECRET;
       if (!jwtSecret) {
-        // JWT_SECRET not configured — cannot validate admin tokens
         throw new UnauthorizedException('Server misconfiguration: JWT_SECRET not set');
       }
       if (isValidAdminJwt(tokenValue, jwtSecret)) {
         if (websiteParam && websiteParam !== 'all') {
-          const matchedSite = await this.prisma.website.findFirst({
-            where: {
-              OR: [
-                { id: websiteParam },
-                { domain: { contains: websiteParam, mode: 'insensitive' } },
-                { name: { contains: websiteParam, mode: 'insensitive' } },
-                { s3Prefix: websiteParam },
-              ],
-            },
-          });
+          const siteCacheKey = `tenant:param:${websiteParam}`;
+          const cachedSite = tenantCache.get(siteCacheKey);
+          let matchedSite = cachedSite && cachedSite.expiresAt > now ? cachedSite.website : null;
+
+          if (!matchedSite) {
+            matchedSite = await this.prisma.website.findFirst({
+              where: {
+                OR: [
+                  { id: websiteParam },
+                  { domain: { contains: websiteParam, mode: 'insensitive' } },
+                  { name: { contains: websiteParam, mode: 'insensitive' } },
+                  { s3Prefix: websiteParam },
+                ],
+              },
+            });
+            if (matchedSite) {
+              tenantCache.set(siteCacheKey, { website: matchedSite, expiresAt: now + 300_000 });
+            }
+          }
+
           if (matchedSite) {
             request.tenant = matchedSite;
             return true;
@@ -100,22 +122,30 @@ export class ApiKeyGuard implements CanActivate {
         return true;
       }
 
-      // If neither a valid tenant API key nor a valid admin JWT
       throw new UnauthorizedException('Invalid tenant API key or Bearer token');
     }
 
     // 2. TRD §12 & §13: Public read support via ?website=<domain|id|slug>
     if (websiteParam && websiteParam !== 'all') {
-      const website = await this.prisma.website.findFirst({
-        where: {
-          OR: [
-            { id: websiteParam },
-            { domain: { contains: websiteParam, mode: 'insensitive' } },
-            { name: { contains: websiteParam, mode: 'insensitive' } },
-            { s3Prefix: websiteParam },
-          ],
-        },
-      });
+      const siteCacheKey = `tenant:param:${websiteParam}`;
+      const cachedSite = tenantCache.get(siteCacheKey);
+      let website = cachedSite && cachedSite.expiresAt > now ? cachedSite.website : null;
+
+      if (!website) {
+        website = await this.prisma.website.findFirst({
+          where: {
+            OR: [
+              { id: websiteParam },
+              { domain: { contains: websiteParam, mode: 'insensitive' } },
+              { name: { contains: websiteParam, mode: 'insensitive' } },
+              { s3Prefix: websiteParam },
+            ],
+          },
+        });
+        if (website) {
+          tenantCache.set(siteCacheKey, { website, expiresAt: now + 300_000 });
+        }
+      }
 
       if (!website) {
         throw new UnauthorizedException(`Tenant website "${websiteParam}" not found`);

@@ -28,14 +28,23 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
     return cookieToken || localStorage.getItem('jupsoft_auth_token');
   };
 
+  const initialDataLoadedRef = React.useRef(false);
+
   useEffect(() => {
     const token = getActiveToken();
-    if (!isAuthenticated && !token) {
-      router.replace('/login');
+    if (!token) {
+      if (isAuthenticated) {
+        useBlogStore.getState().logout();
+      }
+      const loginUrl = pathname ? `/login?redirect=${encodeURIComponent(pathname)}` : '/login';
+      router.replace(loginUrl);
     } else {
-      useBlogStore.getState().loadInitialData();
+      if (!initialDataLoadedRef.current) {
+        initialDataLoadedRef.current = true;
+        useBlogStore.getState().loadInitialData();
+      }
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, router, pathname]);
 
   // Prevent flash of protected dashboard content before hydration / auth check
   if (!mounted) {

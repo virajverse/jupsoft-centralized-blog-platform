@@ -44,12 +44,15 @@ export class MediaService {
     this.bucket = this.configService.get<string>('AWS_S3_BUCKET') || 'jupsoft-blogs-storage';
     const envCdn = this.configService.get<string>('CLOUDFRONT_DOMAIN');
     const nodeEnv = this.configService.get<string>('NODE_ENV') || 'development';
-    if (envCdn) {
+    const platformBase = this.configService.get<string>('PLATFORM_BASE_URL') || 'https://blogary.jupsoft.com';
+
+    // Auto-fallback: if CLOUDFRONT_DOMAIN points to the inactive cdn.jupsoft.com domain, route through active platform uploads
+    if (envCdn && !envCdn.includes('cdn.jupsoft.com')) {
       this.cdnDomain = envCdn.replace(/\/+$/, '');
-    } else if (nodeEnv !== 'production') {
-      this.cdnDomain = 'http://localhost:4000/uploads';
+    } else if (nodeEnv === 'production') {
+      this.cdnDomain = `${platformBase.replace(/\/+$/, '')}/uploads`;
     } else {
-      this.cdnDomain = `https://${this.bucket}.s3.${region}.amazonaws.com`;
+      this.cdnDomain = 'http://localhost:4000/uploads';
     }
 
     const s3Config: any = { region };
@@ -239,14 +242,28 @@ export class MediaService {
   // ─── TRD §10: Step 6 — Soft-delete ─────────────────────────────────────────
 
   async confirmUpload(dto: ConfirmMediaUploadDto, user: AuthenticatedUser, ipAddress?: string) {
+    // Sanitize s3Key: ensure clean relative path blogs/... even if client sent full URL
+    let s3Key = dto.s3Key || '';
+    if (s3Key.startsWith('http://') || s3Key.startsWith('https://')) {
+      const blogsIdx = s3Key.indexOf('blogs/');
+      s3Key = blogsIdx !== -1 ? s3Key.substring(blogsIdx) : s3Key.replace(/^https?:\/\/[^/]+\/(uploads\/)?/, '');
+    }
+    s3Key = s3Key.replace(/^\/+/, '');
+
+    // Auto-heal cdnUrl if pointing to inactive cdn.jupsoft.com
+    let cdnUrl = dto.cdnUrl || '';
+    if (cdnUrl.includes('cdn.jupsoft.com')) {
+      cdnUrl = `${this.cdnDomain}/${s3Key}`;
+    }
+
     const media = await this.prisma.mediaAsset.create({
       data: {
         websiteId: dto.websiteId,
         fileName: dto.fileName,
         fileType: dto.fileType,
         fileSizeBytes: dto.fileSizeBytes,
-        s3Key: dto.s3Key,
-        cdnUrl: dto.cdnUrl,
+        s3Key: s3Key,
+        cdnUrl: cdnUrl,
         altText: dto.altText || '',
         uploadedBy: user.name,
       },
@@ -259,13 +276,13 @@ export class MediaService {
         websiteId: dto.websiteId,
         event: 'media.uploaded',
         ipAddress: ipAddress || '',
-        details: `Uploaded asset "${dto.fileName}" to ${dto.s3Key} (${(dto.fileSizeBytes / 1024).toFixed(0)} KB).`,
+        details: `Uploaded asset "${dto.fileName}" to ${s3Key} (${(dto.fileSizeBytes / 1024).toFixed(0)} KB).`,
       },
     });
 
     // In local / dev mode, ensure a valid file exists on disk
     try {
-      const cleanKey = dto.s3Key.replace(/^\/+/, '');
+      const cleanKey = s3Key.replace(/^\/+/, '');
       const uploadsDir = join(process.cwd(), 'uploads');
       const targetPath = join(uploadsDir, cleanKey);
       if (!fs.existsSync(targetPath)) {
@@ -280,7 +297,7 @@ export class MediaService {
         await sharpFn(Buffer.from(svg)).webp({ quality: 80 }).toFile(targetPath);
       }
     } catch (diskErr) {
-      this.logger.warn(`Could not ensure local asset for ${dto.s3Key}: ${(diskErr as Error).message}`);
+      this.logger.warn(`Could not ensure local asset for ${s3Key}: ${(diskErr as Error).message}`);
     }
 
     return media;
@@ -292,9 +309,32 @@ export class MediaService {
       where.websiteId = websiteId;
     }
     where.deletedAt = null; // exclude soft-deleted assets
-    return this.prisma.mediaAsset.findMany({
+    const assets = await this.prisma.mediaAsset.findMany({
       where,
       orderBy: { createdAt: 'desc' },
+    });
+
+    // Auto-heal existing database records: strip domain prefix from s3Key & rewrite inactive cdn.jupsoft.com
+    return assets.map((asset) => {
+      let s3Key = asset.s3Key || '';
+      if (s3Key.startsWith('http://') || s3Key.startsWith('https://')) {
+        const blogsIdx = s3Key.indexOf('blogs/');
+        s3Key = blogsIdx !== -1 ? s3Key.substring(blogsIdx) : s3Key.replace(/^https?:\/\/[^/]+\/(uploads\/)?/, '');
+      }
+      s3Key = s3Key.replace(/^\/+/, '');
+
+      let cdnUrl = asset.cdnUrl || '';
+      if (cdnUrl.includes('cdn.jupsoft.com')) {
+        cdnUrl = `${this.cdnDomain}/${s3Key || asset.fileName}`;
+      } else if (cdnUrl.startsWith('/uploads/')) {
+        cdnUrl = `${this.cdnDomain.replace(/\/uploads$/, '')}${cdnUrl}`;
+      }
+
+      return {
+        ...asset,
+        s3Key,
+        cdnUrl,
+      };
     });
   }
 

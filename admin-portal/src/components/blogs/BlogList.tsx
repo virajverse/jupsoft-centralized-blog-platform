@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
@@ -14,11 +14,14 @@ import {
   X,
   Building2,
   Search,
-  RefreshCw
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { LanguageCode } from '../../types';
 import { canDeleteBlog, canCreateBlog } from '../../utils/permissions';
 import { ZohoBlogListView } from './ZohoBlogListView';
+import { resolveMediaUrl } from '../../utils/mediaUtils';
 
 const ALL_LANGUAGES: LanguageCode[] = ['en', 'hi', 'fr', 'ar'];
 
@@ -59,6 +62,16 @@ export const BlogList: React.FC = () => {
     setSearchVal(queryParam);
   }
 
+  // Debounce syncing search to URL query parameter (stops router thrashing on keystrokes)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchVal.trim() !== queryParam.trim()) {
+        setParam('q', searchVal.trim() || null);
+      }
+    }, 280);
+    return () => clearTimeout(timer);
+  }, [searchVal, queryParam, setParam]);
+
   const handleStatusChange = (status: string) => {
     setParam('status', status === 'All' ? null : status);
   };
@@ -70,30 +83,71 @@ export const BlogList: React.FC = () => {
   const isAllSites = activeWebsiteId === 'all';
   const activeSite = websites.find((w) => w.id === activeWebsiteId) || websites[0];
 
-  // Filter site blogs
-  const baseBlogs = isAllSites
-    ? (selectedTenantFilter === 'all' ? blogs : blogs.filter((b) => b.websiteId === selectedTenantFilter))
-    : blogs.filter((b) => b.websiteId === activeWebsiteId);
+  // Pre-calculate tenant blog counts in O(N) single pass
+  const tenantBlogCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const b of blogs) {
+      counts.set(b.websiteId, (counts.get(b.websiteId) || 0) + 1);
+    }
+    return counts;
+  }, [blogs]);
 
-  const filteredBlogs = baseBlogs.filter((blog) => {
-    const matchesStatus = selectedStatus === 'All' || blog.status === selectedStatus;
+  // Memoized Base Blogs filter
+  const baseBlogs = useMemo(() => {
+    return isAllSites
+      ? (selectedTenantFilter === 'all' ? blogs : blogs.filter((b) => b.websiteId === selectedTenantFilter))
+      : blogs.filter((b) => b.websiteId === activeWebsiteId);
+  }, [isAllSites, blogs, selectedTenantFilter, activeWebsiteId]);
+
+  // Memoized Filtered Blogs with optimized string lookup
+  const filteredBlogs = useMemo(() => {
     const query = queryParam.trim().toLowerCase();
-    const titleMatch = Object.values(blog.translations).some((t) => 
-      t?.title?.toLowerCase().includes(query) || t?.slug?.toLowerCase().includes(query)
-    );
-    const authorMatch = blog.authorName.toLowerCase().includes(query);
-    return matchesStatus && (query === '' || titleMatch || authorMatch);
-  });
+    return baseBlogs.filter((blog) => {
+      const matchesStatus = selectedStatus === 'All' || blog.status === selectedStatus;
+      if (!matchesStatus) return false;
+      if (!query) return true;
 
-  const statuses: { label: string; value: string; count: number }[] = [
-    { label: 'All Blogs', value: 'All', count: baseBlogs.length },
-    { label: 'Published', value: 'Published', count: baseBlogs.filter((b) => b.status === 'Published').length },
-    { label: 'Scheduled', value: 'Scheduled', count: baseBlogs.filter((b) => b.status === 'Scheduled').length },
-    { label: 'Under Review', value: 'Under Review', count: baseBlogs.filter((b) => b.status === 'Under Review').length },
-    { label: 'Approved', value: 'Approved', count: baseBlogs.filter((b) => b.status === 'Approved').length },
-    { label: 'Drafts', value: 'Draft', count: baseBlogs.filter((b) => b.status === 'Draft').length },
-    { label: 'Archived', value: 'Archived', count: baseBlogs.filter((b) => b.status === 'Archived').length },
-  ];
+      const titleMatch = Object.values(blog.translations || {}).some((t) => 
+        t?.title?.toLowerCase().includes(query) || t?.slug?.toLowerCase().includes(query)
+      );
+      const authorMatch = blog.authorName ? blog.authorName.toLowerCase().includes(query) : false;
+      return titleMatch || authorMatch;
+    });
+  }, [baseBlogs, selectedStatus, queryParam]);
+
+  // Single-pass memoized status counts
+  const statuses = useMemo(() => {
+    let pub = 0, sch = 0, rev = 0, app = 0, drf = 0, arc = 0;
+    for (const b of baseBlogs) {
+      if (b.status === 'Published') pub++;
+      else if (b.status === 'Scheduled') sch++;
+      else if (b.status === 'Under Review') rev++;
+      else if (b.status === 'Approved') app++;
+      else if (b.status === 'Draft') drf++;
+      else if (b.status === 'Archived') arc++;
+    }
+    return [
+      { label: 'All Blogs', value: 'All', count: baseBlogs.length },
+      { label: 'Published', value: 'Published', count: pub },
+      { label: 'Scheduled', value: 'Scheduled', count: sch },
+      { label: 'Under Review', value: 'Under Review', count: rev },
+      { label: 'Approved', value: 'Approved', count: app },
+      { label: 'Drafts', value: 'Draft', count: drf },
+      { label: 'Archived', value: 'Archived', count: arc },
+    ];
+  }, [baseBlogs]);
+
+  // Pagination state (0-delay performance optimization)
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedStatus, selectedTenantFilter, queryParam]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredBlogs.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedBlogs = filteredBlogs.slice((safeCurrentPage - 1) * pageSize, safeCurrentPage * pageSize);
 
   if (uiTheme === 'zoho') {
     return (
@@ -114,7 +168,6 @@ export const BlogList: React.FC = () => {
         handleTenantChange={handleTenantChange}
         handleSearchChange={(val) => {
           setSearchVal(val);
-          setParam('q', val.trim() || null);
         }}
         clearSearch={() => {
           setSearchVal('');
@@ -141,7 +194,7 @@ export const BlogList: React.FC = () => {
                 ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
             }`}>
-              {isAllSites ? 'All Websites' : activeSite.name}
+              {isAllSites ? 'All Websites' : (activeSite?.name || 'Website')}
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -183,15 +236,15 @@ export const BlogList: React.FC = () => {
                 onClick={() => handleStatusChange(s.value)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer ${
                   isActive
-                    ? 'bg-[#4c22cf] text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                    ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60'
                 }`}
               >
                 <span>{s.label}</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                  isActive 
-                    ? 'bg-white/20 text-white' 
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-medium ${
+                  isActive
+                    ? 'bg-white/20 text-white dark:bg-slate-900/20 dark:text-slate-900'
+                    : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
                 }`}>
                   {s.count}
                 </span>
@@ -216,7 +269,7 @@ export const BlogList: React.FC = () => {
                 <option value="all">All Sites ({blogs.length})</option>
                 {websites.map((w) => (
                   <option key={w.id} value={w.id}>
-                    {w.name} ({blogs.filter((b) => b.websiteId === w.id).length})
+                    {w.name} ({tenantBlogCounts.get(w.id) || 0})
                   </option>
                 ))}
               </select>
@@ -230,10 +283,7 @@ export const BlogList: React.FC = () => {
               type="text"
               placeholder="Search blogs..."
               value={searchVal}
-              onChange={(e) => {
-                setSearchVal(e.target.value);
-                setParam('q', e.target.value.trim() || null);
-              }}
+              onChange={(e) => setSearchVal(e.target.value)}
               className="pl-8 pr-7 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#4c22cf] w-full"
             />
             {searchVal && (
@@ -293,7 +343,7 @@ export const BlogList: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
-                {filteredBlogs.map((blog) => {
+                {paginatedBlogs.map((blog) => {
                   const enTrans = blog.translations.en || Object.values(blog.translations)[0];
                   const availableLangs = ALL_LANGUAGES.filter((l) => Boolean(blog.translations[l]?.title));
                   const site = websites.find((w) => w.id === blog.websiteId);
@@ -308,8 +358,9 @@ export const BlogList: React.FC = () => {
                         <div className="flex items-center space-x-3.5">
                           {blog.featuredImage ? (
                             <img
-                              src={blog.featuredImage}
+                              src={resolveMediaUrl(blog.featuredImage)}
                               alt={blog.featuredImageAlt || 'Featured'}
+                              loading="lazy"
                               className="w-11 h-11 rounded-lg object-cover border border-slate-200 dark:border-slate-800 shrink-0"
                             />
                           ) : (
@@ -437,6 +488,79 @@ export const BlogList: React.FC = () => {
                 })}
               </tbody>
             </table>
+
+            {/* Pagination Controls */}
+            {filteredBlogs.length > 0 && (
+              <div className="px-5 py-3.5 border-t border-slate-200 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/30 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+                <div className="flex items-center gap-2">
+                  <span>
+                    Showing <strong className="text-slate-700 dark:text-slate-200">{(safeCurrentPage - 1) * pageSize + 1}</strong> to <strong className="text-slate-700 dark:text-slate-200">{Math.min(safeCurrentPage * pageSize, filteredBlogs.length)}</strong> of <strong className="text-slate-700 dark:text-slate-200">{filteredBlogs.length}</strong> blogs
+                  </span>
+                  <span className="text-slate-300 dark:text-slate-700">|</span>
+                  <label className="flex items-center gap-1.5">
+                    <span>Per page:</span>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => {
+                        setPageSize(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-2 py-1 text-xs text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+                    >
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={safeCurrentPage <= 1}
+                    className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    title="Previous page"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter((p) => p === 1 || p === totalPages || Math.abs(p - safeCurrentPage) <= 1)
+                      .map((p, idx, arr) => {
+                        const prev = arr[idx - 1];
+                        return (
+                          <React.Fragment key={p}>
+                            {prev && p - prev > 1 && <span className="px-1 text-slate-400">...</span>}
+                            <button
+                              type="button"
+                              onClick={() => setCurrentPage(p)}
+                              className={`w-7 h-7 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                                safeCurrentPage === p
+                                  ? 'bg-[#4c22cf] text-white shadow-xs'
+                                  : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                              }`}
+                            >
+                              {p}
+                            </button>
+                          </React.Fragment>
+                        );
+                      })}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={safeCurrentPage >= totalPages}
+                    className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    title="Next page"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
