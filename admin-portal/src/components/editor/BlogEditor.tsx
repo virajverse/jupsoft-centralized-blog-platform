@@ -467,8 +467,17 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       });
     }
 
-    // Ensure all authored translations have a valid slug
+    // Ensure active editor HTML is synced into the active language translation
+    const currentEditorHtml = editor ? editor.getHTML() : undefined;
     const cleanedTranslations = { ...translations };
+    if (currentEditorHtml !== undefined && cleanedTranslations[currentLang]) {
+      cleanedTranslations[currentLang] = {
+        ...cleanedTranslations[currentLang],
+        content: currentEditorHtml,
+      };
+    }
+
+    // Ensure all authored translations have a valid slug
     for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
       if (cleanedTranslations[l]?.title && !cleanedTranslations[l]?.slug) {
         cleanedTranslations[l] = {

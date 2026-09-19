@@ -251,7 +251,7 @@ export const SettingsView: React.FC = () => {
       logoUrl: newLogoUrl.trim() || '/uploads/logos/jupsoft-cloud-logo.webp',
       description: newDescription.trim() || `${newName.trim()} content network.`,
       defaultLanguage: newLang,
-      supportedLanguages: ['en', 'hi', 'fr', 'ar'],
+      supportedLanguages: ['en', 'hi', 'fr', 'ar'] as LanguageCode[],
       revalidateWebhookUrl: `https://${cleanDomain}/api/revalidate`,
     };
 

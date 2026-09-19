@@ -56,3 +56,6 @@ __pycache__/
 
 # Package tarballs
 *.tgz
+
+# Scratch scripts
+scratch/

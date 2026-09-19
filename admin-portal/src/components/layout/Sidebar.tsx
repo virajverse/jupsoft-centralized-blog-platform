@@ -137,16 +137,6 @@ export const Sidebar: React.FC = () => {
       category: 'content',
     },
     {
-      href: `/seo${siteQuery}`,
-      basePath: '/seo',
-      module: 'seo',
-      label: 'SEO',
-      icon: ShieldCheck,
-      badge: null,
-      isActive: pathname === '/seo',
-      category: 'content',
-    },
-    {
       href: `/redirects${siteQuery}`,
       basePath: '/redirects',
       module: 'redirects',
