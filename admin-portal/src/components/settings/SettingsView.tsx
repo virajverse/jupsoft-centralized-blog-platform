@@ -30,7 +30,8 @@ import {
   Activity,
   Code2,
   Sparkles,
-  Terminal
+  Terminal,
+  Settings
 } from 'lucide-react';
 import { ClientHandoverModal } from '../common/ClientHandoverModal';
 
@@ -477,11 +478,11 @@ export const SettingsView: React.FC = () => {
           {activeSite && (
             <button
               onClick={() => setHandoverSite(activeSite)}
-              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-bold shadow-xs hover:shadow-md transition-all cursor-pointer"
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-semibold shadow-xs hover:shadow-md transition-all cursor-pointer whitespace-nowrap"
               title="Copy 1-command installer or ready message to send to client"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>⚡ Copy Install / Share Code</span>
+              <Terminal className="w-3.5 h-3.5" />
+              <span>Install &amp; Share Code</span>
             </button>
           )}
 
@@ -693,32 +694,34 @@ export const SettingsView: React.FC = () => {
                           {w.apiKey.slice(0, 16)}...
                         </td>
 
-                        <td className="py-3 px-4 text-right">
-                          <div className="inline-flex items-center gap-1.5 justify-end">
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1.5 justify-end whitespace-nowrap">
                             <button
                               onClick={() => setHandoverSite(w)}
-                              className="px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-800 flex items-center gap-1 shadow-2xs"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 transition-colors cursor-pointer border border-indigo-200/80 dark:border-indigo-800 shadow-2xs whitespace-nowrap"
                               title={`Copy 1-command installer or HTML embed code for ${w.name}`}
                             >
-                              <Code2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                              <span>⚡ Copy Install Code</span>
+                              <Terminal className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                              <span>Install Code</span>
                             </button>
                             <button
                               onClick={() => {
                                 handleSelectTenant(w.id);
                                 handleTabChange('general');
                               }}
-                              className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 whitespace-nowrap"
                             >
-                              Configure
+                              <Settings className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+                              <span>Configure</span>
                             </button>
                             {isSuperAdmin && (
                               <button
                                 onClick={() => handleDeleteWebsite(w.id, w.name)}
-                                className="px-2.5 py-1 rounded-md text-xs font-semibold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer border border-rose-200 dark:border-rose-800"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer border border-rose-200 dark:border-rose-800 whitespace-nowrap"
                                 title={`Delete tenant ${w.name}`}
                               >
-                                Remove
+                                <Trash2 className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 shrink-0" />
+                                <span>Remove</span>
                               </button>
                             )}
                           </div>

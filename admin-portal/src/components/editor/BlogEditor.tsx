@@ -685,9 +685,10 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
               <button
                 type="button"
                 onClick={handleAITranslate}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs shrink-0"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs shrink-0"
               >
-                <span>⚡ Auto-Translate with AI</span>
+                <Sparkles className="w-3.5 h-3.5 text-indigo-200" />
+                <span>Auto-Translate with AI</span>
               </button>
             </div>
           )}
