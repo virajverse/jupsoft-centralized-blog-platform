@@ -59,3 +59,7 @@ __pycache__/
 
 # Scratch scripts
 scratch/
+
+# Archived source files (never uploaded to VPS/Netlify)
+_source_files/
+_archive/
