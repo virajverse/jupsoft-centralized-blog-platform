@@ -41,6 +41,13 @@ export async function JupsoftBlogList({ searchParams, client }: BlogListPageProp
   const totalPages = Math.ceil(total / 9) || 1;
   const categories = categoriesRes.data || [];
 
+  const resolveImageUrl = (img?: string) => {
+    if (!img) return '';
+    if (img.startsWith('http://') || img.startsWith('https://')) return img;
+    const base = activeClient.apiUrl || 'https://blogary.jupsoft.com';
+    return `${base.replace(/\/$/, '')}/${img.replace(/^\//, '')}`;
+  };
+
   return (
     <main className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
       <div className="text-center max-w-3xl mx-auto mb-8">
@@ -79,13 +86,13 @@ export async function JupsoftBlogList({ searchParams, client }: BlogListPageProp
           ))}
         </div>
 
-        <div className="relative group inline-block self-end sm:self-auto">
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition-colors cursor-pointer border border-slate-200/80">
+        <details className="relative inline-block self-end sm:self-auto cursor-pointer">
+          <summary className="list-none select-none flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition-colors border border-slate-200/80">
             <span className="text-sm leading-none">🌐</span>
             <span className="uppercase tracking-wider">{currentLang}</span>
             <span className="text-[10px] text-slate-400">▾</span>
-          </button>
-          <div className="hidden group-hover:block absolute right-0 top-full mt-1.5 w-36 py-1.5 bg-white rounded-xl shadow-lg border border-slate-200 z-50">
+          </summary>
+          <div className="absolute right-0 top-full mt-1.5 w-36 py-1.5 bg-white rounded-xl shadow-lg border border-slate-200 z-50">
             {[
               { code: 'en', native: 'English' },
               { code: 'hi', native: 'हिंदी' },
@@ -106,7 +113,7 @@ export async function JupsoftBlogList({ searchParams, client }: BlogListPageProp
               </Link>
             ))}
           </div>
-        </div>
+        </details>
       </div>
 
       {blogs.length === 0 ? (
@@ -123,7 +130,7 @@ export async function JupsoftBlogList({ searchParams, client }: BlogListPageProp
               {post.featuredImage && (
                 <Link href={`/blog/${post.slug}?lang=${currentLang}`} className="block relative aspect-video overflow-hidden bg-slate-100">
                   <img
-                    src={post.featuredImage}
+                    src={resolveImageUrl(post.featuredImage)}
                     alt={post.title}
                     className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                     loading="lazy"

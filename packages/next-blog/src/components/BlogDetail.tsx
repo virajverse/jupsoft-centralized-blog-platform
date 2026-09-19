@@ -30,6 +30,13 @@ export async function JupsoftBlogDetail({ params, searchParams, client }: PagePr
 
   activeClient.recordView(slug, blog.id);
 
+  const resolveImageUrl = (img?: string) => {
+    if (!img) return '';
+    if (img.startsWith('http://') || img.startsWith('https://')) return img;
+    const base = activeClient.apiUrl || 'https://blogary.jupsoft.com';
+    return `${base.replace(/\/$/, '')}/${img.replace(/^\//, '')}`;
+  };
+
   return (
     <main className="max-w-4xl mx-auto py-12 px-4 sm:px-6">
       <div className="flex items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100">
@@ -41,13 +48,13 @@ export async function JupsoftBlogDetail({ params, searchParams, client }: PagePr
           <span className="text-slate-900 font-medium truncate max-w-xs">{blog.title}</span>
         </nav>
 
-        <div className="relative group inline-block">
-          <button className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition-colors cursor-pointer border border-slate-200/80">
+        <details className="relative inline-block cursor-pointer">
+          <summary className="list-none select-none flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition-colors border border-slate-200/80">
             <span className="text-sm leading-none">🌐</span>
             <span className="uppercase tracking-wider">{currentLang}</span>
             <span className="text-[10px] text-slate-400">▾</span>
-          </button>
-          <div className="hidden group-hover:block absolute right-0 top-full mt-1.5 w-36 py-1.5 bg-white rounded-xl shadow-lg border border-slate-200 z-50 animate-in fade-in duration-150">
+          </summary>
+          <div className="absolute right-0 top-full mt-1.5 w-36 py-1.5 bg-white rounded-xl shadow-lg border border-slate-200 z-50 animate-in fade-in duration-150">
             {[
               { code: 'en', native: 'English' },
               { code: 'hi', native: 'हिंदी' },
@@ -68,7 +75,7 @@ export async function JupsoftBlogDetail({ params, searchParams, client }: PagePr
               </Link>
             ))}
           </div>
-        </div>
+        </details>
       </div>
 
       {blog.schemaJsonLd && (
@@ -94,7 +101,7 @@ export async function JupsoftBlogDetail({ params, searchParams, client }: PagePr
       {blog.featuredImage && (
         <div className="relative aspect-video w-full rounded-2xl overflow-hidden mb-8 shadow-sm">
           <img
-            src={blog.featuredImage}
+            src={resolveImageUrl(blog.featuredImage)}
             alt={blog.title}
             className="w-full h-full object-cover"
           />
