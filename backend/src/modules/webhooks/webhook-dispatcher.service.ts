@@ -288,9 +288,7 @@ export class WebhookDispatcherService {
       };
     }
 
-    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
-      throw new BadRequestException('Webhook URL must start with http:// or https://');
-    }
+    this.assertNotInternalUrl(targetUrl);
 
     const defaultSecret = this.configService.get<string>('WEBHOOK_DEFAULT_SECRET') || 'wh_sec_jupsoft_default_revalidate_2026';
     const secret = configuredSecret?.trim() || defaultSecret;
@@ -423,9 +421,7 @@ export class WebhookDispatcherService {
     if (!website) throw new NotFoundException(`Website not found: ${websiteId}`);
 
     const url = data.url.trim();
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      throw new BadRequestException('Webhook URL must start with http:// or https://');
-    }
+    this.assertNotInternalUrl(url);
 
     const endpoints = this.parseWebhookEndpoints(website.revalidateWebhookUrl);
 
@@ -470,9 +466,7 @@ export class WebhookDispatcherService {
 
     if (updates.url) {
       const u = updates.url.trim();
-      if (!u.startsWith('http://') && !u.startsWith('https://')) {
-        throw new BadRequestException('Webhook URL must start with http:// or https://');
-      }
+      this.assertNotInternalUrl(u);
       endpoints[index].url = u;
     }
     if (updates.name !== undefined) endpoints[index].name = updates.name.trim();

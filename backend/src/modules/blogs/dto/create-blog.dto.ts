@@ -1,6 +1,30 @@
-import { IsNotEmpty, IsString, IsOptional, IsArray, IsInt, ValidateNested } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  IsArray,
+  IsInt,
+  ValidateNested,
+  IsIn,
+  Matches,
+  MaxLength,
+  IsUrl,
+  Min,
+  ArrayMinSize,
+  ValidateIf,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
+
+export const BLOG_STATUSES = [
+  'Draft',
+  'Under Review',
+  'Approved',
+  'Scheduled',
+  'Published',
+  'Archived',
+] as const;
+export type BlogStatusType = (typeof BLOG_STATUSES)[number];
 
 export class BlogTranslationInputDto {
   @ApiProperty({ example: 'en' })
@@ -11,16 +35,22 @@ export class BlogTranslationInputDto {
   @ApiProperty({ example: 'The AI-Powered Shift in Modern Cloud ERP' })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(300)
   title: string;
 
   @ApiProperty({ example: 'the-ai-powered-shift-in-modern-cloud-erp' })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(200)
+  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+    message: 'slug must contain only lowercase alphanumeric characters and hyphens',
+  })
   slug: string;
 
   @ApiProperty({ example: 'How cloud ERP systems are transforming operations.' })
   @IsString()
   @IsOptional()
+  @MaxLength(1000)
   excerpt?: string;
 
   @ApiProperty({ example: '<p>Content body in HTML or JSON format.</p>' })
@@ -32,11 +62,13 @@ export class BlogTranslationInputDto {
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
+  @MaxLength(120)
   metaTitle?: string;
 
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
+  @MaxLength(350)
   metaDescription?: string;
 
   @ApiProperty({ required: false })
@@ -47,6 +79,8 @@ export class BlogTranslationInputDto {
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
+  @ValidateIf((o) => !!o.canonicalUrl)
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true }, { message: 'canonicalUrl must be a valid HTTP/HTTPS URL' })
   canonicalUrl?: string;
 
   @ApiProperty({ required: false })
@@ -109,6 +143,7 @@ export class CreateBlogDto {
   @ApiProperty({ example: 4, required: false, default: 3 })
   @IsInt()
   @IsOptional()
+  @Min(1)
   readTimeMinutes?: number;
 
   @ApiProperty({ example: ['cat-tech'], required: false })
@@ -121,13 +156,15 @@ export class CreateBlogDto {
   @IsOptional()
   tagIds?: string[];
 
-  @ApiProperty({ example: 'Draft', required: false })
+  @ApiProperty({ example: 'Draft', required: false, enum: BLOG_STATUSES })
   @IsString()
   @IsOptional()
+  @IsIn(BLOG_STATUSES)
   status?: string;
 
   @ApiProperty({ type: [BlogTranslationInputDto] })
   @IsArray()
+  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => BlogTranslationInputDto)
   translations: BlogTranslationInputDto[];
@@ -149,14 +186,16 @@ export class UpdateBlogDto {
   @IsOptional()
   featuredImageAlt?: string;
 
-  @ApiProperty({ required: false })
+  @ApiProperty({ required: false, enum: BLOG_STATUSES })
   @IsString()
   @IsOptional()
+  @IsIn(BLOG_STATUSES)
   status?: string;
 
   @ApiProperty({ required: false })
   @IsInt()
   @IsOptional()
+  @Min(1)
   readTimeMinutes?: number;
 
   @ApiProperty({ required: false })
@@ -178,9 +217,10 @@ export class UpdateBlogDto {
 }
 
 export class TransitionBlogStatusDto {
-  @ApiProperty({ example: 'Approved', enum: ['Draft', 'Under Review', 'Approved', 'Scheduled', 'Published', 'Archived'] })
+  @ApiProperty({ example: 'Approved', enum: BLOG_STATUSES })
   @IsString()
   @IsNotEmpty()
+  @IsIn(BLOG_STATUSES)
   status: string;
 
   @ApiProperty({ example: 'Reviewed and approved for live release.', required: false })

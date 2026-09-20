@@ -247,20 +247,27 @@ describe('WebhookDispatcherService', () => {
     })).rejects.toThrow('must start with http');
   });
 
-  // NOTE: http:// internal IPs (SSRF) are NOT blocked — FLAG
-  it('[SECURITY-FINDING] http:// to internal IPs is not blocked — potential SSRF', async () => {
-    // addEndpoint allows http://169.254.169.254/latest/meta-data (AWS metadata)
-    // FLAG: SSRF RISK — no IP validation on webhook URLs
+  // BUG-004 (SSRF Fix verification): internal IPs are now blocked
+  it('[SECURITY] should reject internal/private network addresses to prevent SSRF', async () => {
     mockPrisma.website.findUnique.mockResolvedValue(makeWebsite(''));
     mockPrisma.website.update.mockResolvedValue({});
 
-    // This should ideally throw but currently succeeds
-    const result = await service.addEndpoint('site-1', {
-      name: 'SSRF Test',
+    await expect(service.addEndpoint('site-1', {
+      name: 'SSRF Test AWS Metadata',
       url: 'http://169.254.169.254/latest/meta-data',
       events: ['blog.published'],
-    });
-    expect(result.url).toBe('http://169.254.169.254/latest/meta-data');
-    // FLAG: SSRF VULNERABILITY — internal metadata endpoints can be pinged via webhook system
+    })).rejects.toThrow('link-local');
+
+    await expect(service.addEndpoint('site-1', {
+      name: 'SSRF Test Localhost',
+      url: 'http://localhost:3000/api/secret',
+      events: ['blog.published'],
+    })).rejects.toThrow('loopback');
+
+    await expect(service.addEndpoint('site-1', {
+      name: 'SSRF Test Private IP',
+      url: 'http://192.168.1.100/admin',
+      events: ['blog.published'],
+    })).rejects.toThrow('private network');
   });
 });
