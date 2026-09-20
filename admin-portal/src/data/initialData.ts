@@ -85,167 +85,18 @@ export const INITIAL_WEBSITES: Website[] = [
   },
 ];
 
-export const INITIAL_CATEGORIES: Record<string, Category[]> = {
-  'site-cloud': [
-    { id: 'cat-erp', websiteId: 'site-cloud', name: 'ERP Solutions', slug: 'erp-solutions', description: 'Enterprise planning architectures' },
-    { id: 'cat-cloud', websiteId: 'site-cloud', name: 'Cloud Infrastructure', slug: 'cloud-infrastructure', description: 'AWS, Hybrid & Multi-cloud deployments' },
-    { id: 'cat-ai', websiteId: 'site-cloud', name: 'Artificial Intelligence', slug: 'artificial-intelligence', description: 'Generative AI and automated workflows' },
-  ],
-  'site-growth': [
-    { id: 'cat-growth', websiteId: 'site-growth', name: 'Growth Marketing', slug: 'growth-marketing', description: 'B2B acquisition strategies' },
-    { id: 'cat-seo', websiteId: 'site-growth', name: 'Technical SEO', slug: 'technical-seo', description: 'Core Web Vitals and SERP indexation' },
-  ],
-  'site-edtech': [
-    { id: 'cat-k12', websiteId: 'site-edtech', name: 'K-12 Administration', slug: 'k-12-administration', description: 'School board governance' },
-    { id: 'cat-edtech', websiteId: 'site-edtech', name: 'EdTech Solutions', slug: 'edtech-solutions', description: 'Digital classroom and gradebook systems' },
-  ],
-};
+export const INITIAL_CATEGORIES: Record<string, Category[]> = {};
 
-export const INITIAL_TAGS: Record<string, Tag[]> = {
-  'site-cloud': [
-    { id: 'tag-aws', websiteId: 'site-cloud', name: 'AWS Cloud', slug: 'aws-cloud' },
-    { id: 'tag-automation', websiteId: 'site-cloud', name: 'Automation', slug: 'automation' },
-  ],
-  'site-growth': [
-    { id: 'tag-performance', websiteId: 'site-growth', name: 'Performance', slug: 'performance' },
-  ],
-  'site-edtech': [
-    { id: 'tag-sis', websiteId: 'site-edtech', name: 'Student Records', slug: 'student-records' },
-  ],
-};
+export const INITIAL_TAGS: Record<string, Tag[]> = {};
 
-// Initial Team Accounts (TRD Section 5 & 17)
-export const INITIAL_USERS: UserAccount[] = [
-  {
-    id: 'usr-1',
-    name: 'Aarav Sharma',
-    email: 'aarav.sharma@jupsoft.com',
-    avatar: '/uploads/avatars/avatar-1.webp',
-    roleAssignments: {
-      'site-cloud': 'Super Admin',
-      'site-growth': 'Super Admin',
-      'site-edtech': 'Super Admin',
-    },
-    tempPassword: 'Jupsoft@2026!Admin',
-    status: 'active',
-    lastLoginIp: '192.168.1.42',
-    createdAt: '2026-01-10T09:00:00Z',
-  },
-  {
-    id: 'usr-2',
-    name: 'Priya Verma',
-    email: 'priya.verma@jupsoft.com',
-    avatar: '/uploads/avatars/avatar-2.webp',
-    roleAssignments: {
-      'site-cloud': 'Editor',
-      'site-growth': 'Content Writer',
-    },
-    tempPassword: 'Jupsoft@4829!Priya',
-    status: 'active',
-    lastLoginIp: '10.0.4.19',
-    createdAt: '2026-02-14T11:30:00Z',
-  },
-  {
-    id: 'usr-3',
-    name: 'Vikram Mehta',
-    email: 'vikram.mehta@jupsoft.com',
-    avatar: '/uploads/avatars/avatar-3.webp',
-    roleAssignments: {
-      'site-cloud': 'SEO Manager',
-      'site-growth': 'SEO Manager',
-      'site-edtech': 'SEO Manager',
-    },
-    tempPassword: 'Jupsoft@8192!Vikram',
-    status: 'active',
-    lastLoginIp: '172.16.0.8',
-    createdAt: '2026-03-01T14:15:00Z',
-  },
-  {
-    id: 'usr-4',
-    name: 'Rohan Gupta',
-    email: 'rohan.gupta@jupsoft.com',
-    avatar: '/uploads/avatars/avatar-4.webp',
-    roleAssignments: {
-      'site-cloud': 'Publisher',
-      'site-edtech': 'Publisher',
-    },
-    tempPassword: 'Jupsoft@5314!Rohan',
-    status: 'active',
-    lastLoginIp: '192.168.2.105',
-    createdAt: '2026-04-12T16:00:00Z',
-  },
-  {
-    id: 'usr-5',
-    name: 'Ananya Roy',
-    email: 'ananya.roy@jupsoft.com',
-    avatar: '/uploads/avatars/avatar-5.webp',
-    roleAssignments: {
-      'site-cloud': 'Role Admin',
-      'site-growth': 'Role Admin',
-    },
-    managedRoles: ['Editor', 'Content Writer'],
-    tempPassword: 'Jupsoft@9382!Ananya',
-    status: 'active',
-    lastLoginIp: '192.168.1.88',
-    createdAt: '2026-05-01T10:00:00Z',
-  },
-];
+// Initial Team Accounts (dynamically loaded from PostgreSQL Database)
+export const INITIAL_USERS: UserAccount[] = [];
 
-// Initial 301 Permanent Redirects (TRD Section 7 & 17)
-export const INITIAL_REDIRECTS: RedirectItem[] = [
-  {
-    id: 'red-1',
-    websiteId: 'site-cloud',
-    fromSlug: 'legacy-school-erp-system-2025',
-    toSlug: 'cloud-erp-transformation-guide',
-    statusCode: 301,
-    hitCount: 1420,
-    createdAt: '2026-05-18T10:00:00Z',
-  },
-  {
-    id: 'red-2',
-    websiteId: 'site-growth',
-    fromSlug: 'old-b2b-seo-checklist',
-    toSlug: 'technical-seo-b2b-framework-2026',
-    statusCode: 301,
-    hitCount: 864,
-    createdAt: '2026-06-02T12:30:00Z',
-  },
-];
+// Initial 301 Permanent Redirects (dynamically loaded from PostgreSQL Database)
+export const INITIAL_REDIRECTS: RedirectItem[] = [];
 
-// Initial System Audit Logs (TRD Section 15 & 17)
-export const INITIAL_AUDIT_LOGS: SystemAuditLog[] = [
-  {
-    id: 'aud-1',
-    timestamp: '2026-09-13T18:30:00Z',
-    userName: 'Aarav Sharma',
-    role: 'Super Admin',
-    websiteId: 'site-cloud',
-    event: 'api_key.rotated',
-    ipAddress: '192.168.1.42',
-    details: 'Rotated consumer API key for Jupsoft Systems tenant.',
-  },
-  {
-    id: 'aud-2',
-    timestamp: '2026-09-13T17:15:00Z',
-    userName: 'Priya Verma',
-    role: 'Editor',
-    websiteId: 'site-cloud',
-    event: 'blog.approved',
-    ipAddress: '10.0.4.19',
-    details: 'Approved editorial sign-off for Cloud ERP Transformation article.',
-  },
-  {
-    id: 'aud-3',
-    timestamp: '2026-09-13T16:00:00Z',
-    userName: 'Vikram Mehta',
-    role: 'SEO Manager',
-    websiteId: 'site-growth',
-    event: 'seo.audit_passed',
-    ipAddress: '172.16.0.8',
-    details: 'Validated automated 100/100 score and canonical URL structure.',
-  },
-];
+// Initial System Audit Logs (dynamically loaded from PostgreSQL Database)
+export const INITIAL_AUDIT_LOGS: SystemAuditLog[] = [];
 
 // Initial Production Starter Blogs (TRD Section 1, 2, 7 & 17)
 // Initial Production Starter Blogs (empty - dynamically loaded from NestJS Backend API)

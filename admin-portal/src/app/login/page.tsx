@@ -39,8 +39,10 @@ export default function LoginPage() {
 
     const token = getActiveToken();
 
-    if (!token && isAuthenticated) {
-      useBlogStore.getState().logout();
+    if (!token || token.startsWith('offline_token_')) {
+      if (isAuthenticated || (token && token.startsWith('offline_token_'))) {
+        useBlogStore.getState().logout();
+      }
       return;
     }
 

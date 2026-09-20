@@ -32,8 +32,8 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
 
   useEffect(() => {
     const token = getActiveToken();
-    if (!token) {
-      if (isAuthenticated) {
+    if (!token || token.startsWith('offline_token_')) {
+      if (isAuthenticated || (token && token.startsWith('offline_token_'))) {
         useBlogStore.getState().logout();
       }
       const loginUrl = pathname ? `/login?redirect=${encodeURIComponent(pathname)}` : '/login';
@@ -59,7 +59,7 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
   }
 
   const token = getActiveToken();
-  if (!isAuthenticated && !token) {
+  if ((!isAuthenticated && !token) || (token && token.startsWith('offline_token_'))) {
     return null;
   }
 

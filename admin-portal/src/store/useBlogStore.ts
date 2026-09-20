@@ -19,11 +19,6 @@ import { apiClient } from '../services/apiClient'; // TRD §12: live API integra
 import { cleanAvatarUrl } from '../utils/permissions';
 import {
   INITIAL_WEBSITES,
-  INITIAL_USERS,
-  INITIAL_CATEGORIES,
-  INITIAL_TAGS,
-  INITIAL_REDIRECTS,
-  INITIAL_AUDIT_LOGS,
   INITIAL_MODULES
 } from '../data/initialData';
 
@@ -115,12 +110,12 @@ export const useBlogStore = create<BlogState>()(
       activeRole: 'Super Admin',
       activeView: 'dashboard',
       blogs: [],
-      categories: INITIAL_CATEGORIES,
-      tags: INITIAL_TAGS,
+      categories: {},
+      tags: {},
       media: [],
-      users: INITIAL_USERS,
-      redirects: INITIAL_REDIRECTS,
-      auditLogs: INITIAL_AUDIT_LOGS,
+      users: [],
+      redirects: [],
+      auditLogs: [],
       modules: INITIAL_MODULES,
       searchQuery: '',
       editingBlogId: null,
@@ -403,38 +398,6 @@ export const useBlogStore = create<BlogState>()(
           }
           return { success: false, message: 'Login failed — no token received' };
         } catch (err: unknown) {
-          // Graceful fallback to INITIAL_USERS if backend API is offline
-          const cleanEmail = email.trim().toLowerCase();
-          const cleanPass = password.trim();
-          const matchedUser = INITIAL_USERS.find(
-            (u) => u.email.toLowerCase() === cleanEmail && (u.tempPassword === cleanPass || cleanPass === 'admin' || cleanPass === '123456')
-          );
-          if (matchedUser) {
-            const isSuper = Object.values(matchedUser.roleAssignments || {}).includes('Super Admin');
-            const assignedWebsites = Object.keys(matchedUser.roleAssignments || {});
-            let websiteId = get().activeWebsiteId;
-            if (!isSuper) {
-              if (websiteId === 'all' || !assignedWebsites.includes(websiteId)) {
-                websiteId = assignedWebsites[0] || 'site-cloud';
-              }
-            }
-            const assignedRole = (matchedUser.roleAssignments?.[websiteId] || (isSuper ? 'Super Admin' : Object.values(matchedUser.roleAssignments || {})[0]) || 'Content Writer') as UserRole;
-            const offlineToken = `offline_token_${matchedUser.id}_${Date.now()}`;
-            apiClient.setTokens(offlineToken);
-            if (typeof document !== 'undefined') {
-              document.cookie = `jupsoft_auth_token=${offlineToken}; path=/; max-age=86400; SameSite=Lax`;
-            }
-            set({
-              isAuthenticated: true,
-              currentUser: {
-                ...matchedUser,
-                avatar: cleanAvatarUrl(matchedUser.avatar) || '/uploads/avatars/avatar-default.webp',
-              },
-              activeWebsiteId: websiteId,
-              activeRole: assignedRole,
-            });
-            return { success: true };
-          }
           const errMsg = err instanceof Error ? err.message : String(err);
           return { success: false, message: errMsg || 'Invalid email or password' };
         }
@@ -446,6 +409,8 @@ export const useBlogStore = create<BlogState>()(
         if (typeof window !== 'undefined') {
           localStorage.removeItem('jupsoft_auth_token');
           localStorage.removeItem('jupsoft_refresh_token');
+          document.cookie = 'jupsoft_auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0; SameSite=Lax';
+          document.cookie = 'jupsoft_refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0; SameSite=Lax';
         }
       },
 
