@@ -191,3 +191,20 @@ export interface AuthorStats {
   totalViews: number;
   avgReadTimeMinutes: number;
 }
+
+// Enterprise Modular System & Plugin Registry Contract
+export interface PlatformModuleConfig {
+  id: string;
+  name: string;
+  description: string;
+  category: 'core' | 'content' | 'operations' | 'marketing' | 'system';
+  enabled: boolean;
+  allowedRoles: UserRole[];
+  allowedWebsites: string[]; // ['all'] or specific website IDs
+  icon: string;
+  isCustomPlugin?: boolean;
+  route?: string;
+  author?: string;
+  version?: string;
+}
+

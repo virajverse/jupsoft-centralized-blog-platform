@@ -177,50 +177,89 @@ code, kbd, samp, pre, .font-mono {
   background: #475569;
 }
 
-/* UI Theme Transition Keyframes */
-@keyframes beamTravel {
-  0% { transform: translateX(-100%); opacity: 0; }
-  30% { opacity: 1; }
-  70% { opacity: 1; }
-  100% { transform: translateX(250%); opacity: 0; }
+/* Tiptap / ProseMirror Document Canvas Rules - Zero Outline / Clean Writing Surface */
+.tiptap.ProseMirror,
+.tiptap,
+.ProseMirror {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
-@keyframes orbitSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+.tiptap.ProseMirror:focus,
+.tiptap.ProseMirror:focus-visible,
+.tiptap:focus,
+.tiptap:focus-visible,
+.ProseMirror-focused {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
-@keyframes pulseGlow {
-  0%, 100% { transform: scale(1); opacity: 0.4; }
-  50% { transform: scale(1.15); opacity: 0.7; }
+/* Tiptap Document Typography & Formatting Structure */
+.tiptap ul {
+  list-style-type: disc !important;
+  padding-left: 1.75rem !important;
+  margin-top: 0.75rem !important;
+  margin-bottom: 0.75rem !important;
 }
 
-@keyframes shimmerSlide {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(200%); }
+.tiptap ol {
+  list-style-type: decimal !important;
+  padding-left: 1.75rem !important;
+  margin-top: 0.75rem !important;
+  margin-bottom: 0.75rem !important;
 }
 
-@keyframes floatGentle {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
+.tiptap li {
+  margin-top: 0.25rem !important;
+  margin-bottom: 0.25rem !important;
+  padding-left: 0.25rem !important;
 }
 
-.animate-beam-travel {
-  animation: beamTravel 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+.tiptap blockquote {
+  border-left: 3.5px solid #2563eb !important;
+  padding-left: 1.25rem !important;
+  margin-top: 1.25rem !important;
+  margin-bottom: 1.25rem !important;
+  font-style: italic !important;
+  color: #475569 !important;
 }
 
-.animate-orbit-spin {
-  animation: orbitSpin 10s linear infinite;
+.dark .tiptap blockquote {
+  border-left-color: #3b82f6 !important;
+  color: #94a3b8 !important;
 }
 
-.animate-pulse-glow {
-  animation: pulseGlow 3s ease-in-out infinite;
+.tiptap pre {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  padding: 1rem 1.25rem !important;
+  border-radius: 0.75rem !important;
+  margin-top: 1rem !important;
+  margin-bottom: 1rem !important;
+  font-family: var(--font-mono), monospace !important;
+  font-size: 0.875rem !important;
+  line-height: 1.6 !important;
+  overflow-x: auto !important;
 }
 
-.animate-shimmer-slide {
-  animation: shimmerSlide 1.5s ease-in-out infinite;
+.tiptap hr {
+  border: none !important;
+  border-top: 1px solid #e2e8f0 !important;
+  margin-top: 2rem !important;
+  margin-bottom: 2rem !important;
 }
 
-.animate-float-gentle {
-  animation: floatGentle 2.5s ease-in-out infinite;
+.dark .tiptap hr {
+  border-top-color: #334155 !important;
 }
+
+.tiptap mark {
+  background-color: #fef08a !important;
+  color: #0f172a !important;
+  padding: 0.125rem 0.25rem !important;
+  border-radius: 0.25rem !important;
+}
+
+

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WebhookDispatcherService } from '../webhooks/webhook-dispatcher.service';
 import { CreateBlogDto, UpdateBlogDto, TransitionBlogStatusDto } from './dto/create-blog.dto';
@@ -10,6 +10,8 @@ import { SupabaseSyncService } from '../supabase-sync/supabase-sync.service';
 
 @Injectable()
 export class BlogsService {
+  private readonly logger = new Logger(BlogsService.name);
+
   constructor(
     private prisma: PrismaService,
     private webhookDispatcher: WebhookDispatcherService,
@@ -314,7 +316,9 @@ export class BlogsService {
       await this.invalidateCache(blog.websiteId, dto.translations);
       const primarySlug = dto.translations.find((t) => t.lang === 'en')?.slug || dto.translations[0]?.slug;
       if (primarySlug) {
-        await this.webhookDispatcher.dispatchWebhook(blog.websiteId, 'blog.published', primarySlug);
+        this.webhookDispatcher.dispatchWebhook(blog.websiteId, 'blog.published', primarySlug).catch((err) => {
+          this.logger.warn(`Webhook dispatch error for ${primarySlug}: ${err.message}`);
+        });
       }
     }
 
@@ -435,6 +439,17 @@ export class BlogsService {
       // Update or insert translations
       if (dto.translations && dto.translations.length > 0) {
         for (const t of dto.translations) {
+          const oldTrans = existing.translations.find((ot) => ot.lang === t.lang);
+          let effectiveContent = t.content ? sanitizeContent(t.content) : t.content;
+          // Guard: If incoming content is empty or blank <p></p>, but DB already has substantial content (> 15 chars), preserve existing content!
+          if (
+            (!effectiveContent || effectiveContent === '<p></p>' || effectiveContent.trim() === '') &&
+            oldTrans?.content &&
+            oldTrans.content.length > 15
+          ) {
+            effectiveContent = oldTrans.content;
+          }
+
           await tx.blogTranslation.upsert({
             where: {
               blogId_lang: { blogId: id, lang: t.lang },
@@ -443,7 +458,7 @@ export class BlogsService {
               title: t.title,
               slug: t.slug,
               excerpt: t.excerpt,
-              content: t.content ? sanitizeContent(t.content) : t.content, // TRD §15: XSS
+              content: effectiveContent, // TRD §15: XSS + Wipeout protected
               metaTitle: t.metaTitle,
               metaDescription: t.metaDescription,
               metaKeywords: t.metaKeywords,
@@ -496,7 +511,9 @@ export class BlogsService {
         existing.translations?.find((t) => t.lang === 'en')?.slug ||
         existing.translations?.[0]?.slug;
       if (primarySlug) {
-        await this.webhookDispatcher.dispatchWebhook(existing.websiteId, 'blog.updated', primarySlug);
+        this.webhookDispatcher.dispatchWebhook(existing.websiteId, 'blog.updated', primarySlug).catch((err) => {
+          this.logger.warn(`Webhook dispatch error for ${primarySlug}: ${err.message}`);
+        });
       }
     }
 
@@ -580,11 +597,13 @@ export class BlogsService {
     const isUnpublishing = previousStatus === 'Published' && newStatus !== 'Published' && !isArchiving;
     if (primarySlug && (isPublishing || isArchiving || isUnpublishing)) {
       const event = isPublishing ? 'blog.published' : isArchiving ? 'blog.archived' : 'blog.unpublished';
-      await this.webhookDispatcher.dispatchWebhook(
+      this.webhookDispatcher.dispatchWebhook(
         blog.websiteId,
         event,
         primarySlug,
-      );
+      ).catch((err) => {
+        this.logger.warn(`Webhook dispatch error for ${primarySlug}: ${err.message}`);
+      });
     }
 
     // TRD §13: Invalidate Redis cache so next public API hit reads fresh data
@@ -647,7 +666,9 @@ export class BlogsService {
     if (blog.status === 'Published') {
       const primarySlug = blog.translations.find((t) => t.lang === 'en')?.slug || blog.translations[0]?.slug;
       if (primarySlug) {
-        await this.webhookDispatcher.dispatchWebhook(blog.websiteId, 'blog.archived', primarySlug);
+        this.webhookDispatcher.dispatchWebhook(blog.websiteId, 'blog.archived', primarySlug).catch((err) => {
+          this.logger.warn(`Webhook dispatch error for ${primarySlug}: ${err.message}`);
+        });
       }
     }
 

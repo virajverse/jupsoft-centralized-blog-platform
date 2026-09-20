@@ -17,6 +17,7 @@ export const TaxonomyView: React.FC = () => {
   const { setParam } = useQueryState();
 
   const { 
+    blogs,
     categories, 
     tags, 
     activeWebsiteId, 
@@ -47,10 +48,6 @@ export const TaxonomyView: React.FC = () => {
       fetchTags(targetSiteId);
     }
   }, [fetchCategories, fetchTags, targetSiteId]);
-
-  const handleSelectTenant = (id: string) => {
-    setParam('tenant', id);
-  };
 
   const handleTabChange = (tab: 'all' | 'categories' | 'tags') => {
     setParam('tab', tab === 'all' ? null : tab);
@@ -120,7 +117,7 @@ export const TaxonomyView: React.FC = () => {
   };
 
   return (
-    <div className="p-6 sm:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-5 max-w-7xl mx-auto space-y-4">
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 mb-1">
@@ -131,26 +128,6 @@ export const TaxonomyView: React.FC = () => {
             {activeSite?.name || 'Website'}
           </span>
         </div>
-
-        {/* Tenant Selector Tabs if in All Websites mode */}
-        {isAllSites && (
-          <div className="flex flex-wrap items-center gap-1.5 mt-3 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg w-fit border border-slate-200 dark:border-slate-700">
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium px-2">Managing Taxonomy for:</span>
-            {websites.map((w) => (
-              <button
-                key={w.id}
-                onClick={() => handleSelectTenant(w.id)}
-                className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
-                  targetSiteId === w.id
-                    ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                {w.name}
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* Section Filter Tabs - URL bound (?tab=all|categories|tags) */}
         <div className="flex items-center gap-1 mt-4 bg-white dark:bg-[#0f172a] p-1 rounded-lg w-fit border border-slate-200 dark:border-slate-800 shadow-xs">
@@ -244,7 +221,7 @@ export const TaxonomyView: React.FC = () => {
               <div className="flex justify-end pt-1">
                 <button
                   type="submit"
-                  className="px-4 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                  className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
                 >
                   + Create Category
                 </button>
@@ -289,7 +266,7 @@ export const TaxonomyView: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0">
-                          {cat.count || 0} posts
+                          {blogs.filter((b) => b.categoryIds?.includes(cat.id)).length} posts
                         </span>
                         <button
                           type="button"
@@ -330,7 +307,7 @@ export const TaxonomyView: React.FC = () => {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                className="px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
               >
                 Add
               </button>
@@ -341,23 +318,26 @@ export const TaxonomyView: React.FC = () => {
               {siteTags.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-400 w-full">No tags created yet.</div>
               ) : (
-                siteTags.map((tag) => (
-                  <span
-                    key={tag.id}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-medium text-slate-700 dark:text-slate-300"
-                  >
-                    <span>#{tag.name}</span>
-                    <span className="text-[10px] text-slate-400">({tag.count})</span>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteTag(tag.id, tag.name)}
-                      className="text-slate-400 hover:text-rose-500 transition-colors cursor-pointer ml-1"
-                      title={`Delete tag "#${tag.name}"`}
+                siteTags.map((tag) => {
+                  const tagCount = blogs.filter((b) => b.tagIds?.includes(tag.id)).length;
+                  return (
+                    <span
+                      key={tag.id}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-medium text-slate-700 dark:text-slate-300"
                     >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))
+                      <span>#{tag.name}</span>
+                      <span className="text-[10px] text-slate-400">({tagCount})</span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteTag(tag.id, tag.name)}
+                        className="text-slate-400 hover:text-rose-500 transition-colors cursor-pointer ml-1"
+                        title={`Delete tag "#${tag.name}"`}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </span>
+                  );
+                })
               )}
             </div>
           </div>

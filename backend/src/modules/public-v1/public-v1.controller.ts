@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, Req, Header } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiHeader } from '@nestjs/swagger';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { PublicV1Service } from './public-v1.service';
@@ -29,6 +29,7 @@ export class PublicV1Controller {
 
   @Get('blogs')
   @UseGuards(ApiKeyGuard)
+  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
   @ApiHeader({ name: 'Authorization', description: 'Bearer <tenant_api_key>', required: true })
   @ApiOperation({ summary: 'List published articles for consuming website (Paginated, ISR-ready)' })
   @ApiQuery({ name: 'category', required: false })
@@ -58,6 +59,7 @@ export class PublicV1Controller {
   // ─── TRD §12: GET /blogs/latest?website= (Latest published blogs) ─────────
   @Get('blogs/latest')
   @UseGuards(ApiKeyGuard)
+  @Header('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300')
   @ApiOperation({ summary: 'Retrieve latest published blogs for consuming website (TRD §12)' })
   @ApiQuery({ name: 'website', required: false, description: 'Website slug or domain' })
   @ApiQuery({ name: 'lang', required: false, example: 'en' })
@@ -77,6 +79,7 @@ export class PublicV1Controller {
   // ─── TRD §12: GET /blogs/popular?website= (Most-viewed blogs) ─────────────
   @Get('blogs/popular')
   @UseGuards(ApiKeyGuard)
+  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
   @ApiOperation({ summary: 'Retrieve most-viewed popular blogs for consuming website (TRD §12)' })
   @ApiQuery({ name: 'website', required: false, description: 'Website slug or domain' })
   @ApiQuery({ name: 'lang', required: false, example: 'en' })
@@ -95,6 +98,7 @@ export class PublicV1Controller {
 
   @Get('blogs/:slug')
   @UseGuards(ApiKeyGuard)
+  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
   @ApiHeader({ name: 'Authorization', description: 'Bearer <tenant_api_key>', required: true })
   @ApiOperation({ summary: 'Retrieve full published post with SEO meta and Schema.org JSON-LD' })
   @ApiQuery({ name: 'lang', required: false, example: 'en' })
@@ -109,6 +113,7 @@ export class PublicV1Controller {
 
   @Get('categories')
   @UseGuards(ApiKeyGuard)
+  @Header('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=1200')
   @ApiHeader({ name: 'Authorization', description: 'Bearer <tenant_api_key>', required: true })
   @ApiOperation({ summary: 'Retrieve taxonomy category tree for consuming website' })
   async getCategories(@Req() req: any, @Query('websiteId') queryWebsiteId?: string) {
@@ -118,6 +123,7 @@ export class PublicV1Controller {
 
   @Get('tags')
   @UseGuards(ApiKeyGuard)
+  @Header('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=1200')
   @ApiHeader({ name: 'Authorization', description: 'Bearer <tenant_api_key>', required: true })
   @ApiOperation({ summary: 'Retrieve tags list for consuming website' })
   async getTags(@Req() req: any, @Query('websiteId') queryWebsiteId?: string) {
@@ -162,6 +168,7 @@ export class PublicV1Controller {
 
   @Get('redirects')
   @UseGuards(ApiKeyGuard)
+  @Header('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=1200')
   @ApiOperation({ summary: 'Retrieve active 301 permanent redirect rules for consuming website (Edge Middleware ready)' })
   async getRedirects(@Req() req: any) {
     return this.publicV1Service.getRedirects(req.tenant.id);

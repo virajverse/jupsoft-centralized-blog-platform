@@ -63,11 +63,12 @@ async function bootstrap() {
   );
 
   // 3. CORS — Dynamic Multi-Tenant Whitelist (TRD §15)
-  // Static core platform origins (Admin portal, backend API, CDN)
+  const rawAllowedOrigins = configService.get<string>('ALLOWED_ORIGINS') || '';
+  const allowAllOrigins = rawAllowedOrigins.trim() === '*' || rawAllowedOrigins.split(',').map((s) => s.trim()).includes('*');
   const staticAllowedOrigins = new Set(
     (
-      configService.get<string>('ALLOWED_ORIGINS') ||
-      'http://localhost:3000,http://localhost:4000,https://blogary.jupsoft.com,http://blogary.jupsoft.com,https://cms.jupsoft.com,https://api.cms.jupsoft.com,https://cloud.jupsoft.com,https://jupsoft.com,https://digifynext.com,https://schoolerp.in'
+      rawAllowedOrigins ||
+      'http://localhost:3000,http://localhost:4000,http://localhost:4010,https://blogary.jupsoft.com,http://blogary.jupsoft.com,https://cms.jupsoft.com,https://api.cms.jupsoft.com,https://cloud.jupsoft.com,https://jupsoft.com,https://digifynext.com,https://schoolerp.in'
     )
       .split(',')
       .map((o) => o.trim().toLowerCase().replace(/\/+$/, '')),
@@ -107,11 +108,11 @@ async function bootstrap() {
 
   app.enableCors({
     origin: async (origin, callback) => {
-      // 1. Allow non-browser requests (cURL, server-to-server, SSR/ISR, webhooks)
-      if (!origin) return callback(null, true);
+      // 1. Allow non-browser requests (cURL, server-to-server, SSR/ISR, webhooks) or wildcard
+      if (!origin || allowAllOrigins) return callback(null, true);
 
-      // 2. In development, permit localhost / 127.0.0.1 origins
-      if (nodeEnv !== 'production' && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      // 2. Permit localhost / 127.0.0.1 / private LAN origins in all envs
+      if (/^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$/.test(origin)) {
         return callback(null, true);
       }
 

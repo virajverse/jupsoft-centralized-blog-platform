@@ -2,7 +2,6 @@
 
 import React, { useMemo } from 'react';
 import { useBlogStore } from '../../store/useBlogStore';
-import { ModernDashboardView } from './ModernDashboardView';
 import { ZohoDashboardView } from './ZohoDashboardView';
 
 export const DashboardOverview: React.FC = () => {
@@ -11,7 +10,6 @@ export const DashboardOverview: React.FC = () => {
     activeWebsiteId, 
     websites, 
     activeRole,
-    uiTheme,
     currentUser
   } = useBlogStore();
 
@@ -58,29 +56,8 @@ export const DashboardOverview: React.FC = () => {
     };
   }, [displayedBlogs]);
 
-  if (uiTheme === 'zoho') {
-    return (
-      <ZohoDashboardView
-        blogs={blogs}
-        displayedBlogs={displayedBlogs}
-        publishedBlogs={publishedBlogs}
-        underReviewBlogs={underReviewBlogs}
-        approvedBlogs={approvedBlogs}
-        draftBlogs={draftBlogs}
-        totalWords={totalWords}
-        websites={websites}
-        activeWebsiteId={activeWebsiteId}
-        activeSite={activeSite}
-        isAllSites={isAllSites}
-        activeRole={activeRole}
-        currentUser={currentUser}
-      />
-    );
-  }
-
-  // Default: Modern Studio Neo View
   return (
-    <ModernDashboardView
+    <ZohoDashboardView
       blogs={blogs}
       displayedBlogs={displayedBlogs}
       publishedBlogs={publishedBlogs}

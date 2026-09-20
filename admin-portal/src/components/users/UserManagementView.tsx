@@ -172,10 +172,12 @@ export const UserManagementView: React.FC = () => {
     fetchUsers();
   }, [fetchUsers]);
 
-  const tabParam = (searchParams.get('tab') as 'hierarchy' | 'directory' | 'matrix') || 'hierarchy';
+  const tabParam = (searchParams.get('tab') as 'hierarchy' | 'directory' | 'matrix') || 'directory';
   const [activeTab, setActiveTab] = useState<'hierarchy' | 'directory' | 'matrix'>(tabParam);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [tenantFilter, setTenantFilter] = useState<string>('all');
   const [isInviteOpen, setIsInviteOpen] = useState(false);
 
   // Dedicated Website Admin Team Inspection Modal
@@ -346,9 +348,20 @@ _Please log in and update your password on your first sign-in._`;
   };
 
   const filteredUsers = users.filter((u) => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const matchesSearch = u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+      if (!matchesSearch) return false;
+    }
+    if (roleFilter !== 'all') {
+      const roles = Object.values(u.roleAssignments || {});
+      if (!roles.includes(roleFilter as UserRole)) return false;
+    }
+    if (tenantFilter !== 'all') {
+      const siteIds = Object.keys(u.roleAssignments || {});
+      if (!siteIds.includes('all') && !siteIds.includes(tenantFilter)) return false;
+    }
+    return true;
   });
 
   // Segregate Super Admins (Global Governance)
@@ -379,13 +392,21 @@ _Please log in and update your password on your first sign-in._`;
   };
 
   return (
-    <div className="p-6 sm:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* Executive Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-            Team &amp; Access Management
-          </h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
+        <div className="flex items-center gap-2.5">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200/80 dark:border-indigo-800/60 shadow-xs">
+            <Users className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+              Team Governance &amp; RBAC Directory
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              Manage organization members, tenant-scoped role assignments, and role-based access control policies.
+            </p>
+          </div>
         </div>
 
         {canManageUsers(activeRole) && (
@@ -395,64 +416,160 @@ _Please log in and update your password on your first sign-in._`;
               setInviteWebsiteId(defaultInviteSite);
               setIsInviteOpen(true);
             }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-sm hover:shadow transition-all cursor-pointer self-start sm:self-auto"
           >
-            <UserPlus className="w-3.5 h-3.5" />
+            <UserPlus className="w-4 h-4" />
             <span>Invite Team Member</span>
           </button>
         )}
       </div>
 
-      {/* Primary Navigation Tabs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
-        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl w-full sm:w-fit overflow-x-auto border border-slate-200/80 dark:border-slate-800">
-          <button
-            onClick={() => handleTabChange('hierarchy')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-              activeTab === 'hierarchy'
-                ? 'bg-white text-slate-900 dark:bg-slate-800 dark:text-white shadow-2xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Network className="w-3.5 h-3.5 text-indigo-500" />
-            <span>Team Hierarchy</span>
-          </button>
+      {/* Executive Metric Cards Strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white dark:bg-[#0f172a] p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Members</span>
+            <span className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
+              <Users className="w-4 h-4" />
+            </span>
+          </div>
+          <div className="text-2xl font-black text-slate-900 dark:text-white mt-2 font-mono">
+            {users.length}
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+            Active across organization
+          </p>
+        </div>
 
+        <div className="bg-white dark:bg-[#0f172a] p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Active Accounts</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          </div>
+          <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-2 font-mono">
+            {users.filter((u) => u.status === 'active').length}
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+            Authorized to sign in
+          </p>
+        </div>
+
+        <div className="bg-white dark:bg-[#0f172a] p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Administrators</span>
+            <span className="p-1.5 rounded-lg bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400">
+              <Crown className="w-4 h-4" />
+            </span>
+          </div>
+          <div className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-2 font-mono">
+            {users.filter((u) => Object.values(u.roleAssignments || {}).some((r) => r === 'Super Admin' || r === 'Website Admin')).length}
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+            Global &amp; Tenant Admins
+          </p>
+        </div>
+
+        <div className="bg-white dark:bg-[#0f172a] p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Tenants Covered</span>
+            <span className="p-1.5 rounded-lg bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400">
+              <Globe className="w-4 h-4" />
+            </span>
+          </div>
+          <div className="text-2xl font-black text-sky-600 dark:text-sky-400 mt-2 font-mono">
+            {websites.length}
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+            Multi-tenant workspaces
+          </p>
+        </div>
+      </div>
+
+      {/* Primary Navigation Tabs & Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+        <div className="flex items-center gap-1 overflow-x-auto w-full sm:w-fit scrollbar-none">
           <button
             onClick={() => handleTabChange('directory')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
               activeTab === 'directory'
-                ? 'bg-white text-slate-900 dark:bg-slate-800 dark:text-white shadow-2xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>All Members ({users.length})</span>
+            <span>Member Directory ({users.length})</span>
+          </button>
+
+          <button
+            onClick={() => handleTabChange('hierarchy')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'hierarchy'
+                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <Network className="w-3.5 h-3.5" />
+            <span>By Website Hierarchy</span>
           </button>
 
           <button
             onClick={() => handleTabChange('matrix')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
               activeTab === 'matrix'
-                ? 'bg-white text-slate-900 dark:bg-slate-800 dark:text-white shadow-2xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Permissions Matrix</span>
+            <span>Role Permissions Matrix</span>
           </button>
         </div>
 
-        {/* Global Search */}
-        <div className="relative w-full sm:w-64">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search member by name or email..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-2xs"
-          />
+        {/* Global Search & Filters */}
+        <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+          {activeTab === 'directory' && (
+            <>
+              {/* Role Filter */}
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all cursor-pointer w-full sm:w-auto"
+              >
+                <option value="all">All Roles</option>
+                {ALL_ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+
+              {/* Website Filter */}
+              <select
+                value={tenantFilter}
+                onChange={(e) => setTenantFilter(e.target.value)}
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all cursor-pointer w-full sm:w-auto"
+              >
+                <option value="all">All Websites</option>
+                {websites.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+
+          {/* Search */}
+          <div className="relative w-full sm:w-60">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search by name or email..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
+            />
+          </div>
         </div>
       </div>
 
@@ -517,7 +634,7 @@ _Please log in and update your password on your first sign-in._`;
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {visibleWebsites.map((site) => {
                 // Find the Website Admin for this site
                 const websiteAdmin = users.find((u) => 
@@ -1363,7 +1480,7 @@ _Please log in and update your password on your first sign-in._`;
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold cursor-pointer shadow-xs flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs cursor-pointer shadow-xs flex items-center gap-1.5"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>Create &amp; Generate Invitation</span>
@@ -1588,7 +1705,7 @@ _Please log in and update your password on your first sign-in._`;
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold cursor-pointer shadow-xs"
+                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs cursor-pointer shadow-xs"
                 >
                   Save Changes
                 </button>

@@ -233,7 +233,7 @@ export const WorkflowKanban: React.FC = () => {
   };
 
   return (
-    <div className="p-6 sm:p-8 w-full h-full flex flex-col space-y-5">
+    <div className="p-4 sm:p-5 w-full h-full flex flex-col space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
         <div>
@@ -249,36 +249,6 @@ export const WorkflowKanban: React.FC = () => {
               {isAllSites ? 'All Websites' : (activeSite?.name || 'Website')}
             </span>
           </div>
-
-          {/* Tenant Selector Tabs if in All Websites mode - Smooth mobile scroll */}
-          {isAllSites && (
-            <div className="flex items-center gap-1.5 mt-3 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full sm:w-fit border border-slate-200 dark:border-slate-700 overflow-x-auto scrollbar-none">
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium px-2 shrink-0">Scope:</span>
-              <button
-                onClick={() => setParam('tenant', null)}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
-                  !tenantParam
-                    ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                All Sites ({blogs.length})
-              </button>
-              {websites.map((w) => (
-                <button
-                  key={w.id}
-                  onClick={() => setParam('tenant', w.id)}
-                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
-                    tenantParam === w.id
-                      ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  {w.name} ({blogs.filter((b) => b.websiteId === w.id).length})
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
@@ -325,7 +295,7 @@ export const WorkflowKanban: React.FC = () => {
 
           <Link
             href={`/blogs/new?site=${effectiveSiteId}`}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-medium text-xs shadow-xs transition-colors shrink-0"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-xs transition-colors shrink-0"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>New Draft</span>
@@ -405,6 +375,8 @@ export const WorkflowKanban: React.FC = () => {
                               <img
                                 src={resolveMediaUrl(blog.featuredImage)}
                                 alt=""
+                                loading="lazy"
+                                decoding="async"
                                 className="w-10 h-10 rounded-lg object-cover border border-slate-200 dark:border-slate-800 shrink-0"
                               />
                             ) : (
@@ -638,7 +610,7 @@ export const WorkflowKanban: React.FC = () => {
               </button>
               <button
                 onClick={submitTransition}
-                className="px-4 py-2 rounded-lg text-xs font-medium bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-xs cursor-pointer"
+                className="px-4 py-2 rounded-lg text-xs font-bold bg-red-600 hover:bg-red-700 text-white shadow-xs cursor-pointer"
               >
                 Confirm Transition
               </button>

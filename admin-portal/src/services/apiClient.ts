@@ -46,7 +46,35 @@ export interface WebhookDeliveryLogItem {
 }
 
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+export function getApiBase(): string {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window === 'undefined') {
+    return (envUrl || 'http://localhost:4010').replace(/\/+$/, '');
+  }
+
+  // 1. If explicit env URL is set to a remote domain or path
+  if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    return envUrl.replace(/\/+$/, '');
+  }
+
+  // 2. If running on production blogary domain
+  if (window.location.hostname === 'blogary.jupsoft.com') {
+    return 'https://blogary.jupsoft.com';
+  }
+
+  // 3. If accessed via VPS IP or custom domain (not localhost)
+  const host = window.location.hostname;
+  if (host && host !== 'localhost' && host !== '127.0.0.1') {
+    if (!window.location.port || window.location.port === '80' || window.location.port === '443') {
+      return window.location.origin;
+    }
+    return `${window.location.protocol}//${host}:4010`;
+  }
+
+  return (envUrl || 'http://localhost:4010').replace(/\/+$/, '');
+}
+
+export const API_BASE = getApiBase();
 
 // Cookie helpers for Edge Middleware compatibility
 function getCookie(name: string): string | null {
@@ -135,7 +163,7 @@ class ApiClient {
     if (!rt) return null;
 
     try {
-      const res = await fetch(`${API_BASE}/admin/auth/refresh`, {
+      const res = await fetch(`${getApiBase()}/admin/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken: rt }),
@@ -166,7 +194,7 @@ class ApiClient {
       headers.set('Authorization', `Bearer ${token}`);
     }
 
-    const response = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+    const response = await fetch(`${getApiBase()}${endpoint}`, { ...options, headers });
 
     if (response.status === 204) return undefined as unknown as T;
 
@@ -183,7 +211,7 @@ class ApiClient {
             }
             const retryHeaders = new Headers(headers);
             retryHeaders.set('Authorization', `Bearer ${newToken}`);
-            fetch(`${API_BASE}${endpoint}`, { ...options, headers: retryHeaders })
+            fetch(`${getApiBase()}${endpoint}`, { ...options, headers: retryHeaders })
               .then((r) => r.json().then(resolve))
               .catch(reject);
           });
@@ -225,7 +253,7 @@ class ApiClient {
 
       // Retry the original request with new token
       headers.set('Authorization', `Bearer ${newToken}`);
-      const retryResponse = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+      const retryResponse = await fetch(`${getApiBase()}${endpoint}`, { ...options, headers });
       if (retryResponse.status === 204) return undefined as unknown as T;
       if (!retryResponse.ok) {
         const errorBody = await retryResponse.json().catch(() => ({}));

@@ -68,6 +68,7 @@ model UserRoleAssignment {
 
   @@unique([userId, websiteId])
   @@index([userId, isGlobal])
+  @@index([websiteId])
   @@map("user_role_assignments")
 }
 
@@ -98,6 +99,8 @@ model Blog {
   blogTags             BlogTag[]              // TRD §9: M:N via blog_tags
 
   @@index([websiteId, status])
+  @@index([status, scheduledAt])
+  @@index([authorId])
   @@map("blogs")
 }
 
@@ -177,6 +180,7 @@ model MediaAsset {
   website              Website                @relation(fields: [websiteId], references: [id], onDelete: Cascade)
 
   @@index([websiteId])
+  @@index([websiteId, deletedAt, createdAt])
   @@map("media_assets")
 }
 
@@ -207,6 +211,7 @@ model WorkflowLog {
 
   blog                 Blog                   @relation(fields: [blogId], references: [id], onDelete: Cascade)
 
+  @@index([blogId, timestamp])
   @@map("workflow_logs")
 }
 
@@ -221,6 +226,7 @@ model SystemAuditLog {
   details              String                 @db.Text
 
   @@index([websiteId, event])
+  @@index([websiteId, timestamp])
   @@map("audit_logs")
 }
 

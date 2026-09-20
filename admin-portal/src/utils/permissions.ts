@@ -8,9 +8,9 @@ export type AppModule =
   | 'taxonomy'
   | 'redirects'
   | 'analytics'
-  | 'developers'
   | 'users'
-  | 'settings';
+  | 'settings'
+  | 'plugins';
 
 /**
  * Modular Plugin-Type Feature Visibility Matrix
@@ -25,9 +25,9 @@ const ROLE_MODULE_PERMISSIONS: Record<UserRole, AppModule[]> = {
     'taxonomy',
     'redirects',
     'analytics',
-    'developers',
     'users',
     'settings',
+    'plugins',
   ],
   'Website Admin': [
     'dashboard',
@@ -39,6 +39,7 @@ const ROLE_MODULE_PERMISSIONS: Record<UserRole, AppModule[]> = {
     'analytics',
     'users',
     'settings',
+    'plugins',
   ],
   'Role Admin': [
     'dashboard',

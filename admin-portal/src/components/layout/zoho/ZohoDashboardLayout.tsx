@@ -21,7 +21,7 @@ export const ZohoDashboardLayout: React.FC<{ children: React.ReactNode }> = ({ c
 
         {/* Dynamic Route View */}
         <main className="flex-1 h-full overflow-y-auto overflow-x-hidden p-4 sm:p-5">
-          <Suspense fallback={<div className="p-6 text-xs text-slate-400">Loading Zoho workspace...</div>}>
+          <Suspense fallback={<div className="p-6 text-xs text-slate-400">Loading workspace...</div>}>
             {children}
           </Suspense>
         </main>

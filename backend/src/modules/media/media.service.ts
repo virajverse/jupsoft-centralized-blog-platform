@@ -309,8 +309,11 @@ export class MediaService {
     return media;
   }
 
-  async findAll(websiteId?: string) {
-    const cacheKey = `admin:media:${websiteId || 'all'}`;
+  async findAll(websiteId?: string, page?: number, limit?: number) {
+    const isPaginated = page !== undefined && limit !== undefined && page > 0 && limit > 0;
+    const cacheKey = isPaginated
+      ? `admin:media:${websiteId || 'all'}:p${page}:l${limit}`
+      : `admin:media:${websiteId || 'all'}`;
     const cached = await this.redis.get<any>(cacheKey);
     if (cached) return cached;
 
@@ -319,10 +322,20 @@ export class MediaService {
       where.websiteId = websiteId;
     }
     where.deletedAt = null; // exclude soft-deleted assets
-    const assets = await this.prisma.mediaAsset.findMany({
+
+    const total = await this.prisma.mediaAsset.count({ where });
+
+    const queryOptions: any = {
       where,
       orderBy: { createdAt: 'desc' },
-    });
+    };
+
+    if (isPaginated) {
+      queryOptions.skip = (page - 1) * limit;
+      queryOptions.take = limit;
+    }
+
+    const assets = await this.prisma.mediaAsset.findMany(queryOptions);
 
     // Auto-heal existing database records: strip domain prefix from s3Key & rewrite inactive cdn.jupsoft.com
     const result = assets.map((asset) => {
@@ -347,8 +360,18 @@ export class MediaService {
       };
     });
 
-    await this.redis.set(cacheKey, result, 120);
-    return result;
+    const response = isPaginated
+      ? {
+          data: result,
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        }
+      : result;
+
+    await this.redis.set(cacheKey, response, 120);
+    return response;
   }
 
   // TRD §10: "Soft-delete with lifecycle cleanup" — marks deletedAt timestamp

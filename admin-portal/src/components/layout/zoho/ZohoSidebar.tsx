@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { useBlogStore } from '../../../store/useBlogStore';
 import { useQueryState } from '../../../hooks/useQueryState';
-import { canAccessModule, isGlobalScopeRole, canCreateBlog, AppModule } from '../../../utils/permissions';
+import { canAccessModule, isGlobalScopeRole, AppModule } from '../../../utils/permissions';
 import {
   LayoutDashboard,
   FileText,
@@ -14,15 +14,10 @@ import {
   Tags,
   BarChart3,
   Settings,
-  ArrowRightLeft,
   Users,
-  Code2,
-  Plus,
-  Globe,
+  Boxes,
   ChevronLeft,
   ChevronRight,
-  BookOpen,
-  Check,
   X
 } from 'lucide-react';
 
@@ -37,14 +32,13 @@ export const ZohoSidebar: React.FC = () => {
     setActiveWebsite, 
     activeRole, 
     websites, 
-    redirects,
     sidebarOpen,
     setSidebarOpen,
     currentUser,
-    setGuideOpen
+    modules
   } = useBlogStore();
 
-  const [drawerCollapsed, setDrawerCollapsed] = useState(false);
+  const [drawerCollapsed, setDrawerCollapsed] = useState(true);
 
   // Sync site param from URL
   const siteParam = searchParams.get('site');
@@ -132,16 +126,6 @@ export const ZohoSidebar: React.FC = () => {
       isActive: pathname === '/taxonomy',
     },
     {
-      href: `/redirects${siteQuery}`,
-      basePath: '/redirects',
-      module: 'redirects',
-      shortLabel: '301s',
-      fullLabel: 'Redirect Rules',
-      icon: ArrowRightLeft,
-      badge: redirects.length > 0 ? redirects.length : null,
-      isActive: pathname === '/redirects',
-    },
-    {
       href: `/analytics${siteQuery}`,
       basePath: '/analytics',
       module: 'analytics',
@@ -149,15 +133,6 @@ export const ZohoSidebar: React.FC = () => {
       fullLabel: 'Analytics',
       icon: BarChart3,
       isActive: pathname === '/analytics',
-    },
-    {
-      href: `/developers${siteQuery}`,
-      basePath: '/developers',
-      module: 'developers',
-      shortLabel: 'API',
-      fullLabel: 'Developer API',
-      icon: Code2,
-      isActive: pathname === '/developers',
     },
     {
       href: `/users${siteQuery}`,
@@ -177,19 +152,32 @@ export const ZohoSidebar: React.FC = () => {
       icon: Settings,
       isActive: pathname === '/settings',
     },
+    {
+      href: `/plugins${siteQuery}`,
+      basePath: '/plugins',
+      module: 'plugins',
+      shortLabel: 'Plugins',
+      fullLabel: 'Plugins & Modules',
+      icon: Boxes,
+      isActive: pathname === '/plugins',
+    },
   ];
 
-  const visibleNavItems = navItems.filter((item) => canAccessModule(activeRole, item.module));
-
-  // Multi-tenant visible websites
-  const visibleWebsites = isSuperAdmin
-    ? websites
-    : websites.filter((site) => currentUser?.roleAssignments?.[site.id]);
-
-  const handleSelectSite = (id: string) => {
-    setActiveWebsite(id);
-    setParam('site', id);
-  };
+  const visibleNavItems = navItems.filter((item) => {
+    // 1. Role-based capability check
+    if (!canAccessModule(activeRole, item.module)) return false;
+    // 2. Admin modular toggle check (Plugins module is always visible to authorized admins to prevent lockout)
+    if (item.module === 'plugins') return true;
+    const modConfig = modules?.find((m) => m.id === item.module);
+    if (modConfig && !modConfig.enabled) return false;
+    // 3. Website/Tenant scope check
+    if (modConfig && modConfig.allowedWebsites && !modConfig.allowedWebsites.includes('all')) {
+      if (activeWebsiteId !== 'all' && !modConfig.allowedWebsites.includes(activeWebsiteId)) {
+        return false;
+      }
+    }
+    return true;
+  });
 
   const statusFilter = searchParams.get('status') || '';
 
@@ -218,16 +206,16 @@ export const ZohoSidebar: React.FC = () => {
               href={`/dashboard${siteQuery}`}
               onClick={handleNavClick}
               className="w-10 h-10 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 flex items-center justify-center p-1.5 transition-transform hover:scale-105 border border-slate-700/60 shadow-xs"
-              title="Jupsoft CMS - Zoho Workspace"
+              title="Jupsoft CMS - Editorial Studio"
             >
               <img src="/jupsoft-icon.png?v=2" alt="Jupsoft" className="w-full h-full object-contain" />
             </Link>
-            {/* Zoho Hallmark 4-Color Micro Dot Matrix */}
+            {/* Multi-Tenant Status Indicator Dots */}
             <div className="flex items-center gap-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500" title="Zoho Red" />
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500" title="Zoho Green" />
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" title="Zoho Blue" />
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Zoho Yellow" />
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500" title="Editorial Engine" />
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500" title="Connected API" />
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" title="CDN Active" />
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title="SEO Live" />
             </div>
           </div>
 
@@ -274,19 +262,8 @@ export const ZohoSidebar: React.FC = () => {
             })}
           </nav>
 
-          {/* Bottom Actions: Guide Modal Trigger & Mobile Close */}
+          {/* Bottom Actions: Mobile Close */}
           <div className="w-full flex flex-col items-center gap-2 pt-2 border-t border-slate-800/80">
-            {isSuperAdmin && (
-              <button
-                type="button"
-                onClick={() => setGuideOpen(true)}
-                className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-amber-300 hover:bg-slate-800/60 transition-colors"
-                title="Open Admin System Guide"
-              >
-                <BookOpen className="w-4 h-4" />
-              </button>
-            )}
-
             <button
               type="button"
               onClick={() => setSidebarOpen(false)}
@@ -305,27 +282,14 @@ export const ZohoSidebar: React.FC = () => {
             drawerCollapsed ? 'w-0 overflow-hidden border-r-0 opacity-0' : 'w-52 opacity-100'
           }`}
         >
-          {/* Top Section Header with Quick "+ New Blog" Action */}
-          <div className="p-3 border-b border-slate-200 dark:border-slate-800/80 space-y-2.5 shrink-0">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                Zoho Workspace
-              </span>
-              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 font-bold border border-red-200/60 dark:border-red-900/40">
-                PRO
-              </span>
-            </div>
-
-            {canCreateBlog(activeRole) && (
-              <Link
-                href={`/blogs/new${siteQuery}`}
-                onClick={handleNavClick}
-                className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>New Blog</span>
-              </Link>
-            )}
+          {/* Top Section Header */}
+          <div className="p-3 border-b border-slate-200 dark:border-slate-800/80 flex items-center justify-between shrink-0">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              Editorial Studio
+            </span>
+            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold border border-slate-200 dark:border-slate-700">
+              CMS
+            </span>
           </div>
 
           {/* Contextual Sub-Nav Menu */}
@@ -422,48 +386,6 @@ export const ZohoSidebar: React.FC = () => {
                   {scheduledCount}
                 </span>
               </Link>
-            </div>
-
-            {/* Multi-Tenant Scope Picker */}
-            <div className="space-y-1 pt-2 border-t border-slate-200 dark:border-slate-800/60">
-              <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center justify-between">
-                <span>Websites Scope</span>
-                <Globe className="w-3 h-3 text-slate-400" />
-              </div>
-
-              {isSuperAdmin && (
-                <button
-                  type="button"
-                  onClick={() => handleSelectSite('all')}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium text-left transition-colors cursor-pointer ${
-                    isAllSites
-                      ? 'bg-white dark:bg-slate-800 text-red-600 dark:text-red-400 font-bold shadow-xs border border-slate-200 dark:border-slate-700'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50'
-                  }`}
-                >
-                  <span className="truncate">All Websites</span>
-                  {isAllSites && <Check className="w-3.5 h-3.5 text-red-500 shrink-0" />}
-                </button>
-              )}
-
-              {visibleWebsites.map((site) => {
-                const isSelected = activeWebsiteId === site.id;
-                return (
-                  <button
-                    key={site.id}
-                    type="button"
-                    onClick={() => handleSelectSite(site.id)}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium text-left transition-colors cursor-pointer ${
-                      isSelected
-                        ? 'bg-white dark:bg-slate-800 text-red-600 dark:text-red-400 font-bold shadow-xs border border-slate-200 dark:border-slate-700'
-                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50'
-                    }`}
-                  >
-                    <span className="truncate">{site.name}</span>
-                    {isSelected && <Check className="w-3.5 h-3.5 text-red-500 shrink-0" />}
-                  </button>
-                );
-              })}
             </div>
           </div>
 

@@ -156,10 +156,10 @@ export class PublicV1Service {
   private formatBlogDetail(translation: any, redirect?: { statusCode: number; fromSlug: string; toSlug: string }) {
     const b = translation.blog;
 
-    // Increment viewCount asynchronously — TRD §14 (Analytics: view_count)
+    // Increment viewCount atomically without mutating updatedAt — TRD §14 (Analytics: view_count)
     if (b?.id) {
-      this.prisma.blog
-        .update({ where: { id: b.id }, data: { viewCount: { increment: 1 } } })
+      this.prisma
+        .$executeRawUnsafe('UPDATE blogs SET view_count = view_count + 1 WHERE id = $1', b.id)
         .catch(() => {});
     }
 
@@ -220,12 +220,15 @@ export class PublicV1Service {
     const cached = await this.redis.get<unknown>(cacheKey);
     if (cached) return cached;
 
-    // 1. Direct match by slug, lang, and website
+    // 1. Direct match by slug, lang, and website (latest updated first)
     let translation = await this.prisma.blogTranslation.findFirst({
       where: {
         slug,
         lang,
         blog: { websiteId, status: 'Published' },
+      },
+      orderBy: {
+        blog: { updatedAt: 'desc' },
       },
       include: {
         blog: {
@@ -243,6 +246,9 @@ export class PublicV1Service {
         where: {
           slug,
           blog: { websiteId, status: 'Published' },
+        },
+        orderBy: {
+          blog: { updatedAt: 'desc' },
         },
         include: {
           blog: {

@@ -11,7 +11,6 @@ const PROTECTED_PREFIXES = [
   '/taxonomy',
   '/redirects',
   '/analytics',
-  '/developers',
   '/users',
   '/settings',
 ];

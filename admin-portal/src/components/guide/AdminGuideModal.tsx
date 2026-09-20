@@ -78,7 +78,7 @@ Pehle har website (Jupsoft Cloud, DigifyNext, School ERP) ke alag-alag CMS ya Wo
 
 ---
 
-## 📱 3. Har Ek Module Ka Walkthrough (All 12 Modules)
+## 📱 3. Har Ek Module Ka Walkthrough (Core Modules)
 
 1. **Dashboard (/dashboard)**: Stat cards, attention alerts, live published vs draft metric, quick shortcuts.
 2. **Blogs & TipTap Editor (/blogs)**: Rich text editor, multi-language tabs (EN, HI, FR, AR), auto-slug, word counter.
@@ -95,16 +95,16 @@ Pehle har website (Jupsoft Cloud, DigifyNext, School ERP) ke alag-alag CMS ya Wo
    - Robots Directive validation
 5. **Taxonomy: Categories & Tags (/taxonomy)**: Hierarchical categories and flat tag keywords scoped per tenant.
 6. **Media Asset Library (/media)**: WebP optimization, multi-resolution resizing, presigned S3 uploads, soft-delete.
-7. **301 SEO Redirects (/redirects)**: Preserve SEO ranking and link equity when URLs change.
+7. **301 SEO Redirects (/settings?tab=redirects)**: Preserve SEO ranking and link equity when URLs change (housed in Settings).
 8. **Analytics & Reader Telemetry (/analytics)**: Pageviews, unique visitors, scroll completion depth (25%-100%), traffic referrers.
 9. **Team Management & RBAC (/users)**: 7 granular roles (Super Admin, Website Admin, Role Admin, Editor, Content Writer, Publisher, SEO Manager).
-10. **Developer Portal & Webhooks (/developers)**: Live interactive API console, Next.js 16 SDK snippets, webhook delivery logs, on-demand cache revalidation.
-11. **Tenant & System Settings (/settings)**:
+10. **Tenant & System Settings (/settings)**:
     - Onboard new websites in real-time.
     - **Tenant Live Secret API Key**: Generated via backend crypto & stored in PostgreSQL database. Unmask via Eye icon or regenerate instantly with Rotate Key.
-    - Webhook revalidation endpoint configuration.
+    - Webhook revalidation endpoint configuration with HMAC signing.
+    - 301 SEO Redirects tab for tenant URL mapping.
     - Danger Zone: Cascading website deletion (Super Admin only).
-12. **System Audit Trail & Compliance (/settings?tab=audit)**:
+11. **System Audit Trail & Compliance (/settings?tab=audit)**:
     - Immutable audit logs capturing user, role, IP address, event, and timestamp.
 
 ---
@@ -152,9 +152,9 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
         className="relative w-full max-w-5xl h-[90vh] bg-white dark:bg-[#0d121f] rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden text-slate-800 dark:text-slate-100"
       >
         {/* Top Header */}
-        <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4 shrink-0 bg-gradient-to-r from-indigo-50/50 via-white to-purple-50/30 dark:from-[#131b2e] dark:via-[#0d121f] dark:to-[#17152b]">
+        <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4 shrink-0 bg-slate-50/80 dark:bg-[#131b2e]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#4c22cf] text-white flex items-center justify-center shadow-lg shadow-indigo-950/20 shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center shadow-md shrink-0">
               <BookOpen className="w-5 h-5" />
             </div>
             <div>
@@ -162,7 +162,7 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                 <h2 className="text-lg font-black tracking-tight text-slate-900 dark:text-white">
                   Jupsoft Centralized Blog Platform
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-purple-100 dark:bg-purple-950/60 text-[#4c22cf] dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/60">
                   Super Admin Manual
                 </span>
               </div>
@@ -197,7 +197,7 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
             {[
               { id: 'all', label: 'All Sections' },
               { id: 'architecture', label: 'Architecture & Scopes' },
-              { id: 'modules', label: '12 Core Modules' },
+              { id: 'modules', label: 'Core Modules' },
               { id: 'workflow', label: 'Publishing Flow' },
               { id: 'seo', label: 'SEO Engine' },
               { id: 'settings', label: 'API Keys & Secrets' },
@@ -208,7 +208,7 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`px-3 py-1 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
                   activeTab === tab.id
-                    ? 'bg-[#4c22cf] text-white shadow-xs'
+                    ? 'bg-red-600 text-white shadow-xs'
                     : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
                 }`}
               >
@@ -224,7 +224,7 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
               placeholder="Search topics (e.g. SEO, webhook, API key)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8.5 pr-3 py-1 text-xs rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4c22cf]"
+              className="w-full pl-8.5 pr-3 py-1 text-xs rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-600"
             />
           </div>
         </div>
@@ -281,7 +281,7 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
           {(activeTab === 'all' || activeTab === 'architecture') && matchesSearch('scope switcher tenant global all domains') && (
             <div className="p-6 rounded-2xl bg-white dark:bg-[#0d121f] border border-slate-200 dark:border-slate-800 space-y-4">
               <div className="flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-[#4c22cf] text-white font-bold text-xs">02</span>
+                <span className="p-1.5 rounded-lg bg-red-600 text-white font-bold text-xs">02</span>
                 <h3 className="text-base font-black text-slate-900 dark:text-white">
                   🧭 Core Architecture: Scope Switcher (All Domains vs Tenant)
                 </h3>
@@ -314,13 +314,13 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
             </div>
           )}
 
-          {/* Section 3: All 12 Modules Detailed Walkthrough */}
+          {/* Section 3: Core Modules Detailed Walkthrough */}
           {(activeTab === 'all' || activeTab === 'modules') && (
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <span className="p-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs">03</span>
                 <h3 className="text-base font-black text-slate-900 dark:text-white">
-                  📱 Har Ek Module Ka Walkthrough (Complete 12 Modules)
+                  📱 Har Ek Module Ka Walkthrough (Core Modules)
                 </h3>
               </div>
 
@@ -412,10 +412,10 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                   <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
                     <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
                       <ArrowRightLeft className="w-4 h-4 text-rose-600" />
-                      <span>7️⃣ 301 SEO Redirects (/redirects)</span>
+                      <span>7️⃣ 301 SEO Redirects (/settings?tab=redirects)</span>
                     </div>
                     <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                      Prevents 404 errors and preserves search rankings when slugs change. Maps old URL path to new published slug with permanent 301 status.
+                      Prevents 404 errors and preserves search rankings when slugs change. Cleanly integrated into Tenant Settings for effortless URL continuity.
                     </p>
                   </div>
                 )}
@@ -446,25 +446,12 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                   </div>
                 )}
 
-                {/* 10. Developer Portal */}
-                {matchesSearch('developers api webhooks rest curl sdk') && (
-                  <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
-                    <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
-                      <Code2 className="w-4 h-4 text-blue-600" />
-                      <span>🔟 Developer API Portal &amp; Webhooks (/developers)</span>
-                    </div>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                      Live interactive REST console, Next.js 16 type-safe SDK snippets, webhook delivery logs with automatic retry queue, and manual cache purge.
-                    </p>
-                  </div>
-                )}
-
-                {/* 11. Tenant & System Settings (Added from Audit) */}
+                {/* 10. Tenant & System Settings */}
                 {matchesSearch('settings tenant api key rotation onboard domain') && (
                   <div className="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 space-y-2">
                     <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-300">
                       <Settings className="w-4 h-4 text-amber-600" />
-                      <span>1️⃣1️⃣ Tenant &amp; API Key Settings (/settings)</span>
+                      <span>🔟 Tenant &amp; API Key Settings (/settings)</span>
                     </div>
                     <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-400 text-[11px]">
                       <li><strong>Tenant Onboarding</strong>: Create new websites on the fly with custom domains and languages.</li>
@@ -474,12 +461,12 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                   </div>
                 )}
 
-                {/* 12. System Audit Trail (Added from Audit) */}
+                {/* 11. System Audit Trail */}
                 {matchesSearch('audit trail compliance logs security') && (
                   <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
                     <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
                       <ShieldCheck className="w-4 h-4 text-teal-600" />
-                      <span>1️⃣2️⃣ System Audit Trail (/settings?tab=audit)</span>
+                      <span>1️⃣1️⃣ System Audit Trail (/settings?tab=audit)</span>
                     </div>
                     <p className="text-[11px] text-slate-600 dark:text-slate-400">
                       Immutable enterprise audit logs capturing user name, assigned role, client IP address, action (<code className="font-mono text-indigo-600">website.created</code>, <code className="font-mono text-indigo-600">blog.published</code>), and precise timestamp.

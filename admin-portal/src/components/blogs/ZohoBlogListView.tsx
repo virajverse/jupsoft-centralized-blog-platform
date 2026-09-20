@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Blog, Website, UserRole, LanguageCode } from '../../types';
 import { canCreateBlog, canDeleteBlog } from '../../utils/permissions';
+import { useBlogStore } from '../../store/useBlogStore';
 
 interface ZohoBlogListViewProps {
   blogs: Blog[];
@@ -66,6 +67,7 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
   fetchBlogs,
   isLoading,
 }) => {
+  const { categories } = useBlogStore();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const siteQuery = `?site=${activeWebsiteId}`;
 
@@ -138,23 +140,8 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
           })}
         </div>
 
-        {/* Right: Tenant Select, Compact Search, New Blog CTA */}
+        {/* Right: Compact Search, Refresh, New Blog CTA */}
         <div className="flex items-center gap-1.5 ml-auto">
-          {/* Tenant filter */}
-          {isAllSites && (
-            <select
-              value={selectedTenantFilter}
-              onChange={(e) => handleTenantChange(e.target.value)}
-              className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded px-2 py-1 text-[11px] text-slate-700 dark:text-slate-300 focus:outline-none focus:border-red-500 cursor-pointer"
-            >
-              <option value="all">All Sites ({blogs.length})</option>
-              {websites.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name} ({blogs.filter((b) => b.websiteId === w.id).length})
-                </option>
-              ))}
-            </select>
-          )}
 
           {/* Compact Search */}
           <div className="relative w-44 sm:w-56">
@@ -293,15 +280,29 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
                         />
                       </td>
 
-                      {/* Title & Slug */}
+                      {/* Title & Slug & Category Badge */}
                       <td className="py-1.5 px-3 max-w-[260px] sm:max-w-xs">
                         <div className="truncate font-semibold text-slate-900 dark:text-slate-100 hover:text-red-600 text-xs">
-                          <Link href={`/blogs/edit/${blog.id}${siteQuery}`}>
+                          <Link href={`/blogs/${blog.id}${siteQuery}`}>
                             {defaultTrans?.title || 'Untitled Blog'}
                           </Link>
                         </div>
-                        <div className="truncate text-[10px] text-slate-400 font-mono">
-                          /{defaultTrans?.slug || blog.id}
+                        <div className="truncate text-[10px] text-slate-400 font-mono flex items-center gap-1.5 mt-0.5">
+                          <span>/{defaultTrans?.slug || blog.id}</span>
+                          {blog.categoryIds && blog.categoryIds.length > 0 && (
+                            <>
+                              <span>•</span>
+                              {blog.categoryIds.slice(0, 2).map((catId) => {
+                                const cat = (categories[blog.websiteId] || []).find((c) => c.id === catId);
+                                if (!cat) return null;
+                                return (
+                                  <span key={cat.id} className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-sans font-medium">
+                                    {cat.name}
+                                  </span>
+                                );
+                              })}
+                            </>
+                          )}
                         </div>
                       </td>
 
@@ -362,7 +363,7 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
                       <td className="py-1.5 px-3 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
                           <Link
-                            href={`/blogs/edit/${blog.id}${siteQuery}`}
+                            href={`/blogs/${blog.id}${siteQuery}`}
                             className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                             title="Edit Blog"
                           >

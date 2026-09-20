@@ -13,7 +13,11 @@ import {
   ArrowRight
 } from 'lucide-react';
 
-export const RedirectsView: React.FC = () => {
+export interface RedirectsViewProps {
+  embedded?: boolean;
+}
+
+export const RedirectsView: React.FC<RedirectsViewProps> = ({ embedded = false }) => {
   const { 
     redirects, 
     websites, 
@@ -81,52 +85,57 @@ export const RedirectsView: React.FC = () => {
   };
 
   return (
-    <div className="p-6 sm:p-8 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-            301 Permanent Redirects
-          </h1>
-        </div>
+    <div className={embedded ? "space-y-4" : "p-4 sm:p-5 max-w-7xl mx-auto space-y-4"}>
+      {/* Header (hidden if embedded in settings tabs) */}
+      {!embedded && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+              301 Permanent Redirects
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Manage automatic URL rewrite rules and protect SEO link equity
+            </p>
+          </div>
 
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span>New 301 Rule</span>
-        </button>
-      </div>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>New 301 Rule</span>
+          </button>
+        </div>
+      )}
 
       {/* Metrics Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-4 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1">
-          <div className="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
-            <ArrowRightLeft className="w-4 h-4 text-blue-500" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="p-3 rounded-lg bg-white dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 shadow-2xs space-y-0.5">
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
+            <ArrowRightLeft className="w-3.5 h-3.5 text-blue-500" />
             Active Redirect Rules
           </div>
-          <div className="text-2xl font-bold text-slate-900 dark:text-white font-mono">
+          <div className="text-xl font-bold text-slate-900 dark:text-white font-mono">
             {redirects.length}
           </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1">
-          <div className="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
-            <TrendingUp className="w-4 h-4 text-emerald-500" />
+        <div className="p-3 rounded-lg bg-white dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 shadow-2xs space-y-0.5">
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
+            <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
             Total Hits Forwarded
           </div>
-          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+          <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 font-mono">
             {totalHits.toLocaleString()}
           </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1">
-          <div className="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-indigo-500" />
+        <div className="p-3 rounded-lg bg-white dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 shadow-2xs space-y-0.5">
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-red-500" />
             SEO Link Equity Preserved
           </div>
-          <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 font-mono">
+          <div className="text-xl font-bold text-red-600 dark:text-red-400 font-mono">
             100%
           </div>
         </div>
@@ -325,7 +334,7 @@ export const RedirectsView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold cursor-pointer shadow-xs"
+                  className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-xs cursor-pointer shadow-xs transition-colors"
                 >
                   Save Redirect Rule
                 </button>

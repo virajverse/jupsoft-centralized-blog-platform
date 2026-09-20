@@ -55,12 +55,11 @@ export class AnalyticsService {
         },
       });
 
-      // TRD §14: Increment view counter on blog record (async, best-effort)
+      // TRD §14: Increment view counter on blog record atomically without changing updatedAt
       if (dto.event === 'page_view' || !dto.event) {
-        await this.prisma.blog.update({
-          where: { id: dto.blogId },
-          data: { viewCount: { increment: 1 } },
-        });
+        await this.prisma
+          .$executeRawUnsafe('UPDATE blogs SET view_count = view_count + 1 WHERE id = $1', dto.blogId)
+          .catch(() => {});
       }
     } catch (err) {
       // Non-blocking: log but never throw

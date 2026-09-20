@@ -7,13 +7,11 @@ import {
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
-import { PrismaService } from '../../prisma/prisma.service';
-
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
   private readonly logger = new Logger('HTTP');
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor() {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const req = context.switchToHttp().getRequest();
@@ -27,20 +25,20 @@ export class LoggingInterceptor implements NestInterceptor {
           const statusCode = context.switchToHttp().getResponse().statusCode;
           const durationMs = Date.now() - startTime;
 
-          // Skip health checks from logs to avoid noise
+          // Skip health checks to keep logs clean
           if (url.includes('/v1/health')) return;
 
-          // Non-blocking fire-and-forget: do not hold up HTTP response for remote DB roundtrip
-          this.prisma.apiLog.create({
-            data: { method, path: url, statusCode, websiteId, durationMs },
-          }).catch(() => {});
+          // Structured high-performance HTTP access logging without database write amplification
+          if (durationMs > 1000) {
+            this.logger.warn(`SLOW REQUEST [${method}] ${url} -> ${statusCode} (${durationMs}ms) tenant=${websiteId || 'none'}`);
+          } else if (statusCode >= 400) {
+            this.logger.warn(`[${method}] ${url} -> ${statusCode} (${durationMs}ms)`);
+          }
         },
         error: (err: any) => {
           const statusCode = err?.status || 500;
           const durationMs = Date.now() - startTime;
-          this.prisma.apiLog.create({
-            data: { method, path: url, statusCode, websiteId, durationMs },
-          }).catch(() => {});
+          this.logger.error(`[${method}] ${url} -> ${statusCode} (${durationMs}ms): ${err?.message || err}`);
         },
       }),
     );

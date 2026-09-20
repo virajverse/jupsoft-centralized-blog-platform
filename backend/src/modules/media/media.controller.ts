@@ -97,10 +97,20 @@ export class MediaController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Retrieve media asset library filtered by website tenant' })
+  @ApiOperation({ summary: 'Retrieve media asset library filtered by website tenant with optional pagination' })
   @ApiQuery({ name: 'websiteId', required: false })
-  async findAll(@Query('websiteId') websiteId?: string) {
-    return this.mediaService.findAll(websiteId);
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  async findAll(
+    @Query('websiteId') websiteId?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.mediaService.findAll(
+      websiteId,
+      page ? Number(page) : undefined,
+      limit ? Number(limit) : undefined,
+    );
   }
 
   @Delete(':id')

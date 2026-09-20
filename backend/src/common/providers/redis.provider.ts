@@ -23,7 +23,19 @@ export class RedisProvider implements OnModuleDestroy {
   private client: Redis | null = null;
   private isConnected = false;
   private readonly memoryCache = new Map<string, CacheEntry>();
+  private readonly maxMemoryEntries = 5000;
   private cleanupInterval: NodeJS.Timeout | null = null;
+
+  private setMemoryCache(key: string, entry: CacheEntry): void {
+    if (this.memoryCache.size >= this.maxMemoryEntries) {
+      // Evict oldest entry (FIFO) when cap reached
+      const oldestKey = this.memoryCache.keys().next().value;
+      if (oldestKey) {
+        this.memoryCache.delete(oldestKey);
+      }
+    }
+    this.memoryCache.set(key, entry);
+  }
 
   constructor(private config: ConfigService) {
     const host = this.config.get<string>('REDIS_HOST', 'localhost');
@@ -122,7 +134,7 @@ export class RedisProvider implements OnModuleDestroy {
         if (raw) {
           const parsed = JSON.parse(raw) as T;
           // Back-populate L1 cache for instant subsequent reads
-          this.memoryCache.set(key, { value: parsed, expiresAt: now + 60_000 });
+          this.setMemoryCache(key, { value: parsed, expiresAt: now + 60_000 });
           return parsed;
         }
       } catch (err) {
@@ -136,8 +148,8 @@ export class RedisProvider implements OnModuleDestroy {
   async set(key: string, value: unknown, ttlSeconds = 3600): Promise<void> {
     const expiresAt = Date.now() + ttlSeconds * 1000;
 
-    // 1. Write to L1 In-Memory Cache instantly
-    this.memoryCache.set(key, { value, expiresAt });
+    // 1. Write to L1 In-Memory Cache with bounded size check
+    this.setMemoryCache(key, { value, expiresAt });
 
     // 2. Write to Redis L2 if available
     if (this.client && this.isConnected) {

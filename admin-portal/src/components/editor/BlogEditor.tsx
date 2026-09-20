@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
@@ -9,11 +9,13 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import TiptapLink from '@tiptap/extension-link';
+import Underline from '@tiptap/extension-underline';
+import TextAlign from '@tiptap/extension-text-align';
+import Highlight from '@tiptap/extension-highlight';
 import { analyzeSEO } from '../../utils/seoAuditor';
 import { 
   ArrowLeft, 
   Save, 
-  Sparkles, 
   Search, 
   Image as ImageIcon, 
   AlertTriangle, 
@@ -21,8 +23,21 @@ import {
   X, 
   Bold,
   Italic,
+  Underline as UnderlineIcon,
+  Strikethrough,
+  Highlighter,
+  Heading1,
   Heading2,
   Heading3,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignJustify,
+  Minus,
+  RemoveFormatting,
+  FileCode,
+  Link2,
+  Unlink,
   List,
   ListOrdered,
   Quote,
@@ -35,22 +50,27 @@ import {
   Share2,
   Copy,
   Code2,
-  Bot,
   Eye,
-  Laptop,
-  Tablet,
-  Smartphone,
   ExternalLink,
   Clock,
   Globe, 
   ChevronRight,
-  Loader2
+  ShieldCheck,
+  CheckCircle2,
+  AlertCircle,
+  XCircle,
+  ChevronDown,
+  SlidersHorizontal,
+  UploadCloud,
+  FileText,
+  Sparkles,
+  Languages
 } from 'lucide-react';
-import { LanguageCode, BlogStatus, Blog, BlogTranslation, BlogSEO } from '../../types';
+import { LanguageCode, BlogStatus, Blog, BlogTranslation, BlogSEO, MediaItem } from '../../types';
 import { createEmptySEO } from '../../data/initialData';
 import { canPublish, canApprove } from '../../utils/permissions';
 import { apiClient } from '../../services/apiClient';
-import { resolveMediaUrl } from '../../utils/mediaUtils';
+import { resolveMediaUrl, extractS3Key } from '../../utils/mediaUtils';
 
 interface BlogEditorProps {
   blogId?: string | null;
@@ -69,15 +89,14 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     categories, 
     tags, 
     media,
+    addMediaItem,
+    fetchMedia,
     saveBlog, 
     showNotification,
     activeRole,
     addRedirect,
     currentUser,
-    uiTheme,
   } = useBlogStore();
-
-  const isZoho = uiTheme === 'zoho';
 
   const targetBlogId = blogId !== undefined ? blogId : editingBlogId;
 
@@ -119,17 +138,51 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   const currentLang = validLang;
   const activeInspectorTab = validTab;
   const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+  const [mediaPickerTarget, setMediaPickerTarget] = useState<'editor' | 'cover'>('editor');
+  const [mediaModalTab, setMediaModalTab] = useState<'upload' | 'library' | 'url'>('upload');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [mediaSearchQuery, setMediaSearchQuery] = useState('');
+  const [isDraggingMedia, setIsDraggingMedia] = useState(false);
+  const [customImageUrl, setCustomImageUrl] = useState('');
+  const [customImageAlt, setCustomImageAlt] = useState('');
   const [copiedSchema, setCopiedSchema] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Premium Link Manager State
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkText, setLinkText] = useState('');
+  const [linkOpenNewTab, setLinkOpenNewTab] = useState(true);
+  const [linkNoFollow, setLinkNoFollow] = useState(false);
+
+  const filteredSiteMedia = useMemo(() => {
+    if (!mediaSearchQuery.trim()) return siteMedia;
+    const q = mediaSearchQuery.toLowerCase();
+    return siteMedia.filter(
+      (m) => m.fileName.toLowerCase().includes(q) || m.altText?.toLowerCase().includes(q)
+    );
+  }, [siteMedia, mediaSearchQuery]);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewDevice, setPreviewDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [inspectorOpen, setInspectorOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const handleLanguageTabClick = (lang: LanguageCode) => {
+    if (editor) {
+      const currentHtml = editor.getHTML();
+      setTranslations((prev) => ({
+        ...prev,
+        [currentLang]: {
+          ...prev[currentLang],
+          content: currentHtml,
+        },
+      }));
+    }
     setParam('lang', lang === 'en' ? null : lang);
   };
 
   const handleInspectorTabClick = (tab: 'seo' | 'social' | 'metadata' | 'media') => {
     setParam('tab', tab === 'seo' ? null : tab);
+    setInspectorOpen(true);
   };
 
   const allowedStatuses = useMemo(() => {
@@ -195,11 +248,18 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
   const activeTrans = translations[currentLang];
 
-  // Tiptap Editor instance
+  // Tiptap Editor instance with rich extensions
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         link: false,
+      }),
+      Underline,
+      Highlight.configure({
+        multicolor: true,
+      }),
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
       }),
       Image.configure({
         inline: false,
@@ -214,7 +274,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         autolink: true,
         defaultProtocol: 'https',
         HTMLAttributes: {
-          class: 'text-blue-600 underline hover:text-blue-800',
+          class: 'text-blue-600 underline hover:text-blue-800 transition-colors cursor-pointer',
           rel: 'noopener noreferrer',
           target: '_blank',
         },
@@ -233,6 +293,150 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       }));
     },
   });
+
+  // Open Premium Link Modal with active selection / URL
+  const handleOpenLinkModal = () => {
+    if (!editor) return;
+    const previousUrl = editor.getAttributes('link').href || '';
+    const { from, to } = editor.state.selection;
+    const selectedText = editor.state.doc.textBetween(from, to, ' ');
+    setLinkUrl(previousUrl);
+    setLinkText(selectedText);
+    setLinkOpenNewTab(editor.getAttributes('link').target === '_blank');
+    setLinkNoFollow(editor.getAttributes('link').rel?.includes('nofollow') || false);
+    setLinkModalOpen(true);
+  };
+
+  // Save / Apply Link from modal
+  const handleSaveLink = () => {
+    if (!editor) return;
+    if (!linkUrl.trim()) {
+      editor.chain().focus().extendMarkRange('link').unsetLink().run();
+      setLinkModalOpen(false);
+      return;
+    }
+
+    let href = linkUrl.trim();
+    if (
+      !href.startsWith('http://') &&
+      !href.startsWith('https://') &&
+      !href.startsWith('mailto:') &&
+      !href.startsWith('tel:') &&
+      !href.startsWith('/')
+    ) {
+      href = `https://${href}`;
+    }
+
+    const { from, to } = editor.state.selection;
+    const currentSelectedText = editor.state.doc.textBetween(from, to, ' ');
+
+    if (linkText && linkText !== currentSelectedText) {
+      editor
+        .chain()
+        .focus()
+        .insertContent({
+          type: 'text',
+          text: linkText,
+          marks: [
+            {
+              type: 'link',
+              attrs: {
+                href,
+                target: linkOpenNewTab ? '_blank' : null,
+                rel: linkNoFollow ? 'nofollow noopener noreferrer' : 'noopener noreferrer',
+              },
+            },
+          ],
+        })
+        .run();
+    } else {
+      editor
+        .chain()
+        .focus()
+        .extendMarkRange('link')
+        .setLink({
+          href,
+          target: linkOpenNewTab ? '_blank' : null,
+          rel: linkNoFollow ? 'nofollow noopener noreferrer' : 'noopener noreferrer',
+        })
+        .run();
+    }
+    setLinkModalOpen(false);
+    showNotification('Link applied successfully! 🔗', 'success');
+  };
+
+  // Remove Link handler
+  const handleRemoveLink = () => {
+    if (!editor) return;
+    editor.chain().focus().extendMarkRange('link').unsetLink().run();
+    setLinkModalOpen(false);
+    showNotification('Link removed.', 'info');
+  };
+
+  // Keyboard shortcut (Ctrl+K / Cmd+K) listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        if (editor && editor.isFocused) {
+          e.preventDefault();
+          handleOpenLinkModal();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [editor]);
+
+  // Load full blog detail from backend API to ensure rich HTML content is never missing or wiped
+  const [isLoadingFullBlog, setIsLoadingFullBlog] = useState(false);
+  useEffect(() => {
+    if (!targetBlogId) return;
+    let active = true;
+    setIsLoadingFullBlog(true);
+    apiClient.getBlogById(targetBlogId)
+      .then((fullBlog: any) => {
+        if (!active || !fullBlog) return;
+        if (fullBlog.translations) {
+          setTranslations((prev) => {
+            const next = { ...prev };
+            (['en', 'hi', 'fr', 'ar'] as LanguageCode[]).forEach((l) => {
+              if (fullBlog.translations[l]) {
+                next[l] = {
+                  ...defaultTrans(l),
+                  ...fullBlog.translations[l],
+                  content: fullBlog.translations[l].content || '<p></p>',
+                  seo: fullBlog.translations[l].seo || createEmptySEO(),
+                };
+              }
+            });
+            return next;
+          });
+
+          // Sync into editor if already mounted
+          const curContent = fullBlog.translations[currentLang]?.content;
+          if (editor && curContent) {
+            editor.commands.setContent(curContent);
+          }
+        }
+        if (fullBlog.status) setStatus(fullBlog.status as BlogStatus);
+        if (fullBlog.featuredImage) setFeaturedImage(fullBlog.featuredImage);
+        if (fullBlog.featuredImageAlt) setFeaturedImageAlt(fullBlog.featuredImageAlt);
+        if (Array.isArray(fullBlog.categoryIds)) setSelectedCategories(fullBlog.categoryIds);
+        if (Array.isArray(fullBlog.tagIds)) setSelectedTags(fullBlog.tagIds);
+        if (fullBlog.scheduledAt) setScheduledAt(fullBlog.scheduledAt);
+        if (fullBlog.websiteId) setSelectedWebsiteId(fullBlog.websiteId);
+      })
+      .catch((err) => {
+        console.warn('API getBlogById fetch failed, using local store data:', err);
+      })
+      .finally(() => {
+        if (active) setIsLoadingFullBlog(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [targetBlogId, editor]);
 
   // Sync editor content when language tab switches
   useEffect(() => {
@@ -316,6 +520,59 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     });
   };
 
+  const [isTranslating, setIsTranslating] = useState(false);
+
+  const handleAiTranslate = async () => {
+    const enSource = translations['en'];
+    if (!enSource?.title && !enSource?.content) {
+      showNotification('Please enter an English title or content first to translate from.', 'warning');
+      return;
+    }
+    setIsTranslating(true);
+    try {
+      const sourceContent = currentLang === 'en' ? (editor?.getHTML() || enSource.content) : enSource.content;
+      const res = await apiClient.translateText({
+        from: 'en',
+        to: currentLang,
+        title: enSource.title,
+        excerpt: enSource.excerpt,
+        content: sourceContent,
+      });
+
+      const translatedTitle = res.title || enSource.title;
+      const translatedExcerpt = res.excerpt || enSource.excerpt;
+      const translatedContent = res.content || sourceContent;
+      const newSlug = slugify(translatedTitle) || `post-${Date.now()}`;
+
+      setTranslations((prev) => ({
+        ...prev,
+        [currentLang]: {
+          ...prev[currentLang],
+          title: translatedTitle,
+          slug: newSlug,
+          excerpt: translatedExcerpt,
+          content: translatedContent,
+          seo: {
+            ...prev[currentLang].seo,
+            metaTitle: translatedTitle,
+            metaDescription: translatedExcerpt,
+            canonicalUrl: `https://${activeSite.domain}/blog/${newSlug}`,
+          },
+        },
+      }));
+
+      if (editor && translatedContent) {
+        editor.commands.setContent(translatedContent);
+      }
+      showNotification(`AI Translation complete for ${currentLang.toUpperCase()}! ✨`, 'success');
+    } catch (err: any) {
+      console.error('AI translation failed:', err);
+      showNotification(err?.message || 'AI translation service unavailable', 'warning');
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
   // Live SEO Analysis (TRD Section 11)
   const seoResult = useMemo(() => {
     return analyzeSEO({
@@ -327,6 +584,15 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       featuredImageAlt,
     });
   }, [activeTrans, featuredImage, featuredImageAlt]);
+
+  // Live Document Word Count, Character Count & Reading Time
+  const docStats = useMemo(() => {
+    const text = (activeTrans.content || '').replace(/<[^>]*>/g, ' ').trim();
+    const words = text ? text.split(/\s+/).filter(Boolean).length : 0;
+    const chars = text.length;
+    const readTime = Math.max(1, Math.ceil(words / 200));
+    return { words, chars, readTime };
+  }, [activeTrans.content]);
 
   // JSON-LD Schema Generator (TRD Section 11 & 12)
   const jsonLdSchema = useMemo(() => {
@@ -367,75 +633,116 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     setTimeout(() => setCopiedSchema(false), 2000);
   };
 
-  // Real-time AI Multi-Language Translation Engine
-  const [isTranslating, setIsTranslating] = useState(false);
+  // Unified handler to apply selected image (cover or editor body)
+  const handleApplySelectedMedia = (item: { cdnUrl: string; altText?: string }) => {
+    const finalUrl = resolveMediaUrl(item.cdnUrl);
+    const alt = item.altText || activeTrans.title || 'Blog image';
 
-  const handleAITranslate = async () => {
-    const enTrans = translations.en;
-    if (!enTrans || !enTrans.title) {
-      showNotification('Please fill the English (EN) post title first.', 'warning');
-      return;
-    }
-    if (currentLang === 'en') {
-      showNotification('Active tab is already English (EN). Switch to Hindi, French, or Arabic to translate.', 'info');
-      return;
-    }
-
-    setIsTranslating(true);
-    showNotification(`Translating English content to ${currentLang.toUpperCase()} via real-time translation engine...`, 'info');
-
-    try {
-      const currentEditorHtml = editor?.getHTML() || enTrans.content;
-      const res = await apiClient.translateText({
-        title: enTrans.title,
-        excerpt: enTrans.excerpt,
-        content: currentEditorHtml,
-        from: 'en',
-        to: currentLang,
-      });
-
-      const transTitle = res.title || enTrans.title;
-      const transSlug = `${enTrans.slug || 'article'}-${currentLang}`;
-      const transContent = res.content || currentEditorHtml;
-      const transExcerpt = res.excerpt || enTrans.excerpt;
-
-      setTranslations((prev) => ({
-        ...prev,
-        [currentLang]: {
-          ...prev[currentLang],
-          title: transTitle,
-          slug: transSlug,
-          excerpt: transExcerpt,
-          content: transContent,
-          seo: {
-            ...enTrans.seo,
-            metaTitle: transTitle,
-            ogTitle: transTitle,
-            twitterTitle: transTitle,
-            metaDescription: transExcerpt || enTrans.seo?.metaDescription,
-          },
-        },
-      }));
-
+    if (mediaPickerTarget === 'cover') {
+      setFeaturedImage(item.cdnUrl);
+      setFeaturedImageAlt(alt);
+      showNotification('Featured cover image set! 🖼️', 'success');
+    } else {
       if (editor) {
-        editor.commands.setContent(transContent);
+        editor.chain().focus().setImage({ src: finalUrl, alt, title: alt }).run();
+        showNotification('WebP image inserted into article canvas! 🖼️', 'success');
       }
-      showNotification(`Successfully translated post to ${currentLang.toUpperCase()}!`, 'success');
-    } catch (err: any) {
-      console.error('Translation error:', err);
-      showNotification(`Translation error: ${err?.message || 'Failed to translate'}`, 'warning');
-    } finally {
-      setIsTranslating(false);
     }
+    setMediaPickerOpen(false);
   };
 
-  // Insert image into editor canvas
-  const handleInsertImageIntoEditor = (item: { cdnUrl: string; altText: string }) => {
-    if (editor) {
-      editor.chain().focus().setImage({ src: item.cdnUrl, alt: item.altText, title: item.altText }).run();
-      setMediaPickerOpen(false);
-      showNotification('Image inserted into content canvas', 'success');
+  // Upload image file with automated WebP conversion
+  const handleUploadWebpImage = async (file: File) => {
+    if (!file) return;
+    setUploadingImage(true);
+    const cleanName = file.name.replace(/\.[^/.]+$/, '') + '.webp';
+    const uploadSiteId = selectedWebsiteId || activeWebsiteId || 'site-cloud';
+    const uploadSite = websites.find((w) => w.id === uploadSiteId) || websites[0];
+
+    try {
+      // Step 1: Attempt server-side WebP pipeline via backend
+      const res = await apiClient.uploadMedia(file, uploadSiteId, cleanName);
+      if (res && res.cdnUrl) {
+        const newItem: MediaItem = {
+          id: res.id || `med-${Date.now()}`,
+          websiteId: uploadSiteId,
+          fileName: res.fileName || cleanName,
+          fileType: 'image/webp',
+          fileSizeBytes: res.fileSizeBytes || file.size,
+          s3Key: extractS3Key(res.s3Key || res.cdnUrl),
+          cdnUrl: resolveMediaUrl(res.cdnUrl),
+          altText: cleanName.replace(/[-_]/g, ' ').replace('.webp', ''),
+          dimensions: res.dimensions || { width: 1200, height: 800 },
+          uploadedBy: currentUser?.name || activeRole,
+          createdAt: new Date().toISOString(),
+        };
+        addMediaItem(newItem);
+        handleApplySelectedMedia(newItem);
+        setUploadingImage(false);
+        return;
+      }
+    } catch (err) {
+      console.warn('Server media upload failed, converting to WebP on client canvas:', err);
     }
+
+    // Step 2: Fallback to client-side HTML5 canvas WebP conversion
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          const webpDataUrl = canvas.toDataURL('image/webp', 0.88);
+          const head = 'data:image/webp;base64,';
+          const sizeInBytes = Math.round((webpDataUrl.length - head.length) * 3 / 4);
+
+          const now = new Date();
+          const yyyy = now.getFullYear();
+          const mm = String(now.getMonth() + 1).padStart(2, '0');
+
+          const newItem: MediaItem = {
+            id: `med-${Date.now()}`,
+            websiteId: uploadSiteId,
+            fileName: cleanName,
+            fileType: 'image/webp',
+            fileSizeBytes: sizeInBytes,
+            s3Key: `blogs/${uploadSite?.s3Prefix || 'general'}/${yyyy}/${mm}/${cleanName}`,
+            cdnUrl: webpDataUrl,
+            altText: cleanName.replace(/[-_]/g, ' ').replace('.webp', ''),
+            dimensions: { width: img.width, height: img.height },
+            uploadedBy: currentUser?.name || activeRole,
+            createdAt: new Date().toISOString(),
+          };
+
+          addMediaItem(newItem);
+          handleApplySelectedMedia(newItem);
+        }
+        setUploadingImage(false);
+      };
+      img.onerror = () => {
+        setUploadingImage(false);
+        showNotification('Failed to process and convert image.', 'warning');
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleApplyCustomUrl = () => {
+    if (!customImageUrl.trim()) {
+      showNotification('Please enter a valid image URL', 'warning');
+      return;
+    }
+    handleApplySelectedMedia({
+      cdnUrl: customImageUrl.trim(),
+      altText: customImageAlt.trim() || activeTrans.title || 'Blog image',
+    });
+    setCustomImageUrl('');
+    setCustomImageAlt('');
   };
 
   // Save handler with TRD 301 Permanent Redirect Guard
@@ -471,9 +778,13 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     const currentEditorHtml = editor ? editor.getHTML() : undefined;
     const cleanedTranslations = { ...translations };
     if (currentEditorHtml !== undefined && cleanedTranslations[currentLang]) {
+      const existingContent = existingBlog?.translations?.[currentLang]?.content;
+      const isBlank = !currentEditorHtml || currentEditorHtml === '<p></p>' || currentEditorHtml.trim() === '';
+      const safeContent = (isBlank && existingContent && existingContent.length > 20) ? existingContent : currentEditorHtml;
+
       cleanedTranslations[currentLang] = {
         ...cleanedTranslations[currentLang],
-        content: currentEditorHtml,
+        content: safeContent,
       };
     }
 
@@ -536,32 +847,42 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   const isRTL = currentLang === 'ar';
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-transparent">
-      {/* Editor Sub-Bar: Breadcrumb, language switcher, AI translate & save */}
-      <div className={`border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0 gap-2 overflow-x-auto no-scrollbar ${isZoho ? 'h-10 bg-white dark:bg-[#0c1322] px-3' : 'h-12 bg-white dark:bg-[#0f172a] px-3 sm:px-4'}`}>
-        {/* Left: Breadcrumbs with auto-truncation for long article titles */}
-        <div className="flex items-center space-x-1.5 text-xs min-w-0 max-w-[150px] sm:max-w-[220px] lg:max-w-[300px] shrink">
+    <div className="h-screen w-screen overflow-hidden flex flex-col bg-white dark:bg-[#070b14] relative">
+      {/* Studio Header Bar (48px) */}
+      <header className="h-12 bg-white dark:bg-[#0c1322] border-b border-slate-200 dark:border-slate-800 px-3 sm:px-5 flex items-center justify-between shrink-0 gap-2 z-30">
+        {/* Left: Back to blogs & website scope */}
+        <div className="flex items-center gap-2 min-w-0 shrink">
           <Link
             href={`/blogs?site=${selectedWebsiteId}`}
-            className="p-1 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
-            title="Back to blogs"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
+            title="Exit editor and return to blogs list"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
+            <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">Exit</span>
           </Link>
-          <div className="flex items-center gap-1 font-medium min-w-0 truncate">
-            <Link href={`/blogs?site=${selectedWebsiteId}`} className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 shrink-0">
-              Blogs
-            </Link>
-            <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
-            <span className="text-slate-900 dark:text-white font-semibold truncate" title={existingBlog ? (activeTrans.title || 'Edit Blog') : 'New Blog'}>
-              {existingBlog ? (activeTrans.title || 'Edit Blog') : 'New Blog'}
-            </span>
+          <div className="h-4 w-px bg-slate-200 dark:bg-slate-800 shrink-0" />
+          <div
+            className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1 hover:border-slate-300 dark:hover:border-slate-700 transition-colors cursor-pointer"
+            title="Target Publication Website"
+          >
+            <Globe className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <select
+              value={selectedWebsiteId}
+              onChange={(e) => setSelectedWebsiteId(e.target.value)}
+              className="bg-transparent text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer max-w-[120px] sm:max-w-[160px] truncate"
+            >
+              {websites.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
-        {/* Center: Language Switcher Tabs & AI Assistant */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+        {/* Center: Language Switcher Tabs & Autosave status */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800/90 p-0.5 rounded-lg border border-slate-200/80 dark:border-slate-700/60">
             {(['en', 'hi', 'fr', 'ar'] as LanguageCode[]).map((lang) => {
               const hasTitle = Boolean(translations[lang]?.title);
               const isActive = currentLang === lang;
@@ -569,9 +890,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 <button
                   key={lang}
                   onClick={() => handleLanguageTabClick(lang)}
-                  className={`px-2 py-0.5 rounded-md text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                     isActive
-                      ? (isZoho ? 'bg-red-600 text-white shadow-2xs font-bold' : 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-2xs')
+                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
@@ -586,40 +907,27 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
           {currentLang !== 'en' && (
             <button
-              onClick={handleAITranslate}
+              type="button"
+              onClick={handleAiTranslate}
               disabled={isTranslating}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 transition-colors cursor-pointer disabled:opacity-50"
-              title="Real-time multi-language translation from English"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
+              title={`Translate English title and content to ${currentLang.toUpperCase()} with AI`}
             >
-              {isTranslating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bot className="w-3 h-3" />}
-              <span className="hidden md:inline">{isTranslating ? 'Translating...' : 'Translate EN'}</span>
+              <Sparkles className={`w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 ${isTranslating ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{isTranslating ? 'Translating...' : `Translate from EN`}</span>
             </button>
           )}
+
+          <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-400 font-mono pl-1">
+            <span className={`w-1.5 h-1.5 rounded-full ${isSaving ? 'bg-amber-400 animate-pulse' : 'bg-emerald-500'}`} />
+            {isSaving ? 'Saving...' : 'Saved'}
+          </span>
         </div>
 
-        {/* Right: Target Website (Fully Clickable), Status, Preview & Save */}
+        {/* Right: Schedule, Status, Preview, Inspector toggle, Save/Publish */}
         <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
-          {/* Target Website Selector - Always Clickable & Interactive */}
-          <div
-            className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md px-2 py-1 hover:border-indigo-400 transition-colors cursor-pointer"
-            title="Switch Target Website"
-          >
-            <Globe className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-            <select
-              value={selectedWebsiteId}
-              onChange={(e) => setSelectedWebsiteId(e.target.value)}
-              className="bg-transparent text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer max-w-[105px] sm:max-w-[130px] truncate"
-            >
-              {websites.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
           {status === 'Scheduled' && (
-            <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-xs text-purple-800 dark:text-purple-300">
+            <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-xs text-purple-800 dark:text-purple-300">
               <Clock className="w-3 h-3 text-purple-600 dark:text-purple-400 shrink-0" />
               <input
                 type="datetime-local"
@@ -634,7 +942,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           <select
             value={status}
             onChange={(e) => handleStatusChange(e.target.value as BlogStatus)}
-            className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 rounded-md px-2 py-1 focus:outline-none cursor-pointer shrink-0"
+            className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer shrink-0"
           >
             {allowedStatuses.map((s) => (
               <option key={s} value={s}>
@@ -646,244 +954,665 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           <button
             type="button"
             onClick={() => setPreviewOpen(true)}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer shadow-2xs shrink-0"
-            title="Preview article"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer shadow-2xs shrink-0"
+            title="Live Consumer Preview"
           >
-            <Eye className="w-3.5 h-3.5 text-indigo-500" />
+            <Eye className="w-3.5 h-3.5 text-slate-400" />
             <span className="hidden sm:inline">Preview</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setInspectorOpen(!inspectorOpen)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer shadow-2xs shrink-0 ${
+              inspectorOpen
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-slate-900 dark:border-white'
+                : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+            title="Toggle Settings & SEO Auditor Drawer"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Settings &amp; SEO</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
+              seoResult.score >= 80 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+            }`}>
+              {seoResult.score}
+            </span>
           </button>
 
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50 shrink-0 ${isZoho ? 'bg-red-600 hover:bg-red-700 text-white font-bold' : 'bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 rounded-md'}`}
+            className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer disabled:opacity-50 shrink-0"
           >
             <Save className={`w-3.5 h-3.5 ${isSaving ? 'animate-spin' : ''}`} />
-            <span>{isSaving ? 'Saving...' : 'Save'}</span>
+            <span>{isSaving ? 'Saving...' : status === 'Published' ? 'Publish Article' : 'Save Draft'}</span>
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* Main Authoring Canvas & Inspector */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left: Document Area */}
-        <div className={`flex-1 flex flex-col overflow-y-auto ${isZoho ? 'px-4 sm:px-8 py-3 space-y-2.5' : 'px-6 sm:px-12 py-6 space-y-4'}`}>
-          {/* Published Slug 301 Warning Notice (TRD Section 7) */}
-          {status === 'Published' && (
-            <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3 flex items-center space-x-3 text-xs text-amber-800 dark:text-amber-300 shadow-xs">
-              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-              <span>
-                <strong>SEO Continuity:</strong> Blog is published. Modifying the slug will automatically establish a 301 Permanent Redirect.
-              </span>
-            </div>
-          )}
+      {/* Main Studio Area */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Modern Elevated Document Studio Canvas */}
+        <main className="flex-1 overflow-y-auto bg-slate-100/75 dark:bg-[#070b14] py-6 sm:py-10 px-3 sm:px-6 flex justify-center">
+          {/* Elevated Document Sheet (Paper Canvas) */}
+          <div className="w-full max-w-4xl bg-white dark:bg-[#0f172a] border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-sm min-h-[88vh] flex flex-col overflow-hidden transition-all">
+            
+            {/* Docked Editor Toolbar at Top of Document Sheet */}
+            {editor && (
+              <div className="sticky top-0 z-20 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-4 sm:px-6 py-2 flex items-center justify-between gap-3 shadow-2xs">
+                {/* Left: Complete Professional Toolbar Controls */}
+                <div className="flex flex-wrap items-center gap-1">
+                  {/* Style / Heading Group */}
+                  <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 p-0.5 rounded-lg border border-slate-200/60 dark:border-slate-700/60">
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().setParagraph().run()}
+                      className={`px-2 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${
+                        !editor.isActive('heading') ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                      }`}
+                      title="Paragraph"
+                    >
+                      Normal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+                      className={`px-2 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${
+                        editor.isActive('heading', { level: 1 }) ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                      }`}
+                      title="Heading 1"
+                    >
+                      H1
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                      className={`px-2 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${
+                        editor.isActive('heading', { level: 2 }) ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                      }`}
+                      title="Heading 2"
+                    >
+                      H2
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+                      className={`px-2 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${
+                        editor.isActive('heading', { level: 3 }) ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                      }`}
+                      title="Heading 3"
+                    >
+                      H3
+                    </button>
+                  </div>
 
-          {/* AI Auto-Translate Quick Action Banner for Blank Locale Tabs */}
-          {currentLang !== 'en' && !activeTrans.title && (
-            <div className="flex items-center justify-between p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 text-xs text-indigo-950 dark:text-indigo-200 animate-in fade-in">
-              <div className="flex items-center gap-2.5">
-                <div className="p-1.5 rounded-lg bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300">
-                  <Bot className="w-4 h-4" />
+                  <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block" />
+
+                  {/* Inline Text Marks Group */}
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleBold().run()}
+                      className={`p-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+                        editor.isActive('bold') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                      title="Bold (Ctrl+B)"
+                    >
+                      <Bold className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleItalic().run()}
+                      className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                        editor.isActive('italic') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                      title="Italic (Ctrl+I)"
+                    >
+                      <Italic className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleUnderline().run()}
+                      className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                        editor.isActive('underline') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                      title="Underline (Ctrl+U)"
+                    >
+                      <UnderlineIcon className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleStrike().run()}
+                      className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                        editor.isActive('strike') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                      title="Strikethrough"
+                    >
+                      <Strikethrough className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleHighlight({ color: '#fef08a' }).run()}
+                      className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                        editor.isActive('highlight') ? 'bg-amber-300 text-slate-900 shadow-2xs font-semibold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                      title="Highlight Marker"
+                    >
+                      <Highlighter className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleCode().run()}
+                      className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                        editor.isActive('code') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                      title="Inline Code"
+                    >
+                      <Code className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block" />
+
+                  {/* Text Alignment Group */}
+                  <div className="hidden sm:flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().setTextAlign('left').run()}
+                      className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                        editor.isActive({ textAlign: 'left' }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                      title="Align Left"
+                    >
+                      <AlignLeft className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().setTextAlign('center').run()}
+                      className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                        editor.isActive({ textAlign: 'center' }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                      title="Align Center"
+                    >
+                      <AlignCenter className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().setTextAlign('right').run()}
+                      className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                        editor.isActive({ textAlign: 'right' }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                      title="Align Right"
+                    >
+                      <AlignRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().setTextAlign('justify').run()}
+                      className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                        editor.isActive({ textAlign: 'justify' }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                      title="Justify"
+                    >
+                      <AlignJustify className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block" />
+
+                  {/* Lists & Blocks Group */}
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleBulletList().run()}
+                      className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                        editor.isActive('bulletList') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                      title="Bullet List"
+                    >
+                      <List className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                      className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                        editor.isActive('orderedList') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                      title="Numbered List"
+                    >
+                      <ListOrdered className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleBlockquote().run()}
+                      className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                        editor.isActive('blockquote') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                      title="Blockquote"
+                    >
+                      <Quote className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+                      className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                        editor.isActive('codeBlock') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                      title="Preformatted Code Block"
+                    >
+                      <FileCode className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().setHorizontalRule().run()}
+                      className="p-1.5 rounded-md text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                      title="Horizontal Divider"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1" />
+
+                  {/* Premium Link & Image Actions */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={handleOpenLinkModal}
+                      title={editor.isActive('link') ? 'Edit Link (Ctrl+K)' : 'Insert Link (Ctrl+K)'}
+                      className={`px-2 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                        editor.isActive('link')
+                          ? 'bg-blue-600 text-white shadow-blue-500/20'
+                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <Link2 className="w-3.5 h-3.5" />
+                      <span className="hidden md:inline">{editor.isActive('link') ? 'Edit Link' : 'Link'}</span>
+                    </button>
+
+                    {editor.isActive('link') && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveLink}
+                        title="Unlink"
+                        className="p-1.5 rounded-md text-xs text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                      >
+                        <Unlink className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMediaPickerTarget('editor');
+                        setMediaModalTab(siteMedia.length > 0 ? 'library' : 'upload');
+                        setMediaPickerOpen(true);
+                      }}
+                      className="px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/80 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      title="Insert WebP Image (Upload or Media Library)"
+                    >
+                      <ImageIcon className="w-3.5 h-3.5" />
+                      <span>Image</span>
+                      <span className="text-[10px] px-1 py-0.2 rounded bg-blue-200/60 dark:bg-blue-800/60 font-mono">WebP</span>
+                    </button>
+                  </div>
+
+                  <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1 hidden md:block" />
+
+                  {/* Clear Format & History */}
+                  <div className="hidden md:flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
+                      className="p-1.5 rounded-md text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                      title="Clear Formatting"
+                    >
+                      <RemoveFormatting className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().undo().run()}
+                      className="p-1.5 rounded-md text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                      title="Undo (Ctrl+Z)"
+                    >
+                      <Undo className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().redo().run()}
+                      className="p-1.5 rounded-md text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                      title="Redo (Ctrl+Y)"
+                    >
+                      <Redo className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <div className="font-semibold">This locale ({currentLang.toUpperCase()}) is currently blank.</div>
-                  <div className="text-[11px] text-indigo-700 dark:text-indigo-400">
-                    Instantly generate translated title, body, and SEO tags from English.
+
+                {/* Right: Real-time Word & Reading Time Counter */}
+                <div className="hidden lg:flex items-center gap-2.5 text-xs text-slate-400 font-medium select-none shrink-0">
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-slate-400" />
+                    {docStats.readTime} min read
+                  </span>
+                  <span>·</span>
+                  <span>{docStats.words} words</span>
+                </div>
+              </div>
+            )}
+
+            {/* Document Sheet Body */}
+            <div className="p-6 sm:p-12 space-y-6 flex-1 flex flex-col">
+              {/* Published Slug 301 Warning Notice (TRD Section 7) */}
+              {status === 'Published' && (
+                <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3 flex items-center space-x-3 text-xs text-amber-800 dark:text-amber-300 shadow-2xs">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>
+                    <strong>SEO Continuity:</strong> Blog is published. Modifying the slug will automatically establish a 301 Permanent Redirect.
+                  </span>
+                </div>
+              )}
+
+              {/* Featured Cover Photo */}
+              {featuredImage ? (
+                <div className="relative group rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 aspect-21/9 max-h-[320px] shadow-xs">
+                  <img
+                    src={resolveMediaUrl(featuredImage)}
+                    alt={featuredImageAlt || 'Cover'}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMediaPickerTarget('cover');
+                        setMediaModalTab(siteMedia.length > 0 ? 'library' : 'upload');
+                        setMediaPickerOpen(true);
+                      }}
+                      className="px-3.5 py-1.5 rounded-lg bg-white/95 hover:bg-white text-slate-900 text-xs font-semibold shadow-md flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <ImageIcon className="w-3.5 h-3.5" /> Change Cover
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFeaturedImage('');
+                        setFeaturedImageAlt('');
+                      }}
+                      className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-md flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" /> Remove
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800/80">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMediaPickerTarget('cover');
+                      setMediaModalTab(siteMedia.length > 0 ? 'library' : 'upload');
+                      setMediaPickerOpen(true);
+                    }}
+                    className="group inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:border-blue-400 bg-white dark:bg-slate-850 hover:bg-blue-50/40 dark:hover:bg-blue-950/20 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-all cursor-pointer shadow-2xs"
+                  >
+                    <div className="w-5 h-5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                      <ImageIcon className="w-3 h-3" />
+                    </div>
+                    <span>Add Cover Photo</span>
+                    <span className="text-[10px] text-slate-400 font-mono font-normal hidden sm:inline">• 1200×630 WebP (SEO &amp; Discover)</span>
+                  </button>
+
+                  <div className="text-[11px] text-slate-400 select-none font-medium flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="font-semibold text-slate-500 dark:text-slate-400">{activeSite.name}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Title & Live Metadata Byline */}
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  placeholder={
+                    currentLang === 'hi' ? 'यहाँ लेख का मुख्य शीर्षक लिखें...' :
+                    currentLang === 'fr' ? 'Titre principal de l\'article...' :
+                    currentLang === 'ar' ? 'عنوان المقال الرئيسي...' :
+                    'Enter article title...'
+                  }
+                  value={activeTrans.title}
+                  onChange={(e) => handleTitleChange(e.target.value)}
+                  dir={isRTL ? 'rtl' : 'ltr'}
+                  className="w-full bg-transparent text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600 focus:outline-none border-none leading-[1.18] font-sans py-1"
+                />
+
+                {/* Editorial Byline Strip: Permalink + Category + Tags */}
+                <div className="flex flex-wrap items-center gap-y-2 gap-x-3 text-xs text-slate-500 dark:text-slate-400 py-2.5 px-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800 shadow-2xs">
+                  {/* Permalink section */}
+                  <div className="flex items-center gap-1.5 shrink-0 bg-white dark:bg-slate-800/90 px-2.5 py-1 rounded-lg border border-slate-200/80 dark:border-slate-700/80">
+                    <Globe className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                    <span className="text-slate-400 font-mono text-[11px] select-none">/blog/</span>
+                    <input
+                      type="text"
+                      value={activeTrans.slug}
+                      onChange={(e) => updateActiveTransField('slug', slugify(e.target.value))}
+                      placeholder="article-slug"
+                      className="font-mono text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-transparent focus:outline-none max-w-[140px] sm:max-w-[180px]"
+                      title="Custom URL Slug"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`https://${activeSite.domain}/blog/${activeTrans.slug}`);
+                        showNotification('Live permalink copied to clipboard! 📋', 'success');
+                      }}
+                      className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer ml-0.5"
+                      title="Copy full article URL"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  <span className="hidden sm:inline text-slate-300 dark:text-slate-700 select-none">•</span>
+
+                  {/* Category Pills */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <TagIcon className="w-3 h-3 text-slate-400 shrink-0" />
+                    {selectedCategories.length === 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleInspectorTabClick('metadata');
+                          setInspectorOpen(true);
+                        }}
+                        className="text-[11px] font-medium text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200/80 dark:border-slate-700/80 hover:border-blue-300 transition-colors cursor-pointer shadow-2xs"
+                      >
+                        + Category
+                      </button>
+                    ) : (
+                      selectedCategories.map((catId) => {
+                        const cat = siteCategories.find((c) => c.id === catId);
+                        if (!cat) return null;
+                        return (
+                          <span
+                            key={cat.id}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 px-2.5 py-1 rounded-lg border border-blue-200/80 dark:border-blue-900/60 shadow-2xs"
+                          >
+                            <span>{cat.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedCategories(selectedCategories.filter((id) => id !== cat.id))}
+                              className="text-blue-400 hover:text-rose-500 cursor-pointer ml-0.5"
+                              title="Remove category"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          </span>
+                        );
+                      })
+                    )}
+                    {selectedCategories.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleInspectorTabClick('metadata');
+                          setInspectorOpen(true);
+                        }}
+                        className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
+                        title="Add more categories"
+                      >
+                        +
+                      </button>
+                    )}
+                  </div>
+
+                  <span className="hidden sm:inline text-slate-300 dark:text-slate-700 select-none">•</span>
+
+                  {/* Tag Pills */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {selectedTags.length === 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleInspectorTabClick('metadata');
+                          setInspectorOpen(true);
+                        }}
+                        className="text-[11px] font-medium text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer hover:underline px-1"
+                      >
+                        + Add tags
+                      </button>
+                    ) : (
+                      selectedTags.map((tagId) => {
+                        const tag = siteTags.find((t) => t.id === tagId);
+                        if (!tag) return null;
+                        return (
+                          <span
+                            key={tag.id}
+                            className="inline-flex items-center gap-1 text-[10px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700"
+                          >
+                            <span>#{tag.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedTags(selectedTags.filter((id) => id !== tag.id))}
+                              className="text-slate-400 hover:text-rose-500 cursor-pointer ml-0.5"
+                              title="Remove tag"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          </span>
+                        );
+                      })
+                    )}
+                    {selectedTags.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleInspectorTabClick('metadata');
+                          setInspectorOpen(true);
+                        }}
+                        className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
+                        title="Manage tags"
+                      >
+                        +
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={handleAITranslate}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs shrink-0"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-indigo-200" />
-                <span>Auto-Translate with AI</span>
-              </button>
-            </div>
-          )}
 
-          {/* Title Input */}
-          <div className="space-y-1">
-            <input
-              type="text"
-              placeholder={`Enter post title (${currentLang.toUpperCase()})...`}
-              value={activeTrans.title}
-              onChange={(e) => handleTitleChange(e.target.value)}
-              dir={isRTL ? 'rtl' : 'ltr'}
-              className={`w-full bg-transparent font-bold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none tracking-tight pb-1.5 transition-colors border-b border-slate-200 dark:border-slate-800 ${isZoho ? 'text-xl sm:text-2xl focus:border-red-500' : 'text-2xl sm:text-3xl pb-2 focus:border-slate-400 dark:focus:border-slate-600'}`}
-            />
-            <div className="flex items-center space-x-2 text-xs text-slate-500 dark:text-slate-400 font-mono">
-              <span>https://{activeSite.domain}/blog/</span>
-              <input
-                type="text"
-                value={activeTrans.slug}
-                onChange={(e) => updateActiveTransField('slug', slugify(e.target.value))}
-                placeholder="url-slug"
-                className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-0.5 text-indigo-600 dark:text-indigo-400 font-mono focus:outline-none text-xs"
-              />
+              {/* Lead Summary / Abstract (Article Subtitle & SERP Deck) */}
+              <div className="relative pl-4 border-l-2 border-slate-200 dark:border-slate-700 focus-within:border-blue-500 transition-colors">
+                <textarea
+                  placeholder="Write a brief lead abstract or subtitle for search previews and social shares..."
+                  value={activeTrans.excerpt}
+                  onChange={(e) => updateActiveTransField('excerpt', e.target.value)}
+                  rows={2}
+                  dir={isRTL ? 'rtl' : 'ltr'}
+                  className="w-full bg-transparent text-sm sm:text-base text-slate-600 dark:text-slate-300 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none leading-relaxed resize-none italic transition-colors border-none p-0"
+                />
+                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+                  <span className="font-mono text-[10px] text-slate-400">Article Subtitle &amp; SERP Search Snippet</span>
+                  <span className={`font-mono text-[10px] ${activeTrans.excerpt.length > 160 ? 'text-amber-500 font-semibold' : 'text-slate-400'}`}>
+                    {activeTrans.excerpt.length}/160 chars {activeTrans.excerpt.length > 160 ? '(Optimal: ≤160)' : ''}
+                  </span>
+                </div>
+              </div>
+
+              {/* Tiptap Rich-Text Writing Canvas */}
+              <div dir={isRTL ? 'rtl' : 'ltr'} className="flex-1 min-h-[450px] text-slate-900 dark:text-slate-100 pt-2">
+                <EditorContent
+                  editor={editor}
+                  className="prose prose-slate dark:prose-invert max-w-none text-base sm:text-lg leading-relaxed focus:outline-none min-h-[420px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:focus:outline-none [&_.ProseMirror]:ring-0 [&_.ProseMirror]:border-none [&_.ProseMirror-focused]:outline-none [&_*]:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Document Bottom Status & Health Bar */}
+            <div className="px-6 sm:px-12 py-3 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/60 dark:bg-[#0b1120] flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 shrink-0">
+              <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <Clock className="w-3.5 h-3.5 text-slate-400" />
+                  {docStats.readTime} min read
+                </span>
+                <span className="text-slate-300 dark:text-slate-700">•</span>
+                <span className="flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-slate-400" />
+                  {docStats.words} words ({docStats.chars} characters)
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleInspectorTabClick('seo');
+                    setInspectorOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-400 shadow-2xs"
+                  title="Open SEO & Settings Audit"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>SEO Score:</span>
+                  <span className={seoResult.score >= 80 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-amber-600 dark:text-amber-400 font-bold'}>
+                    {seoResult.score}/100
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
+        </main>
 
-          {/* Excerpt Input */}
-          <div>
-            <textarea
-              placeholder={`Short excerpt / abstract for index pages (${currentLang.toUpperCase()})...`}
-              value={activeTrans.excerpt}
-              onChange={(e) => updateActiveTransField('excerpt', e.target.value)}
-              rows={2}
-              dir={isRTL ? 'rtl' : 'ltr'}
-              className={`w-full border placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none transition-colors ${isZoho ? 'bg-white dark:bg-[#0c1322] border-slate-300 dark:border-slate-700 rounded p-2 text-xs text-slate-800 dark:text-slate-200 focus:border-red-500 shadow-none' : 'bg-white dark:bg-[#0f172a] border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs sm:text-sm text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-slate-400 shadow-xs'}`}
-            />
-          </div>
-
-          {/* Tiptap Floating Toolbar */}
-          {editor && (
-            <div className={`sticky top-0 z-20 backdrop-blur-md border flex flex-wrap items-center ${isZoho ? 'bg-slate-50/95 dark:bg-[#0c1322]/95 border-slate-300 dark:border-slate-700 rounded p-1 gap-0.5 shadow-none' : 'bg-white/95 dark:bg-[#0f172a]/95 border-slate-200 dark:border-slate-800 rounded-xl p-1.5 gap-1 shadow-xs'}`}>
-              <button
-                onClick={() => editor.chain().focus().toggleBold().run()}
-                className={`p-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                  editor.isActive('bold') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-                title="Bold"
-              >
-                <Bold className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => editor.chain().focus().toggleItalic().run()}
-                className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
-                  editor.isActive('italic') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-                title="Italic"
-              >
-                <Italic className="w-3.5 h-3.5" />
-              </button>
-              <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1" />
-              <button
-                onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-                className={`p-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                  editor.isActive('heading', { level: 2 }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-                title="Heading 2"
-              >
-                <Heading2 className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-                className={`p-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                  editor.isActive('heading', { level: 3 }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-                title="Heading 3"
-              >
-                <Heading3 className="w-3.5 h-3.5" />
-              </button>
-              <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1" />
-              <button
-                onClick={() => editor.chain().focus().toggleBulletList().run()}
-                className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
-                  editor.isActive('bulletList') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-                title="Bullet List"
-              >
-                <List className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
-                  editor.isActive('orderedList') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-                title="Numbered List"
-              >
-                <ListOrdered className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => editor.chain().focus().toggleBlockquote().run()}
-                className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
-                  editor.isActive('blockquote') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-                title="Quote"
-              >
-                <Quote className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-                className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
-                  editor.isActive('codeBlock') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-                title="Code Block"
-              >
-                <Code className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => {
-                  const url = window.prompt('Enter URL:');
-                  if (url) editor.chain().focus().setLink({ href: url }).run();
-                }}
-                title="Insert link"
-                className={`p-1.5 rounded hover:bg-gray-100 ${
-                  editor.isActive('link') ? 'bg-blue-100 text-blue-600' : 'text-gray-600'
-                }`}
-              >
-                <ExternalLink size={16} />
-              </button>
-              <button
-                onClick={() => editor.chain().focus().unsetLink().run()}
-                disabled={!editor.isActive('link')}
-                title="Remove link"
-                className="p-1.5 rounded hover:bg-gray-100 text-gray-600 disabled:opacity-30"
-              >
-                <X size={16} />
-              </button>
-              <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1" />
-              <button
-                type="button"
-                onClick={() => setMediaPickerOpen(true)}
-                className="p-1.5 rounded-lg text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors flex items-center gap-1 cursor-pointer"
-                title="Insert WebP Image from Media Library"
-              >
-                <ImageIcon className="w-3.5 h-3.5" />
-                <span>Insert Image</span>
-              </button>
-              <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1" />
-              <button
-                onClick={() => editor.chain().focus().undo().run()}
-                className="p-1.5 rounded-lg text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-                title="Undo"
-              >
-                <Undo className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => editor.chain().focus().redo().run()}
-                className="p-1.5 rounded-lg text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-                title="Redo"
-              >
-                <Redo className="w-3.5 h-3.5" />
-              </button>
+        {/* Right: Slide-Over Inspector Drawer */}
+        <aside
+          className={`fixed top-12 bottom-0 right-0 w-96 bg-white dark:bg-[#0c1322] border-l border-slate-200 dark:border-slate-800 z-40 shadow-2xl flex flex-col transition-transform duration-300 ease-in-out text-xs ${
+            inspectorOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'
+          }`}
+        >
+          {/* Drawer Top Header */}
+          <div className="p-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50 dark:bg-[#0a0f1d]">
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
+              <span className="font-bold text-xs text-slate-900 dark:text-white">Settings &amp; SEO Auditor</span>
             </div>
-          )}
-
-          {/* Tiptap Canvas */}
-          <div
-            className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 min-h-[460px] shadow-xs text-slate-900 dark:text-slate-100 focus-within:border-slate-400 dark:focus-within:border-slate-600 transition-colors"
-            dir={isRTL ? 'rtl' : 'ltr'}
-          >
-            <EditorContent editor={editor} />
+            <button
+              type="button"
+              onClick={() => setInspectorOpen(false)}
+              className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 cursor-pointer"
+              title="Close Panel"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-        </div>
-
-        {/* Right: Inspector Sidebar */}
-        <div className={`border-l flex flex-col shrink-0 overflow-hidden ${isZoho ? 'w-72 sm:w-80 bg-white dark:bg-[#0c1322] border-slate-200 dark:border-slate-800 text-xs' : 'w-80 sm:w-96 bg-white dark:bg-[#0f172a] border-slate-200 dark:border-slate-800'}`}>
           {/* Tabs header - URL bound */}
-          <div className={`flex border-b border-slate-200 dark:border-slate-800 p-1 gap-0.5 ${isZoho ? 'bg-slate-100 dark:bg-slate-900' : 'bg-slate-50/60 dark:bg-slate-900/40 p-1.5 gap-1'}`}>
+          <div className="flex border-b border-slate-200 dark:border-slate-800 p-1 gap-1 bg-slate-50 dark:bg-[#0a0f1d]">
             <button
               onClick={() => handleInspectorTabClick('seo')}
               className={`flex-1 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer ${
                 activeInspectorTab === 'seo'
-                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs border border-slate-200 dark:border-slate-700'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs border border-slate-200 dark:border-slate-700'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <Sparkles className="w-3 h-3" />
+              <ShieldCheck className="w-3 h-3" />
               <span>SEO</span>
               <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
                 seoResult.score >= 80 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
@@ -895,7 +1624,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
               onClick={() => handleInspectorTabClick('social')}
               className={`flex-1 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer ${
                 activeInspectorTab === 'social'
-                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs border border-slate-200 dark:border-slate-700'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs border border-slate-200 dark:border-slate-700'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -906,7 +1635,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
               onClick={() => handleInspectorTabClick('metadata')}
               className={`flex-1 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer ${
                 activeInspectorTab === 'metadata'
-                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs border border-slate-200 dark:border-slate-700'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs border border-slate-200 dark:border-slate-700'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -917,7 +1646,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
               onClick={() => handleInspectorTabClick('media')}
               className={`flex-1 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer ${
                 activeInspectorTab === 'media'
-                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs border border-slate-200 dark:border-slate-700'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs border border-slate-200 dark:border-slate-700'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -927,101 +1656,56 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           </div>
 
           {/* Inspector Content */}
-          <div className={`flex-1 overflow-y-auto ${isZoho ? 'p-2.5 space-y-2.5' : 'p-4 space-y-4'}`}>
+          <div className="flex-1 overflow-y-auto p-3 space-y-3.5">
             {/* TAB 1: SEO AUDITOR & SCHEMA */}
             {activeInspectorTab === 'seo' && (
-              <div className="space-y-4">
+              <div className="space-y-3.5">
                 {/* Score Gauge Card */}
-                {isZoho ? (
-                  <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded p-2 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-8 h-8 rounded flex items-center justify-center font-bold text-xs shrink-0 ${
-                        seoResult.score >= 80 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' :
-                        seoResult.score >= 50 ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' :
-                        'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
-                      }`}>
-                        {seoResult.score}
-                      </div>
-                      <div>
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Content SEO Score</div>
-                        <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                          {seoResult.status === 'good' && 'Ready for Production'}
-                          {seoResult.status === 'average' && 'Fair Optimization'}
-                          {seoResult.status === 'poor' && 'Needs Optimization'}
-                        </div>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-mono text-slate-400 font-bold">{seoResult.score}/100 pts</span>
+                <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-semibold">
+                    <span className="text-slate-700 dark:text-slate-300">SEO Health Score</span>
+                    <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                      seoResult.score >= 80 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' :
+                      seoResult.score >= 50 ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800' :
+                      'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                    }`}>
+                      {seoResult.score}/100 · {seoResult.status === 'good' ? 'Optimized' : seoResult.status === 'average' ? 'Moderate' : 'Needs Work'}
+                    </span>
                   </div>
-                ) : (
-                  <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center space-y-2">
-                  <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Automated Content SEO Score
-                  </div>
-                  <div className="flex items-center justify-center py-2">
-                    <div className="relative w-20 h-20 flex items-center justify-center">
-                      <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                        <path
-                          className="text-slate-200 dark:text-slate-800"
-                          strokeWidth="3.5"
-                          stroke="currentColor"
-                          fill="none"
-                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                        />
-                        <path
-                          className={
-                            seoResult.score >= 80
-                              ? 'text-emerald-500'
-                              : seoResult.score >= 50
-                              ? 'text-amber-500'
-                              : 'text-rose-500'
-                          }
-                          strokeDasharray={`${seoResult.score}, 100`}
-                          strokeWidth="3.5"
-                          strokeLinecap="round"
-                          stroke="currentColor"
-                          fill="none"
-                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                        />
-                      </svg>
-                      <div className="absolute flex flex-col items-center">
-                        <span className="text-xl font-bold text-slate-900 dark:text-white">{seoResult.score}</span>
-                        <span className="text-[9px] uppercase font-semibold text-slate-400">pts</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                    {seoResult.status === 'good' && 'Ready for Production'}
-                    {seoResult.status === 'average' && 'Fair Optimization'}
-                    {seoResult.status === 'poor' && 'Needs Optimization'}
+                  <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      style={{ width: `${seoResult.score}%` }}
+                      className={`h-full rounded-full transition-all duration-300 ${
+                        seoResult.score >= 80 ? 'bg-emerald-500' :
+                        seoResult.score >= 50 ? 'bg-amber-500' : 'bg-rose-500'
+                      }`}
+                    />
                   </div>
                 </div>
-                )}
 
                 {/* Focus Keyword Input */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
-                    <span>Target Focus Keyword</span>
-                    <span className="text-[10px] text-slate-400">Target Keyword</span>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    Target Focus Keyword
                   </label>
                   <input
                     type="text"
                     placeholder="e.g. cloud erp, school erp"
                     value={activeTrans.seo.focusKeyword}
                     onChange={(e) => updateActiveSeoField('focusKeyword', e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-slate-400"
                   />
                 </div>
 
                 {/* Robots Directive Selector (TRD Sec 11) */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                     Robots Directive (Crawler Control)
                   </label>
                   <select
                     value={activeTrans.seo.robots || 'index, follow'}
                     onChange={(e) => updateActiveSeoField('robots', e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-100 font-mono focus:outline-none"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-mono focus:outline-none cursor-pointer"
                   >
                     <option value="index, follow">index, follow (Default - Live Production)</option>
                     <option value="noindex, follow">noindex, follow (Staging / Duplicate)</option>
@@ -1031,8 +1715,8 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 </div>
 
                 {/* Meta Keywords Input (TRD Sec 11) */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                     Meta Keywords (Comma separated)
                   </label>
                   <input
@@ -1040,59 +1724,66 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     placeholder="erp, cloud, saas, school, enterprise"
                     value={activeTrans.seo.metaKeywords || ''}
                     onChange={(e) => updateActiveSeoField('metaKeywords', e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-slate-400"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:border-slate-400"
                   />
                 </div>
 
                 {/* Canonical URL */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Canonical URL</label>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    Canonical URL
+                  </label>
                   <input
                     type="text"
                     value={activeTrans.seo.canonicalUrl}
                     onChange={(e) => updateActiveSeoField('canonicalUrl', e.target.value)}
                     placeholder="https://..."
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-slate-400"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:border-slate-400"
                   />
                 </div>
 
-                {/* JSON-LD Schema Generator Preview (TRD Sec 11 & 12) */}
-                <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                      <Code2 className="w-3.5 h-3.5 text-slate-500" />
-                      JSON-LD Schema Markup
-                    </span>
-                    <button
-                      type="button"
-                      onClick={copySchemaJson}
-                      className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      {copiedSchema ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                      <span>{copiedSchema ? 'Copied' : 'Copy JSON'}</span>
-                    </button>
+                {/* JSON-LD Schema Collapsible Accordion (TRD Sec 11 & 12) */}
+                <details className="group border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+                  <summary className="px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 select-none">
+                    <div className="flex items-center gap-1.5">
+                      <Code2 className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Structured Data (JSON-LD)</span>
+                    </div>
+                    <ChevronRight className="w-3 h-3 text-slate-400 group-open:rotate-90 transition-transform" />
+                  </summary>
+                  <div className="p-2.5 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 space-y-1.5">
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={copySchemaJson}
+                        className="text-[10px] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1 cursor-pointer font-medium"
+                      >
+                        {copiedSchema ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedSchema ? 'Copied' : 'Copy JSON'}</span>
+                      </button>
+                    </div>
+                    <pre className="p-2 rounded bg-slate-100 dark:bg-slate-950 text-[10px] font-mono text-slate-700 dark:text-slate-300 max-h-36 overflow-y-auto whitespace-pre-wrap border border-slate-200 dark:border-slate-800">
+                      {jsonLdSchema}
+                    </pre>
                   </div>
-                  <pre className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[10px] font-mono text-slate-700 dark:text-slate-300 max-h-36 overflow-y-auto whitespace-pre-wrap">
-                    {jsonLdSchema}
-                  </pre>
-                </div>
+                </details>
 
                 {/* Automated Checks List */}
-                <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-                  <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    SEO Verification Checklist
+                <div className="space-y-1">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
+                    SEO Verification ({seoResult.checks.filter(c => c.status === 'pass').length}/{seoResult.checks.length} Passed)
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800/80 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-white dark:bg-[#0c1322]">
                     {seoResult.checks.map((check) => (
                       <div
                         key={check.id}
-                        className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 flex items-start space-x-2 text-xs"
+                        className="p-2 flex items-start gap-2 text-xs"
                       >
-                        {check.status === 'pass' && <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />}
-                        {check.status === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />}
-                        {check.status === 'fail' && <X className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />}
-                        <div className="space-y-0.5">
-                          <div className="font-semibold text-slate-800 dark:text-slate-200">{check.label}</div>
+                        {check.status === 'pass' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />}
+                        {check.status === 'warning' && <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />}
+                        {check.status === 'fail' && <XCircle className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" />}
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-slate-800 dark:text-slate-200 text-xs">{check.label}</div>
                           <div className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">{check.message}</div>
                         </div>
                       </div>
@@ -1104,20 +1795,20 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
             {/* TAB 2: SOCIAL & OPEN GRAPH SHARING (TRD Sec 7 & 11) */}
             {activeInspectorTab === 'social' && (
-              <div className="space-y-5">
+              <div className="space-y-4">
                 {/* Google SERP Preview */}
                 <div className="space-y-1.5">
-                  <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Search className="w-3.5 h-3.5 text-slate-400" /> Google SERP Snippet
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                    <Search className="w-3 h-3 text-slate-400" /> Google Search Preview
                   </div>
-                  <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-left space-y-1 font-sans">
+                  <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-left space-y-1 font-sans">
                     <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate font-mono">
-                      https://{activeSite.domain} &gt; blog &gt; {activeTrans.slug || 'draft'}
+                      https://{activeSite.domain} › blog › {activeTrans.slug || 'draft'}
                     </div>
-                    <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 truncate">
+                    <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 truncate">
                       {activeTrans.seo.metaTitle || activeTrans.title || 'Untitled Post'} | {activeSite.name}
                     </div>
-                    <div className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                    <div className="text-[11px] text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
                       {activeTrans.seo.metaDescription || activeTrans.excerpt || 'Add a meta description to preview how this article will appear in search results.'}
                     </div>
                   </div>
@@ -1125,21 +1816,21 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
                 {/* Facebook / LinkedIn Open Graph Card */}
                 <div className="space-y-1.5">
-                  <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Share2 className="w-3.5 h-3.5 text-blue-500" /> Facebook &amp; LinkedIn Card Preview
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                    <Share2 className="w-3 h-3 text-blue-500" /> Social Card (OG Preview)
                   </div>
-                  <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-900">
+                  <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-slate-50 dark:bg-slate-900">
                     <div className="aspect-video bg-slate-200 dark:bg-slate-800 relative">
                       {featuredImage ? (
                         <img src={resolveMediaUrl(featuredImage)} alt="OG Preview" className="w-full h-full object-cover" />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">
+                        <div className="w-full h-full flex items-center justify-center text-[11px] text-slate-400">
                           Featured Image will render here
                         </div>
                       )}
                     </div>
-                    <div className="p-3 space-y-1">
-                      <div className="text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400">{activeSite.domain}</div>
+                    <div className="p-2.5 space-y-1">
+                      <div className="text-[9px] uppercase font-mono text-slate-400 dark:text-slate-500">{activeSite.domain}</div>
                       <div className="text-xs font-bold text-slate-900 dark:text-white line-clamp-1">
                         {activeTrans.seo.ogTitle || activeTrans.title || 'Untitled Post'}
                       </div>
@@ -1152,21 +1843,21 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
                 {/* Twitter / X Large Summary Card */}
                 <div className="space-y-1.5">
-                  <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Bot className="w-3.5 h-3.5 text-slate-900 dark:text-white" /> Twitter / X Card Preview
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                    <Share2 className="w-3 h-3 text-slate-600 dark:text-slate-400" /> Twitter / X Card
                   </div>
-                  <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-[#0f172a]">
+                  <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-white dark:bg-[#0c1322]">
                     <div className="aspect-video bg-slate-200 dark:bg-slate-800 relative">
                       {featuredImage ? (
                         <img src={resolveMediaUrl(featuredImage)} alt="Twitter Preview" className="w-full h-full object-cover" />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">
+                        <div className="w-full h-full flex items-center justify-center text-[11px] text-slate-400">
                           Featured Image
                         </div>
                       )}
                     </div>
-                    <div className="p-3 space-y-1">
-                      <div className="text-[10px] font-mono text-slate-400">{activeSite.domain}</div>
+                    <div className="p-2.5 space-y-1">
+                      <div className="text-[9px] font-mono text-slate-400">{activeSite.domain}</div>
                       <div className="text-xs font-bold text-slate-900 dark:text-white line-clamp-1">
                         {activeTrans.seo.twitterTitle || activeTrans.title || 'Untitled Post'}
                       </div>
@@ -1178,26 +1869,30 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 </div>
 
                 {/* OG Overrides */}
-                <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800 text-xs">
+                <div className="space-y-2.5 pt-3 border-t border-slate-200 dark:border-slate-800">
                   <div className="space-y-1">
-                    <label className="text-slate-700 dark:text-slate-300 font-semibold">Social (OG) Title Override</label>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      Social (OG) Title Override
+                    </label>
                     <input
                       type="text"
                       placeholder={activeTrans.title || 'Leave blank to use article title'}
                       value={activeTrans.seo.ogTitle}
                       onChange={(e) => updateActiveSeoField('ogTitle', e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none"
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-slate-400"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-slate-700 dark:text-slate-300 font-semibold">Social (OG) Description Override</label>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      Social (OG) Description Override
+                    </label>
                     <textarea
                       rows={2}
                       placeholder={activeTrans.excerpt || 'Leave blank to use excerpt'}
                       value={activeTrans.seo.ogDescription}
                       onChange={(e) => updateActiveSeoField('ogDescription', e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none"
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-slate-400 resize-none"
                     />
                   </div>
                 </div>
@@ -1206,15 +1901,17 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
             {/* TAB 3: METADATA & TAXONOMY */}
             {activeInspectorTab === 'metadata' && (
-              <div className="space-y-4">
+              <div className="space-y-3.5">
                 {/* Meta Title with Sync button */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs text-slate-700 dark:text-slate-300">
-                    <span className="font-semibold">SERP Meta Title</span>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      SERP Meta Title
+                    </label>
                     <button
                       type="button"
                       onClick={() => updateActiveSeoField('metaTitle', activeTrans.title)}
-                      className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      className="text-[10px] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1 cursor-pointer font-medium"
                     >
                       <RefreshCw className="w-2.5 h-2.5" /> Sync Title
                     </button>
@@ -1224,7 +1921,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     value={activeTrans.seo.metaTitle}
                     onChange={(e) => updateActiveSeoField('metaTitle', e.target.value)}
                     placeholder="50-60 chars title"
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-slate-400"
                   />
                   <div className="text-[10px] text-right text-slate-400 font-mono">
                     {activeTrans.seo.metaTitle.length}/60 chars
@@ -1232,9 +1929,11 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 </div>
 
                 {/* Meta Description */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs text-slate-700 dark:text-slate-300">
-                    <span className="font-semibold">SERP Meta Description</span>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      SERP Meta Description
+                    </label>
                     <span className="text-[10px] text-slate-400 font-mono">
                       {activeTrans.seo.metaDescription.length}/160 chars
                     </span>
@@ -1244,18 +1943,20 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     value={activeTrans.seo.metaDescription}
                     onChange={(e) => updateActiveSeoField('metaDescription', e.target.value)}
                     placeholder="140-160 chars description"
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-slate-400 resize-none"
                   />
                 </div>
 
                 {/* Categories */}
-                <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Categories ({activeSite.name})</label>
-                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    Categories ({activeSite.name})
+                  </label>
+                  <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
                     {siteCategories.map((cat) => (
                       <label
                         key={cat.id}
-                        className="flex items-center space-x-2 text-xs text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+                        className="flex items-center space-x-2 text-xs text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white cursor-pointer py-0.5"
                       >
                         <input
                           type="checkbox"
@@ -1276,9 +1977,11 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 </div>
 
                 {/* Tags */}
-                <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Tags</label>
-                  <div className="flex flex-wrap gap-1.5">
+                <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    Tags
+                  </label>
+                  <div className="flex flex-wrap gap-1">
                     {siteTags.map((tag) => {
                       const selected = selectedTags.includes(tag.id);
                       return (
@@ -1292,7 +1995,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                               setSelectedTags([...selectedTags, tag.id]);
                             }
                           }}
-                          className={`text-[11px] px-2.5 py-1 rounded-md border transition-colors cursor-pointer ${
+                          className={`text-[11px] px-2 py-0.5 rounded-md border transition-colors cursor-pointer ${
                             selected
                               ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-slate-900 dark:border-white font-medium'
                               : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-slate-900 dark:hover:text-white'
@@ -1306,15 +2009,15 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 </div>
 
                 {/* Schedule Picker */}
-                <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-slate-500" /> Schedule Publishing
+                <div className="space-y-1 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                    <Calendar className="w-3 h-3 text-slate-400" /> Schedule Publishing
                   </label>
                   <input
                     type="datetime-local"
                     value={scheduledAt}
                     onChange={(e) => setScheduledAt(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-400"
                   />
                 </div>
               </div>
@@ -1322,10 +2025,12 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
             {/* TAB 4: FEATURED COVER MEDIA */}
             {activeInspectorTab === 'media' && (
-              <div className="space-y-4">
-                <div className="space-y-2">
+              <div className="space-y-3.5">
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Featured Image</label>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      Featured Cover Image
+                    </label>
                     {featuredImage && (
                       <button
                         type="button"
@@ -1335,23 +2040,23 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                         }}
                         className="text-[10px] text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
                       >
-                        Remove Image
+                        Remove
                       </button>
                     )}
                   </div>
                   {featuredImage ? (
-                    <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 relative group aspect-video bg-slate-100 dark:bg-slate-900 shadow-xs">
+                    <div className="rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 relative group aspect-video bg-slate-100 dark:bg-slate-900 shadow-2xs">
                       <img
                         src={resolveMediaUrl(featuredImage)}
                         alt={featuredImageAlt || 'Cover'}
                         className="w-full h-full object-cover"
                       />
-                      <div className="absolute top-2 right-2 px-2 py-0.5 rounded bg-black/70 text-[10px] text-white font-mono">
-                        WebP Cover
+                      <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-[9px] text-white font-mono">
+                        Cover
                       </div>
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-6 text-center text-xs text-slate-400 space-y-1">
+                    <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 p-5 text-center text-xs text-slate-400 space-y-1 bg-slate-50/50 dark:bg-slate-900/30">
                       <div>No featured image assigned.</div>
                       <div className="text-[11px] text-slate-400">Select from library below or enter URL.</div>
                     </div>
@@ -1360,9 +2065,11 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
                 {/* Quick select from uploaded media */}
                 {siteMedia.length > 0 && (
-                  <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">Select from Uploaded Media</label>
-                    <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto pr-1">
+                  <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      Select from Uploaded Media
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5 max-h-40 overflow-y-auto pr-1">
                       {siteMedia.map((m) => (
                         <button
                           key={m.id}
@@ -1371,7 +2078,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                             setFeaturedImage(m.cdnUrl);
                             setFeaturedImageAlt(m.altText);
                           }}
-                          className={`aspect-video rounded-lg overflow-hidden border transition-all cursor-pointer ${
+                          className={`aspect-video rounded-md overflow-hidden border transition-all cursor-pointer ${
                             featuredImage === m.cdnUrl
                               ? 'border-slate-900 dark:border-white ring-2 ring-slate-400'
                               : 'border-slate-200 dark:border-slate-800 hover:border-slate-400'
@@ -1385,101 +2092,359 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 )}
 
                 {/* CDN Image URL */}
-                <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800">
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">Or Paste Image URL</label>
+                <div className="space-y-1 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    Or Paste Image URL
+                  </label>
                   <input
                     type="text"
                     value={featuredImage}
                     onChange={(e) => setFeaturedImage(e.target.value)}
                     placeholder="https://..."
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-slate-400"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-mono placeholder-slate-400 focus:outline-none focus:border-slate-400"
                   />
                 </div>
 
                 {/* Alt text */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
-                    <span>Image Alt Text</span>
-                    <span className="text-[10px] text-slate-500 font-mono">SEO Factor</span>
-                  </label>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      Image Alt Text
+                    </label>
+                    <span className="text-[10px] text-slate-400 font-mono">SEO Factor</span>
+                  </div>
                   <input
                     type="text"
                     value={featuredImageAlt}
                     onChange={(e) => setFeaturedImageAlt(e.target.value)}
-                    placeholder="Descriptive text for accessibility & image ranking"
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                    placeholder="Descriptive text for accessibility & SEO"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-slate-400"
                   />
                 </div>
               </div>
             )}
+
           </div>
-        </div>
+        </aside>
       </div>
 
-      {/* Media Picker Modal for In-Editor Insertion */}
+      {/* Media Picker & Auto-WebP Upload Modal */}
       {mediaPickerOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <ImageIcon className="w-4 h-4 text-slate-500" />
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Insert Image from Media Library</h3>
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-900/60 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                  {mediaPickerTarget === 'cover' ? (
+                    <ImageIcon className="w-5 h-5" />
+                  ) : (
+                    <UploadCloud className="w-5 h-5" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    {mediaPickerTarget === 'cover' ? 'Set Featured Cover Image' : 'Insert Article Image'}
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300">
+                      Auto-WebP
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Target site: <span className="font-medium text-slate-600 dark:text-slate-300">{activeSite.name}</span>
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => setMediaPickerOpen(false)}
-                className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {siteMedia.length === 0 ? (
-              <div className="py-12 text-center text-xs text-slate-400 space-y-2">
-                <div>No media assets uploaded for {activeSite.name} yet.</div>
-                <Link
-                  href={`/media?site=${activeWebsiteId}`}
-                  className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium inline-block"
-                >
-                  Go to Media Library to upload WebP images &rarr;
-                </Link>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-80 overflow-y-auto pr-1">
-                {siteMedia.map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => handleInsertImageIntoEditor(item)}
-                    className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden group cursor-pointer hover:border-slate-400 transition-all bg-slate-50 dark:bg-slate-900"
-                  >
-                    <div className="aspect-video relative overflow-hidden bg-slate-100 dark:bg-slate-800">
-                      <img src={item.cdnUrl} alt={item.altText} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                    </div>
-                    <div className="p-2">
-                      <div className="text-[11px] font-semibold text-slate-900 dark:text-white truncate">{item.fileName}</div>
-                      <div className="text-[10px] text-slate-400 font-mono">{(item.fileSizeBytes / 1024).toFixed(0)} KB</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex justify-end pt-3 border-t border-slate-200 dark:border-slate-800">
+            {/* Navigation Tabs */}
+            <div className="flex items-center gap-1 px-6 pt-3 border-b border-slate-100 dark:border-slate-800/80 bg-white dark:bg-[#0f172a]">
               <button
-                onClick={() => setMediaPickerOpen(false)}
-                className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold cursor-pointer"
+                type="button"
+                onClick={() => setMediaModalTab('upload')}
+                className={`flex items-center gap-2 px-3 py-2 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
+                  mediaModalTab === 'upload'
+                    ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+                }`}
               >
-                Cancel
+                <UploadCloud className="w-3.5 h-3.5" />
+                <span>Upload & Convert (WebP)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMediaModalTab('library')}
+                className={`flex items-center gap-2 px-3 py-2 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
+                  mediaModalTab === 'library'
+                    ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+                }`}
+              >
+                <ImageIcon className="w-3.5 h-3.5" />
+                <span>Media Library</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono">
+                  {siteMedia.length}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMediaModalTab('url')}
+                className={`flex items-center gap-2 px-3 py-2 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
+                  mediaModalTab === 'url'
+                    ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+                }`}
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>External URL</span>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              {/* TAB 1: UPLOAD & AUTO-CONVERT */}
+              {mediaModalTab === 'upload' && (
+                <div className="space-y-4">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUploadWebpImage(file);
+                    }}
+                  />
+
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDraggingMedia(true);
+                    }}
+                    onDragLeave={() => setIsDraggingMedia(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDraggingMedia(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) handleUploadWebpImage(file);
+                    }}
+                    onClick={() => !uploadingImage && fileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer flex flex-col items-center justify-center space-y-3 ${
+                      isDraggingMedia
+                        ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/20'
+                        : 'border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600 bg-slate-50/60 dark:bg-slate-900/40'
+                    }`}
+                  >
+                    {uploadingImage ? (
+                      <div className="py-4 flex flex-col items-center space-y-3">
+                        <RefreshCw className="w-10 h-10 text-blue-600 animate-spin" />
+                        <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                          Optimizing & Converting to WebP...
+                        </div>
+                        <p className="text-xs text-slate-400 max-w-sm">
+                          Applying 88% lossless compression, generating CDN key, and updating library
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="w-14 h-14 rounded-2xl bg-blue-100/70 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 flex items-center justify-center shadow-xs">
+                          <UploadCloud className="w-7 h-7" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                            Click to browse or drag and drop image here
+                          </div>
+                          <p className="text-xs text-slate-400 mt-1">
+                            PNG, JPG, JPEG, GIF, SVG or WebP (up to 10MB)
+                          </p>
+                        </div>
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300">
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          Automated WebP Conversion Included
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Informational Callout */}
+                  <div className="bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 text-xs text-slate-500 dark:text-slate-400 space-y-1">
+                    <div className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                      <span>⚡ Why WebP?</span>
+                    </div>
+                    <p>
+                      WebP delivers 30%–80% smaller file sizes than PNG/JPEG with superior visual fidelity, ensuring 100/100 Google Lighthouse Core Web Vitals and rapid LCP load times.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: MEDIA LIBRARY */}
+              {mediaModalTab === 'library' && (
+                <div className="space-y-4">
+                  {/* Search bar within library */}
+                  {siteMedia.length > 0 && (
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                      <input
+                        type="text"
+                        value={mediaSearchQuery}
+                        onChange={(e) => setMediaSearchQuery(e.target.value)}
+                        placeholder="Search assets by file name or alt text..."
+                        className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  )}
+
+                  {siteMedia.length === 0 ? (
+                    <div className="py-12 text-center text-xs text-slate-400 space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800/80 mx-auto flex items-center justify-center text-slate-400">
+                        <ImageIcon className="w-6 h-6" />
+                      </div>
+                      <div>No media assets uploaded for {activeSite.name} yet.</div>
+                      <button
+                        type="button"
+                        onClick={() => setMediaModalTab('upload')}
+                        className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                      >
+                        <UploadCloud className="w-3.5 h-3.5" />
+                        Upload & Convert First Image
+                      </button>
+                    </div>
+                  ) : filteredSiteMedia.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-slate-400">
+                      No media items match "{mediaSearchQuery}".
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[380px] overflow-y-auto pr-1">
+                      {filteredSiteMedia.map((item) => (
+                        <div
+                          key={item.id}
+                          onClick={() => handleApplySelectedMedia(item)}
+                          className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden group cursor-pointer hover:border-blue-500 hover:shadow-md transition-all bg-slate-50 dark:bg-slate-900 flex flex-col"
+                        >
+                          <div className="aspect-video relative overflow-hidden bg-slate-100 dark:bg-slate-800">
+                            <img
+                              src={resolveMediaUrl(item.cdnUrl)}
+                              alt={item.altText || item.fileName}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            />
+                            <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-black/60 text-white backdrop-blur-xs font-mono">
+                              {item.fileType?.replace('image/', '') || 'webp'}
+                            </span>
+                            <div className="absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <span className="px-2.5 py-1 rounded-lg bg-white text-slate-900 text-[11px] font-bold shadow-sm">
+                                Use Image
+                              </span>
+                            </div>
+                          </div>
+                          <div className="p-2 flex-1 flex flex-col justify-between">
+                            <div className="text-[11px] font-semibold text-slate-900 dark:text-white truncate" title={item.fileName}>
+                              {item.fileName}
+                            </div>
+                            <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono mt-1">
+                              <span>{(item.fileSizeBytes / 1024).toFixed(0)} KB</span>
+                              {item.dimensions && (
+                                <span>{item.dimensions.width}×{item.dimensions.height}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 3: DIRECT EXTERNAL URL */}
+              {mediaModalTab === 'url' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                      Direct Image / WebP CDN URL
+                    </label>
+                    <input
+                      type="url"
+                      value={customImageUrl}
+                      onChange={(e) => setCustomImageUrl(e.target.value)}
+                      placeholder="https://images.unsplash.com/... or https://cdn.jupsoft.com/..."
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                      Alt Text (Accessibility & Image SEO)
+                    </label>
+                    <input
+                      type="text"
+                      value={customImageAlt}
+                      onChange={(e) => setCustomImageAlt(e.target.value)}
+                      placeholder="Concise description of the image"
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  {customImageUrl.trim() && (
+                    <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+                      <div className="text-[11px] font-semibold text-slate-500 mb-2">Image Preview:</div>
+                      <div className="aspect-video max-h-48 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800">
+                        <img
+                          src={resolveMediaUrl(customImageUrl)}
+                          alt={customImageAlt || 'Preview'}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = '';
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleApplyCustomUrl}
+                      disabled={!customImageUrl.trim()}
+                      className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                    >
+                      {mediaPickerTarget === 'cover' ? 'Set as Cover Image' : 'Insert into Article'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between px-6 py-3.5 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50">
+              <Link
+                href={`/media?site=${activeWebsiteId}`}
+                target="_blank"
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 font-medium"
+              >
+                <span>Open Media Manager</span>
+                <ExternalLink className="w-3 h-3" />
+              </Link>
+              <button
+                type="button"
+                onClick={() => setMediaPickerOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold cursor-pointer transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Live Consumer Blog Preview Simulator Modal (TRD Section 3, 13 & 21) */}
+      {/* Live Consumer Blog Preview Modal */}
       {previewOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex flex-col items-center p-3 sm:p-6 overflow-hidden animate-in fade-in">
           {/* Top Control Bar */}
-          <div className="w-full max-w-5xl flex items-center justify-between pb-3 text-white">
+          <div className="w-full max-w-4xl flex items-center justify-between pb-3 text-white">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-mono text-slate-300">
                 <Globe className="w-3.5 h-3.5 text-emerald-400" />
@@ -1492,37 +2457,6 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
               </span>
             </div>
 
-            {/* Viewport Device Switcher */}
-            <div className="flex items-center gap-1 bg-slate-900/90 border border-slate-700 p-1 rounded-lg">
-              <button
-                onClick={() => setPreviewDevice('desktop')}
-                title="Desktop View (100%)"
-                className={`p-1.5 rounded-md transition-colors ${
-                  previewDevice === 'desktop' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Laptop className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setPreviewDevice('tablet')}
-                title="Tablet View (768px)"
-                className={`p-1.5 rounded-md transition-colors ${
-                  previewDevice === 'tablet' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Tablet className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setPreviewDevice('mobile')}
-                title="Mobile View (375px)"
-                className={`p-1.5 rounded-md transition-colors ${
-                  previewDevice === 'mobile' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Smartphone className="w-4 h-4" />
-              </button>
-            </div>
-
             {/* Close Modal */}
             <button
               onClick={() => setPreviewOpen(false)}
@@ -1532,143 +2466,262 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
             </button>
           </div>
 
-          {/* Device Frame Window */}
-          <div className="flex-1 w-full flex justify-center overflow-hidden">
-            <div
-              className={`h-full bg-white dark:bg-[#0b0f19] rounded-2xl border border-slate-700/60 shadow-2xl overflow-y-auto transition-all duration-200 flex flex-col ${
-                previewDevice === 'desktop'
-                  ? 'w-full max-w-5xl'
-                  : previewDevice === 'tablet'
-                  ? 'w-[768px]'
-                  : 'w-[375px]'
-              }`}
-            >
-              {/* Simulated Consumer Website Navigation Bar */}
-              <div className="sticky top-0 z-20 h-14 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-[#0b0f19]/95 backdrop-blur-md px-6 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {activeSite.logoUrl ? (
-                    <img src={activeSite.logoUrl} alt={activeSite.name} className="w-6 h-6 rounded-md object-cover" />
-                  ) : (
-                    <div className="w-6 h-6 rounded-md bg-slate-900 dark:bg-white text-white dark:text-slate-950 flex items-center justify-center font-bold text-xs">
-                      {activeSite.name.charAt(0)}
-                    </div>
-                  )}
-                  <span className="font-bold text-xs text-slate-900 dark:text-white tracking-tight">
-                    {activeSite.name}
-                  </span>
+          {/* Clean Article Preview Container */}
+          <div className="flex-1 w-full max-w-4xl flex justify-center overflow-hidden">
+            <div className="w-full h-full bg-white dark:bg-[#0b0f19] rounded-xl border border-slate-700/60 shadow-2xl overflow-y-auto p-6 sm:p-10 space-y-6">
+              {/* Categories & Title */}
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  {selectedCategories.map((catId) => {
+                    const cat = siteCategories.find((c) => c.id === catId);
+                    return (
+                      <span
+                        key={catId}
+                        className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
+                      >
+                        {cat?.name || catId}
+                      </span>
+                    );
+                  })}
                 </div>
-                <div className="hidden sm:flex items-center gap-4 text-xs font-medium text-slate-600 dark:text-slate-400">
-                  <span>Solutions</span>
-                  <span>Platform</span>
-                  <span className="text-slate-900 dark:text-white font-semibold">Blog</span>
-                  <span>Contact</span>
+
+                <h1 className="text-2xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight">
+                  {activeTrans.title || 'Untitled Blog Post'}
+                </h1>
+
+                {activeTrans.excerpt && (
+                  <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed font-normal">
+                    {activeTrans.excerpt}
+                  </p>
+                )}
+
+                {/* Author Card & Meta */}
+                <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center gap-2.5">
+                    <img
+                      src={existingBlog?.authorAvatar || '/uploads/avatars/avatar-default.webp'}
+                      alt="Author"
+                      className="w-9 h-9 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                    />
+                    <div>
+                      <div className="font-semibold text-slate-900 dark:text-white">
+                        {existingBlog?.authorName || 'Staff Writer'}
+                      </div>
+                      <div className="text-[11px]">
+                        {status === 'Published' ? 'Published' : status === 'Scheduled' ? 'Scheduled for' : 'Updated'}{' '}
+                        {scheduledAt ? new Date(scheduledAt).toLocaleDateString() : new Date().toLocaleDateString()} · {Math.max(2, Math.round((editor?.getText().split(/\s+/).length || 200) / 180))} min read
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const url = `https://${activeSite?.domain || 'company.com'}/blog/${activeTrans.slug || 'article'}`;
+                        navigator.clipboard?.writeText(url);
+                        showNotification(`Blog link copied to clipboard: ${url}`, 'success');
+                      }}
+                      title="Copy Public Blog URL"
+                      className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-slate-600 dark:text-slate-300"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Simulated Article Body */}
-              <div className="flex-1 p-6 sm:p-12 space-y-8 max-w-3xl mx-auto w-full">
-                {/* Categories & Publish Date */}
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {selectedCategories.map((catId) => {
-                      const cat = siteCategories.find((c) => c.id === catId);
+              {/* Hero Featured Image */}
+              {featuredImage && (
+                <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm">
+                  <img
+                    src={resolveMediaUrl(featuredImage)}
+                    alt={featuredImageAlt || activeTrans.title}
+                    className="w-full h-auto object-cover max-h-[440px]"
+                  />
+                  {featuredImageAlt && (
+                    <div className="p-2 text-center text-[11px] text-slate-400 italic bg-slate-50 dark:bg-slate-900">
+                      {featuredImageAlt}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Rendered HTML Content */}
+              <div
+                className="prose prose-slate dark:prose-invert max-w-none text-sm sm:text-base leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: activeTrans.content }}
+              />
+
+              {/* Tag Cloud */}
+              {selectedTags.length > 0 && (
+                <div className="pt-6 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">Related Tags</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedTags.map((tagId) => {
+                      const tag = siteTags.find((t) => t.id === tagId);
                       return (
                         <span
-                          key={catId}
-                          className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
+                          key={tagId}
+                          className="px-2.5 py-1 rounded-md text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono"
                         >
-                          {cat?.name || catId}
+                          #{tag?.name || tagId}
                         </span>
                       );
                     })}
                   </div>
-
-                  <h1 className="text-2xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight">
-                    {activeTrans.title || 'Untitled Blog Post'}
-                  </h1>
-
-                  {activeTrans.excerpt && (
-                    <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed font-normal">
-                      {activeTrans.excerpt}
-                    </p>
-                  )}
-
-                  {/* Author Card & Meta */}
-                  <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
-                    <div className="flex items-center gap-2.5">
-                      <img
-                        src={existingBlog?.authorAvatar || '/uploads/avatars/avatar-default.webp'}
-                        alt="Author"
-                        className="w-9 h-9 rounded-full object-cover border border-slate-200 dark:border-slate-700"
-                      />
-                      <div>
-                        <div className="font-semibold text-slate-900 dark:text-white">
-                          {existingBlog?.authorName || 'Staff Writer'}
-                        </div>
-                        <div className="text-[11px]">
-                          {status === 'Published' ? 'Published' : status === 'Scheduled' ? 'Scheduled for' : 'Updated'}{' '}
-                          {scheduledAt ? new Date(scheduledAt).toLocaleDateString() : new Date().toLocaleDateString()} · {Math.max(2, Math.round((editor?.getText().split(/\s+/).length || 200) / 180))} min read
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          const url = `https://${activeSite?.domain || 'company.com'}/blog/${activeTrans.slug || 'article'}`;
-                          navigator.clipboard?.writeText(url);
-                          showNotification(`Blog link copied to clipboard: ${url}`, 'success');
-                        }}
-                        title="Copy Public Blog URL"
-                        className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-slate-600 dark:text-slate-300"
-                      >
-                        <Share2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
-                {/* Hero Featured Image */}
-                {featuredImage && (
-                  <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm">
-                    <img
-                      src={resolveMediaUrl(featuredImage)}
-                      alt={featuredImageAlt || activeTrans.title}
-                      className="w-full h-auto object-cover max-h-[440px]"
-                    />
-                    {featuredImageAlt && (
-                      <div className="p-2 text-center text-[11px] text-slate-400 italic bg-slate-50 dark:bg-slate-900">
-                        {featuredImageAlt}
-                      </div>
-                    )}
-                  </div>
-                )}
+      {/* Premium Interactive Link Editor Modal */}
+      {linkModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setLinkModalOpen(false)}
+        >
+          <div 
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4 text-slate-900 dark:text-slate-100 animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-900/50">
+                  <Link2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    {editor?.isActive('link') ? 'Edit Hyperlink' : 'Insert Hyperlink'}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">Configure target URL, display text, and SEO flags</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLinkModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-                {/* Rendered HTML Content */}
-                <div
-                  className="prose prose-slate dark:prose-invert max-w-none text-sm sm:text-base leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: activeTrans.content }}
+            <div className="space-y-3.5 text-xs">
+              {/* Destination URL */}
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Destination URL <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative flex items-center">
+                  <input
+                    type="url"
+                    value={linkUrl}
+                    onChange={(e) => setLinkUrl(e.target.value)}
+                    placeholder="https://example.com/guide"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleSaveLink();
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        setLinkModalOpen(false);
+                      }
+                    }}
+                    className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 font-mono"
+                  />
+                  {linkUrl && (
+                    <a
+                      href={linkUrl.startsWith('http') ? linkUrl : `https://${linkUrl}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute right-2.5 p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400"
+                      title="Test URL in new tab"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {/* Anchor Text */}
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Display Anchor Text (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={linkText}
+                  onChange={(e) => setLinkText(e.target.value)}
+                  placeholder="e.g. Read the complete documentation"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSaveLink();
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setLinkModalOpen(false);
+                    }
+                  }}
+                  className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
                 />
+              </div>
 
-                {/* Tag Cloud */}
-                {selectedTags.length > 0 && (
-                  <div className="pt-6 border-t border-slate-100 dark:border-slate-800 space-y-2">
-                    <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">Related Tags</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedTags.map((tagId) => {
-                        const tag = siteTags.find((t) => t.id === tagId);
-                        return (
-                          <span
-                            key={tagId}
-                            className="px-2.5 py-1 rounded-md text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono"
-                          >
-                            #{tag?.name || tagId}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
+              {/* Attributes Checklist */}
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={linkOpenNewTab}
+                    onChange={(e) => setLinkOpenNewTab(e.target.checked)}
+                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700 cursor-pointer"
+                  />
+                  <span className="text-slate-700 dark:text-slate-300 font-medium">Open in new tab (<code className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">target="_blank"</code>)</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={linkNoFollow}
+                    onChange={(e) => setLinkNoFollow(e.target.checked)}
+                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700 cursor-pointer"
+                  />
+                  <span className="text-slate-700 dark:text-slate-300 font-medium">SEO: Add NoFollow (<code className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">rel="nofollow"</code>)</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div>
+                {editor?.isActive('link') ? (
+                  <button
+                    type="button"
+                    onClick={handleRemoveLink}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                  >
+                    <Unlink className="w-3.5 h-3.5" /> Remove Link
+                  </button>
+                ) : (
+                  <span className="text-[11px] text-slate-400">Ctrl+K shortcut</span>
                 )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLinkModalOpen(false)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveLink}
+                  disabled={!linkUrl.trim()}
+                  className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all cursor-pointer"
+                >
+                  {editor?.isActive('link') ? 'Update Link' : 'Insert Link'}
+                </button>
               </div>
             </div>
           </div>

@@ -24,7 +24,6 @@ import {
   Sparkles
 } from 'lucide-react';
 import { isGlobalScopeRole, canCreateBlog, cleanAvatarUrl } from '../../../utils/permissions';
-import { UiThemeSwitcher } from '../UiThemeSwitcher';
 
 export const ZohoNavbar: React.FC = () => {
   const router = useRouter();
@@ -125,14 +124,13 @@ export const ZohoNavbar: React.FC = () => {
   // Dynamic breadcrumb
   const getPageInfo = () => {
     if (pathname.startsWith('/blogs/new')) return { title: 'New Blog', path: 'Blogs / Create' };
-    if (pathname.startsWith('/blogs/edit')) return { title: 'Edit Blog', path: 'Blogs / Edit' };
+    if (pathname.startsWith('/blogs/') && pathname !== '/blogs') return { title: 'Edit Blog', path: 'Blogs / Edit' };
     if (pathname.startsWith('/blogs')) return { title: 'Blogs', path: 'Content / Blogs' };
     if (pathname.startsWith('/workflow')) return { title: 'Workflow', path: 'Kanban / Review' };
     if (pathname.startsWith('/media')) return { title: 'Media Assets', path: 'Storage / CDN' };
     if (pathname.startsWith('/taxonomy')) return { title: 'Taxonomy', path: 'Categories / Tags' };
     if (pathname.startsWith('/redirects')) return { title: '301 Redirects', path: 'Routing / Rules' };
     if (pathname.startsWith('/analytics')) return { title: 'Analytics', path: 'Reports / Traffic' };
-    if (pathname.startsWith('/developers')) return { title: 'Developer API', path: 'Integrations / API' };
     if (pathname.startsWith('/users')) return { title: 'Team & RBAC', path: 'Access / Roles' };
     if (pathname.startsWith('/settings')) return { title: 'Settings', path: 'Tenants / Domains' };
     return { title: 'Dashboard', path: 'Workspace / Overview' };
@@ -165,35 +163,37 @@ export const ZohoNavbar: React.FC = () => {
         </div>
       </div>
 
-      {/* Center: Zoho Signature Omnibox Search */}
-      <div className="hidden md:flex items-center flex-1 max-w-sm mx-4 relative">
-        <div className="w-full relative flex items-center">
-          <Search className="w-3.5 h-3.5 absolute left-3 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search blogs, authors, slugs... (Press Enter)"
-            value={localSearch}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            onKeyDown={handleSearchKeyDown}
-            className="w-full bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-lg pl-8 pr-12 py-1 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors"
-          />
-          {localSearch ? (
-            <button
-              type="button"
-              onClick={() => handleSearchChange('')}
-              className="absolute right-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          ) : (
-            <kbd className="absolute right-2 text-[10px] font-mono px-1 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700">
-              /
-            </kbd>
-          )}
+      {/* Center: Zoho Signature Omnibox Search (hidden on /blogs to prevent dual search bar collision) */}
+      {pathname !== '/blogs' && (
+        <div className="hidden md:flex items-center flex-1 max-w-sm mx-4 relative">
+          <div className="w-full relative flex items-center">
+            <Search className="w-3.5 h-3.5 absolute left-3 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search blogs, authors, slugs... (Press Enter)"
+              value={localSearch}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              className="w-full bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-lg pl-8 pr-12 py-1 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors"
+            />
+            {localSearch ? (
+              <button
+                type="button"
+                onClick={() => handleSearchChange('')}
+                className="absolute right-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <kbd className="absolute right-2 text-[10px] font-mono px-1 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700">
+                /
+              </kbd>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Right Controls: Quick Create (+), Site Pill, UiThemeSwitcher, Notifications, Guide, Profile */}
+      {/* Right Controls: Quick Create (+), Site Pill, Notifications, Guide, Profile */}
       <div className="flex items-center gap-1.5 sm:gap-2 ml-auto shrink-0">
         {/* Universal Quick Create Dropdown (+) */}
         {canCreateBlog(activeRole) && (
@@ -229,7 +229,7 @@ export const ZohoNavbar: React.FC = () => {
                   <span>Upload Media</span>
                 </Link>
                 <Link
-                  href={`/redirects${siteQuery}`}
+                  href={`/settings${siteQuery}&tab=redirects`}
                   onClick={() => setQuickCreateOpen(false)}
                   className="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
                 >
@@ -248,9 +248,6 @@ export const ZohoNavbar: React.FC = () => {
             )}
           </div>
         )}
-
-        {/* 3-Way UI Theme Switcher Dropdown */}
-        <UiThemeSwitcher variant="zoho" />
 
         {/* Website Scope Pill */}
         <div ref={siteDropdownRef} className="relative">

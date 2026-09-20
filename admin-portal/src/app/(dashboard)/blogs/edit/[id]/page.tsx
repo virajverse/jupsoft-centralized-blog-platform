@@ -1,7 +1,7 @@
 import dynamic from 'next/dynamic';
 
 const BlogEditor = dynamic(
-  () => import('../../../../components/editor/BlogEditor').then((mod) => mod.BlogEditor),
+  () => import('../../../../../components/editor/BlogEditor').then((mod) => mod.BlogEditor),
   {
     loading: () => (
       <div className="flex items-center justify-center h-full min-h-[400px]">
@@ -23,7 +23,7 @@ interface EditBlogPageProps {
   params: Promise<{ id: string }>;
 }
 
-export default async function EditBlogPage({ params }: EditBlogPageProps) {
+export default async function LegacyEditBlogPage({ params }: EditBlogPageProps) {
   const resolvedParams = await params;
   return <BlogEditor blogId={resolvedParams.id} />;
 }

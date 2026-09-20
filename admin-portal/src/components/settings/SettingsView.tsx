@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useQueryState } from '../../hooks/useQueryState';
 import { Website, LanguageCode } from '../../types';
-import { apiClient, WebhookEndpoint, WebhookDeliveryLogItem } from '../../services/apiClient';
+import { apiClient } from '../../services/apiClient';
 import { 
   Globe, 
   Copy, 
@@ -23,17 +23,13 @@ import {
   EyeOff,
   ExternalLink,
   Send,
-  Radio,
   AlertCircle,
-  Play,
   Trash2,
-  Activity,
-  Code2,
-  Sparkles,
-  Terminal,
-  Settings
+  Settings,
+  ArrowRightLeft,
+  KeyRound
 } from 'lucide-react';
-import { ClientHandoverModal } from '../common/ClientHandoverModal';
+import { RedirectsView } from '../redirects/RedirectsView';
 
 export const SettingsView: React.FC = () => {
   const searchParams = useSearchParams();
@@ -68,9 +64,10 @@ export const SettingsView: React.FC = () => {
   const isAllSites = activeWebsiteId === 'all';
 
   // URL state
+  type SettingsTab = 'all' | 'general' | 'redirects' | 'webhook' | 'audit';
   const tenantParam = searchParams.get('tenant');
-  const rawTabParam = searchParams.get('tab') as 'all' | 'general' | 'webhook' | 'audit';
-  const activeTab = (rawTabParam && ['all', 'general', 'webhook', 'audit'].includes(rawTabParam))
+  const rawTabParam = searchParams.get('tab') as SettingsTab;
+  const activeTab: SettingsTab = (rawTabParam && ['all', 'general', 'redirects', 'webhook', 'audit'].includes(rawTabParam))
     ? ((!isSuperAdmin && rawTabParam === 'all') ? 'general' : rawTabParam)
     : (isSuperAdmin ? 'all' : 'general');
 
@@ -87,23 +84,11 @@ export const SettingsView: React.FC = () => {
   const [newLogoUrl, setNewLogoUrl] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newLang, setNewLang] = useState<LanguageCode>('en');
-  const [handoverSite, setHandoverSite] = useState<Website | null>(null);
   const [isOnboardSubmitting, setIsOnboardSubmitting] = useState(false);
   const [onboardError, setOnboardError] = useState<string | null>(null);
 
-  // Copy & Webhook tester states
+  // Copy API key state
   const [copiedKey, setCopiedKey] = useState(false);
-  const [testingWebhook, setTestingWebhook] = useState(false);
-  const [webhookLog, setWebhookLog] = useState<{
-    status: number;
-    statusText?: string;
-    response: string;
-    timestamp: string;
-    latencyMs?: number;
-    success?: boolean;
-    url?: string;
-    message?: string;
-  } | null>(null);
 
   // Audit filter state
   const [auditFilter, setAuditFilter] = useState('');
@@ -112,7 +97,7 @@ export const SettingsView: React.FC = () => {
     setParam('tenant', id);
   };
 
-  const handleTabChange = (tab: 'all' | 'general' | 'webhook' | 'audit') => {
+  const handleTabChange = (tab: SettingsTab) => {
     setParam('tab', tab === (isSuperAdmin ? 'all' : 'general') ? null : tab);
   };
 
@@ -263,12 +248,12 @@ export const SettingsView: React.FC = () => {
       const targetSite = (created as Website) || newWebsite;
       setParam('tenant', targetSite.id);
       setIsOnboardOpen(false);
-      setHandoverSite(targetSite);
       setNewName('');
       setNewDomain('');
       setNewSlug('');
       setNewLogoUrl('');
       setNewDescription('');
+      showNotification(`Tenant "${targetSite.name}" onboarded successfully!`, 'success');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to register website';
       setOnboardError(msg);
@@ -276,174 +261,6 @@ export const SettingsView: React.FC = () => {
     } finally {
       setIsOnboardSubmitting(false);
     }
-  };
-
-    // ─── Real Webhooks & Multi-Endpoint Logic (TRD §13 & §15) ─────────────
-  const [webhookEndpoints, setWebhookEndpoints] = useState<WebhookEndpoint[]>([]);
-  const [loadingEndpoints, setLoadingEndpoints] = useState(false);
-  const [isAddWebhookOpen, setIsAddWebhookOpen] = useState(false);
-  const [newWhName, setNewWhName] = useState('');
-  const [newWhUrl, setNewWhUrl] = useState('');
-  const [newWhEvents, setNewWhEvents] = useState<string[]>([
-    'blog.published',
-    'blog.updated',
-    'blog.unpublished',
-    'blog.archived',
-  ]);
-  const [newWhSecret, setNewWhSecret] = useState('');
-  const [isAddingEndpoint, setIsAddingEndpoint] = useState(false);
-  const [testingEndpointId, setTestingEndpointId] = useState<string | null>(null);
-
-  // Delivery logs state
-  const [deliveryLogs, setDeliveryLogs] = useState<WebhookDeliveryLogItem[]>([]);
-  const [loadingDeliveryLogs, setLoadingDeliveryLogs] = useState(false);
-
-  const loadWebhookData = async (siteId: string) => {
-    if (!siteId) return;
-    setLoadingEndpoints(true);
-    setLoadingDeliveryLogs(true);
-    try {
-      const [endpoints, logsRes] = await Promise.all([
-        apiClient.getWebhookEndpoints(siteId).catch(() => []),
-        apiClient.getWebhookLogs(siteId, 25).catch(() => ({ total: 0, data: [] })),
-      ]);
-      setWebhookEndpoints(endpoints || []);
-      setDeliveryLogs(logsRes?.data || []);
-    } catch {
-      // ignore
-    } finally {
-      setLoadingEndpoints(false);
-      setLoadingDeliveryLogs(false);
-    }
-  };
-
-  useEffect(() => {
-    if (activeSite?.id && (activeTab === 'webhook' || activeTab === 'all')) {
-      loadWebhookData(activeSite.id);
-    }
-  }, [activeSite?.id, activeTab]);
-
-  // 100% REAL Live Webhook dispatch with HMAC signature (TRD §13 & §15)
-  const testWebhookRevalidation = async (targetUrl?: string, endpointId?: string) => {
-    if (!activeSite) return;
-    const urlToTest = (targetUrl || editWebhookUrl || '').trim();
-    if (!urlToTest) {
-      showNotification('Please enter or configure a webhook URL to test', 'warning');
-      return;
-    }
-
-    if (endpointId) {
-      setTestingEndpointId(endpointId);
-    } else {
-      setTestingWebhook(true);
-    }
-
-    try {
-      const result = await apiClient.testWebhookPing(activeSite.id, urlToTest);
-      setWebhookLog({
-        status: result.statusCode,
-        statusText: result.statusText,
-        response: result.responseBody || result.message,
-        timestamp: new Date().toLocaleTimeString(),
-        latencyMs: result.latencyMs,
-        success: result.success,
-        url: result.url,
-        message: result.message,
-      });
-
-      if (result.success) {
-        showNotification(`✅ HTTP ${result.statusCode} OK: Remote host acknowledged ping (${result.latencyMs}ms)`, 'success');
-      } else if (result.statusCode === 404) {
-        showNotification(`⚠️ HTTP 404 Not Found: Target URL does not exist yet (${result.latencyMs}ms)`, 'warning');
-      } else if (result.statusCode === 0) {
-        showNotification(`❌ Connection Failed: Could not reach ${result.url}`, 'warning');
-      } else {
-        showNotification(`⚠️ HTTP ${result.statusCode} ${result.statusText} (${result.latencyMs}ms)`, 'warning');
-      }
-
-      // Refresh delivery logs
-      loadWebhookData(activeSite.id);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Ping request failed';
-      setWebhookLog({
-        status: 0,
-        statusText: 'Connection Error',
-        response: msg,
-        timestamp: new Date().toLocaleTimeString(),
-        latencyMs: 0,
-        success: false,
-        url: urlToTest,
-        message: msg,
-      });
-      showNotification(`❌ ${msg}`, 'warning');
-    } finally {
-      setTestingWebhook(false);
-      setTestingEndpointId(null);
-    }
-  };
-
-  const handleAddCustomEndpoint = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeSite) return;
-    if (!newWhUrl.trim()) {
-      showNotification('Endpoint URL is required', 'warning');
-      return;
-    }
-    if (!newWhUrl.startsWith('http://') && !newWhUrl.startsWith('https://')) {
-      showNotification('URL must begin with http:// or https://', 'warning');
-      return;
-    }
-    setIsAddingEndpoint(true);
-    try {
-      await apiClient.addWebhookEndpoint(activeSite.id, {
-        name: newWhName.trim() || 'Custom Webhook',
-        url: newWhUrl.trim(),
-        events: newWhEvents,
-        secret: newWhSecret.trim(),
-        isActive: true,
-      });
-      showNotification('New webhook endpoint registered successfully!', 'success');
-      setIsAddWebhookOpen(false);
-      setNewWhName('');
-      setNewWhUrl('');
-      setNewWhSecret('');
-      loadWebhookData(activeSite.id);
-    } catch (err: unknown) {
-      showNotification(err instanceof Error ? err.message : 'Failed to register webhook', 'warning');
-    } finally {
-      setIsAddingEndpoint(false);
-    }
-  };
-
-  const handleToggleEndpoint = async (ep: WebhookEndpoint) => {
-    if (!activeSite) return;
-    try {
-      await apiClient.updateWebhookEndpoint(activeSite.id, ep.id, {
-        isActive: !ep.isActive,
-      });
-      showNotification(`Webhook "${ep.name}" ${!ep.isActive ? 'Activated' : 'Paused'}`, 'success');
-      loadWebhookData(activeSite.id);
-    } catch (err: unknown) {
-      showNotification(err instanceof Error ? err.message : 'Failed to update webhook status', 'warning');
-    }
-  };
-
-  const handleDeleteEndpoint = async (epId: string, epName: string) => {
-    if (!activeSite) return;
-    if (!confirm(`Are you sure you want to delete webhook "${epName}"?`)) return;
-    try {
-      await apiClient.deleteWebhookEndpoint(activeSite.id, epId);
-      showNotification(`Webhook "${epName}" deleted`, 'success');
-      loadWebhookData(activeSite.id);
-    } catch (err: unknown) {
-      showNotification(err instanceof Error ? err.message : 'Failed to delete webhook', 'warning');
-    }
-  };
-
-  const toggleEventSelection = (eventName: string) => {
-    setNewWhEvents((prev) =>
-      prev.includes(eventName) ? prev.filter((e) => e !== eventName) : [...prev, eventName]
-    );
   };
 
   const filteredAuditLogs = auditLogs.filter((log) => {
@@ -475,21 +292,10 @@ export const SettingsView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-          {activeSite && (
-            <button
-              onClick={() => setHandoverSite(activeSite)}
-              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-semibold shadow-xs hover:shadow-md transition-all cursor-pointer whitespace-nowrap"
-              title="Copy 1-command installer or ready message to send to client"
-            >
-              <Terminal className="w-3.5 h-3.5" />
-              <span>Install &amp; Share Code</span>
-            </button>
-          )}
-
           {isSuperAdmin && (
             <button
               onClick={() => setIsOnboardOpen(true)}
-              className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-[#4c22cf] hover:bg-[#3d1bb0] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Onboard Website</span>
@@ -562,14 +368,14 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* Section Tabs - Smooth mobile scroll */}
-      <div className="flex items-center gap-1.5 bg-white dark:bg-[#0f172a] p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs overflow-x-auto scrollbar-none w-full sm:w-fit max-w-full">
+      {/* Section Tabs - Zoho Enterprise Styling */}
+      <div className="flex items-center gap-1 bg-white dark:bg-[#0c1322] p-1 rounded-lg border border-slate-200 dark:border-slate-800 shadow-2xs overflow-x-auto scrollbar-none w-full sm:w-fit max-w-full">
         {isSuperAdmin && (
           <button
             onClick={() => handleTabChange('all')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+            className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === 'all'
-                ? 'bg-[#4c22cf] text-white shadow-xs'
+                ? 'bg-red-600 text-white font-bold shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -578,19 +384,30 @@ export const SettingsView: React.FC = () => {
         )}
         <button
           onClick={() => handleTabChange('general')}
-          className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+          className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
             activeTab === 'general'
-              ? 'bg-[#4c22cf] text-white shadow-xs'
+              ? 'bg-red-600 text-white font-bold shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
           Identity &amp; API Key
         </button>
         <button
+          onClick={() => handleTabChange('redirects')}
+          className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+            activeTab === 'redirects'
+              ? 'bg-red-600 text-white font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <ArrowRightLeft className="w-3.5 h-3.5" />
+          <span>301 SEO Redirects</span>
+        </button>
+        <button
           onClick={() => handleTabChange('webhook')}
-          className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+          className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
             activeTab === 'webhook'
-              ? 'bg-[#4c22cf] text-white shadow-xs'
+              ? 'bg-red-600 text-white font-bold shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
@@ -598,9 +415,9 @@ export const SettingsView: React.FC = () => {
         </button>
         <button
           onClick={() => handleTabChange('audit')}
-          className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+          className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
             activeTab === 'audit'
-              ? 'bg-[#4c22cf] text-white shadow-xs'
+              ? 'bg-red-600 text-white font-bold shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
@@ -697,19 +514,11 @@ export const SettingsView: React.FC = () => {
                         <td className="py-3 px-4 text-right whitespace-nowrap">
                           <div className="inline-flex items-center gap-1.5 justify-end whitespace-nowrap">
                             <button
-                              onClick={() => setHandoverSite(w)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 transition-colors cursor-pointer border border-indigo-200/80 dark:border-indigo-800 shadow-2xs whitespace-nowrap"
-                              title={`Copy 1-command installer or HTML embed code for ${w.name}`}
-                            >
-                              <Terminal className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                              <span>Install Code</span>
-                            </button>
-                            <button
                               onClick={() => {
                                 handleSelectTenant(w.id);
                                 handleTabChange('general');
                               }}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 whitespace-nowrap"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 whitespace-nowrap"
                             >
                               <Settings className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
                               <span>Configure</span>
@@ -924,33 +733,31 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
+      {/* TAB: 301 SEO REDIRECTS */}
+      {activeTab === 'redirects' && (
+        <RedirectsView embedded />
+      )}
+
       {/* TAB: WEBHOOK REVALIDATION */}
       {activeTab === 'webhook' && activeSite && (
-        <div className="space-y-6 max-w-4xl">
-          {/* Main Card: Webhook Overview & Live Real Tester */}
-          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 space-y-6 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800/80">
+        <div className="space-y-4 max-w-4xl font-sans">
+          <div className="bg-white dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 rounded-lg p-5 space-y-4 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-amber-500" />
-                  Webhooks &amp; Edge Revalidation Engine
+                  <Zap className="w-4 h-4 text-red-500" />
+                  On-Demand Cache Revalidation Webhook
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  100% Real Live HTTP Event Dispatcher with cryptographic HMAC SHA-256 signatures and instant cache busting.
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Target Next.js or edge URL receiving HMAC-SHA256 signed cache busting pings on blog publish, update, and unpublish events.
                 </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-[10px] font-mono px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  HMAC SHA-256 Verified
-                </span>
-                <span className="text-[10px] font-mono px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 text-blue-700 dark:text-blue-400 font-medium">
-                  Multi-Destination
-                </span>
-              </div>
+              <span className="text-[10px] font-mono px-2.5 py-1 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1.5 shrink-0 self-start sm:self-auto">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                HMAC SHA-256 Enabled
+              </span>
             </div>
 
-            {/* Primary Endpoint & Live Ping Tester */}
             <div className="space-y-4 text-xs">
               <div>
                 <label className="text-slate-800 dark:text-slate-200 font-semibold block mb-1">
@@ -961,397 +768,44 @@ export const SettingsView: React.FC = () => {
                     type="text"
                     value={editWebhookUrl}
                     onChange={(e) => setEditWebhookUrl(e.target.value)}
-                    placeholder="e.g. https://digifynext.com/api/revalidate or http://localhost:5002/api/revalidate"
-                    className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-slate-400"
+                    placeholder="e.g. https://digifynext.com/api/revalidate"
+                    className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none focus:border-red-500"
                   />
                   <button
                     type="button"
                     disabled={isSaving}
                     onClick={handleSaveWebhook}
-                    className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50 shrink-0"
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
                   >
                     <Check className="w-3.5 h-3.5" />
-                    <span>{isSaving ? 'Saving...' : 'Save Primary URL'}</span>
+                    <span>{isSaving ? 'Saving...' : 'Save Webhook URL'}</span>
                   </button>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Target Next.js or edge URL to receive cache busting pings (e.g. <code className="text-emerald-600 dark:text-emerald-400 font-mono">https://yourdomain.com/api/revalidate</code>).
+                  Target Next.js or edge URL to receive cache busting pings (e.g. <code className="text-red-600 dark:text-red-400 font-mono">https://yourdomain.com/api/revalidate</code>).
                 </p>
               </div>
 
-              {/* Real Live HTTP Ping Tool */}
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-3">
+              {/* Webhook Signature Secret Display */}
+              <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <div className="text-slate-900 dark:text-white font-semibold flex items-center gap-2">
-                    <Radio className="w-3.5 h-3.5 text-blue-500 animate-pulse" />
-                    <span>Live HTTP Ping Verification (Real Network Request)</span>
-                  </div>
-                  <span className="text-[10px] text-slate-400 font-mono">Timeout: 6s | Replay Protection</span>
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-center gap-2">
+                  <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">Tenant Webhook HMAC Secret:</span>
                   <button
                     type="button"
-                    disabled={testingWebhook || !editWebhookUrl.trim()}
-                    onClick={() => testWebhookRevalidation(editWebhookUrl)}
-                    className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 disabled:opacity-50 font-semibold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+                    onClick={copyApiKey}
+                    className="inline-flex items-center gap-1 text-[11px] text-red-600 dark:text-red-400 font-semibold hover:underline cursor-pointer"
                   >
-                    <RefreshCw className={`w-3.5 h-3.5 ${testingWebhook ? 'animate-spin' : ''}`} />
-                    <span>{testingWebhook ? 'Executing Real HTTP Fetch...' : 'Fire Live Test Ping'}</span>
+                    {copiedKey ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedKey ? 'Secret Copied!' : 'Copy Secret'}</span>
                   </button>
-                  <span className="text-[11px] text-slate-500">
-                    Sends actual HMAC-signed POST request to destination server and captures real HTTP status.
-                  </span>
                 </div>
-
-                {/* Real Response Display Panel */}
-                {webhookLog && (
-                  <div
-                    className={`mt-3 p-4 rounded-xl border text-xs font-mono space-y-2 transition-all ${
-                      webhookLog.success
-                        ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800/80 text-emerald-900 dark:text-emerald-200'
-                        : webhookLog.status === 404
-                        ? 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800/80 text-amber-900 dark:text-amber-200'
-                        : 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-300 dark:border-rose-800/80 text-rose-900 dark:text-rose-200'
-                    }`}
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-current/10">
-                      <div className="flex items-center gap-2">
-                        {webhookLog.success ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                        ) : webhookLog.status === 404 ? (
-                          <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                        ) : (
-                          <XCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
-                        )}
-                        <span className="font-bold text-xs">
-                          {webhookLog.status === 0
-                            ? 'HTTP 0 (Network / Connection Error)'
-                            : `HTTP ${webhookLog.status} ${webhookLog.statusText || (webhookLog.status === 200 ? 'OK' : 'Error')}`}
-                        </span>
-                        {webhookLog.latencyMs !== undefined && webhookLog.latencyMs > 0 && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10 font-medium">
-                            {webhookLog.latencyMs}ms roundtrip
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-[10px] opacity-75 font-sans">{webhookLog.timestamp}</span>
-                    </div>
-
-                    <div className="text-[11px] font-sans pt-1">
-                      <span className="font-semibold">Target URL:</span> <code className="font-mono underline">{webhookLog.url}</code>
-                    </div>
-
-                    {webhookLog.message && (
-                      <p className="text-[11px] font-sans font-medium">
-                        {webhookLog.message}
-                      </p>
-                    )}
-
-                    {webhookLog.response && (
-                      <div className="mt-2">
-                        <div className="text-[10px] font-semibold uppercase opacity-75 mb-1">Server Response Body:</div>
-                        <pre className="p-2.5 rounded-lg bg-slate-900 text-slate-100 text-[11px] overflow-x-auto max-h-36 whitespace-pre-wrap font-mono">
-                          {webhookLog.response}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-                )}
+                <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400 bg-white dark:bg-[#0c1322] px-3 py-1.5 rounded border border-slate-200 dark:border-slate-800 select-all truncate">
+                  {activeSite.apiKey}
+                </div>
+                <span className="text-[11px] text-slate-400 block">
+                  Verify incoming webhook requests on consumer server using <code className="font-mono">x-hub-signature-256</code> header.
+                </span>
               </div>
-            </div>
-          </div>
-
-          {/* Card 2: Multi-Webhook Endpoints Manager */}
-          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 space-y-5 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-blue-500" />
-                  Multi-Webhook Endpoints ({webhookEndpoints.length})
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Broadcast publish events to multiple destinations: Slack alerts, Discord channels, Zapier/Make automation, and secondary CDNs.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsAddWebhookOpen(!isAddWebhookOpen)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer shrink-0"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>{isAddWebhookOpen ? 'Close Form' : '+ Add Webhook Endpoint'}</span>
-              </button>
-            </div>
-
-            {/* Add Webhook Form Accordion */}
-            {isAddWebhookOpen && (
-              <form onSubmit={handleAddCustomEndpoint} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-4">
-                <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                  Register New Webhook Endpoint
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">
-                      Endpoint Name / Label
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Marketing Slack Channel or Zapier Sync"
-                      value={newWhName}
-                      onChange={(e) => setNewWhName(e.target.value)}
-                      className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">
-                      Webhook Destination URL
-                    </label>
-                    <input
-                      type="url"
-                      required
-                      placeholder="https://hooks.slack.com/services/... or https://domain.com/api/webhook"
-                      value={newWhUrl}
-                      onChange={(e) => setNewWhUrl(e.target.value)}
-                      className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1.5">
-                      Subscribed Trigger Events:
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        { id: 'blog.published', label: 'Blog Published' },
-                        { id: 'blog.updated', label: 'Blog Updated' },
-                        { id: 'blog.unpublished', label: 'Blog Unpublished' },
-                        { id: 'blog.archived', label: 'Blog Archived' },
-                      ].map((evt) => (
-                        <label
-                          key={evt.id}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
-                            newWhEvents.includes(evt.id)
-                              ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300'
-                              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            className="hidden"
-                            checked={newWhEvents.includes(evt.id)}
-                            onChange={() => toggleEventSelection(evt.id)}
-                          />
-                          <span>{evt.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">
-                      Custom HMAC Secret <span className="text-slate-400 font-normal">(Optional — defaults to platform secret)</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Leave blank to use default WEBHOOK_DEFAULT_SECRET"
-                      value={newWhSecret}
-                      onChange={(e) => setNewWhSecret(e.target.value)}
-                      className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsAddWebhookOpen(false)}
-                    className="px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isAddingEndpoint}
-                    className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs cursor-pointer disabled:opacity-50"
-                  >
-                    {isAddingEndpoint ? 'Registering...' : 'Add Endpoint'}
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* Endpoints Table / Card List */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400">
-                    <th className="py-2.5 px-3 font-semibold">Endpoint Name</th>
-                    <th className="py-2.5 px-3 font-semibold">Destination URL</th>
-                    <th className="py-2.5 px-3 font-semibold">Subscribed Events</th>
-                    <th className="py-2.5 px-3 font-semibold">Status</th>
-                    <th className="py-2.5 px-3 font-semibold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                  {webhookEndpoints.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="py-8 text-center text-slate-400">
-                        No webhook endpoints configured. Add your first webhook endpoint above.
-                      </td>
-                    </tr>
-                  ) : (
-                    webhookEndpoints.map((ep) => (
-                      <tr key={ep.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
-                        <td className="py-3 px-3 font-semibold text-slate-900 dark:text-white">
-                          <div className="flex items-center gap-1.5">
-                            <span>{ep.name}</span>
-                            {ep.id === 'primary-isr' && (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-mono font-bold">
-                                PRIMARY
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 font-mono text-[11px] text-slate-600 dark:text-slate-400 max-w-[200px] truncate" title={ep.url}>
-                          {ep.url}
-                        </td>
-                        <td className="py-3 px-3">
-                          <div className="flex flex-wrap gap-1">
-                            {ep.events.map((evt: string) => (
-                              <span
-                                key={evt}
-                                className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono"
-                              >
-                                {evt.replace('blog.', '')}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="py-3 px-3">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleEndpoint(ep)}
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold border transition-colors cursor-pointer ${
-                              ep.isActive
-                                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
-                                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'
-                            }`}
-                          >
-                            {ep.isActive ? 'ACTIVE' : 'PAUSED'}
-                          </button>
-                        </td>
-                        <td className="py-3 px-3 text-right">
-                          <div className="inline-flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              disabled={testingEndpointId === ep.id}
-                              onClick={() => testWebhookRevalidation(ep.url, ep.id)}
-                              title="Send live test ping"
-                              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
-                            >
-                              <Play className={`w-3 h-3 text-blue-500 ${testingEndpointId === ep.id ? 'animate-spin' : ''}`} />
-                              <span className="hidden sm:inline">Test</span>
-                            </button>
-                            {ep.id !== 'primary-isr' && (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteEndpoint(ep.id, ep.name)}
-                                title="Delete webhook"
-                                className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-900/50 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-xs transition-colors cursor-pointer"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Card 3: Real Delivery Logs from PostgreSQL database */}
-          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 space-y-4 shadow-xs">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Activity className="w-4 h-4 text-emerald-500" />
-                Live Webhook Delivery History (Database Logs)
-              </h3>
-              <button
-                type="button"
-                onClick={() => activeSite && loadWebhookData(activeSite.id)}
-                disabled={loadingDeliveryLogs}
-                className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3 h-3 ${loadingDeliveryLogs ? 'animate-spin' : ''}`} />
-                <span>Refresh Logs</span>
-              </button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400">
-                    <th className="py-2.5 px-3 font-semibold">Timestamp</th>
-                    <th className="py-2.5 px-3 font-semibold">Event</th>
-                    <th className="py-2.5 px-3 font-semibold">Target URL</th>
-                    <th className="py-2.5 px-3 font-semibold">Status Code</th>
-                    <th className="py-2.5 px-3 font-semibold">Result</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono text-[11px]">
-                  {deliveryLogs.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="py-6 text-center text-slate-400 font-sans text-xs">
-                        No delivery logs recorded yet for this tenant. Trigger a test ping or publish a blog to see live logs.
-                      </td>
-                    </tr>
-                  ) : (
-                    deliveryLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
-                        <td className="py-2.5 px-3 text-slate-500 font-sans">
-                          {new Date(log.timestamp).toLocaleTimeString()}
-                        </td>
-                        <td className="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-200">
-                          {log.event}
-                        </td>
-                        <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400 max-w-[220px] truncate" title={log.targetUrl}>
-                          {log.targetUrl}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span
-                            className={`px-2 py-0.5 rounded font-bold text-[10px] ${
-                              log.statusCode >= 200 && log.statusCode < 300
-                                ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
-                                : log.statusCode === 404
-                                ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400'
-                                : 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400'
-                            }`}
-                          >
-                            HTTP {log.statusCode}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 font-sans">
-                          {log.delivered ? (
-                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3" /> Delivered
-                            </span>
-                          ) : (
-                            <span className="text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
-                              <XCircle className="w-3 h-3" /> Failed
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
             </div>
           </div>
         </div>
@@ -1576,15 +1030,6 @@ export const SettingsView: React.FC = () => {
             </form>
           </div>
         </div>
-      )}
-
-      {/* MODAL: CLIENT HANDOVER & INSTALL CODE */}
-      {handoverSite && (
-        <ClientHandoverModal
-          isOpen={!!handoverSite}
-          site={handoverSite}
-          onClose={() => setHandoverSite(null)}
-        />
       )}
     </div>
   );

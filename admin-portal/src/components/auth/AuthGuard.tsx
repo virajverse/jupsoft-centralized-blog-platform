@@ -12,7 +12,7 @@ const emptySubscribe = () => () => {};
 export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated, activeRole } = useBlogStore();
+  const { isAuthenticated, activeRole, modules } = useBlogStore();
   const mounted = React.useSyncExternalStore(
     emptySubscribe,
     () => true,
@@ -70,9 +70,9 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
     if (path.startsWith('/taxonomy')) return 'taxonomy';
     if (path.startsWith('/redirects')) return 'redirects';
     if (path.startsWith('/analytics')) return 'analytics';
-    if (path.startsWith('/developers')) return 'developers';
     if (path.startsWith('/users')) return 'users';
     if (path.startsWith('/settings')) return 'settings';
+    if (path.startsWith('/plugins')) return 'plugins';
     if (path.startsWith('/dashboard') || path === '/') return 'dashboard';
     return null;
   };
@@ -88,6 +88,30 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
           <h2 className="text-base font-bold text-slate-900 dark:text-white">Module Access Restricted</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
             Your assigned role (<span className="font-semibold text-slate-800 dark:text-slate-200">{activeRole}</span>) does not include access to the <span className="font-semibold text-slate-800 dark:text-slate-200">{moduleForPath}</span> module.
+          </p>
+        </div>
+        <Link
+          href="/dashboard"
+          className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-semibold hover:opacity-90 transition-opacity shadow-xs"
+        >
+          Return to Dashboard
+        </Link>
+      </div>
+    );
+  }
+
+  // Admin module authority toggle check
+  const moduleConfig = modules?.find((m) => m.id === moduleForPath);
+  if (moduleConfig && !moduleConfig.enabled && moduleForPath !== 'plugins' && moduleForPath !== 'dashboard') {
+    return (
+      <div className="h-full w-full flex flex-col items-center justify-center p-8 text-center space-y-4">
+        <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center border border-rose-200 dark:border-rose-800 shadow-xs">
+          <ShieldAlert className="w-6 h-6" />
+        </div>
+        <div>
+          <h2 className="text-base font-bold text-slate-900 dark:text-white">Module Disabled by Platform Admin</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
+            The <span className="font-semibold text-slate-800 dark:text-slate-200">{moduleConfig.name}</span> module is currently turned off in this environment.
           </p>
         </div>
         <Link

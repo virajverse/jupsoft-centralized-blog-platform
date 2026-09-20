@@ -17,12 +17,22 @@ export class SupabaseSyncService {
     rawUrl = rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
     this.supabaseUrl = rawUrl;
     this.serviceRoleKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY') || '';
-    this.isEnabled = Boolean(this.supabaseUrl && this.serviceRoleKey);
 
-    if (this.isEnabled) {
-      this.logger.log(`⚡ Supabase Live Backup Sync active: ${this.supabaseUrl}`);
+    const dbUrl = this.configService.get<string>('DATABASE_URL') || '';
+    const isPrimaryDbSupabase = dbUrl.includes('supabase.co') || dbUrl.includes('supabase.com') || dbUrl.includes('pooler.supabase');
+
+    if (isPrimaryDbSupabase) {
+      // Primary DB is already direct Supabase PostgreSQL via Prisma pooler.
+      // Disable REST HTTP self-sync to avoid redundant writes, race conditions, and pool exhaustion.
+      this.isEnabled = false;
+      this.logger.log('⚡ Supabase Live REST Sync inactive: Primary PostgreSQL is already Supabase.');
     } else {
-      this.logger.warn('⚠️ Supabase Live Backup Sync disabled: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing');
+      this.isEnabled = Boolean(this.supabaseUrl && this.serviceRoleKey);
+      if (this.isEnabled) {
+        this.logger.log(`⚡ Supabase Live Backup Sync active: ${this.supabaseUrl}`);
+      } else {
+        this.logger.warn('⚠️ Supabase Live Backup Sync disabled: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing');
+      }
     }
   }
 

@@ -73,10 +73,6 @@ export const MediaLibraryView: React.FC = () => {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleSelectTenant = (id: string | null) => {
-    setParam('tenant', id);
-  };
-
   // TRD §10: Hybrid upload pipeline (Server-side sharp WebP with client-side canvas fallback)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -166,7 +162,7 @@ export const MediaLibraryView: React.FC = () => {
   };
 
   return (
-    <div className="p-6 sm:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-5 max-w-7xl mx-auto space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -178,36 +174,6 @@ export const MediaLibraryView: React.FC = () => {
               {isAllSites ? 'All Websites' : (activeSite?.name || 'Website')}
             </span>
           </div>
-
-          {/* Tenant Selector Tabs if in All Websites mode */}
-          {isAllSites && (
-            <div className="flex flex-wrap items-center gap-1.5 mt-3 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg w-fit border border-slate-200 dark:border-slate-700">
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium px-2">Scope Filter:</span>
-              <button
-                onClick={() => handleSelectTenant(null)}
-                className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
-                  !tenantParam
-                    ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                All Sites ({media.length})
-              </button>
-              {websites.map((w) => (
-                <button
-                  key={w.id}
-                  onClick={() => handleSelectTenant(w.id)}
-                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
-                    tenantParam === w.id
-                      ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  {w.name} ({media.filter((m) => m.websiteId === w.id).length})
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -230,7 +196,7 @@ export const MediaLibraryView: React.FC = () => {
           <button
             disabled={processing}
             onClick={() => fileInputRef.current?.click()}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 disabled:opacity-50 font-medium text-xs shadow-xs transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 font-bold text-xs shadow-xs transition-colors cursor-pointer"
           >
             <UploadCloud className="w-4 h-4" />
             <span>{processing ? 'Processing WebP...' : 'Upload Image File'}</span>
@@ -249,7 +215,7 @@ export const MediaLibraryView: React.FC = () => {
           </div>
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 text-xs font-medium shadow-xs cursor-pointer"
+            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs cursor-pointer"
           >
             Upload Image
           </button>
@@ -268,6 +234,8 @@ export const MediaLibraryView: React.FC = () => {
                   <img
                     src={resolveMediaUrl(item.cdnUrl)}
                     alt={item.altText}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                   <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/70 text-[10px] text-white font-mono font-medium">
