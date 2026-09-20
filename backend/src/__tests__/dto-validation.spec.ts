@@ -6,10 +6,23 @@ import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { CreateBlogDto, UpdateBlogDto, BlogTranslationInputDto, TransitionBlogStatusDto } from '../modules/blogs/dto/create-blog.dto';
 
+function collectConstraints(errors: any[]): string[] {
+  const result: string[] = [];
+  for (const err of errors) {
+    if (err.constraints) {
+      result.push(...Object.values(err.constraints as Record<string, string>));
+    }
+    if (err.children && err.children.length > 0) {
+      result.push(...collectConstraints(err.children));
+    }
+  }
+  return result;
+}
+
 async function validateDto(dtoClass: any, plain: object): Promise<string[]> {
   const instance = plainToInstance(dtoClass, plain);
   const errors = await validate(instance as object);
-  return errors.flatMap((e) => Object.values(e.constraints || {}));
+  return collectConstraints(errors);
 }
 
 describe('DTO Validation — CreateBlogDto', () => {
@@ -63,10 +76,7 @@ describe('DTO Validation — CreateBlogDto', () => {
       websiteId: 'site-1',
       translations: [],
     });
-    // An empty array passes @IsArray() but has no items
-    // The content of translations is not validated for minimum length
-    // FLAG: Missing @ArrayMinSize(1) validator on translations
-    expect(typeof errors).toBe('object');
+    expect(errors.length).toBeGreaterThan(0);
   });
 
   // ── Missing translation title ─────────────────────────────────────
@@ -88,30 +98,23 @@ describe('DTO Validation — CreateBlogDto', () => {
   });
 
   // ── [SECURITY] status field accepts any string value ─────────────
-  it('[SECURITY-FINDING] status field accepts any arbitrary string value', async () => {
-    // The DTO: @IsString() @IsOptional() status?: string;
-    // No @IsEnum() or @IsIn(['Draft', 'Under Review', ...]) validator
-    // An attacker could send status: 'Hack' or status: 'Published'
+  it('should reject arbitrary status string value (enum enforcement)', async () => {
     const errors = await validateDto(CreateBlogDto, {
       websiteId: 'site-1',
       status: 'Arbitrary Status Value',
       translations: [validTranslation],
     });
-    // This passes validation (empty errors)
-    expect(errors).toHaveLength(0);
-    // FLAG: STATUS FIELD NOT ENUM-VALIDATED — allows arbitrary status strings in DTO
-    // The service partially handles this in transitionStatus, but create() and update() don't validate
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some((e) => e.includes('status must be one of'))).toBe(true);
   });
 
   // ── [SECURITY] TransitionBlogStatusDto accepts any string status ──
-  it('[SECURITY-FINDING] TransitionBlogStatusDto status field accepts any string', async () => {
+  it('should reject invalid TransitionBlogStatusDto status (enum enforcement)', async () => {
     const errors = await validateDto(TransitionBlogStatusDto, {
       status: 'HackerPublished',
     });
-    expect(errors).toHaveLength(0);
-    // FLAG: Status transition DTO has @IsString() but no @IsIn() enum validator
-    // The transitionStatus service call doesn't validate the status enum either
-    // An attacker could send status: 'hackerinject' and it would be stored
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some((e) => e.includes('status must be one of'))).toBe(true);
   });
 
   // ── Unknown lang code is accepted without validation ───────────────
@@ -153,10 +156,8 @@ describe('DTO Validation — CreateBlogDto', () => {
       websiteId: 12345,
       translations: [validTranslation],
     });
-    // With enableImplicitConversion: true, integer may be coerced to string
-    // This is a potential type coercion issue
-    expect(typeof (plainToInstance(CreateBlogDto, { websiteId: 12345, translations: [validTranslation] }) as any).websiteId)
-      .toBe('string'); // Implicit conversion
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some((e) => e.includes('websiteId must be a string'))).toBe(true);
   });
 
   // ── [SECURITY] Nested object injection in translations ────────────
@@ -171,10 +172,7 @@ describe('DTO Validation — CreateBlogDto', () => {
         'constructor': { prototype: { isAdmin: true } },
       }],
     };
-    // NestJS class-transformer + forbidNonWhitelisted:true at global level should strip extra props
-    // But in unit test without the global pipe, check class-validator behavior
     const errors = await validateDto(CreateBlogDto, malicious);
-    // Should not crash the validation process
     expect(Array.isArray(errors)).toBe(true);
   });
 });
@@ -190,27 +188,25 @@ describe('DTO Validation — Boundary Value Analysis', () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 
-  // ── Extremely long title ─────────────────────────────────────────
-  it('[BOUNDARY] should accept very long title string (no MaxLength validator)', async () => {
+  // ── Extremely long title rejected by MaxLength ───────────────────
+  it('should reject extremely long title string (MaxLength validator)', async () => {
     const longTitle = 'A'.repeat(10000);
     const errors = await validateDto(CreateBlogDto, {
       websiteId: 'site-1',
       translations: [{ lang: 'en', title: longTitle, slug: 'slug' }],
     });
-    expect(errors).toHaveLength(0);
-    // FLAG: No @MaxLength validators on title, slug, excerpt, content fields
-    // Could cause DB field overflow or performance issues
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some((e) => e.includes('title must be shorter'))).toBe(true);
   });
 
-  // ── Extremely long slug ──────────────────────────────────────────
-  it('[BOUNDARY] should accept very long slug (no MaxLength validator)', async () => {
+  // ── Extremely long slug rejected by MaxLength ────────────────────
+  it('should reject extremely long slug (MaxLength and Matches validator)', async () => {
     const longSlug = 'a-'.repeat(5000);
     const errors = await validateDto(CreateBlogDto, {
       websiteId: 'site-1',
       translations: [{ lang: 'en', title: 'Title', slug: longSlug }],
     });
-    expect(errors).toHaveLength(0);
-    // FLAG: No @MaxLength on slug — DB VARCHAR may have limits
+    expect(errors.length).toBeGreaterThan(0);
   });
 
   // ── readTimeMinutes: float rejected by @IsInt() ───────────────────
@@ -223,15 +219,15 @@ describe('DTO Validation — Boundary Value Analysis', () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 
-  // ── Negative readTimeMinutes accepted ────────────────────────────
-  it('[BOUNDARY] should accept negative readTimeMinutes (no @Min validator)', async () => {
+  // ── Negative readTimeMinutes rejected by @Min(1) ─────────────────
+  it('should reject negative readTimeMinutes (@Min validator)', async () => {
     const errors = await validateDto(CreateBlogDto, {
       websiteId: 'site-1',
       readTimeMinutes: -5,
       translations: [{ lang: 'en', title: 'Title', slug: 'slug' }],
     });
-    expect(errors).toHaveLength(0);
-    // FLAG: No @Min(1) validator on readTimeMinutes
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some((e) => e.includes('readTimeMinutes must not be less than 1'))).toBe(true);
   });
 
   // ── Boolean status fails @IsString() ────────────────────────────
@@ -253,14 +249,13 @@ describe('DTO Validation — Boundary Value Analysis', () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 
-  // ── Unicode slugs accepted (no slug format validator) ────────────
-  it('[BOUNDARY] should accept Unicode slugs (no slug format validation)', async () => {
+  // ── Non-URL-safe slugs rejected ───────────────────────────────────
+  it('should reject non-URL-safe slugs', async () => {
     const errors = await validateDto(CreateBlogDto, {
       websiteId: 'site-1',
       translations: [{ lang: 'ar', title: 'عنوان', slug: 'مقال-عربي-2026' }],
     });
-    expect(errors).toHaveLength(0);
-    // FLAG: No slug format validation — Unicode slugs pass through
-    // This may cause issues in URL routing and Redis cache key construction
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some((e) => e.includes('slug must contain only lowercase'))).toBe(true);
   });
 });

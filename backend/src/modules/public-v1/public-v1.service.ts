@@ -70,11 +70,13 @@ export class PublicV1Service {
     page?: number;
     limit?: number;
   }) {
-    const { websiteId, category, tag, lang = 'en', page = 1, limit = 10 } = params;
-    const skip = (page - 1) * limit;
+    const { websiteId, category, tag, lang = 'en' } = params;
+    const safeLimit = Math.max(1, Math.min(Number(params.limit) || 10, 50));
+    const safePage = Math.max(1, Number(params.page) || 1);
+    const skip = (safePage - 1) * safeLimit;
 
-    // TRD §13: Check Redis first
-    const cacheKey = `blogs:${websiteId}:${page}:${lang}${category ? `:cat-${category}` : ''}${tag ? `:tag-${tag}` : ''}`;
+    // TRD §13: Check Redis first (keyed with page, limit, lang, category, and tag)
+    const cacheKey = `blogs:${websiteId}:${safePage}:${safeLimit}:${lang}${category ? `:cat-${category}` : ''}${tag ? `:tag-${tag}` : ''}`;
     const cached = await this.redis.get<unknown>(cacheKey);
     if (cached) return cached;
 
@@ -109,7 +111,7 @@ export class PublicV1Service {
       this.prisma.blog.findMany({
         where,
         skip,
-        take: limit,
+        take: safeLimit,
         orderBy: { publishDate: 'desc' },
         include: {
           translations: true,
@@ -144,7 +146,7 @@ export class PublicV1Service {
 
     const result = {
       success: true,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      meta: { total, page: safePage, limit: safeLimit, totalPages: Math.ceil(total / safeLimit) },
       data,
     };
 
@@ -321,14 +323,16 @@ export class PublicV1Service {
   }
 
   // ─── TRD §13: key format cats:{website}
-  async getCategories(websiteId?: string) {
-    const cacheKey = `cats:${websiteId || 'all'}`;
+  async getCategories(websiteId: string) {
+    if (!websiteId || websiteId === 'all') {
+      return { success: true, data: [] };
+    }
+    const cacheKey = `cats:${websiteId}`;
     const cached = await this.redis.get<unknown>(cacheKey);
     if (cached) return cached;
 
-    const where = websiteId && websiteId !== 'all' ? { websiteId } : {};
     const categories = await this.prisma.category.findMany({
-      where,
+      where: { websiteId },
       orderBy: { name: 'asc' },
     });
 
@@ -338,14 +342,16 @@ export class PublicV1Service {
   }
 
   // ─── TRD §13: key format tags:{website}
-  async getTags(websiteId?: string) {
-    const cacheKey = `tags:${websiteId || 'all'}`;
+  async getTags(websiteId: string) {
+    if (!websiteId || websiteId === 'all') {
+      return { success: true, data: [] };
+    }
+    const cacheKey = `tags:${websiteId}`;
     const cached = await this.redis.get<unknown>(cacheKey);
     if (cached) return cached;
 
-    const where = websiteId && websiteId !== 'all' ? { websiteId } : {};
     const tags = await this.prisma.tag.findMany({
-      where,
+      where: { websiteId },
       orderBy: { name: 'asc' },
     });
 

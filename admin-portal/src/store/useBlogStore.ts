@@ -51,7 +51,7 @@ interface BlogState {
   isLoading: boolean;
 
   // Actions
-  fetchBlogs: () => Promise<void>;
+  fetchBlogs: (overrideSiteId?: string) => Promise<void>;
   fetchWebsites: () => Promise<void>;
   fetchMedia: () => Promise<void>;
   fetchUsers: () => Promise<void>;
@@ -128,16 +128,16 @@ export const useBlogStore = create<BlogState>()(
       currentUser: null,
       isLoading: false,
 
-      fetchBlogs: async () => {
+      fetchBlogs: async (overrideSiteId?: string) => {
         set({ isLoading: true });
         try {
-          const siteId = get().activeWebsiteId;
+          const siteId = overrideSiteId !== undefined ? overrideSiteId : get().activeWebsiteId;
           const res = await apiClient.getBlogs({
             websiteId: siteId === 'all' ? undefined : siteId,
           });
           if (res && Array.isArray(res.data)) {
             set((state) => {
-              const currentSite = state.activeWebsiteId;
+              const currentSite = siteId;
               const base = currentSite === 'all'
                 ? []
                 : state.blogs.filter((b) => b.websiteId !== currentSite);
@@ -272,24 +272,10 @@ export const useBlogStore = create<BlogState>()(
 
       loadInitialData: async () => {
         try {
-          const [
-            websitesRes,
-            blogsRes,
-            usersRes,
-            mediaRes,
-            redirectsRes,
-            auditLogsRes,
-            categoriesRes,
-            tagsRes,
-          ] = await Promise.allSettled([
+          // Lightweight core shell initialization: only websites + current user profile (prevents 8-request waterfall)
+          const [websitesRes, profileRes] = await Promise.allSettled([
             apiClient.getWebsites(),
-            apiClient.getBlogs({ limit: 50 }),
-            apiClient.getUsers(),
-            apiClient.getMedia(),
-            apiClient.getRedirects(),
-            apiClient.getAuditLogs(),
-            apiClient.getCategories(),
-            apiClient.getTags(),
+            apiClient.getProfile(),
           ]);
 
           const updates: Partial<BlogState> = {};
@@ -298,73 +284,19 @@ export const useBlogStore = create<BlogState>()(
             websitesRes.value.forEach((w) => map.set(w.id, w));
             updates.websites = Array.from(map.values());
           }
-          if (blogsRes.status === 'fulfilled' && blogsRes.value?.data) {
-            const map = new Map<string, Blog>();
-            blogsRes.value.data.forEach((b: Blog) => map.set(b.id, b));
-            updates.blogs = Array.from(map.values());
-          }
-          if (usersRes.status === 'fulfilled' && Array.isArray(usersRes.value)) {
-            const map = new Map<string, UserAccount>();
-            usersRes.value.forEach((u) => {
-              map.set(u.id, {
-                ...u,
-                avatar: cleanAvatarUrl(u.avatar) || '/uploads/avatars/avatar-default.webp',
-              });
-            });
-            updates.users = Array.from(map.values());
-
-            const current = get().currentUser;
-            if (current) {
-              const matched = usersRes.value.find((u) => u.id === current.id || u.email === current.email);
-              if (matched) {
-                updates.currentUser = {
-                  ...current,
-                  ...matched,
-                  avatar: cleanAvatarUrl(matched.avatar) || '/uploads/avatars/avatar-default.webp',
-                };
-              } else {
-                updates.currentUser = {
-                  ...current,
-                  avatar: cleanAvatarUrl(current.avatar) || '/uploads/avatars/avatar-default.webp',
-                };
-              }
-            }
-          }
-          if (mediaRes.status === 'fulfilled' && Array.isArray(mediaRes.value)) {
-            const map = new Map<string, MediaItem>();
-            mediaRes.value.forEach((m) => map.set(m.id, m));
-            updates.media = Array.from(map.values());
-          }
-          if (redirectsRes.status === 'fulfilled' && Array.isArray(redirectsRes.value)) {
-            const map = new Map<string, RedirectItem>();
-            redirectsRes.value.forEach((r) => map.set(r.id, r));
-            updates.redirects = Array.from(map.values());
-          }
-          if (auditLogsRes.status === 'fulfilled' && Array.isArray(auditLogsRes.value)) {
-            updates.auditLogs = auditLogsRes.value;
-          }
-          if (categoriesRes.status === 'fulfilled' && Array.isArray(categoriesRes.value)) {
-            const catMap: Record<string, Category[]> = {};
-            categoriesRes.value.forEach((cat) => {
-              if (!catMap[cat.websiteId]) catMap[cat.websiteId] = [];
-              catMap[cat.websiteId].push(cat);
-            });
-            updates.categories = catMap;
-          }
-          if (tagsRes.status === 'fulfilled' && Array.isArray(tagsRes.value)) {
-            const tagMap: Record<string, Tag[]> = {};
-            tagsRes.value.forEach((tag) => {
-              if (!tagMap[tag.websiteId]) tagMap[tag.websiteId] = [];
-              tagMap[tag.websiteId].push(tag);
-            });
-            updates.tags = tagMap;
+          if (profileRes.status === 'fulfilled' && profileRes.value) {
+            const u = profileRes.value;
+            updates.currentUser = {
+              ...u,
+              avatar: cleanAvatarUrl(u.avatar) || '/uploads/avatars/avatar-default.webp',
+            };
           }
 
           if (Object.keys(updates).length > 0) {
             set(updates);
           }
         } catch (err) {
-          console.warn('Failed to load initial data from API:', err);
+          console.warn('Failed to load initial shell data from API:', err);
         }
       },
 

@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Ip,
+  Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Ip, ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -22,20 +22,48 @@ export class TaxonomyController {
     private readonly redis: RedisProvider,
   ) {}
 
+  private isGlobalAdmin(user: any): boolean {
+    if (!user) return false;
+    if (user.roles?.includes('Super Admin')) return true;
+    return user.roleAssignments?.some((ra: any) => ra.isGlobal && ra.role === 'Website Admin');
+  }
+
+  private assertWebsiteAccess(websiteId: string, user: any): void {
+    if (!user || this.isGlobalAdmin(user)) return;
+    const allowedSites = (user.roleAssignments || [])
+      .filter((ra: any) => ra.websiteId)
+      .map((ra: any) => ra.websiteId);
+    if (!allowedSites.includes(websiteId)) {
+      throw new ForbiddenException(`Access denied: you do not have permission for website "${websiteId}".`);
+    }
+  }
+
   // ─── Categories ──────────────────────────────────────────────
 
   @Get('categories')
   @ApiOperation({ summary: 'List categories for a website' })
   @ApiQuery({ name: 'websiteId', required: false })
-  async listCategories(@Query('websiteId') websiteId?: string) {
-    const cacheKey = `admin:categories:${websiteId || 'all'}`;
+  async listCategories(@Query('websiteId') websiteId?: string, @CurrentUser() user?: any) {
+    const userScope = user && !this.isGlobalAdmin(user) ? `user:${user.id}` : 'global';
+    const cacheKey = `admin:categories:${userScope}:${websiteId || 'all'}`;
     const cached = await this.redis.get<any>(cacheKey);
     if (cached) return cached;
 
     const where: any = {};
-    if (websiteId && websiteId !== 'all') {
-      where.websiteId = websiteId;
+    if (user && !this.isGlobalAdmin(user)) {
+      const allowedSites = (user.roleAssignments || []).filter((ra: any) => ra.websiteId).map((ra: any) => ra.websiteId);
+      if (websiteId && websiteId !== 'all') {
+        this.assertWebsiteAccess(websiteId, user);
+        where.websiteId = websiteId;
+      } else {
+        where.websiteId = { in: allowedSites };
+      }
+    } else {
+      if (websiteId && websiteId !== 'all') {
+        where.websiteId = websiteId;
+      }
     }
+
     const categories = await this.prisma.category.findMany({
       where,
       orderBy: { name: 'asc' },
@@ -60,6 +88,7 @@ export class TaxonomyController {
     @CurrentUser() user: any,
     @Ip() ip: string,
   ) {
+    this.assertWebsiteAccess(body.websiteId, user);
     const slug =
       body.slug ||
       body.name
@@ -107,6 +136,7 @@ export class TaxonomyController {
     if (!category) {
       return { success: false, message: 'Category not found' };
     }
+    this.assertWebsiteAccess(category.websiteId, user);
 
     await this.prisma.category.delete({ where: { id } });
 
@@ -133,15 +163,27 @@ export class TaxonomyController {
   @Get('tags')
   @ApiOperation({ summary: 'List tags for a website' })
   @ApiQuery({ name: 'websiteId', required: false })
-  async listTags(@Query('websiteId') websiteId?: string) {
-    const cacheKey = `admin:tags:${websiteId || 'all'}`;
+  async listTags(@Query('websiteId') websiteId?: string, @CurrentUser() user?: any) {
+    const userScope = user && !this.isGlobalAdmin(user) ? `user:${user.id}` : 'global';
+    const cacheKey = `admin:tags:${userScope}:${websiteId || 'all'}`;
     const cached = await this.redis.get<any>(cacheKey);
     if (cached) return cached;
 
     const where: any = {};
-    if (websiteId && websiteId !== 'all') {
-      where.websiteId = websiteId;
+    if (user && !this.isGlobalAdmin(user)) {
+      const allowedSites = (user.roleAssignments || []).filter((ra: any) => ra.websiteId).map((ra: any) => ra.websiteId);
+      if (websiteId && websiteId !== 'all') {
+        this.assertWebsiteAccess(websiteId, user);
+        where.websiteId = websiteId;
+      } else {
+        where.websiteId = { in: allowedSites };
+      }
+    } else {
+      if (websiteId && websiteId !== 'all') {
+        where.websiteId = websiteId;
+      }
     }
+
     const tags = await this.prisma.tag.findMany({
       where,
       orderBy: { name: 'asc' },
@@ -159,6 +201,7 @@ export class TaxonomyController {
     @CurrentUser() user: any,
     @Ip() ip: string,
   ) {
+    this.assertWebsiteAccess(body.websiteId, user);
     const slug =
       body.slug ||
       body.name
@@ -204,6 +247,7 @@ export class TaxonomyController {
     if (!tag) {
       return { success: false, message: 'Tag not found' };
     }
+    this.assertWebsiteAccess(tag.websiteId, user);
 
     await this.prisma.tag.delete({ where: { id } });
 

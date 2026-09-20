@@ -12,12 +12,14 @@
 import {
   Controller, Post, Get, Body, Param, Query,
   UseGuards, Req, HttpCode, HttpStatus, UsePipes, ValidationPipe,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { AnalyticsService } from './analytics.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { ApiKeyGuard } from '../../common/guards/api-key.guard';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { AuthenticatedUser } from '../../common/interfaces/auth-user.interface';
 import { Request } from 'express';
 
 import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
@@ -91,7 +93,19 @@ export class AdminAnalyticsController {
   async getDashboard(
     @Query('websiteId') websiteId: string,
     @Query('days') days?: string,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
+    if (user) {
+      const isGlobal =
+        user.roles?.includes('Super Admin') ||
+        user.roleAssignments?.some((ra) => ra.isGlobal && ra.role === 'Website Admin');
+      if (!isGlobal) {
+        const allowed = (user.roleAssignments || []).filter((ra) => ra.websiteId).map((ra) => ra.websiteId);
+        if (!allowed.includes(websiteId)) {
+          throw new ForbiddenException(`Access denied: you do not have permission for website "${websiteId}".`);
+        }
+      }
+    }
     return this.analyticsService.getDashboard(websiteId, days ? parseInt(days, 10) : 30);
   }
 

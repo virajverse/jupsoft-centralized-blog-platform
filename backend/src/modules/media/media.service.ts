@@ -126,6 +126,22 @@ export class MediaService {
     if (!website) throw new NotFoundException(`Website "${websiteId || 'default'}" not found`);
     const targetWebsiteId = website.id;
 
+    if (user) {
+      const isGlobal =
+        user.roles?.includes('Super Admin') ||
+        user.roleAssignments?.some((ra) => ra.isGlobal && ra.role === 'Website Admin');
+      if (!isGlobal) {
+        const userWebsiteIds = (user.roleAssignments || [])
+          .filter((ra) => ra.websiteId)
+          .map((ra) => ra.websiteId);
+        if (!userWebsiteIds.includes(targetWebsiteId)) {
+          throw new ForbiddenException(
+            `Access denied: cannot upload media to website "${targetWebsiteId}".`,
+          );
+        }
+      }
+    }
+
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -259,6 +275,22 @@ export class MediaService {
       cdnUrl = `${this.cdnDomain}/${s3Key}`;
     }
 
+    if (user) {
+      const isGlobal =
+        user.roles?.includes('Super Admin') ||
+        user.roleAssignments?.some((ra) => ra.isGlobal && ra.role === 'Website Admin');
+      if (!isGlobal) {
+        const userWebsiteIds = (user.roleAssignments || [])
+          .filter((ra) => ra.websiteId)
+          .map((ra) => ra.websiteId);
+        if (!userWebsiteIds.includes(dto.websiteId)) {
+          throw new ForbiddenException(
+            `Access denied: cannot register media for website "${dto.websiteId}".`,
+          );
+        }
+      }
+    }
+
     const media = await this.prisma.mediaAsset.create({
       data: {
         websiteId: dto.websiteId,
@@ -303,23 +335,43 @@ export class MediaService {
       this.logger.warn(`Could not ensure local asset for ${s3Key}: ${(diskErr as Error).message}`);
     }
 
-    // Invalidate media cache
+    // Invert media cache
     await this.redis.delPattern('admin:media:*');
 
     return media;
   }
 
-  async findAll(websiteId?: string, page?: number, limit?: number) {
+  async findAll(websiteId?: string, page?: number, limit?: number, user?: AuthenticatedUser) {
+    const isGlobal =
+      !user ||
+      user.roles?.includes('Super Admin') ||
+      user.roleAssignments?.some((ra) => ra.isGlobal && ra.role === 'Website Admin');
+
+    const userScope = !isGlobal && user ? `user:${user.id}` : 'global';
     const isPaginated = page !== undefined && limit !== undefined && page > 0 && limit > 0;
     const cacheKey = isPaginated
-      ? `admin:media:${websiteId || 'all'}:p${page}:l${limit}`
-      : `admin:media:${websiteId || 'all'}`;
+      ? `admin:media:${userScope}:${websiteId || 'all'}:p${page}:l${limit}`
+      : `admin:media:${userScope}:${websiteId || 'all'}`;
     const cached = await this.redis.get<any>(cacheKey);
     if (cached) return cached;
 
     const where: Record<string, unknown> = {};
-    if (websiteId && websiteId !== 'all') {
-      where.websiteId = websiteId;
+    if (!isGlobal && user) {
+      const allowedSites = (user.roleAssignments || [])
+        .filter((ra) => ra.websiteId)
+        .map((ra) => ra.websiteId as string);
+      if (websiteId && websiteId !== 'all') {
+        if (!allowedSites.includes(websiteId)) {
+          throw new ForbiddenException(`Access denied: cannot view media for website "${websiteId}".`);
+        }
+        where.websiteId = websiteId;
+      } else {
+        where.websiteId = { in: allowedSites };
+      }
+    } else {
+      if (websiteId && websiteId !== 'all') {
+        where.websiteId = websiteId;
+      }
     }
     where.deletedAt = null; // exclude soft-deleted assets
 

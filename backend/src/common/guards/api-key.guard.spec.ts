@@ -75,9 +75,9 @@ describe('ApiKeyGuard', () => {
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
   });
 
-  it('resolves tenant via ?website= query param', async () => {
+  it('resolves tenant via ?website= query param when request comes from registered domain', async () => {
     (prisma.website.findFirst as jest.Mock).mockResolvedValue(mockActiveWebsite);
-    const req: any = { headers: {}, query: { website: 'jupsoft.com' } };
+    const req: any = { headers: { origin: 'https://jupsoft.com' }, query: { website: 'jupsoft.com' } };
     const ctx = { switchToHttp: () => ({ getRequest: () => req }) } as any;
 
     const result = await guard.canActivate(ctx);
@@ -85,9 +85,17 @@ describe('ApiKeyGuard', () => {
     expect(req.tenant.domain).toBe('jupsoft.com');
   });
 
+  it('throws UnauthorizedException when ?website= is accessed without matching registered domain origin', async () => {
+    (prisma.website.findFirst as jest.Mock).mockResolvedValue(mockActiveWebsite);
+    const req: any = { headers: { origin: 'https://unauthorized-domain.com' }, query: { website: 'jupsoft.com' } };
+    const ctx = { switchToHttp: () => ({ getRequest: () => req }) } as any;
+
+    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+  });
+
   it('throws UnauthorizedException for unknown ?website= param', async () => {
     (prisma.website.findFirst as jest.Mock).mockResolvedValue(null);
-    const ctx = buildContext({}, { website: 'unknown.com' });
+    const ctx = buildContext({ origin: 'https://unknown.com' }, { website: 'unknown.com' });
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
   });
 

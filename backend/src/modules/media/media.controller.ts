@@ -105,11 +105,13 @@ export class MediaController {
     @Query('websiteId') websiteId?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
     return this.mediaService.findAll(
       websiteId,
       page ? Number(page) : undefined,
       limit ? Number(limit) : undefined,
+      user,
     );
   }
 

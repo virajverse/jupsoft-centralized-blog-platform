@@ -92,9 +92,9 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
-    "transformIgnorePatterns": [
-      "/node_modules/(?!(sanitize-html|htmlparser2|domhandler|dom-serializer|entities|parse5|css-what|nth-check|css-select|boolbase|domelementtype)/)"
-    ],
+    "moduleNameMapper": {
+      "^htmlparser2$": "<rootDir>/../../node_modules/.pnpm/htmlparser2@10.1.0/node_modules/htmlparser2/dist/commonjs/index.js"
+    },
     "collectCoverageFrom": [
       "**/*.(t|j)s",
       "!**/*.spec.(t|j)s",

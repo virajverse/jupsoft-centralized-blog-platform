@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards, Req, Header } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, Req, Header, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiHeader } from '@nestjs/swagger';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { PublicV1Service } from './public-v1.service';
@@ -117,8 +117,12 @@ export class PublicV1Controller {
   @ApiHeader({ name: 'Authorization', description: 'Bearer <tenant_api_key>', required: true })
   @ApiOperation({ summary: 'Retrieve taxonomy category tree for consuming website' })
   async getCategories(@Req() req: any, @Query('websiteId') queryWebsiteId?: string) {
-    const targetSiteId = queryWebsiteId || req.tenant?.id;
-    return this.publicV1Service.getCategories(targetSiteId);
+    if (queryWebsiteId && queryWebsiteId !== req.tenant.id) {
+      throw new ForbiddenException(
+        `Access denied: cannot access categories for another website.`,
+      );
+    }
+    return this.publicV1Service.getCategories(req.tenant.id);
   }
 
   @Get('tags')
@@ -127,8 +131,12 @@ export class PublicV1Controller {
   @ApiHeader({ name: 'Authorization', description: 'Bearer <tenant_api_key>', required: true })
   @ApiOperation({ summary: 'Retrieve tags list for consuming website' })
   async getTags(@Req() req: any, @Query('websiteId') queryWebsiteId?: string) {
-    const targetSiteId = queryWebsiteId || req.tenant?.id;
-    return this.publicV1Service.getTags(targetSiteId);
+    if (queryWebsiteId && queryWebsiteId !== req.tenant.id) {
+      throw new ForbiddenException(
+        `Access denied: cannot access tags for another website.`,
+      );
+    }
+    return this.publicV1Service.getTags(req.tenant.id);
   }
 
   @Get('search')

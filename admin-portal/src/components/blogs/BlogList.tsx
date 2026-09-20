@@ -13,6 +13,7 @@ export const BlogList: React.FC = () => {
   const { 
     blogs, 
     activeWebsiteId, 
+    setActiveWebsite,
     websites, 
     activeRole,
     deleteBlog,
@@ -20,9 +21,17 @@ export const BlogList: React.FC = () => {
     isLoading
   } = useBlogStore();
 
+  const siteParam = searchParams.get('site');
+  const effectiveSiteId = siteParam && (siteParam === 'all' || websites.some((w) => w.id === siteParam))
+    ? siteParam
+    : activeWebsiteId;
+
   useEffect(() => {
-    fetchBlogs();
-  }, [activeWebsiteId, fetchBlogs]);
+    if (siteParam && siteParam !== activeWebsiteId && (siteParam === 'all' || websites.some((w) => w.id === siteParam))) {
+      setActiveWebsite(siteParam);
+    }
+    fetchBlogs(effectiveSiteId);
+  }, [effectiveSiteId, fetchBlogs, siteParam, activeWebsiteId, websites, setActiveWebsite]);
 
   // Read URL query params
   const statusParam = searchParams.get('status') || 'All';

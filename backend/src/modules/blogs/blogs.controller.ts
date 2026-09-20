@@ -29,15 +29,19 @@ export class BlogsController {
     @Query('authorId') authorId?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
-    return this.blogsService.findAll({
-      websiteId,
-      status,
-      search,
-      authorId,
-      page: page ? Number(page) : 1,
-      limit: limit ? Number(limit) : 20,
-    });
+    return this.blogsService.findAll(
+      {
+        websiteId,
+        status,
+        search,
+        authorId,
+        page: page ? Number(page) : 1,
+        limit: limit ? Number(limit) : 20,
+      },
+      user,
+    );
   }
 
   @Get(':id')

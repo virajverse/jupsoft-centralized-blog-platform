@@ -20,21 +20,43 @@ export class BlogsService {
     private supabaseSync: SupabaseSyncService,
   ) {}
 
-  async findAll(params: {
-    websiteId?: string;
-    status?: string;
-    search?: string;
-    authorId?: string;
-    page?: number;
-    limit?: number;
-  }) {
+  async findAll(
+    params: {
+      websiteId?: string;
+      status?: string;
+      search?: string;
+      authorId?: string;
+      page?: number;
+      limit?: number;
+    },
+    caller?: AuthenticatedUser,
+  ) {
     const { websiteId, status, search, authorId, page = 1, limit = 20 } = params;
     const skip = (page - 1) * limit;
 
     const where: any = {};
-    if (websiteId && websiteId !== 'all') {
-      where.websiteId = websiteId;
+
+    if (caller && !this.isGlobalAdmin(caller)) {
+      const allowedSites = (caller.roleAssignments || [])
+        .filter((ra) => ra.websiteId)
+        .map((ra) => ra.websiteId as string);
+
+      if (websiteId && websiteId !== 'all') {
+        if (!allowedSites.includes(websiteId)) {
+          throw new ForbiddenException(
+            `Access denied: you do not have permission to view blogs for website "${websiteId}".`,
+          );
+        }
+        where.websiteId = websiteId;
+      } else {
+        where.websiteId = { in: allowedSites };
+      }
+    } else {
+      if (websiteId && websiteId !== 'all') {
+        where.websiteId = websiteId;
+      }
     }
+
     if (status && status !== 'All') {
       where.status = status;
     }
@@ -52,7 +74,8 @@ export class BlogsService {
       };
     }
 
-    const cacheKey = `admin:blogs:${websiteId || 'all'}:${status || 'all'}:${page}:${limit}:${search || ''}`;
+    const userScope = caller && !this.isGlobalAdmin(caller) ? `user:${caller.id}` : 'global';
+    const cacheKey = `admin:blogs:${userScope}:${websiteId || 'all'}:${status || 'all'}:${page}:${limit}:${search || ''}`;
     const cached = await this.redis.get<any>(cacheKey);
     if (cached) return cached;
 
@@ -153,8 +176,8 @@ export class BlogsService {
       data: formatted,
     };
 
-    // Cache list result for 60s
-    await this.redis.set(cacheKey, result, 60);
+    // Cache list result for 300s (5 minutes) - invalidated on create/update/status/delete
+    await this.redis.set(cacheKey, result, 300);
 
     return result;
   }
@@ -218,7 +241,7 @@ export class BlogsService {
       readTimeMinutes: blog.readTimeMinutes,
       categoryIds: blog.categoryIds,
       tagIds: blog.tagIds,
-      translations: blog.translations.reduce((acc, t) => {
+      translations: (blog.translations || []).reduce((acc, t) => {
         acc[t.lang] = {
           title: t.title,
           slug: t.slug,
@@ -241,7 +264,7 @@ export class BlogsService {
         };
         return acc;
       }, {} as any),
-      workflowLogs: blog.workflowLogs.map((l) => ({
+      workflowLogs: (blog.workflowLogs || []).map((l) => ({
         id: l.id,
         blogId: l.blogId,
         fromStatus: l.fromStatus,
@@ -249,14 +272,25 @@ export class BlogsService {
         changedBy: l.changedBy,
         role: l.role,
         notes: l.notes,
-        timestamp: l.timestamp.toISOString(),
+        timestamp: l.timestamp instanceof Date ? l.timestamp.toISOString() : (l.timestamp || ''),
       })),
-      createdAt: blog.createdAt.toISOString(),
-      updatedAt: blog.updatedAt.toISOString(),
+      createdAt: blog.createdAt instanceof Date ? blog.createdAt.toISOString() : (blog.createdAt ? String(blog.createdAt) : new Date().toISOString()),
+      updatedAt: blog.updatedAt instanceof Date ? blog.updatedAt.toISOString() : (blog.updatedAt ? String(blog.updatedAt) : new Date().toISOString()),
     };
   }
 
   async create(dto: CreateBlogDto, user: AuthenticatedUser, ipAddress: string) {
+    if (user && !this.isGlobalAdmin(user)) {
+      const allowedSites = (user.roleAssignments || [])
+        .filter((ra) => ra.websiteId)
+        .map((ra) => ra.websiteId as string);
+      if (!allowedSites.includes(dto.websiteId)) {
+        throw new ForbiddenException(
+          `Access denied: you do not have permission to create blogs for website "${dto.websiteId}".`,
+        );
+      }
+    }
+
     const initialStatus = dto.status || 'Draft';
     const isPublishing = initialStatus === 'Published';
     const blog = await this.prisma.$transaction(async (tx) => {
@@ -581,9 +615,13 @@ export class BlogsService {
     const previousStatus = blog.status;
     const newStatus = dto.status;
 
-    // RBAC validation: Content Writer cannot directly publish
-    if (newStatus === 'Published' && user.roles.includes('Content Writer') && !user.roles.includes('Super Admin') && !user.roles.includes('Publisher')) {
-      throw new ForbiddenException('Content Writers cannot directly publish articles. Please submit for review.');
+    // RBAC validation: only Super Admin, Website Admin, or Publisher can directly publish
+    const canPublish =
+      user.roles.includes('Super Admin') ||
+      user.roles.includes('Website Admin') ||
+      user.roles.includes('Publisher');
+    if (newStatus === 'Published' && !canPublish) {
+      throw new ForbiddenException('Only Publishers and Website Admins can directly publish articles.');
     }
 
     const isPublishing = newStatus === 'Published';
@@ -672,6 +710,9 @@ export class BlogsService {
         `Email notification failed for blog ${id}: ${(emailErr as Error).message}`,
       );
     }
+
+    // Invalidate admin blogs cache so new status appears instantly
+    await this.redis.delPattern('admin:blogs:*');
 
     // Mirror to Supabase Cloud Backup (non-blocking)
     this.supabaseSync.syncBlog(id).catch(() => {});
@@ -829,11 +870,11 @@ export class BlogsService {
 
     // 8. Robots directive validation - TRD §11
     const robotsVal = (translation.seo?.robots || '').toLowerCase();
-    if (robotsVal.includes('index') && robotsVal.includes('follow')) {
-      checks.push({ id: 'robots', label: 'Robots Directive', status: 'pass', message: `Robots: "${translation.seo?.robots}" allows indexing`, scoreImpact: 0 });
-    } else if (robotsVal.includes('noindex')) {
+    if (robotsVal.includes('noindex')) {
       score -= 10;
       checks.push({ id: 'robots', label: 'Robots Directive', status: 'warning', message: `Robots: "${translation.seo?.robots}" — noindex blocks search engines`, scoreImpact: -10 });
+    } else if (robotsVal.includes('index')) {
+      checks.push({ id: 'robots', label: 'Robots Directive', status: 'pass', message: `Robots: "${translation.seo?.robots}" allows indexing`, scoreImpact: 0 });
     } else {
       score -= 5;
       checks.push({ id: 'robots', label: 'Robots Directive', status: 'warning', message: 'Robots directive not set or unrecognized', scoreImpact: -5 });

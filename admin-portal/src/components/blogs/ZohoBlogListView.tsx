@@ -226,12 +226,27 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
 
       {/* 3. Spreadsheet-Style Data Grid (Row Height: 34px - 36px) */}
       <div className="bg-white dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-xs">
-        {filteredBlogs.length === 0 ? (
+        {isLoading ? (
+          <div className="p-4 space-y-2">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="flex items-center gap-3 py-2.5 px-3 border-b border-slate-100 dark:border-slate-800/60 animate-pulse">
+                <div className="w-3.5 h-3.5 bg-slate-200 dark:bg-slate-800 rounded shrink-0" />
+                <div className="flex-1 space-y-1.5 min-w-0">
+                  <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-1/3" />
+                  <div className="h-2 bg-slate-100 dark:bg-slate-850 rounded w-1/4" />
+                </div>
+                <div className="w-16 h-3 bg-slate-200 dark:bg-slate-800 rounded shrink-0" />
+                <div className="w-20 h-3 bg-slate-200 dark:bg-slate-800 rounded hidden sm:block shrink-0" />
+                <div className="w-12 h-3 bg-slate-200 dark:bg-slate-800 rounded shrink-0" />
+              </div>
+            ))}
+          </div>
+        ) : filteredBlogs.length === 0 ? (
           <div className="py-12 text-center space-y-2">
             <Globe className="w-8 h-8 mx-auto text-slate-400" />
             <div className="text-xs font-bold text-slate-800 dark:text-slate-200">No blogs match this view</div>
             <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
-              Try adjusting your filter or search query.
+              {queryParam ? 'Try adjusting your search query or status filter.' : 'There are currently no blog articles in this website.'}
             </p>
           </div>
         ) : (
@@ -398,7 +413,11 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
         <div className="px-3 py-1.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 flex items-center justify-between text-[11px] text-slate-500 font-mono">
           <div className="flex items-center gap-2">
             <span>
-              Showing {(safeCurrentPage - 1) * pageSize + 1}-{Math.min(safeCurrentPage * pageSize, filteredBlogs.length)} of {filteredBlogs.length} records
+              {isLoading
+                ? 'Fetching latest records...'
+                : filteredBlogs.length === 0
+                ? 'Showing 0 records'
+                : `Showing ${(safeCurrentPage - 1) * pageSize + 1}-${Math.min(safeCurrentPage * pageSize, filteredBlogs.length)} of ${filteredBlogs.length} records`}
             </span>
             <span className="text-slate-300 dark:text-slate-700">|</span>
             <select

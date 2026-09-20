@@ -6,7 +6,7 @@
  */
 import { BlogsService } from '../modules/blogs/blogs.service';
 import { MediaService } from '../modules/media/media.service';
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, ForbiddenException } from '@nestjs/common';
 
 // ─── 1. BlogsService Tenant Isolation ──────────────────────────────────────
 
@@ -33,12 +33,29 @@ const mockPrisma = {
 };
 
 const mockRedis = { get: jest.fn(() => null), set: jest.fn(), delPattern: jest.fn() };
-const mockWebhook = { dispatchWebhook: jest.fn() };
+const mockWebhook = { dispatchWebhook: jest.fn().mockResolvedValue(undefined) };
 const mockEmail = { sendWorkflowNotification: jest.fn() };
-const mockSupabase = { syncBlog: jest.fn(), deleteBlog: jest.fn() };
+const mockSupabase = {
+  syncBlog: jest.fn().mockResolvedValue(undefined),
+  deleteBlog: jest.fn().mockResolvedValue(undefined),
+};
 
-const tenantAUser = { id: 'user-a', email: 'a@tenant-a.com', name: 'Tenant A User', avatar: '', roles: ['Editor'], roleAssignments: [] };
-const tenantBUser = { id: 'user-b', email: 'b@tenant-b.com', name: 'Tenant B User', avatar: '', roles: ['Editor'], roleAssignments: [] };
+const tenantAUser = {
+  id: 'user-a',
+  email: 'a@tenant-a.com',
+  name: 'Tenant A User',
+  avatar: '',
+  roles: ['Editor'],
+  roleAssignments: [{ role: 'Editor', websiteId: 'site-tenant-a', isGlobal: false }],
+};
+const tenantBUser = {
+  id: 'user-b',
+  email: 'b@tenant-b.com',
+  name: 'Tenant B User',
+  avatar: '',
+  roles: ['Editor'],
+  roleAssignments: [{ role: 'Editor', websiteId: 'site-tenant-b', isGlobal: false }],
+};
 
 describe('Tenant Isolation — Blog findOne (IDOR Test)', () => {
   let service: BlogsService;
@@ -48,9 +65,8 @@ describe('Tenant Isolation — Blog findOne (IDOR Test)', () => {
     service = new BlogsService(mockPrisma as any, mockWebhook as any, mockRedis as any, mockEmail as any, mockSupabase as any);
   });
 
-  // ── CRITICAL IDOR: GET /admin/blogs/:id does NOT filter by websiteId ──
-  // This is a WHITE-BOX finding: findOne({ id }) without tenant constraint
-  it('[SECURITY-CRITICAL] findOne() fetches blog by ID without tenant constraint — IDOR risk', async () => {
+  // ── BUG-001 (IDOR Fix): GET /admin/blogs/:id filters by caller's websiteId ──
+  it('[SECURITY] findOne() prevents cross-tenant blog access for scoped users', async () => {
     // Blog belongs to Tenant A
     const tenantABlog = {
       id: 'blog-tenant-a',
@@ -76,20 +92,17 @@ describe('Tenant Isolation — Blog findOne (IDOR Test)', () => {
     };
     mockPrisma.blog.findUnique.mockResolvedValue(tenantABlog);
 
-    // Tenant B user can retrieve Tenant A's blog by ID
-    // This succeeds because findOne has NO tenant check
-    const result = await service.findOne('blog-tenant-a');
+    // Tenant B user CANNOT retrieve Tenant A's blog
+    await expect(service.findOne('blog-tenant-a', tenantBUser as any))
+      .rejects.toThrow(ForbiddenException);
 
-    // The blog is returned — this DEMONSTRATES the IDOR vulnerability
+    // Tenant A user CAN retrieve Tenant A's blog
+    const result = await service.findOne('blog-tenant-a', tenantAUser as any);
     expect(result.websiteId).toBe('site-tenant-a');
-
-    // ASSERTION: This test PASSES but SHOULD fail in secure implementation
-    // Secure fix would require: findOne({ id, websiteId: callerWebsiteId })
-    // FLAG: IDOR VULNERABILITY — blog read by ID is not tenant-scoped
   });
 
-  // ── CRITICAL IDOR: delete() has NO tenant ownership check ─────────────
-  it('[SECURITY-CRITICAL] delete() deletes blog without checking caller tenant — IDOR risk', async () => {
+  // ── BUG-003 (IDOR Fix): delete() enforces tenant ownership ─────────────
+  it('[SECURITY] delete() blocks cross-tenant blog deletion for scoped users', async () => {
     const tenantABlog = {
       id: 'blog-tenant-a',
       websiteId: 'site-tenant-a', // belongs to Tenant A
@@ -100,42 +113,34 @@ describe('Tenant Isolation — Blog findOne (IDOR Test)', () => {
     mockPrisma.blog.delete = jest.fn().mockResolvedValue({});
     mockPrisma.systemAuditLog.create.mockResolvedValue({});
 
-    // Tenant B super admin can delete Tenant A's blog
-    const tenantBAdmin = { ...tenantBUser, roles: ['Super Admin'] };
-    const result = await service.delete('blog-tenant-a', tenantBAdmin as any, '127.0.0.1');
+    // Tenant B user cannot delete Tenant A's blog
+    await expect(service.delete('blog-tenant-a', tenantBUser as any, '127.0.0.1'))
+      .rejects.toThrow(ForbiddenException);
 
-    // This succeeds — demonstrating cross-tenant deletion is possible
+    // Tenant A admin CAN delete Tenant A's blog
+    const tenantAAdmin = {
+      ...tenantAUser,
+      roles: ['Super Admin'],
+      roleAssignments: [{ role: 'Super Admin', websiteId: null, isGlobal: true }],
+    };
+    const result = await service.delete('blog-tenant-a', tenantAAdmin as any, '127.0.0.1');
     expect(result.success).toBe(true);
-
-    // FLAG: IDOR VULNERABILITY — delete does not verify websiteId matches caller
   });
 
-  // ── CRITICAL: update() has NO tenant ownership check ────────────────
-  it('[SECURITY-CRITICAL] update() can update cross-tenant blog — IDOR risk', async () => {
+  // ── BUG-002 (IDOR Fix): update() enforces tenant ownership ────────────────
+  it('[SECURITY] update() blocks cross-tenant blog modification', async () => {
     const tenantABlog = {
       id: 'blog-tenant-a',
       websiteId: 'site-tenant-a',
       status: 'Draft',
       translations: [{ lang: 'en', slug: 'original', title: 'Original' }],
     };
-    mockPrisma.blog.findUnique
-      .mockResolvedValueOnce(tenantABlog)
-      .mockResolvedValueOnce({ ...tenantABlog, website: {} });
-    mockPrisma.blog.update.mockResolvedValue({});
-    mockPrisma.blogCategory.deleteMany.mockResolvedValue({});
-    mockPrisma.blogTag.deleteMany.mockResolvedValue({});
-    mockPrisma.blogTranslation.upsert.mockResolvedValue({});
+    mockPrisma.blog.findUnique.mockResolvedValue(tenantABlog);
 
-    const tenantBEditor = { ...tenantBUser, roles: ['Editor'] };
-    // Tenant B editor updates Tenant A's blog — no ownership check prevents this
-    await service.update('blog-tenant-a', {
+    // Tenant B editor cannot update Tenant A's blog
+    await expect(service.update('blog-tenant-a', {
       translations: [{ lang: 'en', title: 'Hijacked Title', slug: 'hijacked-slug' }]
-    } as any, tenantBEditor as any, '127.0.0.1');
-
-    // Update proceeded without tenant check — IDOR vulnerability confirmed
-    expect(mockPrisma.blog.update).toHaveBeenCalled();
-
-    // FLAG: IDOR VULNERABILITY — update does not verify blog.websiteId === user's websiteId
+    } as any, tenantBUser as any, '127.0.0.1')).rejects.toThrow(ForbiddenException);
   });
 
   // ── findAll() with explicit websiteId filter ───────────────────────
@@ -159,12 +164,41 @@ describe('Tenant Isolation — Blog findOne (IDOR Test)', () => {
 
     await service.findAll({ page: 1, limit: 10 });
 
-    // When websiteId is omitted, no tenant filter is applied
+    // When websiteId is omitted and no caller provided, no tenant filter is applied (global view)
     const calledWith = mockPrisma.blog.findMany.mock.calls[0][0];
     expect(calledWith.where).not.toHaveProperty('websiteId');
+  });
 
-    // FLAG: INFO — Admin users can see all blogs. This may be intentional for Super Admin
-    // but if websiteId=all is sent as 'all', it is also excluded from filter
+  // ── Scoped user findAll() blocks accessing another tenant's blogs ─────
+  it('[SECURITY] findAll() blocks scoped user from querying another website', async () => {
+    // tenantAUser only has access to site-tenant-a
+    await expect(
+      service.findAll({ websiteId: 'site-tenant-b', page: 1, limit: 10 }, tenantAUser as any),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  // ── Scoped user findAll() with websiteId='all' or omitted restricts to their website ─────
+  it('[SECURITY] findAll() restricts scoped user to their assigned website(s)', async () => {
+    mockPrisma.blog.count.mockResolvedValue(5);
+    mockPrisma.blog.findMany.mockResolvedValue([]);
+
+    await service.findAll({ websiteId: 'all', page: 1, limit: 10 }, tenantAUser as any);
+
+    const calledWith = mockPrisma.blog.findMany.mock.calls[0][0];
+    expect(calledWith.where.websiteId).toEqual({ in: ['site-tenant-a'] });
+  });
+
+  // ── Scoped user create() blocks creating blogs for another website ─────
+  it('[SECURITY] create() blocks scoped user from creating blogs for another website', async () => {
+    const dto = {
+      websiteId: 'site-tenant-b', // tenantAUser only has site-tenant-a
+      status: 'Draft' as const,
+      translations: [{ lang: 'en', title: 'Malicious Post', slug: 'malicious-post', content: 'hello' }],
+    };
+
+    await expect(
+      service.create(dto as any, tenantAUser as any, '127.0.0.1'),
+    ).rejects.toThrow(ForbiddenException);
   });
 });
 
@@ -190,8 +224,8 @@ describe('Tenant Isolation — Media Service', () => {
     service = new MediaService(mockPrisma as any, mockConfigService as any, mockRedis as any);
   });
 
-  // ── CRITICAL: media delete has NO tenant check ──────────────────────
-  it('[SECURITY-CRITICAL] media delete() has no tenant ownership check — IDOR risk', async () => {
+  // ── BUG-006 (IDOR Fix): media delete() verifies tenant ownership ──────────────────────
+  it('[SECURITY] media delete() blocks cross-tenant deletion for scoped users', async () => {
     // Asset belongs to Tenant A
     const tenantAAsset = {
       id: 'media-asset-tenant-a',
@@ -203,12 +237,19 @@ describe('Tenant Isolation — Media Service', () => {
     mockPrisma.mediaAsset.update.mockResolvedValue({});
     mockPrisma.systemAuditLog.create.mockResolvedValue({});
 
-    // Tenant B admin deletes Tenant A's media — no ownership check
-    const tenantBAdmin = { id: 'user-b', name: 'Tenant B Admin', roles: ['Super Admin'], roleAssignments: [] };
-    const result = await service.delete('media-asset-tenant-a', tenantBAdmin as any, '127.0.0.1');
+    // Tenant B user cannot delete Tenant A's media
+    await expect(service.delete('media-asset-tenant-a', tenantBUser as any, '127.0.0.1'))
+      .rejects.toThrow(ForbiddenException);
 
+    // Global Super Admin CAN delete
+    const globalAdmin = {
+      id: 'admin-1',
+      name: 'Super Admin',
+      roles: ['Super Admin'],
+      roleAssignments: [{ role: 'Super Admin', websiteId: null, isGlobal: true }],
+    };
+    const result = await service.delete('media-asset-tenant-a', globalAdmin as any, '127.0.0.1');
     expect(result.success).toBe(true);
-    // FLAG: IDOR VULNERABILITY — media deletion is not tenant-scoped
   });
 
   // ── Media findAll() with websiteId filter ──────────────────────────
@@ -226,18 +267,40 @@ describe('Tenant Isolation — Media Service', () => {
   });
 });
 
-// ─── 3. API Key Guard Tenant Isolation ──────────────────────────────────────
+// ─── 3. Public API Controller Tenant Isolation ──────────────────────────────
 
 describe('Tenant Isolation — Public API ?websiteId parameter manipulation', () => {
-  // These tests verify that the ?websiteId query param used in the public API
-  // to override tenant can't be used to bypass tenant isolation
-  it('[SECURITY] websiteId query param bypass — categories can be overridden in public API controller', () => {
-    // In public-v1.controller.ts, getCategories() uses:
-    //   const targetSiteId = queryWebsiteId || req.tenant?.id;
-    // This allows caller to override tenant by passing ?websiteId=<any-tenant>
-    // This is a potential information disclosure — any tenant's categories accessible
-    // FLAG: SECURITY CONCERN — ?websiteId parameter in public API allows cross-tenant category access
-    // The guard sets req.tenant from the API key, but then it's overridable
-    expect(true).toBe(true); // Documenting finding, not blocking (this is by design for public read)
+  it('[SECURITY] getCategories throws ForbiddenException when queryWebsiteId does not match authenticated tenant', async () => {
+    const { PublicV1Controller } = await import('../modules/public-v1/public-v1.controller');
+    const mockPublicService = {
+      getCategories: jest.fn().mockResolvedValue({ success: true, data: [] }),
+      getTags: jest.fn().mockResolvedValue({ success: true, data: [] }),
+    };
+    const controller = new PublicV1Controller(mockPublicService as any);
+
+    const req = { tenant: { id: 'site-tenant-a', name: 'Site A' } };
+
+    // Same tenant passes
+    await expect(controller.getCategories(req, 'site-tenant-a')).resolves.toBeDefined();
+
+    // Mismatched tenant is blocked
+    await expect(controller.getCategories(req, 'site-tenant-b')).rejects.toThrow(ForbiddenException);
+  });
+
+  it('[SECURITY] getTags throws ForbiddenException when queryWebsiteId does not match authenticated tenant', async () => {
+    const { PublicV1Controller } = await import('../modules/public-v1/public-v1.controller');
+    const mockPublicService = {
+      getCategories: jest.fn().mockResolvedValue({ success: true, data: [] }),
+      getTags: jest.fn().mockResolvedValue({ success: true, data: [] }),
+    };
+    const controller = new PublicV1Controller(mockPublicService as any);
+
+    const req = { tenant: { id: 'site-tenant-a', name: 'Site A' } };
+
+    // Same tenant passes
+    await expect(controller.getTags(req, 'site-tenant-a')).resolves.toBeDefined();
+
+    // Mismatched tenant is blocked
+    await expect(controller.getTags(req, 'site-tenant-b')).rejects.toThrow(ForbiddenException);
   });
 });

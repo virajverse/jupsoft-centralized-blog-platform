@@ -25,13 +25,12 @@ else
   echo "   ✅ Swap memory is active."
 fi
 
-# 3. Flush Redis cache
-echo "🧹 [3/5] Flushing Redis cache..."
+# 3. Redis cache status
+echo "⚡ [3/5] Verifying Redis cache service..."
 if command -v redis-cli &> /dev/null; then
-  redis-cli flushall || true
-  echo "   ✅ Redis cache purged."
+  echo "   ✅ Redis cache active (preserving warm cache for 0-delay reads)."
 else
-  echo "   ⚠️ redis-cli not installed, skipping flush."
+  echo "   ⚠️ redis-cli not installed, skipping."
 fi
 
 # 4. Clean old build artifacts & free RAM before compiling

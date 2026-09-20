@@ -3,7 +3,7 @@
  * Tests: Tenant resolution, missing credentials, invalid keys, JWT bypass, parameter injection
  */
 import { ApiKeyGuard } from '../common/guards/api-key.guard';
-import { UnauthorizedException } from '@nestjs/common';
+import { UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { ExecutionContext } from '@nestjs/common';
 
 const mockPrisma = {
@@ -14,9 +14,10 @@ const mockPrisma = {
 };
 
 function makeContext(headers: any = {}, query: any = {}): ExecutionContext {
+  const req = { headers, query };
   return {
     switchToHttp: () => ({
-      getRequest: () => ({ headers, query }),
+      getRequest: () => req,
     }),
   } as any;
 }
@@ -90,12 +91,12 @@ describe('ApiKeyGuard', () => {
     await expect(guard.canActivate(ctx)).rejects.toThrow('deactivated');
   });
 
-  // ── 11.7: Public ?website= parameter resolves tenant ─────────────────
-  it('should resolve tenant by ?website= query parameter', async () => {
+  // ── 11.7: Public ?website= parameter resolves tenant for registered origin ───
+  it('should resolve tenant by ?website= query parameter from registered domain origin', async () => {
     const website = { id: 'site-1', domain: 'jupsoft.com', name: 'Jupsoft', status: 'active' };
     mockPrisma.website.findFirst.mockResolvedValue(website);
 
-    const ctx = makeContext({}, { website: 'jupsoft' });
+    const ctx = makeContext({ origin: 'https://jupsoft.com' }, { website: 'jupsoft' });
     const request = ctx.switchToHttp().getRequest();
     const result = await guard.canActivate(ctx);
 
@@ -104,11 +105,28 @@ describe('ApiKeyGuard', () => {
     expect(request.tenant.id).toBe('site-1');
   });
 
+  it('should reject direct browser navigation via ?website= without API key or registered origin', async () => {
+    const website = { id: 'site-1', domain: 'jupsoft.com', name: 'Jupsoft', status: 'active' };
+    mockPrisma.website.findFirst.mockResolvedValue(website);
+
+    // Direct browser navigation has no origin/referer and no API key
+    const ctx = makeContext({}, { website: 'jupsoft' });
+    await expect(guard.canActivate(ctx)).rejects.toThrow('Direct browser access denied');
+  });
+
+  it('should reject request when origin does not match registered website domain', async () => {
+    const website = { id: 'site-1', domain: 'jupsoft.com', name: 'Jupsoft', status: 'active' };
+    mockPrisma.website.findFirst.mockResolvedValue(website);
+
+    const ctx = makeContext({ origin: 'https://attacker.com' }, { website: 'jupsoft' });
+    await expect(guard.canActivate(ctx)).rejects.toThrow('Direct browser access denied');
+  });
+
   // ── 11.8: Unknown ?website= → UnauthorizedException ──────────────────
   it('should throw for unknown ?website= parameter', async () => {
     mockPrisma.website.findFirst.mockResolvedValue(null);
 
-    const ctx = makeContext({}, { website: 'nonexistent-site' });
+    const ctx = makeContext({ origin: 'https://jupsoft.com' }, { website: 'nonexistent-site' });
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
   });
 
@@ -149,5 +167,43 @@ describe('ApiKeyGuard', () => {
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
     // Query was made — Prisma parametrized it safely
     expect(mockPrisma.website.findFirst).toHaveBeenCalled();
+  });
+
+  // ── 11.13: STRICT TENANT ISOLATION: Cross-tenant query by API key is FORBIDDEN ─────
+  it('[SECURITY] API key for site-1 CANNOT query site-2 via ?website= parameter', async () => {
+    const website1 = { id: 'site-1', apiKey: 'valid-api-key-1', status: 'active', name: 'Site One', domain: 'siteone.com' };
+    mockPrisma.website.findUnique.mockResolvedValue(website1);
+
+    const ctx = makeContext({ 'x-api-key': 'valid-api-key-1' }, { website: 'site-2' });
+    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('[SECURITY] API key for site-1 CANNOT query site-2 via ?websiteId= parameter', async () => {
+    const website1 = { id: 'site-1', apiKey: 'valid-api-key-1', status: 'active', name: 'Site One', domain: 'siteone.com' };
+    mockPrisma.website.findUnique.mockResolvedValue(website1);
+
+    const ctx = makeContext({ 'x-api-key': 'valid-api-key-1' }, { websiteId: 'site-2' });
+    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('[SECURITY] API key for site-1 CANNOT query site-2 via x-website-id header', async () => {
+    const website1 = { id: 'site-1', apiKey: 'valid-api-key-1', status: 'active', name: 'Site One', domain: 'siteone.com' };
+    mockPrisma.website.findUnique.mockResolvedValue(website1);
+
+    const ctx = makeContext({ 'x-api-key': 'valid-api-key-1', 'x-website-id': 'site-2' }, {});
+    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('[SECURITY] API key for site-1 CANNOT query "all" websites', async () => {
+    const website1 = { id: 'site-1', apiKey: 'valid-api-key-1', status: 'active', name: 'Site One', domain: 'siteone.com' };
+    mockPrisma.website.findUnique.mockResolvedValue(website1);
+
+    const ctx = makeContext({ 'x-api-key': 'valid-api-key-1' }, { website: 'all' });
+    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('[SECURITY] Unauthenticated request with ?website=all is blocked', async () => {
+    const ctx = makeContext({}, { website: 'all' });
+    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
   });
 });

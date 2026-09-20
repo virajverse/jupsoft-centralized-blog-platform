@@ -30,11 +30,22 @@ const mockPrisma = {
 const mockWebhook = { dispatchWebhook: jest.fn().mockResolvedValue(undefined) };
 const mockRedis = { get: jest.fn(() => null), set: jest.fn(), delPattern: jest.fn() };
 const mockEmail = { sendWorkflowNotification: jest.fn() };
-const mockSupabase = { syncBlog: jest.fn(), deleteBlog: jest.fn() };
+const mockSupabase = {
+  syncBlog: jest.fn().mockResolvedValue(undefined),
+  deleteBlog: jest.fn().mockResolvedValue(undefined),
+};
 
-const makeUser = (roles: string[]) => ({
-  id: 'author-uuid', email: 'writer@test.com', name: 'Test Writer', avatar: '',
-  roles, roleAssignments: [],
+const makeUser = (roles: string[], websiteId: string = 'site-1', name?: string) => ({
+  id: 'author-uuid',
+  email: 'writer@test.com',
+  name: name || roles[0] || 'Test Writer',
+  avatar: '',
+  roles,
+  roleAssignments: roles.map((r) => ({
+    role: r,
+    websiteId: r === 'Super Admin' ? null : websiteId,
+    isGlobal: r === 'Super Admin',
+  })),
 });
 
 const makeBlog = (status: string, websiteId = 'site-1') => ({
