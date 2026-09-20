@@ -847,7 +847,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   const isRTL = currentLang === 'ar';
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col bg-white dark:bg-[#070b14] relative">
+    <div className="h-full w-full flex flex-col bg-white dark:bg-[#070b14] relative overflow-hidden">
       {/* Studio Header Bar (48px) */}
       <header className="h-12 bg-white dark:bg-[#0c1322] border-b border-slate-200 dark:border-slate-800 px-3 sm:px-5 flex items-center justify-between shrink-0 gap-2 z-30">
         {/* Left: Back to blogs & website scope */}
@@ -992,15 +992,15 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       </header>
 
       {/* Main Studio Area */}
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="flex-1 min-h-0 flex overflow-hidden relative">
         {/* Modern Elevated Document Studio Canvas */}
-        <main className="flex-1 overflow-y-auto bg-slate-100/75 dark:bg-[#070b14] py-6 sm:py-10 px-3 sm:px-6 flex justify-center">
+        <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-slate-100/75 dark:bg-[#070b14] py-6 sm:py-10 px-3 sm:px-8 flex justify-center items-start focus:outline-none" tabIndex={-1}>
           {/* Elevated Document Sheet (Paper Canvas) */}
-          <div className="w-full max-w-4xl bg-white dark:bg-[#0f172a] border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-sm min-h-[88vh] flex flex-col overflow-hidden transition-all">
+          <div className="w-full max-w-6xl xl:max-w-7xl bg-white dark:bg-[#0f172a] border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-sm min-h-[88vh] flex flex-col transition-all mb-12">
             
             {/* Docked Editor Toolbar at Top of Document Sheet */}
             {editor && (
-              <div className="sticky top-0 z-20 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-4 sm:px-6 py-2 flex items-center justify-between gap-3 shadow-2xs">
+              <div className="sticky top-0 z-30 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3 shadow-2xs rounded-t-2xl">
                 {/* Left: Complete Professional Toolbar Controls */}
                 <div className="flex flex-wrap items-center gap-1">
                   {/* Style / Heading Group */}
@@ -1315,7 +1315,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
               {/* Featured Cover Photo */}
               {featuredImage ? (
-                <div className="relative group rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 aspect-21/9 max-h-[320px] shadow-xs">
+                <div className="relative group rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 aspect-21/9 max-h-[380px] shadow-xs">
                   <img
                     src={resolveMediaUrl(featuredImage)}
                     alt={featuredImageAlt || 'Cover'}
@@ -1548,7 +1548,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
             </div>
 
             {/* Document Bottom Status & Health Bar */}
-            <div className="px-6 sm:px-12 py-3 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/60 dark:bg-[#0b1120] flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 shrink-0">
+            <div className="px-6 sm:px-12 py-3 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/60 dark:bg-[#0b1120] flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 shrink-0 rounded-b-2xl">
               <div className="flex items-center gap-4">
                 <span className="flex items-center gap-1.5 font-medium">
                   <Clock className="w-3.5 h-3.5 text-slate-400" />

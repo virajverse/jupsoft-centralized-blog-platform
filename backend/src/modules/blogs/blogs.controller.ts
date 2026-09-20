@@ -42,8 +42,8 @@ export class BlogsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get full blog detail by ID' })
-  async findOne(@Param('id') id: string) {
-    return this.blogsService.findOne(id);
+  async findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.blogsService.findOne(id, user);
   }
 
   @Post()

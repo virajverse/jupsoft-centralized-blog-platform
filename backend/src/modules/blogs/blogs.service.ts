@@ -159,7 +159,32 @@ export class BlogsService {
     return result;
   }
 
-  async findOne(id: string) {
+  /**
+   * Helper: returns true if user is globally privileged (can access any tenant).
+   */
+  private isGlobalAdmin(user: AuthenticatedUser): boolean {
+    if (user.roles.includes('Super Admin')) return true;
+    return user.roleAssignments.some((ra) => ra.isGlobal && ra.role === 'Website Admin');
+  }
+
+  /**
+   * Helper: asserts the blog belongs to the caller's website.
+   * Super Admins and global Website Admins bypass the check.
+   * Throws ForbiddenException if tenant mismatch.
+   */
+  private assertBlogOwnership(blog: { id: string; websiteId: string }, user: AuthenticatedUser): void {
+    if (this.isGlobalAdmin(user)) return;
+    const userWebsiteIds = user.roleAssignments
+      .filter((ra) => ra.websiteId)
+      .map((ra) => ra.websiteId);
+    if (!userWebsiteIds.includes(blog.websiteId)) {
+      throw new ForbiddenException(
+        `Access denied: blog "${blog.id}" does not belong to your website.`,
+      );
+    }
+  }
+
+  async findOne(id: string, caller?: AuthenticatedUser) {
     const blog = await this.prisma.blog.findUnique({
       where: { id },
       include: {
@@ -171,6 +196,10 @@ export class BlogsService {
 
     if (!blog) {
       throw new NotFoundException(`Blog with ID "${id}" not found`);
+    }
+
+    if (caller) {
+      this.assertBlogOwnership({ id, websiteId: blog.websiteId }, caller);
     }
 
     return {
@@ -340,6 +369,9 @@ export class BlogsService {
     if (!existing) {
       throw new NotFoundException(`Blog with ID "${id}" not found`);
     }
+
+    // Security: verify the caller owns this blog's tenant (BUG-002 fix)
+    this.assertBlogOwnership({ id, websiteId: existing.websiteId }, user);
 
     // Execute atomic update transaction across blog, redirects, taxonomies, and translations
     await this.prisma.$transaction(async (tx) => {
@@ -543,6 +575,9 @@ export class BlogsService {
       throw new NotFoundException(`Blog with ID "${id}" not found`);
     }
 
+    // Security: verify the caller owns this blog's tenant (BUG-003-svc fix)
+    this.assertBlogOwnership({ id, websiteId: blog.websiteId }, user);
+
     const previousStatus = blog.status;
     const newStatus = dto.status;
 
@@ -652,6 +687,9 @@ export class BlogsService {
     if (!blog) {
       throw new NotFoundException(`Blog with ID "${id}" not found`);
     }
+
+    // Security: verify the caller owns this blog's tenant (BUG-003 fix)
+    this.assertBlogOwnership({ id, websiteId: blog.websiteId }, user);
 
     await this.prisma.blog.delete({ where: { id } });
 

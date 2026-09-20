@@ -113,6 +113,45 @@ export class WebhookDispatcherService {
   }
 
   /**
+   * BUG-004 (SSRF fix): validates that the webhook URL does not point to a private/internal network address.
+   * Blocks loopback, link-local (AWS metadata), RFC-1918 ranges, and non-http(s) schemes.
+   */
+  private assertNotInternalUrl(url: string): void {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      throw new BadRequestException('Invalid webhook URL format.');
+    }
+
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new BadRequestException('Webhook URL must start with http:// or https://');
+    }
+
+    const hostname = parsed.hostname.toLowerCase();
+
+    // Reject localhost and loopback
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+      throw new BadRequestException('Webhook URL cannot target localhost or loopback addresses.');
+    }
+
+    // Reject AWS EC2 metadata endpoint and other link-local
+    if (hostname.startsWith('169.254.')) {
+      throw new BadRequestException('Webhook URL cannot target link-local (169.254.x.x) addresses.');
+    }
+
+    // Reject RFC-1918 private ranges
+    const privateRanges = [
+      /^10\.\d+\.\d+\.\d+$/,
+      /^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/,
+      /^192\.168\.\d+\.\d+$/,
+    ];
+    if (privateRanges.some((re) => re.test(hostname))) {
+      throw new BadRequestException('Webhook URL cannot target private network addresses.');
+    }
+  }
+
+  /**
    * Dispatches webhooks to all active endpoints subscribed to the given event.
    */
   async dispatchWebhook(websiteId: string, event: WebhookPayload['event'], slug: string) {
@@ -165,12 +204,11 @@ export class WebhookDispatcherService {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'x-signature': `sha256=${signature}`,
-              'x-timestamp': String(payload.timestamp),
+              'x-signature': `sha256=${signature}`, // HMAC-SHA256 — consuming side verifies this
+              'x-timestamp': String(payload.timestamp), // TRD §15: replay protection
               'x-event': event,
-              'x-cms-webhook-secret': secret,
-              'Authorization': `Bearer ${secret}`,
               'User-Agent': 'Jupsoft-CMS-Webhook/1.0',
+              // BUG-005 fix: raw secret MUST NOT be transmitted in headers
             },
             body: payloadString,
             signal: AbortSignal.timeout(10000),
@@ -280,8 +318,6 @@ export class WebhookDispatcherService {
           'Content-Type': 'application/json',
           'x-signature': `sha256=${signature}`,
           'x-timestamp': String(payload.timestamp),
-          'x-cms-webhook-secret': secret,
-          'Authorization': `Bearer ${secret}`,
           'User-Agent': 'Jupsoft-CMS-Webhook-Tester/1.0',
         },
         body: payloadString,

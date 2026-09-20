@@ -12,7 +12,7 @@
  * TRD §10 S3 Layout: s3://<bucket>/blogs/<website>/<yyyy>/<mm>/<file>
  */
 
-import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisProvider } from '../../common/providers/redis.provider';
@@ -378,6 +378,21 @@ export class MediaService {
   async delete(id: string, user: AuthenticatedUser, ipAddress?: string) {
     const asset = await this.prisma.mediaAsset.findUnique({ where: { id } });
     if (!asset) throw new NotFoundException(`Media asset "${id}" not found`);
+
+    // Security: verify caller owns this asset's tenant (BUG-006 fix)
+    const isGlobalAdmin =
+      user.roles.includes('Super Admin') ||
+      user.roleAssignments.some((ra) => ra.isGlobal && ra.role === 'Website Admin');
+    if (!isGlobalAdmin) {
+      const userWebsiteIds = user.roleAssignments
+        .filter((ra) => ra.websiteId)
+        .map((ra) => ra.websiteId);
+      if (!userWebsiteIds.includes(asset.websiteId)) {
+        throw new ForbiddenException(
+          `Access denied: media asset "${id}" does not belong to your website.`,
+        );
+      }
+    }
 
     // Soft-delete: set deletedAt timestamp instead of hard-deleting the row
     await this.prisma.mediaAsset.update({ where: { id }, data: { deletedAt: new Date() } });

@@ -92,6 +92,9 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
+    "transformIgnorePatterns": [
+      "/node_modules/(?!(sanitize-html|htmlparser2|domhandler|dom-serializer|entities|parse5|css-what|nth-check|css-select|boolbase|domelementtype)/)"
+    ],
     "collectCoverageFrom": [
       "**/*.(t|j)s",
       "!**/*.spec.(t|j)s",
