@@ -1,10 +1,5 @@
-import { PluginManagerView } from '../../../components/plugins/PluginManagerView';
-
-export const metadata = {
-  title: 'Plugins & Modular Functions | Jupsoft CMS',
-  description: 'Centralized admin authority to toggle platform modules and manage custom plugins',
-};
+import { redirect } from 'next/navigation';
 
 export default function PluginsPage() {
-  return <PluginManagerView />;
+  redirect('/users?tab=matrix');
 }

@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useQueryState } from '../../hooks/useQueryState';
 import { UserAccount, UserRole, Website } from '../../types';
-import { getAllowedInviteRoles, canManageUsers, isGlobalScopeRole, cleanAvatarUrl } from '../../utils/permissions';
+import { getAllowedInviteRoles, canManageUsers, isGlobalScopeRole, cleanAvatarUrl, canAccessModule, AppModule } from '../../utils/permissions';
 import { 
   Users, 
   ShieldCheck, 
@@ -33,8 +33,32 @@ import {
   RefreshCw,
   Eye,
   EyeOff,
-  Send
+  Send,
+  Boxes,
+  FileText,
+  Kanban,
+  Image as ImageIcon,
+  Tags,
+  ArrowRightLeft,
+  BarChart3,
+  Settings
 } from 'lucide-react';
+
+export const PLUGIN_MODULES: {
+  id: AppModule;
+  name: string;
+  desc: string;
+  icon: React.ComponentType<{ className?: string }>;
+}[] = [
+  { id: 'blogs', name: 'Blog Studio', desc: 'Writing, editing & translations', icon: FileText },
+  { id: 'workflow', name: 'Workflow Kanban', desc: 'Review & approval pipeline', icon: Kanban },
+  { id: 'media', name: 'Media Library', desc: 'Uploads & WebP compression', icon: ImageIcon },
+  { id: 'taxonomy', name: 'Taxonomy & Tags', desc: 'Categories & hashtag tagging', icon: Tags },
+  { id: 'redirects', name: '301 Redirects', desc: 'Permanent URL migration rules', icon: ArrowRightLeft },
+  { id: 'analytics', name: 'Analytics Hub', desc: 'Traffic & author performance', icon: BarChart3 },
+  { id: 'users', name: 'Team & RBAC', desc: 'User management & permissions', icon: Users },
+  { id: 'settings', name: 'Tenant Settings', desc: 'API keys, webhooks & site settings', icon: Settings },
+];
 
 export const DELEGATABLE_ROLES: { role: UserRole; label: string; desc: string }[] = [
   { role: 'Editor', label: 'Editor', desc: 'Reviews drafts, requests revisions & approves' },
@@ -1331,6 +1355,57 @@ _Please log in and update your password on your first sign-in._`;
                 </select>
               </div>
 
+              {/* Plugin & Module Capabilities for Selected Role */}
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
+                    <Boxes className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                    <span>Plugins &amp; Module Access for &ldquo;{inviteRole}&rdquo;</span>
+                  </label>
+                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                    {PLUGIN_MODULES.filter((m) => canAccessModule(inviteRole, m.id)).length} of {PLUGIN_MODULES.length} Active
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                  {PLUGIN_MODULES.map((mod) => {
+                    const isAllowed = canAccessModule(inviteRole, mod.id);
+                    const ModIcon = mod.icon;
+                    return (
+                      <div
+                        key={mod.id}
+                        className={`flex items-center gap-2 p-2 rounded-lg border text-xs transition-colors ${
+                          isAllowed
+                            ? 'bg-white dark:bg-slate-900 border-emerald-300 dark:border-emerald-800/80 text-slate-900 dark:text-white shadow-2xs'
+                            : 'bg-slate-100/50 dark:bg-slate-900/20 border-slate-200/50 dark:border-slate-800/50 text-slate-400 dark:text-slate-500 opacity-60'
+                        }`}
+                      >
+                        <div className={`p-1 rounded-md shrink-0 ${
+                          isAllowed 
+                            ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400' 
+                            : 'bg-slate-200/60 dark:bg-slate-800 text-slate-400'
+                        }`}>
+                          <ModIcon className="w-3 h-3" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold truncate text-[11px] leading-tight">{mod.name}</div>
+                          <div className="text-[9px] text-slate-400 truncate leading-tight">{mod.desc}</div>
+                        </div>
+                        {isAllowed ? (
+                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider shrink-0">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="text-[9px] text-slate-400 uppercase tracking-wider shrink-0">
+                            Locked
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Role Admin Managed Roles Scope */}
               {inviteRole === 'Role Admin' && (
                 <div className="p-3.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/60 space-y-2.5 animate-in fade-in duration-150">
@@ -1576,6 +1651,57 @@ _Please log in and update your password on your first sign-in._`;
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Plugin & Module Capabilities for Selected Role */}
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
+                    <Boxes className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                    <span>Plugins &amp; Module Access for &ldquo;{editRole}&rdquo;</span>
+                  </label>
+                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                    {PLUGIN_MODULES.filter((m) => canAccessModule(editRole, m.id)).length} of {PLUGIN_MODULES.length} Active
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                  {PLUGIN_MODULES.map((mod) => {
+                    const isAllowed = canAccessModule(editRole, mod.id);
+                    const ModIcon = mod.icon;
+                    return (
+                      <div
+                        key={mod.id}
+                        className={`flex items-center gap-2 p-2 rounded-lg border text-xs transition-colors ${
+                          isAllowed
+                            ? 'bg-white dark:bg-slate-900 border-emerald-300 dark:border-emerald-800/80 text-slate-900 dark:text-white shadow-2xs'
+                            : 'bg-slate-100/50 dark:bg-slate-900/20 border-slate-200/50 dark:border-slate-800/50 text-slate-400 dark:text-slate-500 opacity-60'
+                        }`}
+                      >
+                        <div className={`p-1 rounded-md shrink-0 ${
+                          isAllowed 
+                            ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400' 
+                            : 'bg-slate-200/60 dark:bg-slate-800 text-slate-400'
+                        }`}>
+                          <ModIcon className="w-3 h-3" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold truncate text-[11px] leading-tight">{mod.name}</div>
+                          <div className="text-[9px] text-slate-400 truncate leading-tight">{mod.desc}</div>
+                        </div>
+                        {isAllowed ? (
+                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider shrink-0">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="text-[9px] text-slate-400 uppercase tracking-wider shrink-0">
+                            Locked
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Role Admin Managed Roles Scope in Edit Modal */}

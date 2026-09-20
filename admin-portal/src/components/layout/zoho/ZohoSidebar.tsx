@@ -152,15 +152,6 @@ export const ZohoSidebar: React.FC = () => {
       icon: Settings,
       isActive: pathname === '/settings',
     },
-    {
-      href: `/plugins${siteQuery}`,
-      basePath: '/plugins',
-      module: 'plugins',
-      shortLabel: 'Plugins',
-      fullLabel: 'Plugins & Modules',
-      icon: Boxes,
-      isActive: pathname === '/plugins',
-    },
   ];
 
   const visibleNavItems = navItems.filter((item) => {
