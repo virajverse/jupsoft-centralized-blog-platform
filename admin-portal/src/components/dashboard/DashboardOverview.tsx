@@ -15,8 +15,10 @@ export const DashboardOverview: React.FC = () => {
   } = useBlogStore();
 
   useEffect(() => {
-    // Populate all blogs on mount for metrics & connected tenants counts
-    fetchBlogs('all');
+    // Only fetch if store is empty — avoids 100-blog re-fetch on every dashboard visit
+    if (blogs.length === 0) {
+      fetchBlogs('all');
+    }
   }, [fetchBlogs]);
 
   const isAllSites = activeWebsiteId === 'all';

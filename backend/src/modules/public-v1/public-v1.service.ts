@@ -12,13 +12,14 @@
  *           This absorbs traffic spikes and keeps response times under ~300ms."
  */
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisProvider } from '../../common/providers/redis.provider';
 
 @Injectable()
 export class PublicV1Service {
+  private readonly logger = new Logger(PublicV1Service.name);
   private mediaBaseUrl: string;
 
   constructor(
@@ -62,9 +63,9 @@ export class PublicV1Service {
   }
 
   cleanAuthorName(name?: string | null): string {
-    if (!name) return 'DigifyNext Team';
+    if (!name) return 'Staff Writer';
     const cleaned = name.replace(/\s*\([^)]*(?:admin|editor|author|superadmin|user)[^)]*\)/gi, '').trim();
-    return cleaned || 'DigifyNext Team';
+    return cleaned || 'Staff Writer';
   }
 
   // ─── TRD §13: key format blogs:{website}:{page}:{lang}[:{category}][:{tag}]
@@ -206,7 +207,10 @@ export class PublicV1Service {
           where: { id: { in: b.categoryIds } },
           select: { id: true, name: true, slug: true },
         });
-      } catch (e) {}
+      } catch (e: any) {
+        // Non-blocking fallback: log but never throw — blog is still served without categories
+        this.logger.warn(`[formatBlogDetail] Category fallback query failed for blog ${b.id}: ${e.message}`);
+      }
     }
 
     let tags = (b.blogTags || []).map((bt: any) => bt.tag).filter(Boolean);
@@ -216,7 +220,10 @@ export class PublicV1Service {
           where: { id: { in: b.tagIds } },
           select: { id: true, name: true, slug: true },
         });
-      } catch (e) {}
+      } catch (e: any) {
+        // Non-blocking fallback: log but never throw — blog is still served without tags
+        this.logger.warn(`[formatBlogDetail] Tag fallback query failed for blog ${b.id}: ${e.message}`);
+      }
     }
 
     return {

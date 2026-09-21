@@ -42,11 +42,16 @@ export class WebhookRetryService {
       this.configService.get<string>('WEBHOOK_DEFAULT_SECRET') ||
       'wh_sec_jupsoft_default_revalidate_2026';
 
+    // Batch-fetch all unique websites to eliminate N+1 DB queries
+    const uniqueWebsiteIds = [...new Set(failedWebhooks.map((w) => w.websiteId))];
+    const websiteRecords = await this.prisma.website.findMany({
+      where: { id: { in: uniqueWebsiteIds } },
+    });
+    const websiteMap = new Map(websiteRecords.map((w) => [w.id, w]));
+
     for (const wh of failedWebhooks) {
       try {
-        const website = await this.prisma.website.findUnique({
-          where: { id: wh.websiteId },
-        });
+        const website = websiteMap.get(wh.websiteId);
 
         const domain = website?.domain || wh.websiteId;
         let secret = defaultSecret;
@@ -84,11 +89,9 @@ export class WebhookRetryService {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-signature': `sha256=${signature}`,
+            'x-signature': `sha256=${signature}`, // HMAC-SHA256 only — raw secret MUST NOT be transmitted
             'x-timestamp': String(payload.timestamp),
             'x-event': wh.event,
-            'x-cms-webhook-secret': secret,
-            'Authorization': `Bearer ${secret}`,
             'User-Agent': 'Jupsoft-CMS-Webhook-Retry/1.0',
           },
           body: payloadString,

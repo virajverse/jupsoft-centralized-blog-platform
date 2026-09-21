@@ -155,8 +155,8 @@ export const ZohoSidebar: React.FC = () => {
   ];
 
   const visibleNavItems = navItems.filter((item) => {
-    // 1. Role-based capability check
-    if (!canAccessModule(activeRole, item.module)) return false;
+    // 1. Role-based capability check (respects individual custom unlocked modules)
+    if (!canAccessModule(activeRole, item.module, currentUser?.customModules)) return false;
     // 2. Admin modular toggle check (Plugins module is always visible to authorized admins to prevent lockout)
     if (item.module === 'plugins') return true;
     const modConfig = modules?.find((m) => m.id === item.module);

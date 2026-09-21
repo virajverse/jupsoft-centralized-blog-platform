@@ -186,10 +186,12 @@ export class RedisProvider implements OnModuleDestroy {
       }
     }
 
-    // 2. Delete from Redis L2 using SCAN
+    // 2. Delete from Redis L2 using SCAN with a safety iteration cap
     if (this.client && this.isConnected) {
       try {
         let cursor = '0';
+        let iterations = 0;
+        const MAX_SCAN_ITERATIONS = 200; // Safety cap: prevent infinite loop on huge keyspaces
         do {
           const [nextCursor, keys] = await this.client.scan(
             cursor,
@@ -201,6 +203,11 @@ export class RedisProvider implements OnModuleDestroy {
           cursor = nextCursor;
           if (keys.length > 0) {
             await this.client.del(...keys);
+          }
+          iterations++;
+          if (iterations >= MAX_SCAN_ITERATIONS) {
+            this.logger.warn(`[RedisProvider] delPattern("${pattern}") hit SCAN iteration cap (${MAX_SCAN_ITERATIONS}). Some keys may not be cleared.`);
+            break;
           }
         } while (cursor !== '0');
       } catch (err) {}

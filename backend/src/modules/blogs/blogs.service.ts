@@ -385,8 +385,10 @@ export class BlogsService {
       }
     }
 
-    // Mirror to Supabase Cloud Backup (non-blocking)
-    this.supabaseSync.syncBlog(blog.id).catch(() => {});
+    // Mirror to Supabase Cloud Backup (non-blocking — failure is logged but never throws)
+    this.supabaseSync.syncBlog(blog.id).catch((err: Error) => {
+      this.logger.error(`[Mirror] syncBlog failed for new blog ${blog.id}: ${err.message}`);
+    });
 
     // Invalidate admin list caches so new draft appears immediately
     await this.redis.delPattern('admin:blogs:*');
@@ -597,8 +599,10 @@ export class BlogsService {
       }
     }
 
-    // Mirror to Supabase Cloud Backup (non-blocking)
-    this.supabaseSync.syncBlog(id).catch(() => {});
+    // Mirror to Supabase Cloud Backup (non-blocking — failure is logged but never throws)
+    this.supabaseSync.syncBlog(id).catch((err: Error) => {
+      this.logger.error(`[Mirror] syncBlog failed for updated blog ${id}: ${err.message}`);
+    });
 
     return updated;
   }
@@ -730,8 +734,10 @@ export class BlogsService {
     // Invalidate admin blogs cache so new status appears instantly
     await this.redis.delPattern('admin:blogs:*');
 
-    // Mirror to Supabase Cloud Backup (non-blocking)
-    this.supabaseSync.syncBlog(id).catch(() => {});
+    // Mirror to Supabase Cloud Backup (non-blocking — failure is logged but never throws)
+    this.supabaseSync.syncBlog(id).catch((err: Error) => {
+      this.logger.error(`[Mirror] syncBlog failed for transitioned blog ${id}: ${err.message}`);
+    });
 
     return this.findOne(id);
   }

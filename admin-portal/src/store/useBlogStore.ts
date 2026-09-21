@@ -194,7 +194,16 @@ export const useBlogStore = create<BlogState>()(
         try {
           const userList = await apiClient.getUsers();
           if (Array.isArray(userList)) {
-            set({ users: userList });
+            set((state) => {
+              const merged = userList.map((apiUser) => {
+                const existing = state.users.find((u) => u.id === apiUser.id);
+                return {
+                  ...apiUser,
+                  customModules: apiUser.customModules || existing?.customModules,
+                };
+              });
+              return { users: merged };
+            });
           }
         } catch (err) {
           console.warn('apiClient.getUsers failed:', err);
@@ -317,11 +326,13 @@ export const useBlogStore = create<BlogState>()(
               }
             }
             
+            const localUser = get().users.find((u) => u.id === user.id || u.email === user.email);
             const assignedRole = (user.roleAssignments?.[websiteId] || (isSuper ? 'Super Admin' : Object.values(user.roleAssignments || {})[0]) || 'Content Writer') as UserRole;
             set({
               isAuthenticated: true,
               currentUser: {
                 ...user,
+                customModules: user.customModules || localUser?.customModules,
                 avatar: cleanAvatarUrl(user.avatar) || '/uploads/avatars/avatar-default.webp',
               },
               activeWebsiteId: websiteId,
@@ -354,6 +365,15 @@ export const useBlogStore = create<BlogState>()(
         const user = get().currentUser;
         if (user && user.roleAssignments) {
           const isSuper = Object.values(user.roleAssignments).includes('Super Admin');
+          if (!isSuper) {
+            const assignedSites = Object.keys(user.roleAssignments);
+            if (id === 'all' || !user.roleAssignments[id]) {
+              const fallbackSiteId = assignedSites[0] || 'site-cloud';
+              const roleForSite = user.roleAssignments[fallbackSiteId] || get().activeRole;
+              set({ activeWebsiteId: fallbackSiteId, activeRole: roleForSite as UserRole });
+              return;
+            }
+          }
           const roleForSite = user.roleAssignments[id] || (isSuper ? 'Super Admin' : get().activeRole);
           set({ activeWebsiteId: id, activeRole: roleForSite as UserRole });
         } else {
@@ -683,6 +703,7 @@ export const useBlogStore = create<BlogState>()(
           });
           const userWithCredentials = {
             ...created,
+            customModules: user.customModules,
             tempPassword: created.tempPassword || user.tempPassword,
           };
           set((state) => ({
@@ -711,12 +732,14 @@ export const useBlogStore = create<BlogState>()(
           }
           set((state) => ({
             users: state.users.map((u) => (u.id === id ? { ...u, ...updates } : u)),
+            currentUser: state.currentUser?.id === id ? { ...state.currentUser, ...updates } : state.currentUser,
             notification: { message: 'User updated successfully', type: 'success' },
           }));
         } catch (err: unknown) {
           console.warn('API updateUser failed:', err);
           set((state) => ({
             users: state.users.map((u) => (u.id === id ? { ...u, ...updates } : u)),
+            currentUser: state.currentUser?.id === id ? { ...state.currentUser, ...updates } : state.currentUser,
             notification: { message: 'User updated locally', type: 'warning' },
           }));
         }

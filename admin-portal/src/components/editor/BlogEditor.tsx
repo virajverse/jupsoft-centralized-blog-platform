@@ -595,10 +595,16 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   };
 
   // Real Auto-Save: Debounced 2.5 seconds after editing stops
+  // IMPORTANT: Only auto-saves if a real blog ID exists in DB.
+  // New blogs must be explicitly saved first via the Save button to get a real ID.
   useEffect(() => {
     if (!hasUnsavedChanges || isSaving) return;
     const effectiveTitle = activeTrans?.title?.trim() || translations.en?.title?.trim();
     if (!effectiveTitle) return; // Don't auto-save without an article title
+
+    // Safety guard: never auto-save a new blog without a real DB ID — prevents ghost duplicates
+    const realId = existingBlog?.id || targetBlogId;
+    if (!realId) return; // New blog: user must manually click Save first to create the record
 
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
 
@@ -606,7 +612,6 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       try {
         setIsSaving(true);
         const targetSiteId = selectedWebsiteId || (activeWebsiteId !== 'all' ? activeWebsiteId : 'site-cloud');
-        const id = existingBlog?.id || targetBlogId || `blog-${Date.now()}`;
         const currentEditorHtml = editor ? editor.getHTML() : undefined;
         const cleanedTranslations = { ...translations };
         if (currentEditorHtml !== undefined && cleanedTranslations[currentLang]) {
@@ -617,7 +622,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         }
 
         const autoSavedBlog: Blog = {
-          id,
+          id: realId,
           websiteId: targetSiteId,
           authorId: authorMode === 'user' ? selectedAuthorId : 'usr-custom',
           authorName: authorName.trim() || cleanCurrentName,
@@ -811,6 +816,14 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   // Upload image file with automated WebP conversion
   const handleUploadWebpImage = async (file: File) => {
     if (!file) return;
+
+    // Guard: Reject files > 10MB before attempting any upload (server or canvas)
+    const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      showNotification(`File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum allowed size is 10 MB.`, 'warning');
+      return;
+    }
+
     setUploadingImage(true);
     const cleanName = file.name.replace(/\.[^/.]+$/, '') + '.webp';
     const uploadSiteId = selectedWebsiteId || activeWebsiteId || 'site-cloud';
@@ -2214,7 +2227,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                           .filter((u) => u.id !== currentUser?.id)
                           .map((u) => (
                             <option key={u.id} value={u.id}>
-                              {u.name.replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim()} ({u.role})
+                              {u.name.replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim()} ({u.role || Object.values(u.roleAssignments || {})[0] || 'Contributor'})
                             </option>
                           ))}
                       </select>

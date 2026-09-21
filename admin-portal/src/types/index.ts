@@ -152,6 +152,18 @@ export interface RedirectItem {
   createdAt: string;
 }
 
+export type AppModule = 
+  | 'dashboard'
+  | 'blogs'
+  | 'workflow'
+  | 'media'
+  | 'taxonomy'
+  | 'redirects'
+  | 'analytics'
+  | 'users'
+  | 'settings'
+  | 'plugins';
+
 // User Account Contract (TRD Section 5 & 17)
 export interface UserAccount {
   id: string;
@@ -164,9 +176,11 @@ export interface UserAccount {
   managedRoles?: UserRole[];
   // Initial / temporary password for onboarding delivery (via Email or WhatsApp)
   tempPassword?: string;
+  role?: UserRole;
   status: 'active' | 'suspended';
   lastLoginIp: string;
   createdAt: string;
+  customModules?: AppModule[];
 }
 
 // System Audit Log Contract (TRD Section 15 & 17)

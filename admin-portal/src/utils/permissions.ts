@@ -1,16 +1,5 @@
-import { UserRole } from '../types';
-
-export type AppModule = 
-  | 'dashboard'
-  | 'blogs'
-  | 'workflow'
-  | 'media'
-  | 'taxonomy'
-  | 'redirects'
-  | 'analytics'
-  | 'users'
-  | 'settings'
-  | 'plugins';
+import { UserRole, AppModule } from '../types';
+export type { AppModule };
 
 /**
  * Modular Plugin-Type Feature Visibility Matrix
@@ -77,9 +66,37 @@ const ROLE_MODULE_PERMISSIONS: Record<UserRole, AppModule[]> = {
   ],
 };
 
-export function canAccessModule(role: UserRole | string | undefined, module: AppModule): boolean {
+export function getDefaultRoleModules(role: UserRole | string | undefined): AppModule[] {
+  if (!role) return [];
+  if (role === 'Super Admin') {
+    return [
+      'dashboard',
+      'blogs',
+      'workflow',
+      'media',
+      'taxonomy',
+      'redirects',
+      'analytics',
+      'users',
+      'settings',
+      'plugins',
+    ];
+  }
+  return [...(ROLE_MODULE_PERMISSIONS[role as UserRole] || [])];
+}
+
+export function canAccessModule(
+  role: UserRole | string | undefined,
+  module: AppModule,
+  customModules?: AppModule[]
+): boolean {
   if (!role) return false;
   if (role === 'Super Admin') return true;
+  if (module === 'dashboard') return true;
+  // If custom module permissions are explicitly defined for this user, they take precedence
+  if (customModules && Array.isArray(customModules)) {
+    return customModules.includes(module);
+  }
   const allowed = ROLE_MODULE_PERMISSIONS[role as UserRole];
   return allowed ? allowed.includes(module) : false;
 }

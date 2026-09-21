@@ -78,6 +78,9 @@ async function bootstrap() {
   const prisma = app.get(PrismaService);
   let activeTenantDomains = new Set<string>();
   let lastTenantFetch = 0;
+  // Negative CORS cache: track recently-rejected origins to avoid DB hammering by bots/scanners
+  const rejectedOriginsCache = new Map<string, number>(); // origin → rejectedAt timestamp
+  const REJECTED_ORIGIN_TTL_MS = 60_000; // 60 seconds TTL for negative cache
 
   async function getTenantDomains(): Promise<Set<string>> {
     const now = Date.now();
@@ -117,6 +120,12 @@ async function bootstrap() {
       }
 
       const normalizedOrigin = origin.toLowerCase().replace(/\/+$/, '');
+
+      // Fast negative cache check: skip DB query for origins recently rejected (DoS mitigation)
+      const rejectedAt = rejectedOriginsCache.get(normalizedOrigin);
+      if (rejectedAt && Date.now() - rejectedAt < REJECTED_ORIGIN_TTL_MS) {
+        return callback(null, false);
+      }
 
       // 3. Instant check for platform domain (*.jupsoft.com, blogary.jupsoft.com, static origins)
       if (
@@ -170,6 +179,15 @@ async function bootstrap() {
         logger.warn(`Dynamic CORS check error: ${(err as Error).message}`);
       }
 
+      // Rejected: add to negative cache to prevent repeated DB queries for this bad origin
+      rejectedOriginsCache.set(normalizedOrigin, Date.now());
+      // Cleanup old entries periodically (keep map small)
+      if (rejectedOriginsCache.size > 500) {
+        const cutoff = Date.now() - REJECTED_ORIGIN_TTL_MS;
+        for (const [k, v] of rejectedOriginsCache) {
+          if (v < cutoff) rejectedOriginsCache.delete(k);
+        }
+      }
       logger.warn(`CORS rejected origin: ${origin}`);
       return callback(null, false);
     },
@@ -178,12 +196,13 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-signature', 'x-timestamp', 'x-tenant-id', 'X-Tenant-ID', 'Accept'],
   });
 
-  // 3. Global Validation Pipe — FIX 4: forbidNonWhitelisted:true
+  // 3. Global Validation Pipe — whitelist strips unknown fields, forbidNonWhitelisted DISABLED in production
+  // Reason: forbidNonWhitelisted causes 400 on any DTO mismatch (e.g. frontend ahead of backend after deploy)
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,
+      whitelist: true,              // Strip undeclared fields silently (safe)
       transform: true,
-      forbidNonWhitelisted: true,
+      forbidNonWhitelisted: false,  // Do NOT reject requests with extra fields — strip them instead
       transformOptions: { enableImplicitConversion: true },
     }),
   );

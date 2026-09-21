@@ -12,7 +12,7 @@ const emptySubscribe = () => () => {};
 export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated, activeRole, modules } = useBlogStore();
+  const { isAuthenticated, activeRole, modules, currentUser } = useBlogStore();
   const mounted = React.useSyncExternalStore(
     emptySubscribe,
     () => true,
@@ -78,7 +78,7 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
   };
 
   const moduleForPath = getModuleForPath(pathname);
-  if (moduleForPath && !canAccessModule(activeRole, moduleForPath)) {
+  if (moduleForPath && !canAccessModule(activeRole, moduleForPath, currentUser?.customModules)) {
     return (
       <div className="h-full w-full flex flex-col items-center justify-center p-8 text-center space-y-4">
         <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200 dark:border-amber-800 shadow-xs">

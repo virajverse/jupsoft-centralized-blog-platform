@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useQueryState } from '../../hooks/useQueryState';
 import { UserAccount, UserRole, Website } from '../../types';
-import { getAllowedInviteRoles, canManageUsers, isGlobalScopeRole, cleanAvatarUrl, canAccessModule, AppModule } from '../../utils/permissions';
+import { getAllowedInviteRoles, canManageUsers, isGlobalScopeRole, cleanAvatarUrl, canAccessModule, getDefaultRoleModules, AppModule } from '../../utils/permissions';
 import { 
   Users, 
   ShieldCheck, 
@@ -41,7 +41,11 @@ import {
   Tags,
   ArrowRightLeft,
   BarChart3,
-  Settings
+  Settings,
+  Lock,
+  Unlock,
+  Sparkles,
+  RotateCcw
 } from 'lucide-react';
 
 export const PLUGIN_MODULES: {
@@ -238,6 +242,22 @@ _Please log in and update your password on your first sign-in._`;
   const [inviteManagedRoles, setInviteManagedRoles] = useState<UserRole[]>(['Editor', 'Content Writer']);
   const [invitePassword, setInvitePassword] = useState(() => generateStrongPassword());
   const [showInvitePassword, setShowInvitePassword] = useState(false);
+  const [inviteCustomModules, setInviteCustomModules] = useState<AppModule[]>(() => getDefaultRoleModules(allowedRoles[0] || 'Content Writer'));
+
+  const handleInviteRoleChange = (newRole: UserRole) => {
+    setInviteRole(newRole);
+    setInviteCustomModules(getDefaultRoleModules(newRole));
+  };
+
+  const toggleInviteModule = (modId: AppModule) => {
+    setInviteCustomModules((prev) =>
+      prev.includes(modId) ? prev.filter((id) => id !== modId) : [...prev, modId]
+    );
+  };
+
+  const resetInviteModulesToDefault = () => {
+    setInviteCustomModules(getDefaultRoleModules(inviteRole));
+  };
 
   // Edit User Form state
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
@@ -245,6 +265,22 @@ _Please log in and update your password on your first sign-in._`;
   const [editWebsiteId, setEditWebsiteId] = useState<string>(defaultInviteSite);
   const [editManagedRoles, setEditManagedRoles] = useState<UserRole[]>(['Editor', 'Content Writer']);
   const [editStatus, setEditStatus] = useState<'active' | 'suspended'>('active');
+  const [editCustomModules, setEditCustomModules] = useState<AppModule[]>([]);
+
+  const handleEditRoleChange = (newRole: UserRole) => {
+    setEditRole(newRole);
+    setEditCustomModules(getDefaultRoleModules(newRole));
+  };
+
+  const toggleEditModule = (modId: AppModule) => {
+    setEditCustomModules((prev) =>
+      prev.includes(modId) ? prev.filter((id) => id !== modId) : [...prev, modId]
+    );
+  };
+
+  const resetEditModulesToDefault = () => {
+    setEditCustomModules(getDefaultRoleModules(editRole));
+  };
 
   // Share Credentials Modal (WhatsApp / Email / Copy)
   const [shareModalData, setShareModalData] = useState<{ user: UserAccount; website?: Website; tempPassword?: string } | null>(null);
@@ -295,6 +331,11 @@ _Please log in and update your password on your first sign-in._`;
     setEditRole(assigned);
     setEditManagedRoles(u.managedRoles && u.managedRoles.length > 0 ? u.managedRoles : ['Editor', 'Content Writer']);
     setEditStatus(u.status);
+    setEditCustomModules(
+      u.customModules && u.customModules.length > 0
+        ? [...u.customModules]
+        : getDefaultRoleModules(assigned)
+    );
   };
 
   const handleSaveUserEdit = async (e: React.FormEvent) => {
@@ -309,10 +350,11 @@ _Please log in and update your password on your first sign-in._`;
     await updateUser(editingUser.id, {
       roleAssignments: updatedRoles,
       managedRoles: editRole === 'Role Admin' ? (editManagedRoles.length > 0 ? editManagedRoles : (['Editor', 'Content Writer'] as UserRole[])) : undefined,
+      customModules: editCustomModules,
       status: editStatus,
     });
 
-    showNotification(`Updated role for ${editingUser.name} on ${websites.find(w => w.id === editWebsiteId)?.name || 'Tenant'}`, 'success');
+    showNotification(`Updated role and module access for ${editingUser.name}`, 'success');
     setEditingUser(null);
   };
 
@@ -342,6 +384,7 @@ _Please log in and update your password on your first sign-in._`;
         [inviteWebsiteId]: inviteRole,
       },
       managedRoles: assignedManagedRoles,
+      customModules: inviteCustomModules,
       tempPassword: assignedTempPassword,
       status: 'active',
       lastLoginIp: '',
@@ -366,6 +409,7 @@ _Please log in and update your password on your first sign-in._`;
       setInviteEmail('');
       setInvitePassword(generateStrongPassword());
       setInviteManagedRoles(['Editor', 'Content Writer']);
+      setInviteCustomModules(getDefaultRoleModules(allowedRoles[0] || 'Content Writer'));
     } catch {
       // Error notification is handled by store
     }
@@ -913,6 +957,8 @@ _Please log in and update your password on your first sign-in._`;
                               const site = websites.find((w) => w.id === siteId);
                               const siteName = siteId === 'all' ? 'All Sites' : (site?.name || siteId);
                               const isRoleAdmin = role === 'Role Admin';
+                              const defaultMods = getDefaultRoleModules(role);
+                              const customUnlocked = u.customModules?.filter((m) => !defaultMods.includes(m)) || [];
                               return (
                                 <div key={siteId} className="flex flex-col items-start gap-0.5">
                                   <span
@@ -924,6 +970,12 @@ _Please log in and update your password on your first sign-in._`;
                                   {isRoleAdmin && u.managedRoles && u.managedRoles.length > 0 && (
                                     <span className="text-[9px] text-blue-600 dark:text-blue-400 font-medium pl-0.5">
                                       Manages: {u.managedRoles.join(', ')}
+                                    </span>
+                                  )}
+                                  {customUnlocked.length > 0 && (
+                                    <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-indigo-600 dark:text-indigo-400 pl-0.5" title={`Unlocked: ${customUnlocked.join(', ')}`}>
+                                      <Sparkles className="w-2.5 h-2.5" />
+                                      <span>+{customUnlocked.length} unlocked ({customUnlocked.join(', ')})</span>
                                     </span>
                                   )}
                                 </div>
@@ -1272,135 +1324,203 @@ _Please log in and update your password on your first sign-in._`;
       {/* MODAL: INVITE MEMBER                                                  */}
       {/* ===================================================================== */}
       {isInviteOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
-          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <UserPlus className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Invite Organization Member
-                </h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] my-auto animate-in fade-in zoom-in-95 duration-150 overflow-hidden">
+            {/* Sticky Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 shrink-0 bg-white dark:bg-[#0f172a]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                  <UserPlus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Invite Organization Member
+                  </h2>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Configure member account, tenant scope, and custom module access
+                  </p>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setIsInviteOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer text-xs font-bold"
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-xs font-bold"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleInviteSubmit} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Full Name <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Rachel Green"
-                  value={inviteName}
-                  onChange={(e) => setInviteName(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Email Address <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  required
-                  placeholder="rachel@company.com"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Tenant Assignment Scope
-                </label>
-                <select
-                  value={inviteWebsiteId}
-                  onChange={(e) => setInviteWebsiteId(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
-                >
-                  {isSuperAdmin && (
-                    <option value="all">All Websites (Network Wide)</option>
-                  )}
-                  {visibleWebsites.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.name} ({w.domain})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Assigned Role
-                </label>
-                <select
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value as UserRole)}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
-                >
-                  {allowedRoles.map((role) => (
-                    <option key={role} value={role}>
-                      {role}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Plugin & Module Capabilities for Selected Role */}
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <label className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
-                    <Boxes className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                    <span>Plugins &amp; Module Access for &ldquo;{inviteRole}&rdquo;</span>
+            {/* Scrollable Form Body */}
+            <form id="invite-user-form" onSubmit={handleInviteSubmit} className="flex-1 overflow-y-auto p-6 space-y-4.5 custom-scrollbar text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Full Name <span className="text-rose-500">*</span>
                   </label>
-                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                    {PLUGIN_MODULES.filter((m) => canAccessModule(inviteRole, m.id)).length} of {PLUGIN_MODULES.length} Active
-                  </span>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Rachel Green"
+                    value={inviteName}
+                    onChange={(e) => setInviteName(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
                 </div>
 
-                <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Email Address <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="rachel@company.com"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Tenant Assignment Scope
+                  </label>
+                  <select
+                    value={inviteWebsiteId}
+                    onChange={(e) => setInviteWebsiteId(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
+                  >
+                    {isSuperAdmin && (
+                      <option value="all">All Websites (Network Wide)</option>
+                    )}
+                    {visibleWebsites.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name} ({w.domain})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Assigned Role
+                  </label>
+                  <select
+                    value={inviteRole}
+                    onChange={(e) => handleInviteRoleChange(e.target.value as UserRole)}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
+                  >
+                    {allowedRoles.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Plugin & Module Capabilities with Super Admin Granular Unlock */}
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <label className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
+                      <Boxes className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      <span>Modular Permissions &amp; Feature Access for &ldquo;{inviteRole}&rdquo;</span>
+                    </label>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      Super Admin can click any locked module below to unlock custom access.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                      {inviteCustomModules.length} of {PLUGIN_MODULES.length} Active
+                    </span>
+                    <button
+                      type="button"
+                      onClick={resetInviteModulesToDefault}
+                      className="inline-flex items-center gap-1 text-[10px] text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium cursor-pointer transition-colors"
+                      title="Reset modules to role defaults"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Reset Defaults</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                   {PLUGIN_MODULES.map((mod) => {
-                    const isAllowed = canAccessModule(inviteRole, mod.id);
+                    const isRoleDefault = getDefaultRoleModules(inviteRole).includes(mod.id);
+                    const isCurrentlyAllowed = inviteCustomModules.includes(mod.id);
+                    const isCustomUnlocked = isCurrentlyAllowed && !isRoleDefault;
                     const ModIcon = mod.icon;
+
                     return (
-                      <div
+                      <button
                         key={mod.id}
-                        className={`flex items-center gap-2 p-2 rounded-lg border text-xs transition-colors ${
-                          isAllowed
-                            ? 'bg-white dark:bg-slate-900 border-emerald-300 dark:border-emerald-800/80 text-slate-900 dark:text-white shadow-2xs'
-                            : 'bg-slate-100/50 dark:bg-slate-900/20 border-slate-200/50 dark:border-slate-800/50 text-slate-400 dark:text-slate-500 opacity-60'
+                        type="button"
+                        onClick={() => toggleInviteModule(mod.id)}
+                        className={`group flex items-start gap-2.5 p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                          isCurrentlyAllowed
+                            ? isCustomUnlocked
+                              ? 'bg-indigo-50/70 dark:bg-indigo-950/30 border-indigo-300 dark:border-indigo-700/80 text-slate-900 dark:text-white shadow-2xs hover:border-indigo-400'
+                              : 'bg-white dark:bg-slate-900 border-emerald-300 dark:border-emerald-800/80 text-slate-900 dark:text-white shadow-2xs hover:border-emerald-400'
+                            : 'bg-slate-100/50 dark:bg-slate-900/20 border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 hover:border-slate-300 dark:hover:border-slate-700'
                         }`}
                       >
-                        <div className={`p-1 rounded-md shrink-0 ${
-                          isAllowed 
-                            ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400' 
+                        <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 transition-colors ${
+                          isCurrentlyAllowed
+                            ? isCustomUnlocked
+                              ? 'bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400'
+                              : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400'
                             : 'bg-slate-200/60 dark:bg-slate-800 text-slate-400'
                         }`}>
-                          <ModIcon className="w-3 h-3" />
+                          <ModIcon className="w-3.5 h-3.5" />
                         </div>
+
                         <div className="min-w-0 flex-1">
-                          <div className="font-semibold truncate text-[11px] leading-tight">{mod.name}</div>
-                          <div className="text-[9px] text-slate-400 truncate leading-tight">{mod.desc}</div>
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-semibold text-xs leading-snug truncate">
+                              {mod.name}
+                            </span>
+                            {isCurrentlyAllowed ? (
+                              isCustomUnlocked ? (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 uppercase tracking-wider shrink-0">
+                                  <Sparkles className="w-2.5 h-2.5" />
+                                  <span>Unlocked</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 uppercase tracking-wider shrink-0">
+                                  <Check className="w-2.5 h-2.5" />
+                                  <span>Active</span>
+                                </span>
+                              )
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200/80 dark:bg-slate-800 text-slate-500 dark:text-slate-400 uppercase tracking-wider shrink-0 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-950/80 group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors">
+                                <Lock className="w-2.5 h-2.5" />
+                                <span>Locked</span>
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug mt-0.5 line-clamp-1">
+                            {mod.desc}
+                          </p>
+                          <div className="mt-1 flex items-center gap-1 text-[9px] font-semibold">
+                            {isCurrentlyAllowed ? (
+                              isCustomUnlocked ? (
+                                <span className="text-indigo-600 dark:text-indigo-400">✨ Custom Unlocked</span>
+                              ) : (
+                                <span className="text-emerald-600 dark:text-emerald-400">Role Default</span>
+                              )
+                            ) : (
+                              <span className="text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                Click to unlock
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        {isAllowed ? (
-                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider shrink-0">
-                            Active
-                          </span>
-                        ) : (
-                          <span className="text-[9px] text-slate-400 uppercase tracking-wider shrink-0">
-                            Locked
-                          </span>
-                        )}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -1544,24 +1664,26 @@ _Please log in and update your password on your first sign-in._`;
                   User Login ID: <strong className="font-mono text-slate-700 dark:text-slate-300">{inviteEmail || 'user@company.com'}</strong>
                 </div>
               </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsInviteOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-medium cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs cursor-pointer shadow-xs flex items-center gap-1.5"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Create &amp; Generate Invitation</span>
-                </button>
-              </div>
             </form>
+
+            {/* Sticky Fixed Footer */}
+            <div className="flex items-center justify-end gap-2.5 px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/90 shrink-0 backdrop-blur-xs">
+              <button
+                type="button"
+                onClick={() => setIsInviteOpen(false)}
+                className="px-4 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="invite-user-form"
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs cursor-pointer shadow-xs flex items-center gap-1.5 transition-colors"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Create &amp; Generate Invitation</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1570,135 +1692,206 @@ _Please log in and update your password on your first sign-in._`;
       {/* MODAL: EDIT USER ROLE & SCOPE                                         */}
       {/* ===================================================================== */}
       {editingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
-          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Edit Role &amp; Tenant Assignment
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Update delegation rights for {editingUser.name}
-                </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] my-auto animate-in fade-in zoom-in-95 duration-150 overflow-hidden">
+            {/* Sticky Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 shrink-0 bg-white dark:bg-[#0f172a]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-300">
+                  <Edit3 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Edit Role &amp; Module Access
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Update tenant delegation and custom module permissions for {editingUser.name}
+                  </p>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setEditingUser(null)}
-                className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-xs font-bold"
               >
-                <X className="w-5 h-5" />
+                ✕
               </button>
             </div>
 
-            {/* Member Card Snapshot */}
-            <div className="flex items-center gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 mb-5">
-              {renderUserAvatar(editingUser.avatar, editingUser.name, 'w-10 h-10 text-sm')}
-              <div className="min-w-0 flex-1">
-                <div className="font-semibold text-slate-900 dark:text-white text-xs truncate">
-                  {editingUser.name}
+            {/* Scrollable Form Body */}
+            <form id="edit-user-form" onSubmit={handleSaveUserEdit} className="flex-1 overflow-y-auto p-6 space-y-4.5 custom-scrollbar text-xs">
+              {/* Member Card Snapshot */}
+              <div className="flex items-center gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800">
+                {renderUserAvatar(editingUser.avatar, editingUser.name, 'w-10 h-10 text-sm')}
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-slate-900 dark:text-white text-xs truncate">
+                    {editingUser.name}
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono truncate">
+                    {editingUser.email}
+                  </div>
                 </div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono truncate">
-                  {editingUser.email}
-                </div>
-              </div>
-              <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
-                editingUser.status === 'active'
-                  ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800'
-                  : 'bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-800'
-              }`}>
-                {editingUser.status}
-              </span>
-            </div>
-
-            <form onSubmit={handleSaveUserEdit} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Tenant Scope
-                </label>
-                <select
-                  value={editWebsiteId}
-                  onChange={(e) => {
-                    const newWebId = e.target.value;
-                    setEditWebsiteId(newWebId);
-                    if (editingUser) {
-                      setEditRole((editingUser.roleAssignments[newWebId] || editingUser.roleAssignments['all'] || allowedRoles[0] || 'Content Writer') as UserRole);
-                    }
-                  }}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
-                >
-                  {isSuperAdmin && (
-                    <option value="all">All Websites (Network Wide)</option>
-                  )}
-                  {visibleWebsites.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.name} ({w.domain})
-                    </option>
-                  ))}
-                </select>
+                <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
+                  editingUser.status === 'active'
+                    ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800'
+                    : 'bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-800'
+                }`}>
+                  {editingUser.status}
+                </span>
               </div>
 
-              <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Assigned Role for this Scope
-                </label>
-                <select
-                  value={editRole}
-                  onChange={(e) => setEditRole(e.target.value as UserRole)}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
-                >
-                  {allowedRoles.map((role) => (
-                    <option key={role} value={role}>
-                      {role}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Plugin & Module Capabilities for Selected Role */}
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <label className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
-                    <Boxes className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
-                    <span>Plugins &amp; Module Access for &ldquo;{editRole}&rdquo;</span>
+              {/* Tenant Scope & Assigned Role (2-column grid) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Tenant Scope
                   </label>
-                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                    {PLUGIN_MODULES.filter((m) => canAccessModule(editRole, m.id)).length} of {PLUGIN_MODULES.length} Active
-                  </span>
+                  <select
+                    value={editWebsiteId}
+                    onChange={(e) => {
+                      const newWebId = e.target.value;
+                      setEditWebsiteId(newWebId);
+                      if (editingUser) {
+                        const newRole = (editingUser.roleAssignments[newWebId] || editingUser.roleAssignments['all'] || allowedRoles[0] || 'Content Writer') as UserRole;
+                        setEditRole(newRole);
+                        setEditCustomModules(
+                          editingUser.customModules && editingUser.customModules.length > 0
+                            ? [...editingUser.customModules]
+                            : getDefaultRoleModules(newRole)
+                        );
+                      }
+                    }}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
+                  >
+                    {isSuperAdmin && (
+                      <option value="all">All Websites (Network Wide)</option>
+                    )}
+                    {visibleWebsites.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name} ({w.domain})
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Assigned Role for this Scope
+                  </label>
+                  <select
+                    value={editRole}
+                    onChange={(e) => handleEditRoleChange(e.target.value as UserRole)}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
+                  >
+                    {allowedRoles.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Plugin & Module Capabilities with Super Admin Granular Unlock */}
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <label className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
+                      <Boxes className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      <span>Modular Permissions &amp; Feature Access for &ldquo;{editRole}&rdquo;</span>
+                    </label>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      Super Admin can click any locked module below to unlock custom access.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                      {editCustomModules.length} of {PLUGIN_MODULES.length} Active
+                    </span>
+                    <button
+                      type="button"
+                      onClick={resetEditModulesToDefault}
+                      className="inline-flex items-center gap-1 text-[10px] text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium cursor-pointer transition-colors"
+                      title="Reset modules to role defaults"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Reset Defaults</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                   {PLUGIN_MODULES.map((mod) => {
-                    const isAllowed = canAccessModule(editRole, mod.id);
+                    const isRoleDefault = getDefaultRoleModules(editRole).includes(mod.id);
+                    const isCurrentlyAllowed = editCustomModules.includes(mod.id);
+                    const isCustomUnlocked = isCurrentlyAllowed && !isRoleDefault;
                     const ModIcon = mod.icon;
+
                     return (
-                      <div
+                      <button
                         key={mod.id}
-                        className={`flex items-center gap-2 p-2 rounded-lg border text-xs transition-colors ${
-                          isAllowed
-                            ? 'bg-white dark:bg-slate-900 border-emerald-300 dark:border-emerald-800/80 text-slate-900 dark:text-white shadow-2xs'
-                            : 'bg-slate-100/50 dark:bg-slate-900/20 border-slate-200/50 dark:border-slate-800/50 text-slate-400 dark:text-slate-500 opacity-60'
+                        type="button"
+                        onClick={() => toggleEditModule(mod.id)}
+                        className={`group flex items-start gap-2.5 p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                          isCurrentlyAllowed
+                            ? isCustomUnlocked
+                              ? 'bg-indigo-50/70 dark:bg-indigo-950/30 border-indigo-300 dark:border-indigo-700/80 text-slate-900 dark:text-white shadow-2xs hover:border-indigo-400'
+                              : 'bg-white dark:bg-slate-900 border-emerald-300 dark:border-emerald-800/80 text-slate-900 dark:text-white shadow-2xs hover:border-emerald-400'
+                            : 'bg-slate-100/50 dark:bg-slate-900/20 border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 hover:border-slate-300 dark:hover:border-slate-700'
                         }`}
                       >
-                        <div className={`p-1 rounded-md shrink-0 ${
-                          isAllowed 
-                            ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400' 
+                        <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 transition-colors ${
+                          isCurrentlyAllowed
+                            ? isCustomUnlocked
+                              ? 'bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400'
+                              : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400'
                             : 'bg-slate-200/60 dark:bg-slate-800 text-slate-400'
                         }`}>
-                          <ModIcon className="w-3 h-3" />
+                          <ModIcon className="w-3.5 h-3.5" />
                         </div>
+
                         <div className="min-w-0 flex-1">
-                          <div className="font-semibold truncate text-[11px] leading-tight">{mod.name}</div>
-                          <div className="text-[9px] text-slate-400 truncate leading-tight">{mod.desc}</div>
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-semibold text-xs leading-snug truncate">
+                              {mod.name}
+                            </span>
+                            {isCurrentlyAllowed ? (
+                              isCustomUnlocked ? (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 uppercase tracking-wider shrink-0">
+                                  <Sparkles className="w-2.5 h-2.5" />
+                                  <span>Unlocked</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 uppercase tracking-wider shrink-0">
+                                  <Check className="w-2.5 h-2.5" />
+                                  <span>Active</span>
+                                </span>
+                              )
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200/80 dark:bg-slate-800 text-slate-500 dark:text-slate-400 uppercase tracking-wider shrink-0 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-950/80 group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors">
+                                <Lock className="w-2.5 h-2.5" />
+                                <span>Locked</span>
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug mt-0.5 line-clamp-1">
+                            {mod.desc}
+                          </p>
+                          <div className="mt-1 flex items-center gap-1 text-[9px] font-semibold">
+                            {isCurrentlyAllowed ? (
+                              isCustomUnlocked ? (
+                                <span className="text-indigo-600 dark:text-indigo-400">✨ Custom Unlocked</span>
+                              ) : (
+                                <span className="text-emerald-600 dark:text-emerald-400">Role Default</span>
+                              )
+                            ) : (
+                              <span className="text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                Click to unlock
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        {isAllowed ? (
-                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider shrink-0">
-                            Active
-                          </span>
-                        ) : (
-                          <span className="text-[9px] text-slate-400 uppercase tracking-wider shrink-0">
-                            Locked
-                          </span>
-                        )}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -1789,6 +1982,7 @@ _Please log in and update your password on your first sign-in._`;
                 </div>
               )}
 
+              {/* Account Status */}
               <div>
                 <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Account Status
@@ -1820,23 +2014,25 @@ _Please log in and update your password on your first sign-in._`;
                   </button>
                 </div>
               </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setEditingUser(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-medium cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs cursor-pointer shadow-xs"
-                >
-                  Save Changes
-                </button>
-              </div>
             </form>
+
+            {/* Sticky Fixed Footer */}
+            <div className="flex items-center justify-end gap-2.5 px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/90 shrink-0 backdrop-blur-xs">
+              <button
+                type="button"
+                onClick={() => setEditingUser(null)}
+                className="px-4 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="edit-user-form"
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs cursor-pointer shadow-xs transition-colors"
+              >
+                Save Changes
+              </button>
+            </div>
           </div>
         </div>
       )}

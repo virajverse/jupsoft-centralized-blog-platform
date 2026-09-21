@@ -23,7 +23,7 @@ import {
   Layers,
   Sparkles
 } from 'lucide-react';
-import { isGlobalScopeRole, canCreateBlog, cleanAvatarUrl } from '../../../utils/permissions';
+import { isGlobalScopeRole, canCreateBlog, cleanAvatarUrl, canAccessModule } from '../../../utils/permissions';
 
 export const ZohoNavbar: React.FC = () => {
   const router = useRouter();
@@ -222,30 +222,36 @@ export const ZohoNavbar: React.FC = () => {
                   <FileText className="w-3.5 h-3.5 text-red-500" />
                   <span>New Blog</span>
                 </Link>
-                <Link
-                  href={`/media${siteQuery}`}
-                  onClick={() => setQuickCreateOpen(false)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
-                >
-                  <ImageIcon className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>Upload Media</span>
-                </Link>
-                <Link
-                  href={`/settings${siteQuery}&tab=redirects`}
-                  onClick={() => setQuickCreateOpen(false)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
-                >
-                  <ArrowRightLeft className="w-3.5 h-3.5 text-blue-500" />
-                  <span>Add 301 Redirect</span>
-                </Link>
-                <Link
-                  href={`/taxonomy${siteQuery}`}
-                  onClick={() => setQuickCreateOpen(false)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
-                >
-                  <Tags className="w-3.5 h-3.5 text-purple-500" />
-                  <span>Manage Taxonomy</span>
-                </Link>
+                {canAccessModule(activeRole, 'media', currentUser?.customModules) && (
+                  <Link
+                    href={`/media${siteQuery}`}
+                    onClick={() => setQuickCreateOpen(false)}
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                  >
+                    <ImageIcon className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Upload Media</span>
+                  </Link>
+                )}
+                {canAccessModule(activeRole, 'redirects', currentUser?.customModules) && (
+                  <Link
+                    href={`/settings${siteQuery}&tab=redirects`}
+                    onClick={() => setQuickCreateOpen(false)}
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5 text-blue-500" />
+                    <span>Add 301 Redirect</span>
+                  </Link>
+                )}
+                {canAccessModule(activeRole, 'taxonomy', currentUser?.customModules) && (
+                  <Link
+                    href={`/taxonomy${siteQuery}`}
+                    onClick={() => setQuickCreateOpen(false)}
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                  >
+                    <Tags className="w-3.5 h-3.5 text-purple-500" />
+                    <span>Manage Taxonomy</span>
+                  </Link>
+                )}
               </div>
             )}
           </div>
