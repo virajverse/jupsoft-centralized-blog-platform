@@ -35,11 +35,15 @@ const ALLOWED_ATTRIBUTES: SanitizeHtml.IOptions['allowedAttributes'] = {
 
 export function sanitizeContent(html: string): string {
   if (!html) return html;
-  return sanitizeHtml(html, {
+  const sanitized = sanitizeHtml(html, {
     allowedTags: ALLOWED_TAGS,
     allowedAttributes: ALLOWED_ATTRIBUTES,
     allowedSchemes: ['http', 'https', 'mailto'], // TRD §15: block javascript: URIs
   });
+  // Preserve empty paragraphs authored in WYSIWYG editor.
+  // Empty <p></p> tags collapse to 0px height in browsers due to CSS margin collapsing.
+  // Converting empty <p></p> tags to <p><br></p> guarantees visible vertical line breaks across all frontend renderers.
+  return sanitized.replace(/<p>(\s|&nbsp;|<br\s*\/?>)*<\/p>/gi, '<p><br></p>');
 }
 
 @Injectable()

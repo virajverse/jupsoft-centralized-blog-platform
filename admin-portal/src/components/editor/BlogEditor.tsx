@@ -101,6 +101,16 @@ const HeadingEnterExit = Extension.create({
   },
 });
 
+/**
+ * Preserve empty paragraphs authored in WYSIWYG editor.
+ * ProseMirror serializes empty lines as <p></p>. On browsers, an empty <p></p> tag has 0px height and collapses adjoining margins.
+ * Converting empty <p></p> (or whitespace-only paragraphs) to <p><br></p> guarantees visible line breaks across all frontend renderers.
+ */
+export const preserveEmptyParagraphs = (html?: string): string => {
+  if (!html) return '';
+  return html.replace(/<p>(\s|&nbsp;|<br\s*\/?>)*<\/p>/gi, '<p><br></p>');
+};
+
 interface BlogEditorProps {
   blogId?: string | null;
 }
@@ -873,8 +883,17 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         if (currentEditorHtml !== undefined && cleanedTranslations[currentLang]) {
           cleanedTranslations[currentLang] = {
             ...cleanedTranslations[currentLang],
-            content: currentEditorHtml,
+            content: preserveEmptyParagraphs(currentEditorHtml),
           };
+        }
+        // Normalize empty paragraphs across all authored translations
+        for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
+          if (cleanedTranslations[l]?.content) {
+            cleanedTranslations[l] = {
+              ...cleanedTranslations[l],
+              content: preserveEmptyParagraphs(cleanedTranslations[l].content),
+            };
+          }
         }
 
         const autoSavedBlog: Blog = {
@@ -1193,8 +1212,18 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     if (currentEditorHtml !== undefined && cleanedTranslations[currentLang]) {
       cleanedTranslations[currentLang] = {
         ...cleanedTranslations[currentLang],
-        content: currentEditorHtml,
+        content: preserveEmptyParagraphs(currentEditorHtml),
       };
+    }
+
+    // Normalize empty paragraphs across all authored translations
+    for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
+      if (cleanedTranslations[l]?.content) {
+        cleanedTranslations[l] = {
+          ...cleanedTranslations[l],
+          content: preserveEmptyParagraphs(cleanedTranslations[l].content),
+        };
+      }
     }
 
     // Ensure all authored translations have a valid slug
