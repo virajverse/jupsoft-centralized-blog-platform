@@ -8,7 +8,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../hooks/useQueryState';
 import { useEditor, EditorContent, Extension } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import Image from '@tiptap/extension-image';
+import { ResizableImage } from './ResizableImage';
 import TiptapLink from '@tiptap/extension-link';
 import Underline from '@tiptap/extension-underline';
 import TextAlign from '@tiptap/extension-text-align';
@@ -58,7 +58,6 @@ import {
   Clock,
   Globe, 
   ChevronRight,
-  ShieldCheck,
   CheckCircle2,
   AlertCircle,
   XCircle,
@@ -66,7 +65,6 @@ import {
   SlidersHorizontal,
   UploadCloud,
   FileText,
-  Sparkles,
   Languages,
   UserCheck
 } from 'lucide-react';
@@ -397,13 +395,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         emptyNodeClass: 'is-empty',
       }),
       HeadingEnterExit,
-      Image.configure({
+      ResizableImage.configure({
         inline: false,
         allowBase64: false,
-        HTMLAttributes: {
-          class: 'rounded-xl my-4 max-w-full h-auto',
-          loading: 'lazy',
-        },
       }),
       TiptapLink.configure({
         openOnClick: false,
@@ -901,60 +895,60 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
 
-    // autoSaveTimerRef.current = setTimeout(async () => {
-    //   try {
-    //     setIsSaving(true);
-    //     const targetSiteId = selectedWebsiteId || (activeWebsiteId !== 'all' ? activeWebsiteId : 'site-cloud');
-    //     const currentEditorHtml = editor ? editor.getHTML() : undefined;
-    //     const cleanedTranslations = { ...translations };
-    //     if (currentEditorHtml !== undefined && cleanedTranslations[currentLang]) {
-    //       cleanedTranslations[currentLang] = {
-    //         ...cleanedTranslations[currentLang],
-    //         content: preserveEmptyParagraphs(currentEditorHtml),
-    //       };
-    //     }
-    //     // Normalize empty paragraphs across all authored translations
-    //     for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
-    //       if (cleanedTranslations[l]?.content) {
-    //         cleanedTranslations[l] = {
-    //           ...cleanedTranslations[l],
-    //           content: preserveEmptyParagraphs(cleanedTranslations[l].content),
-    //         };
-    //       }
-    //     }
+    autoSaveTimerRef.current = setTimeout(async () => {
+      try {
+        setIsSaving(true);
+        const targetSiteId = selectedWebsiteId || (activeWebsiteId !== 'all' ? activeWebsiteId : 'site-cloud');
+        const currentEditorHtml = editor ? editor.getHTML() : undefined;
+        const cleanedTranslations = { ...translations };
+        if (currentEditorHtml !== undefined && cleanedTranslations[currentLang]) {
+          cleanedTranslations[currentLang] = {
+            ...cleanedTranslations[currentLang],
+            content: preserveEmptyParagraphs(currentEditorHtml),
+          };
+        }
+        // Normalize empty paragraphs across all authored translations
+        for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
+          if (cleanedTranslations[l]?.content) {
+            cleanedTranslations[l] = {
+              ...cleanedTranslations[l],
+              content: preserveEmptyParagraphs(cleanedTranslations[l].content),
+            };
+          }
+        }
 
-    //     const autoSavedBlog: Blog = {
-    //       id: realId,
-    //       websiteId: targetSiteId,
-    //       authorId: authorMode === 'user' ? selectedAuthorId : 'usr-custom',
-    //       authorName: authorName.trim() || cleanCurrentName,
-    //       authorAvatar: authorAvatar || '/uploads/avatars/avatar-default.webp',
-    //       featuredImage,
-    //       featuredImageAlt,
-    //       status,
-    //       publishDate: existingBlog?.publishDate,
-    //       scheduledAt: scheduledAt || undefined,
-    //       publishedBy: existingBlog?.publishedBy,
-    //       viewCount: existingBlog?.viewCount || 0,
-    //       readTimeMinutes: Math.max(1, Math.round((editor?.getText().split(/\s+/).length || 100) / 180)),
-    //       categoryIds: selectedCategories,
-    //       tagIds: selectedTags,
-    //       translations: cleanedTranslations,
-    //       workflowLogs: existingBlog?.workflowLogs || [],
-    //       createdAt: existingBlog?.createdAt || new Date().toISOString(),
-    //       updatedAt: new Date().toISOString(),
-    //     };
+        const autoSavedBlog: Blog = {
+          id: realId,
+          websiteId: targetSiteId,
+          authorId: authorMode === 'user' ? selectedAuthorId : 'usr-custom',
+          authorName: authorName.trim() || cleanCurrentName,
+          authorAvatar: authorAvatar || '/uploads/avatars/avatar-default.webp',
+          featuredImage,
+          featuredImageAlt,
+          status,
+          publishDate: existingBlog?.publishDate,
+          scheduledAt: scheduledAt || undefined,
+          publishedBy: existingBlog?.publishedBy,
+          viewCount: existingBlog?.viewCount || 0,
+          readTimeMinutes: Math.max(1, Math.round((editor?.getText().split(/\s+/).length || 100) / 180)),
+          categoryIds: selectedCategories,
+          tagIds: selectedTags,
+          translations: cleanedTranslations,
+          workflowLogs: existingBlog?.workflowLogs || [],
+          createdAt: existingBlog?.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
 
-    //     await saveBlog(autoSavedBlog);
-    //     setHasUnsavedChanges(false);
-    //     const now = new Date();
-    //     setLastSavedTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    //   } catch (err) {
-    //     console.warn('Auto-save error:', err);
-    //   } finally {
-    //     setIsSaving(false);
-    //   }
-    // }, 2500);
+        await saveBlog(autoSavedBlog);
+        setHasUnsavedChanges(false);
+        const now = new Date();
+        setLastSavedTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      } catch (err) {
+        console.warn('Auto-save error:', err);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 2500);
 
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
@@ -1105,11 +1099,11 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     if (mediaPickerTarget === 'cover') {
       setFeaturedImage(item.cdnUrl);
       setFeaturedImageAlt(alt);
-      showNotification('Featured cover image set! 🖼️', 'success');
+      showNotification('Featured cover image updated.', 'success');
     } else {
       if (editor) {
         editor.chain().focus().setImage({ src: finalUrl, alt, title: alt }).run();
-        showNotification('WebP image inserted into article canvas! 🖼️', 'success');
+        showNotification('Image inserted into article.', 'success');
       }
     }
     setMediaPickerOpen(false);
@@ -1501,16 +1495,12 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         </div>
       </header>
 
-      {/* Main Studio Area */}
-      <div className="flex-1 min-h-0 flex overflow-hidden relative">
-        {/* Modern Elevated Document Studio Canvas */}
-        <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-slate-100/75 dark:bg-[#070b14] py-6 sm:py-10 px-3 sm:px-8 flex justify-center items-start focus:outline-none" tabIndex={-1}>
-          {/* Elevated Document Sheet (Paper Canvas) */}
-          <div className="w-full max-w-6xl xl:max-w-7xl bg-white dark:bg-[#0f172a] border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-sm min-h-[88vh] flex flex-col transition-all mb-12">
-            
-            {/* Docked Editor Toolbar at Top of Document Sheet */}
-            {editor && (
-              <div className="sticky top-0 z-30 bg-white dark:bg-[#0f172a] border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3 shadow-xs rounded-t-2xl">
+      {/* Main Studio Area — flex-col so toolbar is on top, content scrolls below */}
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
+
+        {/* ===== TRUE STICKY TOOLBAR — lives OUTSIDE scrollable main, never scrolls away ===== */}
+        {editor && (
+          <div className="shrink-0 z-30 bg-white dark:bg-[#0f172a] border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3 shadow-sm">
                 {/* Left: Complete Professional Toolbar Controls */}
                 <div className="flex flex-wrap items-center gap-1">
                   {/* Style / Heading Group */}
@@ -1831,7 +1821,14 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
               </div>
             )}
 
-            {/* Document Sheet Body */}
+        {/* Content Row: scrollable canvas + inspector side by side */}
+        <div className="flex-1 min-h-0 flex overflow-hidden">
+          {/* Modern Elevated Document Studio Canvas */}
+          <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-slate-100/75 dark:bg-[#070b14] py-6 sm:py-10 px-3 sm:px-8 flex justify-center items-start focus:outline-none" tabIndex={-1}>
+            {/* Elevated Document Sheet (Paper Canvas) */}
+            <div className="w-full max-w-6xl xl:max-w-7xl bg-white dark:bg-[#0f172a] border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-sm min-h-[88vh] flex flex-col transition-all mb-12">
+
+              {/* Document Sheet Body */}
             <div className="p-6 sm:p-12 space-y-6 flex-1 flex flex-col">
               {/* Published Slug 301 Warning Notice (TRD Section 7) */}
               {status === 'Published' && (
@@ -2116,12 +2113,13 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 </button>
               </div>
             </div>
-          </div>
-        </main>
+            </div>
+          </main>
+        </div>{/* end Content Row */}
 
         {/* Right: Slide-Over Inspector Drawer */}
         <aside
-          className={`fixed top-12 bottom-0 right-0 w-96 bg-white dark:bg-[#0c1322] border-l border-slate-200 dark:border-slate-800 z-40 shadow-2xl flex flex-col transition-transform duration-300 ease-in-out text-xs ${
+          className={`fixed top-[92px] bottom-0 right-0 w-96 bg-white dark:bg-[#0c1322] border-l border-slate-200 dark:border-slate-800 z-40 shadow-2xl flex flex-col transition-transform duration-300 ease-in-out text-xs ${
             inspectorOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'
           }`}
         >
