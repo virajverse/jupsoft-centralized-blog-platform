@@ -414,34 +414,39 @@ export class BlogsService {
         for (const updatedTrans of dto.translations) {
           const oldTrans = existing.translations.find((t) => t.lang === updatedTrans.lang);
           if (oldTrans && oldTrans.slug && updatedTrans.slug && oldTrans.slug !== updatedTrans.slug) {
-            // Automatic 301 Permanent Redirect Guard!
-            await tx.redirect.upsert({
-              where: {
-                websiteId_fromSlug: {
-                  websiteId: existing.websiteId,
-                  fromSlug: oldTrans.slug,
-                },
-              },
-              update: { toSlug: updatedTrans.slug },
-              create: {
-                websiteId: existing.websiteId,
-                fromSlug: oldTrans.slug,
-                toSlug: updatedTrans.slug,
-                statusCode: 301,
-              },
-            });
+            const cleanFrom = oldTrans.slug.trim().replace(/^\/+|\/+$/g, '');
+            const cleanTo = updatedTrans.slug.trim().replace(/^\/+|\/+$/g, '');
 
-            // Log redirect rule in audit log
-            await tx.systemAuditLog.create({
-              data: {
-                userName: user.name,
-                role: user.roles[0] || 'Editor',
-                websiteId: existing.websiteId,
-                event: 'redirect.created',
-                ipAddress: ipAddress || '',
-                details: `Auto 301 redirect: /${oldTrans.slug} → /${updatedTrans.slug}`,
-              },
-            });
+            if (cleanFrom && cleanTo && cleanFrom !== cleanTo) {
+              // Automatic 301 Permanent Redirect Guard!
+              await tx.redirect.upsert({
+                where: {
+                  websiteId_fromSlug: {
+                    websiteId: existing.websiteId,
+                    fromSlug: cleanFrom,
+                  },
+                },
+                update: { toSlug: cleanTo, statusCode: 301 },
+                create: {
+                  websiteId: existing.websiteId,
+                  fromSlug: cleanFrom,
+                  toSlug: cleanTo,
+                  statusCode: 301,
+                },
+              });
+
+              // Log redirect rule in audit log
+              await tx.systemAuditLog.create({
+                data: {
+                  userName: user.name,
+                  role: user.roles[0] || 'Editor',
+                  websiteId: existing.websiteId,
+                  event: 'redirect.created',
+                  ipAddress: ipAddress || '',
+                  details: `Auto 301 redirect: /${cleanFrom} → /${cleanTo}`,
+                },
+              });
+            }
           }
         }
       }
@@ -606,6 +611,8 @@ export class BlogsService {
     await this.redis.delPattern(`blogs:${websiteId}:*`);
     await this.redis.delPattern(`search:${websiteId}:*`);
     await this.redis.delPattern('admin:blogs:*');
+    await this.redis.del(`redirects:${websiteId}`);
+    await this.redis.delPattern('admin:redirects:*');
   }
 
   async transitionStatus(id: string, dto: TransitionBlogStatusDto, user: AuthenticatedUser, ipAddress: string) {

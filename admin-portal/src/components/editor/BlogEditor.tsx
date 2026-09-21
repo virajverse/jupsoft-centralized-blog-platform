@@ -431,6 +431,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   // Load full blog detail from backend API once on initial mount (never during typing)
   const [isLoadingFullBlog, setIsLoadingFullBlog] = useState(false);
   const loadedBlogIdRef = useRef<string | null>(null);
+  const initialBlogRef = useRef<any>(existingBlog || null);
 
   useEffect(() => {
     if (!targetBlogId) return;
@@ -441,6 +442,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       .then((fullBlog: any) => {
         if (!active || !fullBlog) return;
         loadedBlogIdRef.current = targetBlogId;
+        initialBlogRef.current = fullBlog;
         if (fullBlog.translations) {
           setTranslations((prev) => {
             const next = { ...prev };
@@ -912,22 +914,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     }
 
     const targetSiteId = selectedWebsiteId || (activeWebsiteId !== 'all' ? activeWebsiteId : 'site-cloud');
-    const id = existingBlog?.id || `blog-${Date.now()}`;
-    const oldSlug = existingBlog?.translations[currentLang]?.slug;
-    const newSlug = activeTrans.slug || slugify(effectiveTitle);
-
-    // TRD Section 7: If published slug changed, auto-record 301 redirect
-    if (existingBlog?.status === 'Published' && oldSlug && newSlug && oldSlug !== newSlug) {
-      addRedirect({
-        id: `red-${Date.now()}`,
-        websiteId: targetSiteId,
-        fromSlug: oldSlug,
-        toSlug: newSlug,
-        statusCode: 301,
-        hitCount: 0,
-        createdAt: new Date().toISOString(),
-      });
-    }
+    const baseBlog = initialBlogRef.current || existingBlog;
+    const isCurrentlyPublished = baseBlog?.status === 'Published' || status === 'Published';
+    const id = baseBlog?.id || `blog-${Date.now()}`;
 
     // Ensure active editor HTML is synced into the active language translation
     const currentEditorHtml = editor ? editor.getHTML() : undefined;
@@ -949,6 +938,30 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       }
     }
 
+    // TRD Section 7: If published slug changed in ANY language, auto-record 301 permanent redirect
+    if (isCurrentlyPublished && baseBlog?.translations) {
+      for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
+        const origSlug = baseBlog.translations[l]?.slug?.trim()?.replace(/^\/+|\/+$/g, '');
+        const nextSlug = cleanedTranslations[l]?.slug?.trim()?.replace(/^\/+|\/+$/g, '');
+        if (origSlug && nextSlug && origSlug !== nextSlug) {
+          try {
+            await addRedirect({
+              id: `red-${Date.now()}-${l}`,
+              websiteId: targetSiteId,
+              fromSlug: origSlug,
+              toSlug: nextSlug,
+              statusCode: 301,
+              hitCount: 0,
+              createdAt: new Date().toISOString(),
+            });
+            showNotification(`301 Permanent Redirect created: /blog/${origSlug} → /blog/${nextSlug}`, 'success');
+          } catch (e) {
+            console.warn('Auto redirect creation error:', e);
+          }
+        }
+      }
+    }
+
     const newBlog: Blog = {
       id,
       websiteId: targetSiteId,
@@ -958,15 +971,15 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       featuredImage,
       featuredImageAlt,
       status,
-      publishDate: status === 'Published' && !existingBlog?.publishDate ? new Date().toISOString() : existingBlog?.publishDate,
+      publishDate: status === 'Published' && !baseBlog?.publishDate ? new Date().toISOString() : baseBlog?.publishDate,
       scheduledAt: scheduledAt || undefined,
-      publishedBy: status === 'Published' ? (currentUser?.name || `User (${activeRole})`) : existingBlog?.publishedBy,
-      viewCount: existingBlog?.viewCount || 0,
+      publishedBy: status === 'Published' ? (currentUser?.name || `User (${activeRole})`) : baseBlog?.publishedBy,
+      viewCount: baseBlog?.viewCount || 0,
       readTimeMinutes: Math.max(2, Math.round((editor?.getText().split(/\s+/).length || 200) / 180)),
       categoryIds: selectedCategories,
       tagIds: selectedTags,
       translations: cleanedTranslations,
-      workflowLogs: existingBlog?.workflowLogs || [
+      workflowLogs: baseBlog?.workflowLogs || [
         {
           id: `wl-${Date.now()}`,
           blogId: id,
@@ -978,13 +991,14 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           timestamp: new Date().toISOString(),
         },
       ],
-      createdAt: existingBlog?.createdAt || new Date().toISOString(),
+      createdAt: baseBlog?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
     setIsSaving(true);
     try {
       await saveBlog(newBlog);
+      initialBlogRef.current = newBlog;
       setHasUnsavedChanges(false);
       showNotification(status === 'Published' ? 'Blog published successfully! 🎉' : 'Blog saved successfully! ✅', 'success');
       router.push(`/blogs?site=${targetSiteId}`);

@@ -100,10 +100,13 @@ export class JupsoftClient {
 
   async getBlogBySlug(slug: string, lang?: string): Promise<BlogPost | null> {
     try {
-      const res = await this.request<{ success: boolean; data: BlogPost }>(
+      const res = await this.request<{ success: boolean; data: BlogPost; redirect?: { statusCode: number; fromSlug: string; toSlug: string } }>(
         `/v1/blogs/${encodeURIComponent(slug)}?lang=${lang || this.defaultLang}`,
         { tags: [`blog:${slug}`, 'blogs'] }
       );
+      if (res.data && res.redirect) {
+        (res.data as any).redirect = res.redirect;
+      }
       return res.data;
     } catch (err: any) {
       // Fix Bug #11: Differentiate 404 from unexpected server crashes

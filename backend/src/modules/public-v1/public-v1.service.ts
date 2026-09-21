@@ -350,15 +350,51 @@ export class PublicV1Service {
 
     // 3. 301 Redirect Check: Check if slug was modified and redirected
     if (!translation) {
+      const cleanSlug = slug.trim().replace(/^\/+|\/+$/g, '').replace(/^blog\//, '');
       const redirect = await this.prisma.redirect.findFirst({
-        where: { websiteId, fromSlug: slug },
+        where: {
+          websiteId,
+          OR: [
+            { fromSlug: slug },
+            { fromSlug: cleanSlug },
+            { fromSlug: `/${cleanSlug}` },
+            { fromSlug: `/blog/${cleanSlug}` },
+            { fromSlug: `blog/${cleanSlug}` },
+          ],
+        },
       });
 
       if (redirect) {
+        // Resolve redirect chains (e.g. A -> B -> C)
+        let finalToSlug = redirect.toSlug.trim().replace(/^\/+|\/+$/g, '').replace(/^blog\//, '');
+        let hops = 0;
+        while (hops < 5) {
+          const nextRedirect = await this.prisma.redirect.findFirst({
+            where: {
+              websiteId,
+              OR: [
+                { fromSlug: finalToSlug },
+                { fromSlug: `/${finalToSlug}` },
+                { fromSlug: `/blog/${finalToSlug}` },
+              ],
+            },
+          });
+          if (nextRedirect && nextRedirect.toSlug && nextRedirect.toSlug !== finalToSlug) {
+            finalToSlug = nextRedirect.toSlug.trim().replace(/^\/+|\/+$/g, '').replace(/^blog\//, '');
+            hops++;
+          } else {
+            break;
+          }
+        }
+
         // Fetch target article by new slug
         const targetTranslation = await this.prisma.blogTranslation.findFirst({
           where: {
-            slug: redirect.toSlug,
+            OR: [
+              { slug: finalToSlug },
+              { slug: redirect.toSlug },
+              { slug: redirect.toSlug.trim().replace(/^\/+|\/+$/g, '') },
+            ],
             blog: { websiteId, status: 'Published' },
           },
           include: {
@@ -379,7 +415,7 @@ export class PublicV1Service {
 
           const redirectResult = await this.formatBlogDetail(
             { ...resolved, blog: targetTranslation.blog },
-            { statusCode: redirect.statusCode || 301, fromSlug: slug, toSlug: redirect.toSlug },
+            { statusCode: redirect.statusCode || 301, fromSlug: slug, toSlug: finalToSlug },
           );
           await this.redis.set(cacheKey, redirectResult, 300);
           return redirectResult;

@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { jupsoft, JupsoftClient } from '../client.js';
 import type { PageProps } from '../types.js';
@@ -27,6 +27,12 @@ export async function JupsoftBlogDetail({ params, searchParams, client }: PagePr
 
   const blog = await activeClient.getBlogBySlug(slug, currentLang);
   if (!blog) notFound();
+
+  // TRD §7: 301 Permanent Redirect Handler
+  const targetSlug = (blog as any)?.redirect?.toSlug || (blog.slug && blog.slug !== slug ? blog.slug : null);
+  if (targetSlug && targetSlug !== slug) {
+    redirect(`/blog/${encodeURIComponent(targetSlug)}${currentLang ? `?lang=${currentLang}` : ''}`);
+  }
 
   activeClient.recordView(slug, blog.id);
 
