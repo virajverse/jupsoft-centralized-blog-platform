@@ -10,7 +10,7 @@
         "PYTHONUNBUFFERED": "1",
         "PYTHONPATH": "d:\\Company work\\jupsoft-centralized-blog-platform\\jupsoft-cms-mcp\\src",
         "CMS_API_BASE": "https://blogary.jupsoft.com",
-        "CMS_ADMIN_EMAIL": "admin@jupsoft.com",
+        "CMS_ADMIN_EMAIL": "superadmin@jupsoft.com",
         "CMS_ADMIN_PASSWORD": "Jupsoft#SuperAdmin2026!$"
       }
     }
