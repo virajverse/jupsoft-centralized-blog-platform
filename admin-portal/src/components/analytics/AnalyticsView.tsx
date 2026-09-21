@@ -34,7 +34,7 @@ export const AnalyticsView: React.FC = () => {
   const searchParams = useSearchParams();
   const { setParam } = useQueryState();
 
-  const { blogs, activeWebsiteId, websites, categories, fetchBlogs, fetchCategories, setActiveWebsite } = useBlogStore(
+  const { blogs, activeWebsiteId, websites, categories, fetchBlogs, fetchCategories, setActiveWebsite, isLoading } = useBlogStore(
     useShallow((s) => ({
       blogs: s.blogs,
       activeWebsiteId: s.activeWebsiteId,
@@ -43,6 +43,7 @@ export const AnalyticsView: React.FC = () => {
       fetchBlogs: s.fetchBlogs,
       fetchCategories: s.fetchCategories,
       setActiveWebsite: s.setActiveWebsite,
+      isLoading: s.isLoading,
     }))
   );
   
@@ -406,69 +407,88 @@ export const AnalyticsView: React.FC = () => {
       </div>
 
       {/* KPI Cards Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 space-y-2 shadow-xs">
-          <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
-            <span>Total Readership Views</span>
-            <Eye className="w-4 h-4 text-emerald-500" />
+      {/* KPI Cards Strip */}
+      {(isLoading || loadingLive) ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div
+              key={i}
+              className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 space-y-3 shadow-xs animate-pulse"
+            >
+              <div className="flex justify-between items-center">
+                <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-28" />
+                <div className="w-4 h-4 bg-slate-200 dark:bg-slate-800 rounded" />
+              </div>
+              <div className="h-8 bg-slate-200 dark:bg-slate-800 rounded w-24" />
+              <div className="h-3 bg-slate-100 dark:bg-slate-850 rounded w-36" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 space-y-2 shadow-xs">
+            <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
+              <span>Total Readership Views</span>
+              <Eye className="w-4 h-4 text-emerald-500" />
+            </div>
+            <div className="text-3xl font-black text-slate-900 dark:text-white tracking-tight flex items-baseline gap-2">
+              <span>{(liveData?.totalViews !== undefined && liveData.totalViews > 0 ? liveData.totalViews : totalEstimatedViews).toLocaleString()}</span>
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-normal">● Live DB</span>
+            </div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                {liveData?.uniqueVisitors !== undefined && liveData.uniqueVisitors > 0
+                  ? `${liveData.uniqueVisitors.toLocaleString()} unique`
+                  : `${Math.round(totalEstimatedViews * 0.42).toLocaleString()} unique`}
+              </span>
+              <span>visitors tracked</span>
+            </div>
           </div>
-          <div className="text-3xl font-black text-slate-900 dark:text-white tracking-tight flex items-baseline gap-2">
-            <span>{(liveData?.totalViews !== undefined && liveData.totalViews > 0 ? liveData.totalViews : totalEstimatedViews).toLocaleString()}</span>
-            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-normal">● Live DB</span>
-          </div>
-          <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-              {liveData?.uniqueVisitors !== undefined && liveData.uniqueVisitors > 0
-                ? `${liveData.uniqueVisitors.toLocaleString()} unique`
-                : `${Math.round(totalEstimatedViews * 0.42).toLocaleString()} unique`}
-            </span>
-            <span>visitors tracked</span>
+
+          <Link
+            href={`/blogs?site=${effectiveSiteId}&status=All`}
+            className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 space-y-2 shadow-xs hover:border-blue-400 dark:hover:border-blue-500 transition-colors block group"
+          >
+            <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
+              <span>{isFilteredSingleSite ? 'Total Articles' : 'Network Articles'}</span>
+              <FileText className="w-4 h-4 text-blue-500 group-hover:scale-110 transition-transform" />
+            </div>
+            <div className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{totalArticles}</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{publishedArticles} Live</span>
+              <span>&middot;</span>
+              <span className="text-slate-500">{draftArticles} Drafts</span>
+            </div>
+          </Link>
+
+          <Link
+            href={`/workflow?site=${effectiveSiteId}`}
+            className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 space-y-2 shadow-xs hover:border-amber-400 dark:hover:border-amber-500 transition-colors block group"
+          >
+            <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
+              <span>Review &amp; Approval Queue</span>
+              <Clock className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
+            </div>
+            <div className="text-3xl font-black text-amber-600 dark:text-amber-400 tracking-tight">{inReviewArticles + approvedArticles}</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              {inReviewArticles} In Review &middot; {approvedArticles} Approved
+            </div>
+          </Link>
+
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 space-y-2 shadow-xs">
+            <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
+              <span>Avg Read Time &amp; Density</span>
+              <TrendingUp className="w-4 h-4 text-indigo-500" />
+            </div>
+            <div className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+              {avgReadTimeMinutes} min{avgReadTimeMinutes === 1 ? '' : 's'}
+            </div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+              {totalWords.toLocaleString()} total words indexed
+            </div>
           </div>
         </div>
-
-        <Link
-          href={`/blogs?site=${effectiveSiteId}&status=All`}
-          className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 space-y-2 shadow-xs hover:border-blue-400 dark:hover:border-blue-500 transition-colors block group"
-        >
-          <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
-            <span>{isFilteredSingleSite ? 'Total Articles' : 'Network Articles'}</span>
-            <FileText className="w-4 h-4 text-blue-500 group-hover:scale-110 transition-transform" />
-          </div>
-          <div className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{totalArticles}</div>
-          <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
-            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{publishedArticles} Live</span>
-            <span>&middot;</span>
-            <span className="text-slate-500">{draftArticles} Drafts</span>
-          </div>
-        </Link>
-
-        <Link
-          href={`/workflow?site=${effectiveSiteId}`}
-          className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 space-y-2 shadow-xs hover:border-amber-400 dark:hover:border-amber-500 transition-colors block group"
-        >
-          <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
-            <span>Review &amp; Approval Queue</span>
-            <Clock className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
-          </div>
-          <div className="text-3xl font-black text-amber-600 dark:text-amber-400 tracking-tight">{inReviewArticles + approvedArticles}</div>
-          <div className="text-xs text-slate-500 dark:text-slate-400">
-            {inReviewArticles} In Review &middot; {approvedArticles} Approved
-          </div>
-        </Link>
-
-        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 space-y-2 shadow-xs">
-          <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
-            <span>Avg Read Time &amp; Density</span>
-            <TrendingUp className="w-4 h-4 text-indigo-500" />
-          </div>
-          <div className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-            {avgReadTimeMinutes} min{avgReadTimeMinutes === 1 ? '' : 's'}
-          </div>
-          <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-            {totalWords.toLocaleString()} total words indexed
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* ─── GRAPH 1: Interactive Readership & Publishing Velocity Trend (Area/Line) ─── */}
       <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 space-y-4 shadow-xs relative">

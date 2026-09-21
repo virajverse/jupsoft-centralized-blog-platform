@@ -74,10 +74,18 @@ export const SettingsView: React.FC = () => {
     : activeWebsiteId;
 
   const isSuperAdmin = activeRole === 'Super Admin';
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
   useEffect(() => {
-    fetchWebsites();
-    fetchBlogs();
+    let active = true;
+    setIsLoadingSettings(true);
+    Promise.all([
+      fetchWebsites(),
+      fetchBlogs()
+    ]).finally(() => {
+      if (active) setIsLoadingSettings(false);
+    });
+    return () => { active = false; };
   }, [fetchWebsites, fetchBlogs]);
 
   useEffect(() => {
@@ -479,7 +487,21 @@ export const SettingsView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                  {websites.map((w) => {
+                  {isLoadingSettings ? (
+                    [...Array(3)].map((_, i) => (
+                      <tr key={i} className="animate-pulse">
+                        <td className="py-3 px-4">
+                          <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-28 mb-1" />
+                          <div className="h-2.5 bg-slate-100 dark:bg-slate-850 rounded w-36" />
+                        </td>
+                        <td className="py-3 px-4"><div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-20" /></td>
+                        <td className="py-3 px-4"><div className="h-5 bg-slate-200 dark:bg-slate-800 rounded w-16" /></td>
+                        <td className="py-3 px-4"><div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-10" /></td>
+                        <td className="py-3 px-4"><div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-24" /></td>
+                        <td className="py-3 px-4 text-right"><div className="h-6 bg-slate-200 dark:bg-slate-800 rounded w-12 ml-auto" /></td>
+                      </tr>
+                    ))
+                  ) : websites.map((w) => {
                     const blogCount = blogs.filter((b) => b.websiteId === w.id).length;
                     const isSelected = w.id === targetSiteId;
                     return (
@@ -660,7 +682,7 @@ export const SettingsView: React.FC = () => {
                   onClick={handleSaveProfile}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50"
                 >
-                  <Check className="w-3.5 h-3.5" />
+                  {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                   <span>{isSaving ? 'Saving to Database...' : 'Save Profile & Domain'}</span>
                 </button>
               </div>
@@ -803,7 +825,7 @@ export const SettingsView: React.FC = () => {
                     onClick={handleSaveWebhook}
                     className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
                   >
-                    <Check className="w-3.5 h-3.5" />
+                    {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                     <span>{isSaving ? 'Saving...' : 'Save Webhook URL'}</span>
                   </button>
                 </div>

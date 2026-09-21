@@ -9,7 +9,8 @@ import {
   FolderTree, 
   Hash, 
   CornerDownRight,
-  Trash2
+  Trash2,
+  RefreshCw
 } from 'lucide-react';
 import { Category, Tag } from '../../types';
 
@@ -64,14 +65,23 @@ export const TaxonomyView: React.FC = () => {
     ? tenantParam
     : (isAllSites ? websites[0]?.id : effectiveSiteId);
 
+  const [isLoadingTaxonomy, setIsLoadingTaxonomy] = useState(true);
+
   useEffect(() => {
+    let active = true;
     if (siteParam && siteParam !== activeWebsiteId && (siteParam === 'all' || websites.some((w) => w.id === siteParam))) {
       setActiveWebsite(siteParam);
     }
     if (targetSiteId) {
-      fetchCategories(targetSiteId);
-      fetchTags(targetSiteId);
+      setIsLoadingTaxonomy(true);
+      Promise.all([
+        fetchCategories(targetSiteId),
+        fetchTags(targetSiteId)
+      ]).finally(() => {
+        if (active) setIsLoadingTaxonomy(false);
+      });
     }
+    return () => { active = false; };
   }, [siteParam, activeWebsiteId, websites, setActiveWebsite, fetchCategories, fetchTags, targetSiteId]);
 
   const handleTabChange = (tab: 'all' | 'categories' | 'tags') => {
@@ -87,12 +97,15 @@ export const TaxonomyView: React.FC = () => {
   const [newCatParentId, setNewCatParentId] = useState('');
   const [newCatDesc, setNewCatDesc] = useState('');
   const [newTagName, setNewTagName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmittingCat, setIsSubmittingCat] = useState(false);
+  const [isSubmittingTag, setIsSubmittingTag] = useState(false);
+  const [deletingCatId, setDeletingCatId] = useState<string | null>(null);
+  const [deletingTagId, setDeletingTagId] = useState<string | null>(null);
 
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCatName.trim() || isSubmitting) return;
-    setIsSubmitting(true);
+    if (!newCatName.trim() || isSubmittingCat) return;
+    setIsSubmittingCat(true);
     const slug = newCatSlug.trim() || newCatName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     try {
       await addCategory({
@@ -107,21 +120,27 @@ export const TaxonomyView: React.FC = () => {
       setNewCatParentId('');
       setNewCatDesc('');
     } finally {
-      setIsSubmitting(false);
+      setIsSubmittingCat(false);
     }
   };
 
   const handleDeleteCategory = async (catId: string, catName: string) => {
+    if (deletingCatId) return;
     if (!window.confirm(`Are you sure you want to delete category "${catName}"? This change will be saved to the database.`)) {
       return;
     }
-    await deleteCategory(catId, targetSiteId);
+    setDeletingCatId(catId);
+    try {
+      await deleteCategory(catId, targetSiteId);
+    } finally {
+      setDeletingCatId(null);
+    }
   };
 
   const handleCreateTag = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTagName.trim() || isSubmitting) return;
-    setIsSubmitting(true);
+    if (!newTagName.trim() || isSubmittingTag) return;
+    setIsSubmittingTag(true);
     try {
       await addTag({
         websiteId: targetSiteId,
@@ -130,15 +149,21 @@ export const TaxonomyView: React.FC = () => {
       });
       setNewTagName('');
     } finally {
-      setIsSubmitting(false);
+      setIsSubmittingTag(false);
     }
   };
 
   const handleDeleteTag = async (tagId: string, tagName: string) => {
+    if (deletingTagId) return;
     if (!window.confirm(`Are you sure you want to delete tag "#${tagName}"? This change will be saved to the database.`)) {
       return;
     }
-    await deleteTag(tagId, targetSiteId);
+    setDeletingTagId(tagId);
+    try {
+      await deleteTag(tagId, targetSiteId);
+    } finally {
+      setDeletingTagId(null);
+    }
   };
 
   return (
@@ -246,16 +271,30 @@ export const TaxonomyView: React.FC = () => {
               <div className="flex justify-end pt-1">
                 <button
                   type="submit"
-                  className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                  disabled={isSubmittingCat}
+                  className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
                 >
-                  + Create Category
+                  {isSubmittingCat && <RefreshCw className="w-3 h-3 animate-spin" />}
+                  <span>{isSubmittingCat ? 'Creating...' : '+ Create Category'}</span>
                 </button>
               </div>
             </form>
 
             {/* Hierarchical Categories List */}
             <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-              {siteCategories.length === 0 ? (
+              {isLoadingTaxonomy ? (
+                <div className="space-y-2 py-1">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-xl border bg-slate-50/75 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 animate-pulse">
+                      <div className="space-y-1.5 flex-1">
+                        <div className="h-3.5 bg-slate-200 dark:bg-slate-800 rounded w-1/3" />
+                        <div className="h-2.5 bg-slate-100 dark:bg-slate-850 rounded w-1/4" />
+                      </div>
+                      <div className="w-12 h-4 bg-slate-200 dark:bg-slate-800 rounded" />
+                    </div>
+                  ))}
+                </div>
+              ) : siteCategories.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-400">No categories added yet.</div>
               ) : (
                 siteCategories.map((cat) => {
@@ -295,11 +334,12 @@ export const TaxonomyView: React.FC = () => {
                         </span>
                         <button
                           type="button"
+                          disabled={deletingCatId === cat.id}
                           onClick={() => handleDeleteCategory(cat.id, cat.name)}
-                          className="p-1 rounded-md text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                          className="p-1 rounded-md text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer disabled:opacity-50"
                           title={`Delete category "${cat.name}"`}
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className={`w-3.5 h-3.5 ${deletingCatId === cat.id ? 'animate-spin text-rose-500' : ''}`} />
                         </button>
                       </div>
                     </div>
@@ -331,16 +371,23 @@ export const TaxonomyView: React.FC = () => {
               />
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className="px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                disabled={isSubmittingTag}
+                className="px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
               >
-                Add
+                {isSubmittingTag && <RefreshCw className="w-3 h-3 animate-spin" />}
+                <span>{isSubmittingTag ? 'Adding...' : 'Add'}</span>
               </button>
             </form>
 
             {/* Tags Cloud */}
             <div className="flex flex-wrap gap-2 pt-2">
-              {siteTags.length === 0 ? (
+              {isLoadingTaxonomy ? (
+                <div className="flex flex-wrap gap-2 w-full py-1">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i} className="h-7 w-20 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse" />
+                  ))}
+                </div>
+              ) : siteTags.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-400 w-full">No tags created yet.</div>
               ) : (
                 siteTags.map((tag) => {
@@ -354,11 +401,12 @@ export const TaxonomyView: React.FC = () => {
                       <span className="text-[10px] text-slate-400">({tagCount})</span>
                       <button
                         type="button"
+                        disabled={deletingTagId === tag.id}
                         onClick={() => handleDeleteTag(tag.id, tag.name)}
-                        className="text-slate-400 hover:text-rose-500 transition-colors cursor-pointer ml-1"
+                        className="text-slate-400 hover:text-rose-500 transition-colors cursor-pointer ml-1 disabled:opacity-50"
                         title={`Delete tag "#${tag.name}"`}
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className={`w-3 h-3 ${deletingTagId === tag.id ? 'animate-spin text-rose-500' : ''}`} />
                       </button>
                     </span>
                   );

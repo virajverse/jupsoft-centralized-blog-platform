@@ -16,6 +16,7 @@ export const DashboardOverview: React.FC = () => {
     currentUser,
     fetchBlogs,
     setActiveWebsite,
+    isLoading,
   } = useBlogStore(
     useShallow((s) => ({
       blogs: s.blogs,
@@ -25,6 +26,7 @@ export const DashboardOverview: React.FC = () => {
       currentUser: s.currentUser,
       fetchBlogs: s.fetchBlogs,
       setActiveWebsite: s.setActiveWebsite,
+      isLoading: s.isLoading,
     }))
   );
 
@@ -98,6 +100,7 @@ export const DashboardOverview: React.FC = () => {
       isAllSites={isAllSites}
       activeRole={activeRole}
       currentUser={currentUser}
+      isLoading={isLoading}
     />
   );
 };

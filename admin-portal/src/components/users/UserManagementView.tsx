@@ -211,9 +211,29 @@ export const UserManagementView: React.FC = () => {
     ? websites
     : websites.filter((w) => currentUser?.roleAssignments?.[w.id]);
 
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [isSubmittingInvite, setIsSubmittingInvite] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+
   React.useEffect(() => {
-    fetchUsers();
+    let active = true;
+    setIsLoadingUsers(true);
+    fetchUsers().finally(() => {
+      if (active) setIsLoadingUsers(false);
+    });
+    return () => { active = false; };
   }, [fetchUsers]);
+
+  const handleDeleteUser = async (id: string, name: string) => {
+    if (deletingUserId) return;
+    if (!confirm(`Remove access for ${name}?`)) return;
+    setDeletingUserId(id);
+    try {
+      await deleteUser(id);
+    } finally {
+      setDeletingUserId(null);
+    }
+  };
 
   const tabParam = (searchParams.get('tab') as 'hierarchy' | 'directory' | 'matrix') || 'directory';
   const [activeTab, setActiveTab] = useState<'hierarchy' | 'directory' | 'matrix'>(tabParam);
@@ -380,11 +400,14 @@ _Please log in and update your password on your first sign-in._`;
 
   const handleInviteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteName.trim() || !inviteEmail.trim()) {
-      showNotification('Please provide both name and email.', 'warning');
+    if (!inviteName.trim() || !inviteEmail.trim() || isSubmittingInvite) {
+      if (!inviteName.trim() || !inviteEmail.trim()) {
+        showNotification('Please provide both name and email.', 'warning');
+      }
       return;
     }
 
+    setIsSubmittingInvite(true);
     const assignedTempPassword = invitePassword.trim() || generateStrongPassword();
     const assignedManagedRoles: UserRole[] | undefined = inviteRole === 'Role Admin' 
       ? (inviteManagedRoles.length > 0 ? inviteManagedRoles : (['Editor', 'Content Writer'] as UserRole[]))
@@ -427,6 +450,8 @@ _Please log in and update your password on your first sign-in._`;
       setInviteCustomModules(getDefaultRoleModules(allowedRoles[0] || 'Content Writer'));
     } catch {
       // Error notification is handled by store
+    } finally {
+      setIsSubmittingInvite(false);
     }
   };
 
@@ -930,7 +955,36 @@ _Please log in and update your password on your first sign-in._`;
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                {filteredUsers.length === 0 ? (
+                {isLoadingUsers ? (
+                  [...Array(6)].map((_, i) => (
+                    <tr key={i} className="animate-pulse">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800" />
+                          <div className="space-y-1.5 flex-1">
+                            <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-24" />
+                            <div className="h-2.5 bg-slate-100 dark:bg-slate-850 rounded w-32" />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="h-5 bg-slate-200 dark:bg-slate-800 rounded w-20" />
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-28" />
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-14" />
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <div className="w-6 h-6 bg-slate-200 dark:bg-slate-800 rounded" />
+                          <div className="w-6 h-6 bg-slate-200 dark:bg-slate-800 rounded" />
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : filteredUsers.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="py-8 text-center text-xs text-slate-400">
                       No members match your search.
@@ -1102,15 +1156,12 @@ _Please log in and update your password on your first sign-in._`;
                                   </button>
 
                                   <button
-                                    onClick={() => {
-                                      if (confirm(`Remove access for ${u.name}?`)) {
-                                        deleteUser(u.id);
-                                      }
-                                    }}
+                                    disabled={deletingUserId === u.id}
+                                    onClick={() => handleDeleteUser(u.id, u.name)}
                                     title="Revoke Member"
-                                    className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer border border-rose-200 dark:border-rose-800/60"
+                                    className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer border border-rose-200 dark:border-rose-800/60 disabled:opacity-50"
                                   >
-                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <Trash2 className={`w-3.5 h-3.5 ${deletingUserId === u.id ? 'animate-spin' : ''}`} />
                                   </button>
                                 </>
                               );
@@ -1693,10 +1744,11 @@ _Please log in and update your password on your first sign-in._`;
               <button
                 type="submit"
                 form="invite-user-form"
-                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs cursor-pointer shadow-xs flex items-center gap-1.5 transition-colors"
+                disabled={isSubmittingInvite}
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs cursor-pointer shadow-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
               >
-                <Send className="w-3.5 h-3.5" />
-                <span>Create &amp; Generate Invitation</span>
+                {isSubmittingInvite ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                <span>{isSubmittingInvite ? 'Creating...' : 'Create & Generate Invitation'}</span>
               </button>
             </div>
           </div>

@@ -3,10 +3,14 @@
 import React, { Suspense } from 'react';
 import { ZohoSidebar } from './ZohoSidebar';
 import { ZohoNavbar } from './ZohoNavbar';
+import { TopProgressBar } from '../TopProgressBar';
 
 export const ZohoDashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <div className="h-screen w-screen overflow-hidden flex bg-[#f1f5f9] dark:bg-[#060a12] font-sans antialiased text-slate-800 dark:text-slate-200">
+      {/* 0ms Instant Top Route Progress Bar */}
+      <TopProgressBar />
+
       {/* Zoho Signature Two-Tier Sidebar (Tier 1 Rail + Tier 2 Context Drawer) */}
       <Suspense fallback={<div className="w-16 h-full bg-[#0d1527]" />}>
         <ZohoSidebar />

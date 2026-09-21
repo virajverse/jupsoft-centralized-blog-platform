@@ -69,6 +69,8 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
 }) => {
   const categories = useBlogStore((s) => s.categories);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const siteQuery = `?site=${activeWebsiteId}`;
 
   // Pagination state (0-delay performance)
@@ -201,16 +203,24 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
             {canDeleteBlog(activeRole) && (
               <button
                 type="button"
-                onClick={() => {
+                disabled={isDeletingBulk}
+                onClick={async () => {
                   if (confirm(`Delete ${selectedIds.length} selected blogs?`)) {
-                    selectedIds.forEach((id) => deleteBlog(id));
-                    setSelectedIds([]);
+                    setIsDeletingBulk(true);
+                    try {
+                      for (const id of selectedIds) {
+                        await deleteBlog(id);
+                      }
+                      setSelectedIds([]);
+                    } finally {
+                      setIsDeletingBulk(false);
+                    }
                   }
                 }}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold transition-colors cursor-pointer disabled:opacity-50"
               >
-                <Trash2 className="w-3 h-3" />
-                <span>Delete Selected</span>
+                <Trash2 className={`w-3 h-3 ${isDeletingBulk ? 'animate-spin' : ''}`} />
+                <span>{isDeletingBulk ? 'Deleting...' : 'Delete Selected'}</span>
               </button>
             )}
             <button
@@ -388,15 +398,21 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
                           {canDeleteBlog(activeRole) && (
                             <button
                               type="button"
-                              onClick={() => {
+                              disabled={deletingId === blog.id}
+                              onClick={async () => {
                                 if (confirm('Are you sure you want to delete this blog?')) {
-                                  deleteBlog(blog.id);
+                                  setDeletingId(blog.id);
+                                  try {
+                                    await deleteBlog(blog.id);
+                                  } finally {
+                                    setDeletingId(null);
+                                  }
                                 }
                               }}
-                              className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                              className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer disabled:opacity-50"
                               title="Delete Blog"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className={`w-3.5 h-3.5 ${deletingId === blog.id ? 'animate-spin text-rose-500' : ''}`} />
                             </button>
                           )}
                         </div>

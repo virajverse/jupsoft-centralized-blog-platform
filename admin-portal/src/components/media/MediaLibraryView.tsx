@@ -54,13 +54,39 @@ export const MediaLibraryView: React.FC = () => {
     : activeWebsiteId;
 
   const isAllSites = effectiveSiteId === 'all';
+  const [isLoadingMedia, setIsLoadingMedia] = useState(true);
+  const [deletingMediaId, setDeletingMediaId] = useState<string | null>(null);
 
   useEffect(() => {
+    let active = true;
     if (siteParam && siteParam !== activeWebsiteId && (siteParam === 'all' || websites.some((w) => w.id === siteParam))) {
       setActiveWebsite(siteParam);
     }
-    fetchMedia(effectiveSiteId);
+    setIsLoadingMedia(true);
+    fetchMedia(effectiveSiteId).finally(() => {
+      if (active) setIsLoadingMedia(false);
+    });
+    return () => { active = false; };
   }, [effectiveSiteId, siteParam, activeWebsiteId, websites, setActiveWebsite, fetchMedia]);
+
+  const handleSyncMedia = async () => {
+    setIsLoadingMedia(true);
+    try {
+      await fetchMedia(effectiveSiteId);
+    } finally {
+      setIsLoadingMedia(false);
+    }
+  };
+
+  const handleDeleteMedia = async (id: string) => {
+    if (deletingMediaId) return;
+    setDeletingMediaId(id);
+    try {
+      await deleteMediaItem(id);
+    } finally {
+      setDeletingMediaId(null);
+    }
+  };
 
   // Derive target site directly from URL state
   const targetSiteId = (tenantParam && websites.some((w) => w.id === tenantParam))
@@ -199,13 +225,13 @@ export const MediaLibraryView: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => fetchMedia()}
-            disabled={processing}
+            onClick={handleSyncMedia}
+            disabled={isLoadingMedia || processing}
             className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium text-xs transition-colors cursor-pointer shadow-xs disabled:opacity-50"
             title="Refresh media library from server"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${processing ? 'animate-spin' : ''}`} />
-            <span>Sync</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoadingMedia ? 'animate-spin text-red-500' : ''}`} />
+            <span>{isLoadingMedia ? 'Syncing...' : 'Sync'}</span>
           </button>
           <input
             type="file"
@@ -219,7 +245,7 @@ export const MediaLibraryView: React.FC = () => {
             onClick={() => fileInputRef.current?.click()}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 font-bold text-xs shadow-xs transition-colors cursor-pointer"
           >
-            <UploadCloud className="w-4 h-4" />
+            {processing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
             <span>{processing ? 'Processing WebP...' : 'Upload Image File'}</span>
           </button>
         </div>
@@ -261,7 +287,28 @@ export const MediaLibraryView: React.FC = () => {
       )}
 
       {/* Media Grid or Real Empty State */}
-      {siteMedia.length === 0 ? (
+      {isLoadingMedia ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {[...Array(8)].map((_, i) => (
+            <div
+              key={i}
+              className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-hidden flex flex-col shadow-xs animate-pulse"
+            >
+              <div className="aspect-video bg-slate-200 dark:bg-slate-800" />
+              <div className="p-3.5 space-y-3 flex-1 flex flex-col justify-between">
+                <div className="space-y-1.5">
+                  <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-3/4" />
+                  <div className="h-2.5 bg-slate-100 dark:bg-slate-850 rounded w-1/2" />
+                </div>
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <div className="h-2.5 bg-slate-200 dark:bg-slate-800 rounded w-12" />
+                  <div className="w-5 h-5 bg-slate-200 dark:bg-slate-800 rounded" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : siteMedia.length === 0 ? (
         <div className="bg-white dark:bg-[#0f172a] border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-16 text-center space-y-3 shadow-xs">
           <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 mx-auto">
             <ImageIcon className="w-6 h-6" />
@@ -328,11 +375,12 @@ export const MediaLibraryView: React.FC = () => {
                         {copiedId === item.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
                       <button
-                        onClick={() => deleteMediaItem(item.id)}
-                        className="p-1 rounded-md text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                        disabled={deletingMediaId === item.id}
+                        onClick={() => handleDeleteMedia(item.id)}
+                        className="p-1 rounded-md text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer disabled:opacity-50"
                         title="Delete image"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className={`w-3.5 h-3.5 ${deletingMediaId === item.id ? 'animate-spin text-rose-500' : ''}`} />
                       </button>
                     </div>
                   </div>

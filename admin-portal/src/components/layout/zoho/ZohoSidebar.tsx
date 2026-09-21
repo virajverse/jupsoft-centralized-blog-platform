@@ -19,6 +19,7 @@ import {
   Boxes,
   ChevronLeft,
   ChevronRight,
+  RefreshCw,
   X
 } from 'lucide-react';
 
@@ -27,6 +28,7 @@ export const ZohoSidebar: React.FC = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { setParam } = useQueryState();
+  const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
   const { 
     blogs, 
     activeWebsiteId, 
@@ -52,6 +54,11 @@ export const ZohoSidebar: React.FC = () => {
   );
 
   const [drawerCollapsed, setDrawerCollapsed] = useState(true);
+
+  // Clear pending navigation state as soon as pathname updates
+  useEffect(() => {
+    setNavigatingTo(null);
+  }, [pathname]);
 
   // Sync site param from URL
   const siteParam = searchParams.get('site');
@@ -228,15 +235,23 @@ export const ZohoSidebar: React.FC = () => {
             {visibleNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = item.isActive;
+              const isPending = navigatingTo === item.basePath;
               return (
                 <Link
                   key={item.basePath}
                   href={item.href}
-                  onClick={handleNavClick}
+                  onClick={() => {
+                    if (!isActive) {
+                      setNavigatingTo(item.basePath);
+                    }
+                    handleNavClick();
+                  }}
                   title={item.fullLabel}
                   className={`relative w-full h-[52px] flex flex-col items-center justify-center transition-all group ${
                     isActive
                       ? 'bg-slate-800/90 text-white font-bold'
+                      : isPending
+                      ? 'bg-slate-800/60 text-amber-300'
                       : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
                   }`}
                 >
@@ -245,11 +260,20 @@ export const ZohoSidebar: React.FC = () => {
                     <span className="absolute left-0 top-1 bottom-1 w-1 bg-red-500 rounded-r-sm" />
                   )}
 
+                  {/* Micro pending loading pulse indicator */}
+                  {isPending && !isActive && (
+                    <span className="absolute left-0 top-1 bottom-1 w-1 bg-amber-400 animate-pulse rounded-r-sm" />
+                  )}
+
                   <div className="relative">
-                    <Icon className={`w-4 h-4 transition-transform group-hover:scale-110 ${
-                      isActive ? 'text-red-400' : 'text-slate-400 group-hover:text-slate-200'
-                    }`} />
-                    {item.badge !== undefined && item.badge !== null && item.badge > 0 && (
+                    {isPending ? (
+                      <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+                    ) : (
+                      <Icon className={`w-4 h-4 transition-transform group-hover:scale-110 ${
+                        isActive ? 'text-red-400' : 'text-slate-400 group-hover:text-slate-200'
+                      }`} />
+                    )}
+                    {item.badge !== undefined && item.badge !== null && item.badge > 0 && !isPending && (
                       <span className="absolute -top-1.5 -right-2 min-w-[14px] h-3.5 px-0.5 rounded-full bg-red-500 text-white text-[9px] font-mono font-bold flex items-center justify-center leading-none">
                         {item.badge > 99 ? '99+' : item.badge}
                       </span>
@@ -257,9 +281,9 @@ export const ZohoSidebar: React.FC = () => {
                   </div>
 
                   <span className={`text-[9px] tracking-tight mt-1 font-medium transition-colors ${
-                    isActive ? 'text-white font-bold' : 'text-slate-400 group-hover:text-slate-300'
+                    isActive ? 'text-white font-bold' : isPending ? 'text-amber-300 font-bold animate-pulse' : 'text-slate-400 group-hover:text-slate-300'
                   }`}>
-                    {item.shortLabel}
+                    {isPending ? 'Loading...' : item.shortLabel}
                   </span>
                 </Link>
               );

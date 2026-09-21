@@ -231,23 +231,30 @@ export const WorkflowKanban: React.FC = () => {
     setReviewNote('');
   };
 
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
   const closeTransitionModal = () => {
     setParams({ transition: null, target: null });
   };
 
-  const submitTransition = () => {
-    if (!activeNoteModal) return;
-    transitionBlogStatus(
-      activeNoteModal.blog.id,
-      activeNoteModal.targetStatus,
-      reviewNote || undefined,
-      activeNoteModal.targetStatus === 'Scheduled' ? scheduledDate : undefined
-    );
-    showNotification(
-      `"${activeNoteModal.blog.translations.en?.title || 'Blog'}" moved to "${activeNoteModal.targetStatus}" successfully!`,
-      'success'
-    );
-    closeTransitionModal();
+  const submitTransition = async () => {
+    if (!activeNoteModal || isTransitioning) return;
+    setIsTransitioning(true);
+    try {
+      await transitionBlogStatus(
+        activeNoteModal.blog.id,
+        activeNoteModal.targetStatus,
+        reviewNote || undefined,
+        activeNoteModal.targetStatus === 'Scheduled' ? scheduledDate : undefined
+      );
+      showNotification(
+        `"${activeNoteModal.blog.translations.en?.title || 'Blog'}" moved to "${activeNoteModal.targetStatus}" successfully!`,
+        'success'
+      );
+      closeTransitionModal();
+    } finally {
+      setIsTransitioning(false);
+    }
   };
 
   const openLogModal = (blog: Blog) => {
@@ -331,7 +338,42 @@ export const WorkflowKanban: React.FC = () => {
 
       {/* Kanban Board Container - Touch momentum scroll with snap */}
       <div className="flex-1 min-h-0 overflow-x-auto pb-4 scrollbar-thin snap-x snap-mandatory">
-        <div className="flex gap-4 min-w-[960px] h-full items-start">
+        {isLoading ? (
+          <div className="flex gap-4 min-w-[960px] h-full items-start">
+            {columns.map((col) => (
+              <div
+                key={col.status}
+                className="snap-start w-72 sm:w-80 shrink-0 flex flex-col rounded-2xl p-4 border bg-slate-50/75 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 space-y-3"
+              >
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+                  <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-24 animate-pulse" />
+                  <div className="h-4 w-6 bg-slate-200 dark:bg-slate-800 rounded-md animate-pulse" />
+                </div>
+                <div className="space-y-3">
+                  {[1, 2, 3].map((cardIdx) => (
+                    <div
+                      key={cardIdx}
+                      className="bg-white dark:bg-[#0f172a] rounded-xl p-3.5 space-y-3 border border-slate-200 dark:border-slate-850 animate-pulse"
+                    >
+                      <div className="flex items-start space-x-2.5">
+                        <div className="w-10 h-10 rounded-lg bg-slate-200 dark:bg-slate-800 shrink-0" />
+                        <div className="flex-1 space-y-2">
+                          <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-3/4" />
+                          <div className="h-2.5 bg-slate-100 dark:bg-slate-850 rounded w-1/2" />
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                        <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-16" />
+                        <div className="h-5 bg-slate-100 dark:bg-slate-850 rounded w-14" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex gap-4 min-w-[960px] h-full items-start">
           {columns.map((col) => {
             const colBlogs = filteredSiteBlogs.filter((b) => b.status === col.status);
             const isDragOver = dragOverColumn === col.status;
@@ -578,6 +620,7 @@ export const WorkflowKanban: React.FC = () => {
             );
           })}
         </div>
+        )}
       </div>
 
       {/* Review Notes Modal - URL bound (?transition=&target=) */}
@@ -614,7 +657,7 @@ export const WorkflowKanban: React.FC = () => {
 
             {activeNoteModal.targetStatus === 'Scheduled' && (
               <div className="space-y-1.5 p-3 rounded-xl bg-purple-50/50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/50">
-                <label className="text-xs font-semibold text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
+                <label className="text-xs font-semibold text-purple-900 dark:purple-200 flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                   <span>Scheduled Publication Date & Time</span>
                 </label>
@@ -636,9 +679,11 @@ export const WorkflowKanban: React.FC = () => {
               </button>
               <button
                 onClick={submitTransition}
-                className="px-4 py-2 rounded-lg text-xs font-bold bg-red-600 hover:bg-red-700 text-white shadow-xs cursor-pointer"
+                disabled={isTransitioning}
+                className="px-4 py-2 rounded-lg text-xs font-bold bg-red-600 hover:bg-red-700 text-white shadow-xs cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
               >
-                Confirm Transition
+                {isTransitioning && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                <span>{isTransitioning ? 'Transitioning...' : 'Confirm Transition'}</span>
               </button>
             </div>
           </div>
