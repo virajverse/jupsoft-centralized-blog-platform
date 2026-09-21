@@ -290,7 +290,15 @@ export const ZohoDashboardView: React.FC<ZohoDashboardViewProps> = ({
                       {/* Title & Slug */}
                       <td className="py-1.5 px-3 max-w-[220px]">
                         <div className="truncate font-semibold text-slate-900 dark:text-slate-100 hover:text-red-600 text-xs">
-                          <Link href={`/blogs/${blog.id}${siteQuery}`}>
+                          <Link 
+                            href={`/blogs/${blog.id}${siteQuery}`}
+                            prefetch={true}
+                            onClick={() => {
+                              try {
+                                sessionStorage.setItem(`jupsoft_editing_blog_${blog.id}`, JSON.stringify(blog));
+                              } catch {}
+                            }}
+                          >
                             {defaultTrans?.title || 'Untitled Blog'}
                           </Link>
                         </div>
@@ -351,6 +359,12 @@ export const ZohoDashboardView: React.FC<ZohoDashboardViewProps> = ({
                       <td className="py-1.5 px-3 text-right whitespace-nowrap">
                         <Link
                           href={`/blogs/${blog.id}${siteQuery}`}
+                          prefetch={true}
+                          onClick={() => {
+                            try {
+                              sessionStorage.setItem(`jupsoft_editing_blog_${blog.id}`, JSON.stringify(blog));
+                            } catch {}
+                          }}
                           className="px-2 py-0.5 rounded text-[10px] font-bold text-slate-600 hover:text-red-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                         >
                           Edit

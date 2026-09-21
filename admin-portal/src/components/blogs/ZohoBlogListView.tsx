@@ -308,7 +308,15 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
                       {/* Title & Slug & Category Badge */}
                       <td className="py-1.5 px-3 max-w-[260px] sm:max-w-xs">
                         <div className="truncate font-semibold text-slate-900 dark:text-slate-100 hover:text-red-600 text-xs">
-                          <Link href={`/blogs/${blog.id}${siteQuery}`}>
+                          <Link 
+                            href={`/blogs/${blog.id}${siteQuery}`}
+                            prefetch={true}
+                            onClick={() => {
+                              try {
+                                sessionStorage.setItem(`jupsoft_editing_blog_${blog.id}`, JSON.stringify(blog));
+                              } catch {}
+                            }}
+                          >
                             {defaultTrans?.title || 'Untitled Blog'}
                           </Link>
                         </div>
@@ -389,6 +397,12 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
                         <div className="flex items-center justify-end gap-1">
                           <Link
                             href={`/blogs/${blog.id}${siteQuery}`}
+                            prefetch={true}
+                            onClick={() => {
+                              try {
+                                sessionStorage.setItem(`jupsoft_editing_blog_${blog.id}`, JSON.stringify(blog));
+                              } catch {}
+                            }}
                             className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                             title="Edit Blog"
                           >

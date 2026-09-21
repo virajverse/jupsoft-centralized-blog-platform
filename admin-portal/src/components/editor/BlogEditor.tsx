@@ -75,6 +75,7 @@ import { createEmptySEO } from '../../data/initialData';
 import { canPublish, canApprove } from '../../utils/permissions';
 import { apiClient } from '../../services/apiClient';
 import { resolveMediaUrl, extractS3Key } from '../../utils/mediaUtils';
+import { BlogEditorSkeleton } from './BlogEditorSkeleton';
 
 // Professional CMS Heading Behavior: Pressing Enter at the end of a heading exits to a normal paragraph
 const HeadingEnterExit = Extension.create({
@@ -164,10 +165,22 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
   const targetBlogId = blogId !== undefined ? blogId : editingBlogId;
 
-  // Find existing blog or initialize new draft
+  // Fast In-Memory & SessionStorage Cache: Instant 0ms render on navigation or reload
+  const cachedBlogFromSession = useMemo(() => {
+    if (!targetBlogId || typeof window === 'undefined') return null;
+    try {
+      const stored = sessionStorage.getItem(`jupsoft_editing_blog_${targetBlogId}`);
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return null;
+  }, [targetBlogId]);
+
+  // Find existing blog from memory store or fast session cache
   const existingBlog = useMemo(() => {
-    return targetBlogId ? blogs.find((b) => b.id === targetBlogId) : null;
-  }, [targetBlogId, blogs]);
+    if (!targetBlogId) return null;
+    const inStore = blogs.find((b) => b.id === targetBlogId);
+    return inStore || cachedBlogFromSession || null;
+  }, [targetBlogId, blogs, cachedBlogFromSession]);
 
   // Target website selection: scoped to existing post's site or current filter or fallback to first site
   const [selectedWebsiteId, setSelectedWebsiteId] = useState<string>(() => {
@@ -670,6 +683,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         if (!active || !fullBlog) return;
         loadedBlogIdRef.current = targetBlogId;
         initialBlogRef.current = fullBlog;
+        try {
+          sessionStorage.setItem(`jupsoft_editing_blog_${targetBlogId}`, JSON.stringify(fullBlog));
+        } catch {}
 
         const rawTrans = fullBlog.translations;
         const normTrans: Record<string, any> = {};
@@ -757,7 +773,10 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
     // Case 2: Editing an existing blog post
     if (targetBlogId) {
-      if (isLoadingFullBlog) return; // Wait for backend payload
+      // Fast Render: Only wait for backend API if we have zero cached data in memory
+      if (isLoadingFullBlog && !existingBlog && !translations[currentLang]?.title) {
+        return;
+      }
 
       if (editorSyncedBlogIdRef.current !== targetBlogId || editorSyncedLangRef.current !== currentLang) {
         const targetContent = translations[currentLang]?.content;
@@ -1309,6 +1328,11 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   };
 
   const isRTL = currentLang === 'ar';
+
+  // Instant Skeleton Feedback on cold direct URL navigation while backend payload is in-flight
+  if (targetBlogId && isLoadingFullBlog && !existingBlog && !translations[currentLang]?.title) {
+    return <BlogEditorSkeleton />;
+  }
 
   return (
     <div className="h-full w-full flex flex-col bg-white dark:bg-[#070b14] relative overflow-hidden">
