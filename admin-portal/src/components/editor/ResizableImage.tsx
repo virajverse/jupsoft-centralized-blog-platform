@@ -1,21 +1,21 @@
 'use client';
 
 /**
- * ResizableImage — Custom Tiptap node extension
+ * ResizableImage — Custom Tiptap v3 node extension
  *
- * Extends the built-in @tiptap/extension-image with:
+ * Extends @tiptap/extension-image with:
  *  - Persisted `width` attribute (stored as style="width: Xpx" in HTML)
  *  - React NodeView with 8 directional drag-to-resize handles
- *  - Floating mini-toolbar: Full Width | Half | Auto + custom px input
- *  - Blue selection ring when focused
+ *  - Floating mini-toolbar: Full Width | 1/2 | 1/3 | Auto + custom px input
+ *  - Blue selection ring on node selection (via ProseMirror-selectednode CSS class)
  *  - Width bounds: min 80px — max 100% of editor container
  */
 
 import Image from '@tiptap/extension-image';
-import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewProps } from '@tiptap/react';
+import { ReactNodeViewRenderer, NodeViewWrapper } from '@tiptap/react';
+import type { ReactNodeViewProps } from '@tiptap/react';
 import React, { useRef, useCallback, useState, useEffect } from 'react';
 
-// ─── Resize Handle Directions ─────────────────────────────────────────────────
 type HandleDir = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
 const HANDLES: { dir: HandleDir; style: React.CSSProperties }[] = [
@@ -32,33 +32,50 @@ const HANDLES: { dir: HandleDir; style: React.CSSProperties }[] = [
 const MIN_WIDTH = 80;
 
 // ─── ResizableImageView (React NodeView) ──────────────────────────────────────
-const ResizableImageView: React.FC<NodeViewProps> = ({ node, updateAttributes, selected }) => {
-  const { src, alt, title, width: nodeWidth } = node.attrs as {
+const ResizableImageView: React.FC<ReactNodeViewProps> = ({
+  node,
+  updateAttributes,
+  selected,
+}) => {
+  const attrs = node.attrs as {
     src: string;
     alt?: string;
     title?: string;
     width?: number | null;
   };
 
+  const { src, alt, title } = attrs;
+  const nodeWidth = attrs.width ?? null;
+
   const wrapperRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const dragState = useRef<{
     startX: number;
-    startY: number;
     startW: number;
-    startH: number;
     dir: HandleDir;
-    aspectRatio: number;
   } | null>(null);
 
-  const [localWidth, setLocalWidth] = useState<number | null>(nodeWidth ?? null);
+  const [localWidth, setLocalWidth] = useState<number | null>(nodeWidth);
   const [customPx, setCustomPx] = useState<string>(nodeWidth ? String(nodeWidth) : '');
+  const [isSelected, setIsSelected] = useState(false);
 
-  // Keep local width in sync when node attrs change externally (e.g. undo/redo)
+  // Sync local width when node attrs change (undo/redo)
   useEffect(() => {
-    setLocalWidth(nodeWidth ?? null);
+    setLocalWidth(nodeWidth);
     setCustomPx(nodeWidth ? String(nodeWidth) : '');
   }, [nodeWidth]);
+
+  // Track selection via ProseMirror-selectednode class on wrapper
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const observer = new MutationObserver(() => {
+      setIsSelected(el.classList.contains('ProseMirror-selectednode'));
+    });
+    observer.observe(el, { attributes: true, attributeFilter: ['class'] });
+    setIsSelected(el.classList.contains('ProseMirror-selectednode'));
+    return () => observer.disconnect();
+  }, []);
 
   const applyWidth = useCallback(
     (w: number | null) => {
@@ -70,7 +87,7 @@ const ResizableImageView: React.FC<NodeViewProps> = ({ node, updateAttributes, s
     [updateAttributes],
   );
 
-  // ── Drag resize logic ──────────────────────────────────────────────────────
+  // ── Drag resize ──────────────────────────────────────────────────────────────
   const onHandleMouseDown = useCallback(
     (e: React.MouseEvent, dir: HandleDir) => {
       e.preventDefault();
@@ -79,35 +96,21 @@ const ResizableImageView: React.FC<NodeViewProps> = ({ node, updateAttributes, s
       if (!img) return;
 
       const rect = img.getBoundingClientRect();
-      dragState.current = {
-        startX: e.clientX,
-        startY: e.clientY,
-        startW: rect.width,
-        startH: rect.height,
-        dir,
-        aspectRatio: rect.width / rect.height,
-      };
+      dragState.current = { startX: e.clientX, startW: rect.width, dir };
 
       const onMouseMove = (me: MouseEvent) => {
-        if (!dragState.current || !wrapperRef.current) return;
-        const { startX, startW, dir: d, aspectRatio } = dragState.current;
+        if (!dragState.current) return;
+        const { startX, startW, dir: d } = dragState.current;
 
-        // Determine max width from editor container
-        const editorEl = wrapperRef.current.closest('.tiptap') as HTMLElement | null;
+        const editorEl = wrapperRef.current?.closest('.tiptap') as HTMLElement | null;
         const maxWidth = editorEl ? editorEl.clientWidth : window.innerWidth;
 
         const dx = me.clientX - startX;
-        let newW = startW;
-
-        if (d.includes('e')) newW = startW + dx;
-        else if (d.includes('w')) newW = startW - dx;
-
-        // Clamp
+        let newW = d.includes('e') ? startW + dx : d.includes('w') ? startW - dx : startW;
         newW = Math.max(MIN_WIDTH, Math.min(maxWidth, newW));
-        setLocalWidth(Math.round(newW));
 
-        // Live-resize the img element without committing to ProseMirror on every pixel
-        if (img) img.style.width = `${Math.round(newW)}px`;
+        setLocalWidth(Math.round(newW));
+        if (imgRef.current) imgRef.current.style.width = `${Math.round(newW)}px`;
       };
 
       const onMouseUp = () => {
@@ -127,31 +130,25 @@ const ResizableImageView: React.FC<NodeViewProps> = ({ node, updateAttributes, s
     [applyWidth],
   );
 
-  // ── Computed style for the image ───────────────────────────────────────────
-  const imgStyle: React.CSSProperties = {
-    width: localWidth !== null ? `${localWidth}px` : undefined,
-    maxWidth: '100%',
-    height: 'auto',
-    display: 'block',
+  const getEditorWidth = () => {
+    const editorEl = wrapperRef.current?.closest('.tiptap') as HTMLElement | null;
+    return editorEl ? editorEl.clientWidth : 800;
   };
-
-  const isSelected = selected;
 
   return (
     <NodeViewWrapper
+      ref={wrapperRef as React.Ref<HTMLElement>}
       as="figure"
-      className="resizable-image-wrapper"
       style={{
-        display: 'inline-block',
+        display: 'block',
         position: 'relative',
         lineHeight: 0,
         maxWidth: '100%',
-        margin: '1rem auto',
+        margin: '1rem 0',
         userSelect: 'none',
       }}
-      data-drag-handle
     >
-      {/* Image element */}
+      {/* Image */}
       <img
         ref={imgRef}
         src={src}
@@ -160,15 +157,18 @@ const ResizableImageView: React.FC<NodeViewProps> = ({ node, updateAttributes, s
         loading="lazy"
         draggable={false}
         style={{
-          ...imgStyle,
+          width: localWidth !== null ? `${localWidth}px` : undefined,
+          maxWidth: '100%',
+          height: 'auto',
+          display: 'block',
           borderRadius: '0.75rem',
           outline: isSelected ? '2px solid #3b82f6' : 'none',
-          outlineOffset: '2px',
+          outlineOffset: '3px',
           cursor: 'default',
         }}
       />
 
-      {/* Resize handles — only show when selected */}
+      {/* Resize handles + floating toolbar — only when selected */}
       {isSelected && (
         <>
           {HANDLES.map(({ dir, style }) => (
@@ -188,7 +188,7 @@ const ResizableImageView: React.FC<NodeViewProps> = ({ node, updateAttributes, s
             />
           ))}
 
-          {/* Floating mini toolbar */}
+          {/* Floating toolbar */}
           <div
             style={{
               position: 'absolute',
@@ -201,68 +201,19 @@ const ResizableImageView: React.FC<NodeViewProps> = ({ node, updateAttributes, s
               background: '#1e293b',
               borderRadius: 8,
               padding: '4px 8px',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
               whiteSpace: 'nowrap',
               zIndex: 20,
             }}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            {/* Full width */}
-            <button
-              type="button"
-              title="Full Width"
-              style={toolbarBtnStyle}
-              onClick={() => {
-                const editorEl = wrapperRef.current?.closest('.tiptap') as HTMLElement | null;
-                const maxWidth = editorEl ? editorEl.clientWidth : 800;
-                applyWidth(maxWidth);
-              }}
-            >
-              Full
-            </button>
+            <ToolbarBtn title="Full Width"   onClick={() => applyWidth(getEditorWidth())}>Full</ToolbarBtn>
+            <ToolbarBtn title="Half Width"   onClick={() => applyWidth(Math.round(getEditorWidth() / 2))}>1/2</ToolbarBtn>
+            <ToolbarBtn title="Third Width"  onClick={() => applyWidth(Math.round(getEditorWidth() / 3))}>1/3</ToolbarBtn>
+            <ToolbarBtn title="Natural Size" onClick={() => applyWidth(null)}>Auto</ToolbarBtn>
 
-            {/* Half width */}
-            <button
-              type="button"
-              title="Half Width"
-              style={toolbarBtnStyle}
-              onClick={() => {
-                const editorEl = wrapperRef.current?.closest('.tiptap') as HTMLElement | null;
-                const halfWidth = editorEl ? Math.round(editorEl.clientWidth / 2) : 400;
-                applyWidth(halfWidth);
-              }}
-            >
-              1/2
-            </button>
-
-            {/* One-third width */}
-            <button
-              type="button"
-              title="One-Third Width"
-              style={toolbarBtnStyle}
-              onClick={() => {
-                const editorEl = wrapperRef.current?.closest('.tiptap') as HTMLElement | null;
-                const thirdWidth = editorEl ? Math.round(editorEl.clientWidth / 3) : 267;
-                applyWidth(thirdWidth);
-              }}
-            >
-              1/3
-            </button>
-
-            {/* Auto (natural) */}
-            <button
-              type="button"
-              title="Auto / Natural Size"
-              style={toolbarBtnStyle}
-              onClick={() => applyWidth(null)}
-            >
-              Auto
-            </button>
-
-            {/* Separator */}
             <div style={{ width: 1, height: 16, background: '#334155', margin: '0 2px' }} />
 
-            {/* Custom px input */}
             <input
               type="number"
               min={MIN_WIDTH}
@@ -278,7 +229,6 @@ const ResizableImageView: React.FC<NodeViewProps> = ({ node, updateAttributes, s
                 const px = parseInt(customPx, 10);
                 if (!isNaN(px)) applyWidth(px);
               }}
-              placeholder="px"
               style={{
                 width: 52,
                 background: '#0f172a',
@@ -299,18 +249,31 @@ const ResizableImageView: React.FC<NodeViewProps> = ({ node, updateAttributes, s
   );
 };
 
-// Shared toolbar button style
-const toolbarBtnStyle: React.CSSProperties = {
-  background: 'transparent',
-  border: 'none',
-  color: '#e2e8f0',
-  fontSize: 11,
-  fontWeight: 600,
-  padding: '2px 6px',
-  borderRadius: 4,
-  cursor: 'pointer',
-  lineHeight: 1.5,
-};
+// Small reusable toolbar button
+const ToolbarBtn: React.FC<{ title: string; onClick: () => void; children: React.ReactNode }> = ({
+  title,
+  onClick,
+  children,
+}) => (
+  <button
+    type="button"
+    title={title}
+    onClick={onClick}
+    style={{
+      background: 'transparent',
+      border: 'none',
+      color: '#e2e8f0',
+      fontSize: 11,
+      fontWeight: 600,
+      padding: '2px 6px',
+      borderRadius: 4,
+      cursor: 'pointer',
+      lineHeight: 1.5,
+    }}
+  >
+    {children}
+  </button>
+);
 
 // ─── ResizableImage Tiptap Extension ─────────────────────────────────────────
 export const ResizableImage = Image.extend({
@@ -322,7 +285,6 @@ export const ResizableImage = Image.extend({
       width: {
         default: null,
         parseHTML: (el) => {
-          // Support both width attr and style="width: Xpx"
           const w = el.getAttribute('width');
           if (w) return parseInt(w, 10) || null;
           const style = el.getAttribute('style') || '';
@@ -338,6 +300,6 @@ export const ResizableImage = Image.extend({
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(ResizableImageView);
+    return ReactNodeViewRenderer(ResizableImageView as React.ComponentType<ReactNodeViewProps>);
   },
 });
