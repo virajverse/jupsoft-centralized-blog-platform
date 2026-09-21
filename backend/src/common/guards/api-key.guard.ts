@@ -239,14 +239,14 @@ export class ApiKeyGuard implements CanActivate {
       const callerHost = extractHost(originHeader) || extractHost(refererHeader);
       const targetDomain = extractHost(website.domain || '');
 
-      const isDev = process.env.NODE_ENV !== 'production';
-      const isLocalhost = callerHost === 'localhost' || callerHost === '127.0.0.1';
+      const isLocalhost = callerHost === 'localhost' || callerHost === '127.0.0.1' || callerHost.startsWith('192.168.') || callerHost.startsWith('10.');
 
       const isAuthorizedDomain =
         Boolean(callerHost && targetDomain && (callerHost === targetDomain || callerHost.endsWith('.' + targetDomain))) ||
-        (isDev && isLocalhost) ||
+        isLocalhost ||
         callerHost.endsWith('.netlify.app') ||
-        callerHost.endsWith('.vercel.app');
+        callerHost.endsWith('.vercel.app') ||
+        callerHost.endsWith('.github.io');
 
       if (!isAuthorizedDomain) {
         throw new UnauthorizedException(
