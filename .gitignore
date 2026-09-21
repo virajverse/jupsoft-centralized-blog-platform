@@ -4,15 +4,6 @@ node_modules/
 .pnp
 .pnp.js
 
-# Environment variables
-.env
-.env.*
-!.env.example
-*.env
-!backend/.env
-!.env
-!admin-portal/.env
-!admin-portal/.env.local
 
 # Local database seed scripts
 prisma/seed.ts
