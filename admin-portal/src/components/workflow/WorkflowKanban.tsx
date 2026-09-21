@@ -38,7 +38,8 @@ export const WorkflowKanban: React.FC = () => {
     transitionBlogStatus,
     showNotification,
     fetchBlogs,
-    isLoading
+    isLoading,
+    setActiveWebsite,
   } = useBlogStore(
     useShallow((s) => ({
       blogs: s.blogs,
@@ -49,18 +50,29 @@ export const WorkflowKanban: React.FC = () => {
       showNotification: s.showNotification,
       fetchBlogs: s.fetchBlogs,
       isLoading: s.isLoading,
+      setActiveWebsite: s.setActiveWebsite,
     }))
   );
 
-  useEffect(() => {
-    fetchBlogs();
-  }, [activeWebsiteId, fetchBlogs]);
-
-  const isAllSites = activeWebsiteId === 'all';
+  const siteParam = searchParams.get('site');
   const tenantParam = searchParams.get('tenant');
-  const effectiveSiteId = isAllSites ? (tenantParam || 'all') : activeWebsiteId;
+
+  const effectiveSiteId = siteParam && (siteParam === 'all' || websites.some((w) => w.id === siteParam))
+    ? siteParam
+    : activeWebsiteId;
+
+  const isAllSites = effectiveSiteId === 'all';
   const activeSite = websites.find((w) => w.id === (effectiveSiteId !== 'all' ? effectiveSiteId : websites[0]?.id)) || websites[0];
-  const siteBlogs = effectiveSiteId !== 'all' ? blogs.filter((b) => b.websiteId === effectiveSiteId) : blogs;
+
+  useEffect(() => {
+    if (siteParam && siteParam !== activeWebsiteId && (siteParam === 'all' || websites.some((w) => w.id === siteParam))) {
+      setActiveWebsite(siteParam);
+    }
+    fetchBlogs(effectiveSiteId);
+  }, [effectiveSiteId, siteParam, activeWebsiteId, websites, setActiveWebsite, fetchBlogs]);
+
+  const targetFilterSite = isAllSites ? (tenantParam || 'all') : effectiveSiteId;
+  const siteBlogs = targetFilterSite !== 'all' ? blogs.filter((b) => b.websiteId === targetFilterSite) : blogs;
 
   // Search filter state (URL query bound)
   const qParam = searchParams.get('q') || '';
@@ -156,9 +168,11 @@ export const WorkflowKanban: React.FC = () => {
     if (role === 'Content Writer' && from === 'Draft' && to === 'Under Review') return true;
     if (role === 'Publisher') {
       if (from === 'Approved' && (to === 'Published' || to === 'Scheduled')) return true;
+      if (from === 'Under Review' && (to === 'Approved' || to === 'Published' || to === 'Scheduled')) return true;
+      if (from === 'Draft' && (to === 'Published' || to === 'Scheduled' || to === 'Under Review')) return true;
       if (from === 'Scheduled' && to === 'Published') return true;
-      if (from === 'Published' && to === 'Archived') return true;
-      if (from === 'Archived' && to === 'Draft') return true;
+      if (from === 'Published' && (to === 'Archived' || to === 'Scheduled')) return true;
+      if (from === 'Archived' && (to === 'Draft' || to === 'Published')) return true;
     }
     return false;
   };

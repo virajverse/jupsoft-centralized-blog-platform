@@ -177,6 +177,7 @@ export interface UserAccount {
   // Initial / temporary password for onboarding delivery (via Email or WhatsApp)
   tempPassword?: string;
   role?: UserRole;
+  roles?: string[];
   status: 'active' | 'suspended';
   lastLoginIp: string;
   createdAt: string;

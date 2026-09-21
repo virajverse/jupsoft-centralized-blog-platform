@@ -87,15 +87,15 @@ export const BlogList: React.FC = () => {
     setParam('tenant', tenant === 'all' ? null : tenant);
   };
 
-  const isAllSites = activeWebsiteId === 'all';
-  const activeSite = websites.find((w) => w.id === activeWebsiteId) || websites[0];
+  const isAllSites = effectiveSiteId === 'all';
+  const activeSite = websites.find((w) => w.id === effectiveSiteId) || websites[0];
 
   // Memoized Base Blogs filter
   const baseBlogs = useMemo(() => {
     return isAllSites
       ? (selectedTenantFilter === 'all' ? blogs : blogs.filter((b) => b.websiteId === selectedTenantFilter))
-      : blogs.filter((b) => b.websiteId === activeWebsiteId);
-  }, [isAllSites, blogs, selectedTenantFilter, activeWebsiteId]);
+      : blogs.filter((b) => b.websiteId === effectiveSiteId);
+  }, [isAllSites, blogs, selectedTenantFilter, effectiveSiteId]);
 
   // Memoized Filtered Blogs with optimized string lookup
   const filteredBlogs = useMemo(() => {

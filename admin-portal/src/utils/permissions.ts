@@ -111,6 +111,18 @@ export function canCreateBlog(role: UserRole | string | undefined): boolean {
   );
 }
 
+export function canEditBlog(role: UserRole | string | undefined): boolean {
+  return (
+    role === 'Super Admin' ||
+    role === 'Website Admin' ||
+    role === 'Role Admin' ||
+    role === 'Editor' ||
+    role === 'Content Writer' ||
+    role === 'Publisher' ||
+    role === 'SEO Manager'
+  );
+}
+
 export function canPublish(role: UserRole | string | undefined): boolean {
   return role === 'Super Admin' || role === 'Website Admin' || role === 'Publisher';
 }

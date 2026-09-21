@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useEffect, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useShallow } from 'zustand/react/shallow';
 import { ZohoDashboardView } from './ZohoDashboardView';
 
 export const DashboardOverview: React.FC = () => {
+  const searchParams = useSearchParams();
   const { 
     blogs, 
     activeWebsiteId, 
@@ -13,6 +15,7 @@ export const DashboardOverview: React.FC = () => {
     activeRole,
     currentUser,
     fetchBlogs,
+    setActiveWebsite,
   } = useBlogStore(
     useShallow((s) => ({
       blogs: s.blogs,
@@ -21,23 +24,29 @@ export const DashboardOverview: React.FC = () => {
       activeRole: s.activeRole,
       currentUser: s.currentUser,
       fetchBlogs: s.fetchBlogs,
+      setActiveWebsite: s.setActiveWebsite,
     }))
   );
 
-  useEffect(() => {
-    // Only fetch if store is empty — avoids 100-blog re-fetch on every dashboard visit
-    if (blogs.length === 0) {
-      fetchBlogs('all');
-    }
-  }, [fetchBlogs]);
+  const siteParam = searchParams.get('site');
+  const effectiveSiteId = siteParam && (siteParam === 'all' || websites.some((w) => w.id === siteParam))
+    ? siteParam
+    : activeWebsiteId;
 
-  const isAllSites = activeWebsiteId === 'all';
-  const activeSite = websites.find((w) => w.id === activeWebsiteId) || websites[0];
+  const isAllSites = effectiveSiteId === 'all';
+  const activeSite = websites.find((w) => w.id === effectiveSiteId) || websites[0];
+
+  useEffect(() => {
+    if (siteParam && siteParam !== activeWebsiteId && (siteParam === 'all' || websites.some((w) => w.id === siteParam))) {
+      setActiveWebsite(siteParam);
+    }
+    fetchBlogs(effectiveSiteId);
+  }, [effectiveSiteId, siteParam, activeWebsiteId, websites, setActiveWebsite, fetchBlogs]);
   
   // Isolated vs Global aggregation (Memoized)
   const displayedBlogs = useMemo(() => {
-    return isAllSites ? blogs : blogs.filter((b) => b.websiteId === activeWebsiteId);
-  }, [isAllSites, blogs, activeWebsiteId]);
+    return isAllSites ? blogs : blogs.filter((b) => b.websiteId === effectiveSiteId);
+  }, [isAllSites, blogs, effectiveSiteId]);
 
   // Single-pass memoized status counts and word count
   const { publishedBlogs, underReviewBlogs, approvedBlogs, draftBlogs, totalWords } = useMemo(() => {

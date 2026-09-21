@@ -34,7 +34,7 @@ export const AnalyticsView: React.FC = () => {
   const searchParams = useSearchParams();
   const { setParam } = useQueryState();
 
-  const { blogs, activeWebsiteId, websites, categories, fetchBlogs, fetchCategories } = useBlogStore(
+  const { blogs, activeWebsiteId, websites, categories, fetchBlogs, fetchCategories, setActiveWebsite } = useBlogStore(
     useShallow((s) => ({
       blogs: s.blogs,
       activeWebsiteId: s.activeWebsiteId,
@@ -42,25 +42,31 @@ export const AnalyticsView: React.FC = () => {
       categories: s.categories,
       fetchBlogs: s.fetchBlogs,
       fetchCategories: s.fetchCategories,
+      setActiveWebsite: s.setActiveWebsite,
     }))
   );
   
-  const isAllSites = activeWebsiteId === 'all';
+  const siteParam = searchParams.get('site');
   const tenantParam = searchParams.get('tenant');
   const rangeParam = (searchParams.get('range') as '7d' | '30d' | '90d' | 'all') || '30d';
 
-  const effectiveSiteId = isAllSites ? (tenantParam || 'all') : activeWebsiteId;
-  const isFilteredSingleSite = effectiveSiteId !== 'all';
-  const activeSite = websites.find((w) => w.id === (isFilteredSingleSite ? effectiveSiteId : websites[0]?.id)) || websites[0];
+  const effectiveSiteId = siteParam && (siteParam === 'all' || websites.some((w) => w.id === siteParam))
+    ? siteParam
+    : activeWebsiteId;
+
+  const isAllSites = effectiveSiteId === 'all';
+  const targetSiteScope = isAllSites ? (tenantParam || 'all') : effectiveSiteId;
+  const isFilteredSingleSite = targetSiteScope !== 'all';
+  const activeSite = websites.find((w) => w.id === (isFilteredSingleSite ? targetSiteScope : websites[0]?.id)) || websites[0];
   const siteBlogs = useMemo(() => {
-    return isFilteredSingleSite ? blogs.filter((b) => b.websiteId === effectiveSiteId) : blogs;
-  }, [isFilteredSingleSite, effectiveSiteId, blogs]);
+    return isFilteredSingleSite ? blogs.filter((b) => b.websiteId === targetSiteScope) : blogs;
+  }, [isFilteredSingleSite, targetSiteScope, blogs]);
 
   const siteCategories: Category[] = useMemo(() => {
     return isFilteredSingleSite 
-      ? (categories[effectiveSiteId] || [])
+      ? (categories[targetSiteScope] || [])
       : Object.values(categories).flat();
-  }, [isFilteredSingleSite, effectiveSiteId, categories]);
+  }, [isFilteredSingleSite, targetSiteScope, categories]);
 
   // Range multiplier for realistic scaling across timeframe
   const rangeMultiplier = rangeParam === '7d' ? 0.28 : rangeParam === '30d' ? 0.72 : rangeParam === '90d' ? 0.91 : 1.0;
@@ -89,9 +95,12 @@ export const AnalyticsView: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchBlogs(effectiveSiteId === 'all' ? undefined : effectiveSiteId);
-    fetchCategories(effectiveSiteId === 'all' ? undefined : effectiveSiteId);
-  }, [effectiveSiteId, fetchBlogs, fetchCategories]);
+    if (siteParam && siteParam !== activeWebsiteId && (siteParam === 'all' || websites.some((w) => w.id === siteParam))) {
+      setActiveWebsite(siteParam);
+    }
+    fetchBlogs(targetSiteScope);
+    fetchCategories(targetSiteScope === 'all' ? undefined : targetSiteScope);
+  }, [targetSiteScope, siteParam, activeWebsiteId, websites, setActiveWebsite, fetchBlogs, fetchCategories]);
 
   useEffect(() => {
     let active = true;

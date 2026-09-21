@@ -29,7 +29,8 @@ export const MediaLibraryView: React.FC = () => {
     addMediaItem, 
     deleteMediaItem,
     activeRole,
-    fetchMedia
+    fetchMedia,
+    setActiveWebsite,
   } = useBlogStore(
     useShallow((s) => ({
       media: s.media,
@@ -39,38 +40,47 @@ export const MediaLibraryView: React.FC = () => {
       deleteMediaItem: s.deleteMediaItem,
       activeRole: s.activeRole,
       fetchMedia: s.fetchMedia,
+      setActiveWebsite: s.setActiveWebsite,
     }))
   );
 
-  useEffect(() => {
-    fetchMedia();
-  }, [activeWebsiteId, fetchMedia]);
-
-  const isAllSites = activeWebsiteId === 'all';
-  
   // URL query state
+  const siteParam = searchParams.get('site');
   const tenantParam = searchParams.get('tenant');
   const viewParam = searchParams.get('view');
+
+  const effectiveSiteId = siteParam && (siteParam === 'all' || websites.some((w) => w.id === siteParam))
+    ? siteParam
+    : activeWebsiteId;
+
+  const isAllSites = effectiveSiteId === 'all';
+
+  useEffect(() => {
+    if (siteParam && siteParam !== activeWebsiteId && (siteParam === 'all' || websites.some((w) => w.id === siteParam))) {
+      setActiveWebsite(siteParam);
+    }
+    fetchMedia(effectiveSiteId);
+  }, [effectiveSiteId, siteParam, activeWebsiteId, websites, setActiveWebsite, fetchMedia]);
 
   // Derive target site directly from URL state
   const targetSiteId = (tenantParam && websites.some((w) => w.id === tenantParam))
     ? tenantParam
-    : (isAllSites ? websites[0]?.id : activeWebsiteId);
+    : (isAllSites ? websites[0]?.id : effectiveSiteId);
 
-  const activeSite = websites.find((w) => w.id === (isAllSites ? targetSiteId : activeWebsiteId)) || websites[0];
+  const activeSite = websites.find((w) => w.id === (isAllSites ? targetSiteId : effectiveSiteId)) || websites[0];
   
   // Deduplicate by item.id so duplicate keys never occur in DOM
   const siteMedia = useMemo(() => {
     const raw = isAllSites 
-      ? (tenantParam ? media.filter((m) => m.websiteId === tenantParam) : media) 
-      : media.filter((m) => m.websiteId === activeWebsiteId);
+      ? (tenantParam && tenantParam !== 'all' ? media.filter((m) => m.websiteId === tenantParam) : media) 
+      : media.filter((m) => m.websiteId === effectiveSiteId);
     const seen = new Set<string>();
     return raw.filter((item) => {
       if (!item?.id || seen.has(item.id)) return false;
       seen.add(item.id);
       return true;
     });
-  }, [isAllSites, tenantParam, media, activeWebsiteId]);
+  }, [isAllSites, tenantParam, media, effectiveSiteId]);
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -214,6 +224,41 @@ export const MediaLibraryView: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Multi-Tenant Filter Pills (Only in All Websites scope) */}
+      {isAllSites && (
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+          <button
+            type="button"
+            onClick={() => setParam('tenant', null)}
+            className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+              !tenantParam || tenantParam === 'all'
+                ? 'bg-red-600 text-white border-red-600 shadow-xs'
+                : 'bg-white dark:bg-[#0f172a] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            All Sites ({media.length})
+          </button>
+          {websites.map((site) => {
+            const siteCount = media.filter((m) => m.websiteId === site.id).length;
+            const isSelected = tenantParam === site.id;
+            return (
+              <button
+                key={site.id}
+                type="button"
+                onClick={() => setParam('tenant', site.id)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                  isSelected
+                    ? 'bg-red-600 text-white border-red-600 shadow-xs'
+                    : 'bg-white dark:bg-[#0f172a] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                {site.name} ({siteCount})
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Media Grid or Real Empty State */}
       {siteMedia.length === 0 ? (

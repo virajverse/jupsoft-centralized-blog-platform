@@ -21,7 +21,7 @@ export class WebhooksController {
   ) {}
 
   @Get('logs')
-  @Roles('Super Admin', 'Website Admin')
+  @Roles('Super Admin', 'Website Admin', 'Publisher')
   @ApiOperation({ summary: 'Retrieve webhook delivery logs (TRD §13 & §15)' })
   @ApiQuery({ name: 'websiteId', required: false })
   @ApiQuery({ name: 'limit', required: false })
@@ -114,7 +114,7 @@ export class WebhooksController {
   }
 
   @Post('revalidate')
-  @Roles('Super Admin', 'Website Admin')
+  @Roles('Super Admin', 'Website Admin', 'Publisher')
   @ApiOperation({ summary: 'Trigger on-demand HMAC cache revalidation webhook' })
   async triggerRevalidate(
     @Body()

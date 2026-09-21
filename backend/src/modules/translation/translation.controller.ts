@@ -14,7 +14,7 @@ export class TranslationController {
   constructor(private readonly translationService: TranslationService) {}
 
   @Post('translate')
-  @Roles('Super Admin', 'Website Admin', 'Role Admin', 'Editor', 'Content Writer')
+  @Roles('Super Admin', 'Website Admin', 'Role Admin', 'Editor', 'Content Writer', 'Publisher', 'SEO Manager')
   @ApiOperation({ summary: 'Real-time multi-language translation for blog titles, excerpts, and rich HTML' })
   async translate(@Body() dto: TranslateDto) {
     return this.translationService.translate(dto);

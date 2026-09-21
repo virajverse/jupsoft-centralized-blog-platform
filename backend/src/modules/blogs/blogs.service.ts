@@ -187,7 +187,7 @@ export class BlogsService {
    */
   private isGlobalAdmin(user: AuthenticatedUser): boolean {
     if (user.roles.includes('Super Admin')) return true;
-    return user.roleAssignments.some((ra) => ra.isGlobal && ra.role === 'Website Admin');
+    return user.roleAssignments.some((ra) => ra.isGlobal);
   }
 
   /**

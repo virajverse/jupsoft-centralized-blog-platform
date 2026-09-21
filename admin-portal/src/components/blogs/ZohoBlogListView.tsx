@@ -167,7 +167,7 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
           {/* Refresh */}
           <button
             type="button"
-            onClick={fetchBlogs}
+            onClick={() => fetchBlogs()}
             disabled={isLoading}
             className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
             title="Refresh Blogs"

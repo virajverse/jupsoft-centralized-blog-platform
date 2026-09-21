@@ -74,7 +74,7 @@ export class TaxonomyController {
   }
 
   @Post('categories')
-  @Roles('Super Admin', 'Website Admin', 'Editor')
+  @Roles('Super Admin', 'Website Admin', 'Editor', 'SEO Manager')
   @ApiOperation({ summary: 'Create a new category in website taxonomy' })
   async createCategory(
     @Body()
@@ -194,7 +194,7 @@ export class TaxonomyController {
   }
 
   @Post('tags')
-  @Roles('Super Admin', 'Website Admin', 'Editor')
+  @Roles('Super Admin', 'Website Admin', 'Editor', 'SEO Manager')
   @ApiOperation({ summary: 'Create a new tag in website taxonomy' })
   async createTag(
     @Body() body: { websiteId: string; name: string; slug?: string },

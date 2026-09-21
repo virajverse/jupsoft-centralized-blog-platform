@@ -59,7 +59,7 @@ export class BlogsController {
   }
 
   @Put(':id')
-  @Roles('Super Admin', 'Website Admin', 'Role Admin', 'Editor', 'Content Writer')
+  @Roles('Super Admin', 'Website Admin', 'Role Admin', 'Editor', 'Content Writer', 'Publisher', 'SEO Manager')
   @ApiOperation({ summary: 'Update blog content, SEO metadata, or translations' })
   async update(
     @Param('id') id: string,
@@ -124,7 +124,7 @@ export class BlogsController {
   }
 
   @Post(':id/archive')
-  @Roles('Super Admin', 'Editor', 'Publisher')
+  @Roles('Super Admin', 'Website Admin', 'Editor', 'Publisher')
   @ApiOperation({ summary: 'Archive article and unpublish from CDN cache' })
   async archive(
     @Param('id') id: string,
@@ -136,7 +136,7 @@ export class BlogsController {
   }
 
   @Post(':id/seo-audit')
-  @Roles('Super Admin', 'Editor', 'Content Writer', 'SEO Manager')
+  @Roles('Super Admin', 'Website Admin', 'Editor', 'Content Writer', 'SEO Manager', 'Publisher')
   @ApiOperation({ summary: 'Run automated SEO audit and save to seo_audit_logs' })
   @ApiQuery({ name: 'lang', required: false, example: 'en' })
   async runSeoAudit(

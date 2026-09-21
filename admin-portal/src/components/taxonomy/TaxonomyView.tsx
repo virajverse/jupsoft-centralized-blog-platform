@@ -28,7 +28,8 @@ export const TaxonomyView: React.FC = () => {
     addCategory, 
     deleteCategory,
     addTag,
-    deleteTag 
+    deleteTag,
+    setActiveWebsite,
   } = useBlogStore(
     useShallow((s) => ({
       blogs: s.blogs,
@@ -42,27 +43,36 @@ export const TaxonomyView: React.FC = () => {
       deleteCategory: s.deleteCategory,
       addTag: s.addTag,
       deleteTag: s.deleteTag,
+      setActiveWebsite: s.setActiveWebsite,
     }))
   );
 
-  const isAllSites = activeWebsiteId === 'all';
-
   // URL state
+  const siteParam = searchParams.get('site');
   const tenantParam = searchParams.get('tenant');
   const tabParam = (searchParams.get('tab') as 'all' | 'categories' | 'tags') || 'all';
   const activeTab = ['all', 'categories', 'tags'].includes(tabParam) ? tabParam : 'all';
 
+  const effectiveSiteId = siteParam && (siteParam === 'all' || websites.some((w) => w.id === siteParam))
+    ? siteParam
+    : activeWebsiteId;
+
+  const isAllSites = effectiveSiteId === 'all';
+
   // Derive target site directly from URL state
   const targetSiteId = (tenantParam && websites.some((w) => w.id === tenantParam))
     ? tenantParam
-    : (isAllSites ? websites[0]?.id : activeWebsiteId);
+    : (isAllSites ? websites[0]?.id : effectiveSiteId);
 
   useEffect(() => {
+    if (siteParam && siteParam !== activeWebsiteId && (siteParam === 'all' || websites.some((w) => w.id === siteParam))) {
+      setActiveWebsite(siteParam);
+    }
     if (targetSiteId) {
       fetchCategories(targetSiteId);
       fetchTags(targetSiteId);
     }
-  }, [fetchCategories, fetchTags, targetSiteId]);
+  }, [siteParam, activeWebsiteId, websites, setActiveWebsite, fetchCategories, fetchTags, targetSiteId]);
 
   const handleTabChange = (tab: 'all' | 'categories' | 'tags') => {
     setParam('tab', tab === 'all' ? null : tab);

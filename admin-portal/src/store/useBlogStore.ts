@@ -16,7 +16,7 @@ import {
   PlatformModuleConfig
 } from '../types';
 import { apiClient } from '../services/apiClient'; // TRD §12: live API integration
-import { cleanAvatarUrl } from '../utils/permissions';
+import { cleanAvatarUrl, isGlobalScopeRole } from '../utils/permissions';
 import {
   INITIAL_WEBSITES,
   INITIAL_MODULES
@@ -131,7 +131,7 @@ export const useBlogStore = create<BlogState>()(
       fetchBlogs: async (overrideSiteId?: string) => {
         set({ isLoading: true });
         try {
-          const siteId = overrideSiteId !== undefined ? overrideSiteId : get().activeWebsiteId;
+          const siteId = typeof overrideSiteId === 'string' ? overrideSiteId : get().activeWebsiteId;
           const res = await apiClient.getBlogs({
             websiteId: siteId === 'all' ? undefined : siteId,
             limit: 100,
@@ -171,10 +171,13 @@ export const useBlogStore = create<BlogState>()(
 
       fetchMedia: async (overrideSiteId?: string) => {
         try {
-          const siteId = overrideSiteId !== undefined ? overrideSiteId : get().activeWebsiteId;
+          const siteId = typeof overrideSiteId === 'string' ? overrideSiteId : get().activeWebsiteId;
           const mediaList = await apiClient.getMedia(siteId === 'all' ? undefined : siteId);
           if (Array.isArray(mediaList)) {
             set((state) => {
+              if (siteId === 'all') {
+                return { media: mediaList };
+              }
               const map = new Map<string, MediaItem>();
               state.media.forEach((m) => map.set(m.id, m));
               mediaList.forEach((m) => map.set(m.id, m));
@@ -206,8 +209,9 @@ export const useBlogStore = create<BlogState>()(
         }
       },
 
-      fetchCategories: async (websiteId?: string) => {
+      fetchCategories: async (overrideSiteId?: string) => {
         try {
+          const websiteId = typeof overrideSiteId === 'string' ? overrideSiteId : undefined;
           const res = await apiClient.getCategories(websiteId);
           if (Array.isArray(res)) {
             set((state) => {
@@ -230,8 +234,9 @@ export const useBlogStore = create<BlogState>()(
         }
       },
 
-      fetchTags: async (websiteId?: string) => {
+      fetchTags: async (overrideSiteId?: string) => {
         try {
+          const websiteId = typeof overrideSiteId === 'string' ? overrideSiteId : undefined;
           const res = await apiClient.getTags(websiteId);
           if (Array.isArray(res)) {
             set((state) => {
@@ -254,8 +259,9 @@ export const useBlogStore = create<BlogState>()(
         }
       },
 
-      fetchRedirects: async (websiteId?: string) => {
+      fetchRedirects: async (overrideSiteId?: string) => {
         try {
+          const websiteId = typeof overrideSiteId === 'string' ? overrideSiteId : undefined;
           const res = await apiClient.getRedirects(websiteId);
           if (Array.isArray(res)) {
             set({ redirects: res });
@@ -265,8 +271,9 @@ export const useBlogStore = create<BlogState>()(
         }
       },
 
-      fetchAuditLogs: async (websiteId?: string) => {
+      fetchAuditLogs: async (overrideSiteId?: string) => {
         try {
+          const websiteId = typeof overrideSiteId === 'string' ? overrideSiteId : undefined;
           const res = await apiClient.getAuditLogs(websiteId);
           if (Array.isArray(res)) {
             set({ auditLogs: res });
@@ -306,14 +313,20 @@ export const useBlogStore = create<BlogState>()(
         }
       },
 
-      // TRD Â§4: Real API login with JWT token storage
+      // TRD §4: Real API login with JWT token storage
       login: async (email: string, password: string) => {
         try {
           const data = await apiClient.login(email, password);
           if (data.accessToken && data.user) {
             const user = data.user as UserAccount;
-            const isSuper = Object.values(user.roleAssignments || {}).includes('Super Admin');
-            const assignedWebsites = Object.keys(user.roleAssignments || {});
+            const isSuper =
+              user.role === 'Super Admin' ||
+              (Array.isArray(user.roles) && user.roles.includes('Super Admin')) ||
+              Object.values(user.roleAssignments || {}).some(
+                (r) => typeof r === 'string' && r.toLowerCase().includes('super')
+              ) ||
+              user.roleAssignments?.['all'] !== undefined;
+            const assignedWebsites = Object.keys(user.roleAssignments || {}).filter((k) => k !== 'all');
             
             let websiteId = get().activeWebsiteId;
             if (!isSuper) {
@@ -323,7 +336,14 @@ export const useBlogStore = create<BlogState>()(
             }
             
             const localUser = get().users.find((u) => u.id === user.id || u.email === user.email);
-            const assignedRole = (user.roleAssignments?.[websiteId] || (isSuper ? 'Super Admin' : Object.values(user.roleAssignments || {})[0]) || 'Content Writer') as UserRole;
+            const assignedRole = (
+              (isSuper ? 'Super Admin' : undefined) ||
+              user.roleAssignments?.[websiteId] ||
+              user.roleAssignments?.['all'] ||
+              Object.values(user.roleAssignments || {})[0] ||
+              user.role ||
+              'Content Writer'
+            ) as UserRole;
             set({
               isAuthenticated: true,
               currentUser: {
@@ -359,18 +379,32 @@ export const useBlogStore = create<BlogState>()(
       setGuideOpen: (open) => set({ isGuideOpen: open }),
       setActiveWebsite: (id) => {
         const user = get().currentUser;
+        const activeRole = get().activeRole;
+        const isSuper =
+          isGlobalScopeRole(activeRole) ||
+          activeRole === 'Super Admin' ||
+          user?.role === 'Super Admin' ||
+          (Array.isArray(user?.roles) && user.roles.includes('Super Admin')) ||
+          Object.values(user?.roleAssignments || {}).some(
+            (r) => typeof r === 'string' && r.toLowerCase().includes('super')
+          ) ||
+          user?.roleAssignments?.['all'] !== undefined;
+
+        if (isSuper) {
+          const roleForSite = (user?.roleAssignments?.[id] || (id === 'all' ? 'Super Admin' : activeRole)) as UserRole;
+          set({ activeWebsiteId: id, activeRole: roleForSite });
+          return;
+        }
+
         if (user && user.roleAssignments) {
-          const isSuper = Object.values(user.roleAssignments).includes('Super Admin');
-          if (!isSuper) {
-            const assignedSites = Object.keys(user.roleAssignments);
-            if (id === 'all' || !user.roleAssignments[id]) {
-              const fallbackSiteId = assignedSites[0] || 'site-cloud';
-              const roleForSite = user.roleAssignments[fallbackSiteId] || get().activeRole;
-              set({ activeWebsiteId: fallbackSiteId, activeRole: roleForSite as UserRole });
-              return;
-            }
+          const assignedSites = Object.keys(user.roleAssignments).filter((k) => k !== 'all');
+          if (id === 'all' || !user.roleAssignments[id]) {
+            const fallbackSiteId = assignedSites[0] || 'site-cloud';
+            const roleForSite = user.roleAssignments[fallbackSiteId] || activeRole;
+            set({ activeWebsiteId: fallbackSiteId, activeRole: roleForSite as UserRole });
+            return;
           }
-          const roleForSite = user.roleAssignments[id] || (isSuper ? 'Super Admin' : get().activeRole);
+          const roleForSite = user.roleAssignments[id] || activeRole;
           set({ activeWebsiteId: id, activeRole: roleForSite as UserRole });
         } else {
           set({ activeWebsiteId: id });

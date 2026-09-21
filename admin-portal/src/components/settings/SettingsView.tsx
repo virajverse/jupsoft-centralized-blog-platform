@@ -48,7 +48,8 @@ export const SettingsView: React.FC = () => {
     blogs,
     auditLogs,
     fetchAuditLogs,
-    showNotification 
+    showNotification,
+    setActiveWebsite,
   } = useBlogStore(
     useShallow((s) => ({
       websites: s.websites,
@@ -63,8 +64,14 @@ export const SettingsView: React.FC = () => {
       auditLogs: s.auditLogs,
       fetchAuditLogs: s.fetchAuditLogs,
       showNotification: s.showNotification,
+      setActiveWebsite: s.setActiveWebsite,
     }))
   );
+
+  const siteParam = searchParams.get('site');
+  const effectiveSiteId = siteParam && (siteParam === 'all' || websites.some((w) => w.id === siteParam))
+    ? siteParam
+    : activeWebsiteId;
 
   const isSuperAdmin = activeRole === 'Super Admin';
 
@@ -74,10 +81,13 @@ export const SettingsView: React.FC = () => {
   }, [fetchWebsites, fetchBlogs]);
 
   useEffect(() => {
-    fetchAuditLogs(activeWebsiteId === 'all' ? undefined : activeWebsiteId);
-  }, [activeWebsiteId, fetchAuditLogs]);
+    if (siteParam && siteParam !== activeWebsiteId && (siteParam === 'all' || websites.some((w) => w.id === siteParam))) {
+      setActiveWebsite(siteParam);
+    }
+    fetchAuditLogs(effectiveSiteId === 'all' ? undefined : effectiveSiteId);
+  }, [siteParam, effectiveSiteId, activeWebsiteId, websites, setActiveWebsite, fetchAuditLogs]);
 
-  const isAllSites = activeWebsiteId === 'all';
+  const isAllSites = effectiveSiteId === 'all';
 
   // URL state
   type SettingsTab = 'all' | 'general' | 'redirects' | 'webhook' | 'audit';
@@ -90,7 +100,7 @@ export const SettingsView: React.FC = () => {
   // Derive target site directly from URL state
   const targetSiteId = (tenantParam && websites.some((w) => w.id === tenantParam))
     ? tenantParam
-    : (isAllSites ? websites[0]?.id : activeWebsiteId);
+    : (isAllSites ? websites[0]?.id : effectiveSiteId);
 
   // Onboard modal state
   const [isOnboardOpen, setIsOnboardOpen] = useState(false);

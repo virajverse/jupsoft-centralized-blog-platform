@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useShallow } from 'zustand/react/shallow';
 import { RedirectItem } from '../../types';
@@ -19,6 +20,7 @@ export interface RedirectsViewProps {
 }
 
 export const RedirectsView: React.FC<RedirectsViewProps> = ({ embedded = false }) => {
+  const searchParams = useSearchParams();
   const { 
     redirects, 
     websites, 
@@ -26,7 +28,8 @@ export const RedirectsView: React.FC<RedirectsViewProps> = ({ embedded = false }
     fetchRedirects,
     addRedirect, 
     deleteRedirect, 
-    showNotification 
+    showNotification,
+    setActiveWebsite,
   } = useBlogStore(
     useShallow((s) => ({
       redirects: s.redirects,
@@ -36,25 +39,34 @@ export const RedirectsView: React.FC<RedirectsViewProps> = ({ embedded = false }
       addRedirect: s.addRedirect,
       deleteRedirect: s.deleteRedirect,
       showNotification: s.showNotification,
+      setActiveWebsite: s.setActiveWebsite,
     }))
   );
 
-  React.useEffect(() => {
-    fetchRedirects(activeWebsiteId === 'all' ? undefined : activeWebsiteId);
-  }, [activeWebsiteId, fetchRedirects]);
+  const siteParam = searchParams.get('site');
+  const effectiveSiteId = siteParam && (siteParam === 'all' || websites.some((w) => w.id === siteParam))
+    ? siteParam
+    : activeWebsiteId;
 
-  const isAllSites = activeWebsiteId === 'all';
+  React.useEffect(() => {
+    if (siteParam && siteParam !== activeWebsiteId && (siteParam === 'all' || websites.some((w) => w.id === siteParam))) {
+      setActiveWebsite(siteParam);
+    }
+    fetchRedirects(effectiveSiteId === 'all' ? undefined : effectiveSiteId);
+  }, [siteParam, effectiveSiteId, activeWebsiteId, websites, setActiveWebsite, fetchRedirects]);
+
+  const isAllSites = effectiveSiteId === 'all';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Form State
-  const [targetSiteId, setTargetSiteId] = useState<string>(activeWebsiteId === 'all' ? websites[0]?.id : activeWebsiteId);
+  const [targetSiteId, setTargetSiteId] = useState<string>(effectiveSiteId === 'all' ? websites[0]?.id : effectiveSiteId);
   const [fromSlug, setFromSlug] = useState('');
   const [toSlug, setToSlug] = useState('');
 
   const filteredRedirects = redirects.filter((r) => {
-    const matchesSite = isAllSites || r.websiteId === activeWebsiteId;
+    const matchesSite = isAllSites || r.websiteId === effectiveSiteId;
     if (!matchesSite) return false;
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();

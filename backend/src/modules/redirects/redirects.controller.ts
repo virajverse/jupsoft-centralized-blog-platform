@@ -22,14 +22,14 @@ export class RedirectsController {
   }
 
   @Post()
-  @Roles('Super Admin', 'SEO Manager', 'Publisher')
+  @Roles('Super Admin', 'Website Admin', 'SEO Manager', 'Publisher')
   @ApiOperation({ summary: 'Create manual 301 permanent redirect rule' })
   async create(@Body() dto: CreateRedirectDto, @CurrentUser() user: any, @Ip() ip: string) {
     return this.redirectsService.create(dto, user, ip);
   }
 
   @Delete(':id')
-  @Roles('Super Admin', 'SEO Manager', 'Publisher')
+  @Roles('Super Admin', 'Website Admin', 'SEO Manager', 'Publisher')
   @ApiOperation({ summary: 'Delete 301 redirect rule' })
   async delete(@Param('id') id: string, @CurrentUser() user: any, @Ip() ip: string) {
     return this.redirectsService.delete(id, user, ip);

@@ -28,7 +28,7 @@ export class UsersController {
   }
 
   @Put(':id/role')
-  @Roles('Super Admin', 'Website Admin')
+  @Roles('Super Admin', 'Website Admin', 'Role Admin')
   @ApiOperation({ summary: 'Modify user tenant role assignment' })
   async updateRole(
     @Param('id') id: string,
