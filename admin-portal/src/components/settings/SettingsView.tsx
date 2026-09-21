@@ -895,7 +895,18 @@ export const SettingsView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                {filteredAuditLogs.length === 0 ? (
+                {isLoadingSettings ? (
+                  [...Array(5)].map((_, i) => (
+                    <tr key={i} className="animate-pulse">
+                      <td className="py-2.5 px-4"><div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-28" /></td>
+                      <td className="py-2.5 px-4"><div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-24 mb-1" /><div className="h-2 bg-slate-100 dark:bg-slate-850 rounded w-16" /></td>
+                      <td className="py-2.5 px-4"><div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-20" /></td>
+                      <td className="py-2.5 px-4"><div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-16" /></td>
+                      <td className="py-2.5 px-4"><div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-20" /></td>
+                      <td className="py-2.5 px-4"><div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-48" /></td>
+                    </tr>
+                  ))
+                ) : filteredAuditLogs.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-8 text-center text-xs text-slate-400">
                       No audit logs match current search filter.
