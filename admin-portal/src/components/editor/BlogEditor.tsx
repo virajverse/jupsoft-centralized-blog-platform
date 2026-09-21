@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../hooks/useQueryState';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -99,7 +100,26 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     currentUser,
     users,
     fetchUsers,
-  } = useBlogStore();
+  } = useBlogStore(
+    useShallow((s) => ({
+      editingBlogId: s.editingBlogId,
+      blogs: s.blogs,
+      activeWebsiteId: s.activeWebsiteId,
+      websites: s.websites,
+      categories: s.categories,
+      tags: s.tags,
+      media: s.media,
+      addMediaItem: s.addMediaItem,
+      fetchMedia: s.fetchMedia,
+      saveBlog: s.saveBlog,
+      showNotification: s.showNotification,
+      activeRole: s.activeRole,
+      addRedirect: s.addRedirect,
+      currentUser: s.currentUser,
+      users: s.users,
+      fetchUsers: s.fetchUsers,
+    }))
+  );
 
   const targetBlogId = blogId !== undefined ? blogId : editingBlogId;
 

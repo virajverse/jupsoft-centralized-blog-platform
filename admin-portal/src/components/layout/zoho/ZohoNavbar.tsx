@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useBlogStore } from '../../../store/useBlogStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../../hooks/useQueryState';
 import {
   Search,
@@ -42,7 +43,21 @@ export const ZohoNavbar: React.FC = () => {
     logout,
     blogs,
     setGuideOpen
-  } = useBlogStore();
+  } = useBlogStore(
+    useShallow((s) => ({
+      websites: s.websites,
+      activeWebsiteId: s.activeWebsiteId,
+      setActiveWebsite: s.setActiveWebsite,
+      activeRole: s.activeRole,
+      notification: s.notification,
+      clearNotification: s.clearNotification,
+      toggleSidebar: s.toggleSidebar,
+      currentUser: s.currentUser,
+      logout: s.logout,
+      blogs: s.blogs,
+      setGuideOpen: s.setGuideOpen,
+    }))
+  );
 
   const [siteDropdownOpen, setSiteDropdownOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);

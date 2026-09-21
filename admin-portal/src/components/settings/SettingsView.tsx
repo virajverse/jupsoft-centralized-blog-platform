@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../hooks/useQueryState';
 import { Website, LanguageCode } from '../../types';
 import { apiClient } from '../../services/apiClient';
@@ -48,7 +49,22 @@ export const SettingsView: React.FC = () => {
     auditLogs,
     fetchAuditLogs,
     showNotification 
-  } = useBlogStore();
+  } = useBlogStore(
+    useShallow((s) => ({
+      websites: s.websites,
+      activeWebsiteId: s.activeWebsiteId,
+      activeRole: s.activeRole,
+      fetchWebsites: s.fetchWebsites,
+      fetchBlogs: s.fetchBlogs,
+      updateWebsite: s.updateWebsite,
+      addWebsite: s.addWebsite,
+      deleteWebsite: s.deleteWebsite,
+      blogs: s.blogs,
+      auditLogs: s.auditLogs,
+      fetchAuditLogs: s.fetchAuditLogs,
+      showNotification: s.showNotification,
+    }))
+  );
 
   const isSuperAdmin = activeRole === 'Super Admin';
 

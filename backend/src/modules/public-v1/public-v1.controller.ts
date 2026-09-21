@@ -152,7 +152,8 @@ export class PublicV1Controller {
     @Query('lang') lang?: string,
     @Query('limit') limit?: number,
   ) {
-    return this.publicV1Service.search(q || '', req.tenant.id, lang || 'en', limit ? Number(limit) : 10);
+    const safeLimit = Math.max(1, Math.min(Number(limit) || 10, 50));
+    return this.publicV1Service.search(q || '', req.tenant.id, lang || 'en', safeLimit);
   }
 
   @Get('website')

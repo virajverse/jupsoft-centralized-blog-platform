@@ -28,6 +28,12 @@ export class ScheduledPublisherService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async handleScheduledPublishing() {
+    // Cluster Coordination: Ensure only one instance processes scheduled publishing per minute
+    const lockAcquired = await this.redis.acquireLock('lock:cron:scheduled-publisher', 50);
+    if (!lockAcquired) {
+      return;
+    }
+
     const now = new Date();
 
     const dueBlogs = await this.prisma.blog.findMany({

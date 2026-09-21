@@ -98,6 +98,7 @@ model Blog {
   blogCategories       BlogCategory[]         // TRD §9: M:N via blog_categories
   blogTags             BlogTag[]              // TRD §9: M:N via blog_tags
 
+  @@index([websiteId, status, publishDate(sort: Desc)])
   @@index([websiteId, status])
   @@index([status, scheduledAt])
   @@index([authorId])
@@ -240,6 +241,7 @@ model BlogCategory {
   category             Category               @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@id([blogId, categoryId])
+  @@index([categoryId])
   @@map("blog_categories")
 }
 
@@ -251,6 +253,7 @@ model BlogTag {
   tag                  Tag                    @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@id([blogId, tagId])
+  @@index([tagId])
   @@map("blog_tags")
 }
 
@@ -324,5 +327,6 @@ model WebhookDeliveryLog {
   timestamp            DateTime               @default(now())
 
   @@index([websiteId, event])
+  @@index([delivered, attempt, timestamp])
   @@map("webhooks")
 }

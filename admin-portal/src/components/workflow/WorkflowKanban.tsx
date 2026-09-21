@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../hooks/useQueryState';
 import { 
   CheckCircle2, 
@@ -38,7 +39,18 @@ export const WorkflowKanban: React.FC = () => {
     showNotification,
     fetchBlogs,
     isLoading
-  } = useBlogStore();
+  } = useBlogStore(
+    useShallow((s) => ({
+      blogs: s.blogs,
+      activeWebsiteId: s.activeWebsiteId,
+      websites: s.websites,
+      activeRole: s.activeRole,
+      transitionBlogStatus: s.transitionBlogStatus,
+      showNotification: s.showNotification,
+      fetchBlogs: s.fetchBlogs,
+      isLoading: s.isLoading,
+    }))
+  );
 
   useEffect(() => {
     fetchBlogs();

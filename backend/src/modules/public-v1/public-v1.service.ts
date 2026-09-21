@@ -193,11 +193,9 @@ export class PublicV1Service {
   private async formatBlogDetail(translation: any, redirect?: { statusCode: number; fromSlug: string; toSlug: string }) {
     const b = translation.blog;
 
-    // Increment viewCount atomically without mutating updatedAt — TRD §14 (Analytics: view_count)
+    // PERF-002: Increment viewCount via atomic Redis buffer — TRD §14 (Analytics: view_count)
     if (b?.id) {
-      this.prisma
-        .$executeRawUnsafe('UPDATE blogs SET view_count = view_count + 1 WHERE id = $1', b.id)
-        .catch(() => {});
+      this.redis.bufferViewIncrement(b.id).catch(() => {});
     }
 
     let cats = (b.blogCategories || []).map((bc: any) => bc.category).filter(Boolean);
@@ -480,11 +478,12 @@ export class PublicV1Service {
   // Uses tsvector generated column + GIN index (add_fts_search_vector.sql migration required)
   // Falls back to ilike if FTS column is not yet available (zero-downtime migration window)
   async search(query: string, websiteId: string, lang = 'en', limit = 10) {
+    const safeLimit = Math.max(1, Math.min(Number(limit) || 10, 50));
     if (!query?.trim()) {
       return { success: true, query, meta: { count: 0 }, data: [] };
     }
 
-    const cacheKey = `search:${websiteId}:${encodeURIComponent(query)}:${lang}`;
+    const cacheKey = `search:${websiteId}:${encodeURIComponent(query)}:${lang}:${safeLimit}`;
     const cached = await this.redis.get<unknown>(cacheKey);
     if (cached) return cached;
 
@@ -515,7 +514,7 @@ export class PublicV1Service {
           AND b.status          = 'Published'
           AND bt.search_vector @@ plainto_tsquery('english', ${query})
         ORDER BY rank DESC
-        LIMIT ${limit}
+        LIMIT ${safeLimit}
       `;
     } catch (ftsError: any) {
       // FTS column not yet migrated — graceful fallback to ilike
@@ -537,7 +536,7 @@ export class PublicV1Service {
               { content: { contains: query, mode: 'insensitive' } },
             ],
           },
-          take: limit,
+          take: safeLimit,
           include: { blog: true },
         });
         matches = fallback.map((m) => ({

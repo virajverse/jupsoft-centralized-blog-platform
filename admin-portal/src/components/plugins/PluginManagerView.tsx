@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useBlogStore } from '../../store/useBlogStore';
+import { useShallow } from 'zustand/react/shallow';
 import { PlatformModuleConfig, UserRole } from '../../types';
 import {
   Boxes,
@@ -60,7 +61,17 @@ export const PluginManagerView: React.FC = () => {
     addCustomPlugin,
     deleteCustomPlugin,
     resetModulesToDefault,
-  } = useBlogStore();
+  } = useBlogStore(
+    useShallow((s) => ({
+      modules: s.modules,
+      websites: s.websites,
+      toggleModule: s.toggleModule,
+      updateModulePermissions: s.updateModulePermissions,
+      addCustomPlugin: s.addCustomPlugin,
+      deleteCustomPlugin: s.deleteCustomPlugin,
+      resetModulesToDefault: s.resetModulesToDefault,
+    }))
+  );
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');

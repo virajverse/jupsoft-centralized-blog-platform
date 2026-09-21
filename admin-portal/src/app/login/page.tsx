@@ -16,7 +16,8 @@ import {
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isAuthenticated } = useBlogStore();
+  const login = useBlogStore((s) => s.login);
+  const isAuthenticated = useBlogStore((s) => s.isAuthenticated);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;

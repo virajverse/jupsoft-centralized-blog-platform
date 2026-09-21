@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../hooks/useQueryState';
 import { ZohoBlogListView } from './ZohoBlogListView';
 
@@ -19,7 +20,18 @@ export const BlogList: React.FC = () => {
     deleteBlog,
     fetchBlogs,
     isLoading
-  } = useBlogStore();
+  } = useBlogStore(
+    useShallow((s) => ({
+      blogs: s.blogs,
+      activeWebsiteId: s.activeWebsiteId,
+      setActiveWebsite: s.setActiveWebsite,
+      websites: s.websites,
+      activeRole: s.activeRole,
+      deleteBlog: s.deleteBlog,
+      fetchBlogs: s.fetchBlogs,
+      isLoading: s.isLoading,
+    }))
+  );
 
   const siteParam = searchParams.get('site');
   const effectiveSiteId = siteParam && (siteParam === 'all' || websites.some((w) => w.id === siteParam))

@@ -30,7 +30,9 @@ import {
 } from 'lucide-react';
 
 export const AdminGuideModal: React.FC = () => {
-  const { isGuideOpen, setGuideOpen, activeRole } = useBlogStore();
+  const isGuideOpen = useBlogStore((s) => s.isGuideOpen);
+  const setGuideOpen = useBlogStore((s) => s.setGuideOpen);
+  const activeRole = useBlogStore((s) => s.activeRole);
   const [activeTab, setActiveTab] = useState<'all' | 'architecture' | 'modules' | 'workflow' | 'seo' | 'mcp' | 'settings'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [copied, setCopied] = useState(false);

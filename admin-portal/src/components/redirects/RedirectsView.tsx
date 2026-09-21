@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useBlogStore } from '../../store/useBlogStore';
+import { useShallow } from 'zustand/react/shallow';
 import { RedirectItem } from '../../types';
 import { 
   ArrowRightLeft, 
@@ -26,7 +27,17 @@ export const RedirectsView: React.FC<RedirectsViewProps> = ({ embedded = false }
     addRedirect, 
     deleteRedirect, 
     showNotification 
-  } = useBlogStore();
+  } = useBlogStore(
+    useShallow((s) => ({
+      redirects: s.redirects,
+      websites: s.websites,
+      activeWebsiteId: s.activeWebsiteId,
+      fetchRedirects: s.fetchRedirects,
+      addRedirect: s.addRedirect,
+      deleteRedirect: s.deleteRedirect,
+      showNotification: s.showNotification,
+    }))
+  );
 
   React.useEffect(() => {
     fetchRedirects(activeWebsiteId === 'all' ? undefined : activeWebsiteId);

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../hooks/useQueryState';
 import { 
   FileText, 
@@ -26,7 +27,14 @@ export const AnalyticsView: React.FC = () => {
   const searchParams = useSearchParams();
   const { setParam } = useQueryState();
 
-  const { blogs, activeWebsiteId, websites, categories } = useBlogStore();
+  const { blogs, activeWebsiteId, websites, categories } = useBlogStore(
+    useShallow((s) => ({
+      blogs: s.blogs,
+      activeWebsiteId: s.activeWebsiteId,
+      websites: s.websites,
+      categories: s.categories,
+    }))
+  );
   
   const isAllSites = activeWebsiteId === 'all';
   const tenantParam = searchParams.get('tenant');

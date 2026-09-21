@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { useBlogStore } from '../../../store/useBlogStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../../hooks/useQueryState';
 import { canAccessModule, isGlobalScopeRole, AppModule } from '../../../utils/permissions';
 import {
@@ -36,7 +37,19 @@ export const ZohoSidebar: React.FC = () => {
     setSidebarOpen,
     currentUser,
     modules
-  } = useBlogStore();
+  } = useBlogStore(
+    useShallow((s) => ({
+      blogs: s.blogs,
+      activeWebsiteId: s.activeWebsiteId,
+      setActiveWebsite: s.setActiveWebsite,
+      activeRole: s.activeRole,
+      websites: s.websites,
+      sidebarOpen: s.sidebarOpen,
+      setSidebarOpen: s.setSidebarOpen,
+      currentUser: s.currentUser,
+      modules: s.modules,
+    }))
+  );
 
   const [drawerCollapsed, setDrawerCollapsed] = useState(true);
 

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../hooks/useQueryState';
 import { 
   UploadCloud, 
@@ -29,7 +30,17 @@ export const MediaLibraryView: React.FC = () => {
     deleteMediaItem,
     activeRole,
     fetchMedia
-  } = useBlogStore();
+  } = useBlogStore(
+    useShallow((s) => ({
+      media: s.media,
+      activeWebsiteId: s.activeWebsiteId,
+      websites: s.websites,
+      addMediaItem: s.addMediaItem,
+      deleteMediaItem: s.deleteMediaItem,
+      activeRole: s.activeRole,
+      fetchMedia: s.fetchMedia,
+    }))
+  );
 
   useEffect(() => {
     fetchMedia();

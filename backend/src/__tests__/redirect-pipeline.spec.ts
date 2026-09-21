@@ -49,6 +49,8 @@ describe('Pipeline: 301 Permanent Redirects & Slug Lifecycle (TRD §7)', () => {
     del: jest.fn(),
     delPattern: jest.fn(),
     ping: jest.fn().mockResolvedValue(true),
+    bufferViewIncrement: jest.fn().mockResolvedValue(undefined),
+    drainViewCountBuffer: jest.fn().mockResolvedValue({}),
   };
 
   const mockWebhook = {

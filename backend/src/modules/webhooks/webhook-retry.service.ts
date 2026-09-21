@@ -9,6 +9,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import { RedisProvider } from '../../common/providers/redis.provider';
 import * as crypto from 'crypto';
 
 const MAX_RETRY_ATTEMPTS = 3;
@@ -20,10 +21,17 @@ export class WebhookRetryService {
   constructor(
     private prisma: PrismaService,
     private configService: ConfigService,
+    private redis: RedisProvider,
   ) {}
 
   @Cron('*/5 * * * *') // every 5 minutes
   async retryFailedWebhooks() {
+    // Cluster Coordination: Ensure only one instance processes failed webhooks per 5m window
+    const lockAcquired = await this.redis.acquireLock('lock:cron:webhook-retry', 280);
+    if (!lockAcquired) {
+      return;
+    }
+
     // Find all failed webhook deliveries that haven't exceeded max attempts
     const failedWebhooks = await this.prisma.webhookDeliveryLog.findMany({
       where: {

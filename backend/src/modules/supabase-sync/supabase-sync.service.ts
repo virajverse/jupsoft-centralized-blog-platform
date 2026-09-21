@@ -35,11 +35,12 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
       targetUrl = localUrl;
       this.mirrorTargetName = 'Local PostgreSQL (localhost:5432)';
     } else {
-      targetUrl = cloudDirectUrl || dbUrl;
+      targetUrl = cloudDirectUrl;
       this.mirrorTargetName = 'Supabase Cloud PostgreSQL';
     }
 
-    if (targetUrl) {
+    // Only enable mirroring if a dedicated, distinct secondary database URL is configured
+    if (targetUrl && targetUrl !== dbUrl) {
       this.mirrorPrisma = new PrismaClient({
         datasources: { db: { url: targetUrl } },
       });
@@ -47,7 +48,11 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(`⚡ Active Dual-Write Mirroring initialized -> Target: ${this.mirrorTargetName}`);
     } else {
       this.isEnabled = false;
-      this.logger.warn('⚠️ Dual-Write Mirroring inactive: No mirror database URL configured');
+      if (targetUrl === dbUrl) {
+        this.logger.log('ℹ️ Dual-Write Mirroring disabled: Secondary target is identical to primary database.');
+      } else {
+        this.logger.log('ℹ️ Dual-Write Mirroring inactive: No secondary database URL configured (DIRECT_URL / LOCAL_DATABASE_URL). Single database mode.');
+      }
     }
   }
 

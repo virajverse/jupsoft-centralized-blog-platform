@@ -695,34 +695,42 @@ export class BlogsService {
     // TRD §13: Invalidate Redis cache so next public API hit reads fresh data
     await this.invalidateCache(blog.websiteId, blog.translations);
 
-    // ── AWS SES Email Notification (non-blocking — never throws) ──────────
-    // Fetch author email for notifications
-    try {
-      const author = await this.prisma.user.findUnique({ where: { id: blog.authorId } });
-      const website = await this.prisma.website.findUnique({ where: { id: blog.websiteId } });
-      const blogTitle = blog.translations.find((t) => t.lang === 'en')?.title
-        || blog.translations[0]?.title
-        || blog.id;
+    // ── AWS SES Email Notification (Asynchronous / Non-blocking — never blocks HTTP response) ──
+    (async () => {
+      try {
+        const [author, website] = await Promise.all([
+          this.prisma.user.findUnique({
+            where: { id: blog.authorId },
+            select: { email: true, name: true },
+          }),
+          this.prisma.website.findUnique({
+            where: { id: blog.websiteId },
+            select: { domain: true },
+          }),
+        ]);
+        const blogTitle =
+          blog.translations.find((t) => t.lang === 'en')?.title ||
+          blog.translations[0]?.title ||
+          blog.id;
 
-      if (author && website) {
-        await this.emailService.sendWorkflowNotification({
-          toEmail: author.email,
-          toName: author.name,
-          event: newStatus,
-          blogTitle,
-          blogId: blog.id,
-          websiteDomain: website.domain,
-          actorName: user.name,
-          notes: dto.notes,
-        });
+        if (author && website) {
+          await this.emailService.sendWorkflowNotification({
+            toEmail: author.email,
+            toName: author.name,
+            event: newStatus,
+            blogTitle,
+            blogId: blog.id,
+            websiteDomain: website.domain,
+            actorName: user.name,
+            notes: dto.notes,
+          });
+        }
+      } catch (emailErr) {
+        this.logger.error(
+          `[Async Notification] Email notification failed for blog ${id}: ${(emailErr as Error).message}`,
+        );
       }
-    } catch (emailErr) {
-      // Email failure must NEVER block the workflow transition
-      const { Logger } = await import('@nestjs/common');
-      new Logger('BlogsService').error(
-        `Email notification failed for blog ${id}: ${(emailErr as Error).message}`,
-      );
-    }
+    })();
 
     // Invalidate admin blogs cache so new status appears instantly
     await this.redis.delPattern('admin:blogs:*');

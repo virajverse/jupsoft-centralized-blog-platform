@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../hooks/useQueryState';
 import { UserAccount, UserRole, Website } from '../../types';
 import { getAllowedInviteRoles, canManageUsers, isGlobalScopeRole, cleanAvatarUrl, canAccessModule, getDefaultRoleModules, AppModule } from '../../utils/permissions';
@@ -188,7 +189,21 @@ export const UserManagementView: React.FC = () => {
     deleteUser, 
     resetUserPassword,
     showNotification 
-  } = useBlogStore();
+  } = useBlogStore(
+    useShallow((s) => ({
+      users: s.users,
+      websites: s.websites,
+      activeWebsiteId: s.activeWebsiteId,
+      activeRole: s.activeRole,
+      currentUser: s.currentUser,
+      fetchUsers: s.fetchUsers,
+      addUser: s.addUser,
+      updateUser: s.updateUser,
+      deleteUser: s.deleteUser,
+      resetUserPassword: s.resetUserPassword,
+      showNotification: s.showNotification,
+    }))
+  );
 
   const isSuperAdmin = isGlobalScopeRole(activeRole);
   const allowedRoles = getAllowedInviteRoles(activeRole);

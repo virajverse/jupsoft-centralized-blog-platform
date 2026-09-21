@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
+import { useShallow } from 'zustand/react/shallow';
 import { canAccessModule, AppModule } from '../../utils/permissions';
 import { ShieldAlert } from 'lucide-react';
 
@@ -12,7 +13,14 @@ const emptySubscribe = () => () => {};
 export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated, activeRole, modules, currentUser } = useBlogStore();
+  const { isAuthenticated, activeRole, modules, currentUser } = useBlogStore(
+    useShallow((s) => ({
+      isAuthenticated: s.isAuthenticated,
+      activeRole: s.activeRole,
+      modules: s.modules,
+      currentUser: s.currentUser,
+    }))
+  );
   const mounted = React.useSyncExternalStore(
     emptySubscribe,
     () => true,

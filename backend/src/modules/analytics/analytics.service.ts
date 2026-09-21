@@ -10,8 +10,10 @@
  *   - "Aggregate: viewCount, uniqueVisitors, avgReadPercent, topReferrers"
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisProvider } from '../../common/providers/redis.provider';
 import * as crypto from 'crypto';
 
 export interface TrackEventDto {
@@ -26,10 +28,13 @@ export interface TrackEventDto {
 }
 
 @Injectable()
-export class AnalyticsService {
+export class AnalyticsService implements OnModuleDestroy {
   private readonly logger = new Logger(AnalyticsService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisProvider,
+  ) {}
 
   /**
    * TRD §14: "fire-and-forget — never slows page delivery"
@@ -55,11 +60,9 @@ export class AnalyticsService {
         },
       });
 
-      // TRD §14: Increment view counter on blog record atomically without changing updatedAt
+      // TRD §14 + PERF-002: Increment view counter on blog record via atomic Redis buffer
       if (dto.event === 'page_view' || !dto.event) {
-        await this.prisma
-          .$executeRawUnsafe('UPDATE blogs SET view_count = view_count + 1 WHERE id = $1', dto.blogId)
-          .catch(() => {});
+        await this.redis.bufferViewIncrement(dto.blogId).catch(() => {});
       }
     } catch (err) {
       // Non-blocking: log but never throw
@@ -83,11 +86,13 @@ export class AnalyticsService {
       _avg: { readPercent: true },
     });
 
-    // Unique visitors per blog (distinct sessionIds)
-    const uniqueRaw = await this.prisma.analyticsEvent.groupBy({
-      by: ['blogId', 'sessionId'],
-      where: { websiteId, timestamp: { gte: since } },
-    });
+    // Unique visitors per blog (computed natively in PostgreSQL engine with zero heap memory overhead)
+    const uniqueRaw = await this.prisma.$queryRaw<Array<{ blogId: string; uniqueVisitors: number }>>`
+      SELECT "blogId", COUNT(DISTINCT "sessionId")::int AS "uniqueVisitors"
+      FROM "analytics"
+      WHERE "websiteId" = ${websiteId} AND "timestamp" >= ${since}
+      GROUP BY "blogId"
+    `;
 
     // Top referrers
     const referrers = await this.prisma.analyticsEvent.groupBy({
@@ -113,11 +118,10 @@ export class AnalyticsService {
       take: 20,
     });
 
-    // Build unique visitors map
-    const uniquePerBlog: Record<string, Set<string>> = {};
+    // Build unique visitors map (O(1) dictionary lookup)
+    const uniquePerBlog: Record<string, number> = {};
     for (const row of uniqueRaw) {
-      if (!uniquePerBlog[row.blogId]) uniquePerBlog[row.blogId] = new Set();
-      uniquePerBlog[row.blogId].add(row.sessionId);
+      uniquePerBlog[row.blogId] = Number(row.uniqueVisitors) || 0;
     }
 
     const blogStats = blogs.map((b) => {
@@ -131,7 +135,7 @@ export class AnalyticsService {
         totalViews: b.viewCount,
         trackedViews: pageViewEvent?._count?.id ?? 0,
         readCompletes: readEvent?._count?.id ?? 0,
-        uniqueVisitors: uniquePerBlog[b.id]?.size ?? 0,
+        uniqueVisitors: uniquePerBlog[b.id] ?? 0,
         avgReadPercent: Math.round(pageViewEvent?._avg?.readPercent ?? 0),
       };
     });
@@ -141,7 +145,7 @@ export class AnalyticsService {
       period: { days, since: since.toISOString() },
       summary: {
         totalPageViews: blogStats.reduce((s, b) => s + b.trackedViews, 0),
-        totalUniqueVisitors: Object.values(uniquePerBlog).reduce((s, set) => s + set.size, 0),
+        totalUniqueVisitors: Object.values(uniquePerBlog).reduce((s, count) => s + count, 0),
       },
       topReferrers: referrers.map((r) => ({ referrer: r.referrer, count: r._count.id })),
       blogs: blogStats,
@@ -155,12 +159,13 @@ export class AnalyticsService {
     const since = new Date();
     since.setDate(since.getDate() - days);
 
-    const [totalEvents, uniqueSessions, dailyViews] = await Promise.all([
+    const [totalEvents, uniqueResult, dailyViews] = await Promise.all([
       this.prisma.analyticsEvent.count({ where: { blogId, timestamp: { gte: since } } }),
-      this.prisma.analyticsEvent.groupBy({
-        by: ['sessionId'],
-        where: { blogId, timestamp: { gte: since } },
-      }),
+      this.prisma.$queryRaw<Array<{ uniqueCount: number }>>`
+        SELECT COUNT(DISTINCT "sessionId")::int AS "uniqueCount"
+        FROM "analytics"
+        WHERE "blogId" = ${blogId} AND "timestamp" >= ${since}
+      `,
       this.prisma.analyticsEvent.groupBy({
         by: ['timestamp'],
         where: { blogId, timestamp: { gte: since }, event: 'page_view' },
@@ -168,13 +173,85 @@ export class AnalyticsService {
       }),
     ]);
 
+    const uniqueVisitors = Number(uniqueResult[0]?.uniqueCount) || 0;
+
     return {
       success: true,
       blogId,
       period: { days, since: since.toISOString() },
       totalEvents,
-      uniqueVisitors: uniqueSessions.length,
+      uniqueVisitors,
       dailyViews: dailyViews.length,
     };
   }
+
+  // ─── PERF-002: Batch View Count Persistence ────────────────────────────
+
+  /**
+   * PERF-002: Periodic batch persistence of buffered blog view counts.
+   * Runs every minute. Uses distributed lock to ensure only one cluster replica flushes to PostgreSQL.
+   */
+  @Cron(CronExpression.EVERY_MINUTE)
+  async flushViewCountBuffer(): Promise<void> {
+    const lockAcquired = await this.redis.acquireLock('lock:cron:flush-view-counts', 50);
+    if (!lockAcquired) {
+      return;
+    }
+
+    try {
+      await this.persistBufferedViews();
+    } catch (err: any) {
+      this.logger.error(`[AnalyticsService] Error in scheduled view count flush: ${err.message}`);
+    }
+  }
+
+  /**
+   * Graceful shutdown hook: flushes any remaining buffered views to database
+   */
+  async onModuleDestroy(): Promise<void> {
+    try {
+      await this.persistBufferedViews();
+    } catch (err: any) {
+      this.logger.warn(`[AnalyticsService] Shutdown view flush warning: ${err.message}`);
+    }
+  }
+
+  /**
+   * Atomically drains the Redis/memory view count buffer and executes batched updates to PostgreSQL.
+   * Eliminates single-row lock contention: 10,000 viral views become 1 atomic batch update!
+   */
+  async persistBufferedViews(): Promise<void> {
+    const counts = await this.redis.drainViewCountBuffer();
+    const entries = Object.entries(counts);
+    if (entries.length === 0) return;
+
+    this.logger.log(`[AnalyticsService] Persisting buffered view counts for ${entries.length} blog(s)...`);
+
+    try {
+      // Execute batched SQL updates in chunks of 100
+      for (let i = 0; i < entries.length; i += 100) {
+        const batch = entries.slice(i, i + 100);
+        await this.prisma.$transaction(
+          batch.map(([blogId, count]) =>
+            this.prisma.$executeRawUnsafe(
+              'UPDATE blogs SET view_count = view_count + $1 WHERE id = $2',
+              count,
+              blogId,
+            ),
+          ),
+        );
+      }
+      this.logger.log(`[AnalyticsService] Successfully persisted view counts for ${entries.length} blog(s).`);
+    } catch (err: any) {
+      this.logger.error(
+        `[AnalyticsService] Failed to persist view counts to database (${err.message}). Restoring to buffer to prevent data loss.`,
+      );
+      // Re-buffer the counts so they are preserved for the next flush cycle
+      await Promise.allSettled(
+        entries.map(([blogId, count]) => this.redis.bufferViewIncrement(blogId, count)),
+      );
+      throw err;
+    }
+  }
 }
+

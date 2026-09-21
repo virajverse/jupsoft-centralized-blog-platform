@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../hooks/useQueryState';
 import { 
   FolderTree, 
@@ -28,7 +29,21 @@ export const TaxonomyView: React.FC = () => {
     deleteCategory,
     addTag,
     deleteTag 
-  } = useBlogStore();
+  } = useBlogStore(
+    useShallow((s) => ({
+      blogs: s.blogs,
+      categories: s.categories,
+      tags: s.tags,
+      activeWebsiteId: s.activeWebsiteId,
+      websites: s.websites,
+      fetchCategories: s.fetchCategories,
+      fetchTags: s.fetchTags,
+      addCategory: s.addCategory,
+      deleteCategory: s.deleteCategory,
+      addTag: s.addTag,
+      deleteTag: s.deleteTag,
+    }))
+  );
 
   const isAllSites = activeWebsiteId === 'all';
 

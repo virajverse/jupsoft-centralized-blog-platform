@@ -39,6 +39,8 @@ describe('Pipeline: SEO, Schema.org JSON-LD & Consumer Delivery (TRD §11, §12)
     del: jest.fn(),
     delPattern: jest.fn(),
     ping: jest.fn().mockResolvedValue(true),
+    bufferViewIncrement: jest.fn().mockResolvedValue(undefined),
+    drainViewCountBuffer: jest.fn().mockResolvedValue({}),
   };
 
   const mockConfig = {
@@ -201,10 +203,10 @@ describe('Pipeline: SEO, Schema.org JSON-LD & Consumer Delivery (TRD §11, §12)
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // PIPELINE 3: Atomic View Count Tracking (TRD §14)
+  // PIPELINE 3: Atomic View Count Tracking (TRD §14 + PERF-002)
   // ═══════════════════════════════════════════════════════════════════════════
   describe('Analytics & View Counter', () => {
-    it('should increment view count atomically using raw SQL without modifying updatedAt', async () => {
+    it('should increment view count atomically using Redis buffer without modifying updatedAt', async () => {
       mockPrisma.blogTranslation.findFirst.mockResolvedValue({
         ...fullMockBlog.translations[0],
         blog: fullMockBlog,
@@ -212,10 +214,7 @@ describe('Pipeline: SEO, Schema.org JSON-LD & Consumer Delivery (TRD §11, §12)
 
       await service.getBlogBySlug('geo-search-engine-optimization-2026', 'site-growth', 'en');
 
-      expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith(
-        'UPDATE blogs SET view_count = view_count + 1 WHERE id = $1',
-        'blog-seo-1',
-      );
+      expect(mockRedis.bufferViewIncrement).toHaveBeenCalledWith('blog-seo-1');
     });
   });
 });

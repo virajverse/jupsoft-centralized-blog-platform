@@ -24,6 +24,8 @@ export class RedisProvider implements OnModuleDestroy {
   private isConnected = false;
   private readonly memoryCache = new Map<string, CacheEntry>();
   private readonly maxMemoryEntries = 5000;
+  private readonly memoryViewBuffer = new Map<string, number>();
+  private readonly maxMemoryViewEntries = 50000;
   private cleanupInterval: NodeJS.Timeout | null = null;
 
   private setMemoryCache(key: string, entry: CacheEntry): void {
@@ -213,4 +215,109 @@ export class RedisProvider implements OnModuleDestroy {
       } catch (err) {}
     }
   }
+
+  /**
+   * Distributed Atomic Mutex Lock — Prevents duplicate job runs across cluster replicas.
+   * Uses Redis `SET key val EX ttl NX`. Falls back to in-memory lock if Redis is offline.
+   */
+  async acquireLock(key: string, ttlSeconds = 50): Promise<boolean> {
+    const now = Date.now();
+    const lockVal = `lock_${now}_${Math.random().toString(36).slice(2, 8)}`;
+
+    // 1. If Redis L2 is active, use atomic SET ... NX EX
+    if (this.client && this.isConnected) {
+      try {
+        const res = await this.client.set(key, lockVal, 'EX', ttlSeconds, 'NX');
+        return res === 'OK';
+      } catch (err) {
+        // Redis error — fall through to L1 memory lock
+      }
+    }
+
+    // 2. Fallback: L1 In-Memory Lock (Single-process / Dev fallback)
+    const existing = this.memoryCache.get(key);
+    if (existing && existing.expiresAt > now) {
+      return false;
+    }
+    this.setMemoryCache(key, { value: lockVal, expiresAt: now + ttlSeconds * 1000 });
+    return true;
+  }
+
+  async releaseLock(key: string): Promise<void> {
+    await this.del(key);
+  }
+
+  // ─── PERF-002: Atomic View Count Buffering ──────────────────────────────
+
+  /**
+   * PERF-002: Buffer view count increments in Redis Hash `blogs:view_buffer`
+   * Eliminates single-row database lock contention on viral/high-traffic articles.
+   * Transparently falls back to bounded in-memory buffer if Redis L2 is offline.
+   */
+  async bufferViewIncrement(blogId: string, count = 1): Promise<void> {
+    if (!blogId || count <= 0) return;
+
+    if (this.client && this.isConnected) {
+      try {
+        await this.client.hincrby('blogs:view_buffer', blogId, count);
+        return;
+      } catch (err: any) {
+        this.logger.warn(`[RedisProvider] bufferViewIncrement Redis error (${err.message}). Buffering in L1 memory.`);
+      }
+    }
+
+    // L1 In-Memory Buffer fallback
+    const current = this.memoryViewBuffer.get(blogId) || 0;
+    if (this.memoryViewBuffer.size >= this.maxMemoryViewEntries && !this.memoryViewBuffer.has(blogId)) {
+      this.logger.warn(
+        `[RedisProvider] L1 memoryViewBuffer size limit reached (${this.maxMemoryViewEntries} entries). Increment dropped.`,
+      );
+      return;
+    }
+    this.memoryViewBuffer.set(blogId, current + count);
+  }
+
+  /**
+   * PERF-002: Atomically drain and clear all buffered view increments from Redis L2 and L1 memory.
+   * Uses atomic Lua script in Redis so no increments are lost during flush.
+   */
+  async drainViewCountBuffer(): Promise<Record<string, number>> {
+    const counts: Record<string, number> = {};
+
+    // 1. Drain Redis L2 buffer if active
+    if (this.client && this.isConnected) {
+      try {
+        const luaScript = `
+          local data = redis.call('HGETALL', KEYS[1])
+          if #data > 0 then
+            redis.call('DEL', KEYS[1])
+          end
+          return data
+        `;
+        const raw = (await this.client.eval(luaScript, 1, 'blogs:view_buffer')) as string[];
+        if (Array.isArray(raw)) {
+          for (let i = 0; i < raw.length; i += 2) {
+            const blogId = raw[i];
+            const increment = parseInt(raw[i + 1], 10);
+            if (blogId && !isNaN(increment) && increment > 0) {
+              counts[blogId] = (counts[blogId] || 0) + increment;
+            }
+          }
+        }
+      } catch (err: any) {
+        this.logger.error(`[RedisProvider] Failed to drain Redis view buffer: ${err.message}`);
+      }
+    }
+
+    // 2. Drain L1 In-Memory Buffer
+    if (this.memoryViewBuffer.size > 0) {
+      for (const [blogId, increment] of this.memoryViewBuffer.entries()) {
+        counts[blogId] = (counts[blogId] || 0) + increment;
+      }
+      this.memoryViewBuffer.clear();
+    }
+
+    return counts;
+  }
 }
+

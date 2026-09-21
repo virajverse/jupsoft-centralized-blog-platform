@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo } from 'react';
 import { useBlogStore } from '../../store/useBlogStore';
+import { useShallow } from 'zustand/react/shallow';
 import { ZohoDashboardView } from './ZohoDashboardView';
 
 export const DashboardOverview: React.FC = () => {
@@ -12,7 +13,16 @@ export const DashboardOverview: React.FC = () => {
     activeRole,
     currentUser,
     fetchBlogs,
-  } = useBlogStore();
+  } = useBlogStore(
+    useShallow((s) => ({
+      blogs: s.blogs,
+      activeWebsiteId: s.activeWebsiteId,
+      websites: s.websites,
+      activeRole: s.activeRole,
+      currentUser: s.currentUser,
+      fetchBlogs: s.fetchBlogs,
+    }))
+  );
 
   useEffect(() => {
     // Only fetch if store is empty — avoids 100-blog re-fetch on every dashboard visit

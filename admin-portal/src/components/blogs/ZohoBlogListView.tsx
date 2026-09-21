@@ -67,7 +67,7 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
   fetchBlogs,
   isLoading,
 }) => {
-  const { categories } = useBlogStore();
+  const categories = useBlogStore((s) => s.categories);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const siteQuery = `?site=${activeWebsiteId}`;
 
