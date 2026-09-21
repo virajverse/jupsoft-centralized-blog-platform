@@ -441,6 +441,10 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           content: html,
         },
       }));
+      // Keep synced-content ref current so the load-sync effect never
+      // mistakes user-typed content for a fresh API payload (which would
+      // call setContent() and jump the cursor to the end).
+      editorSyncedContentRef.current = html;
       setHasUnsavedChanges(true);
     },
   });
@@ -804,7 +808,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         editor.commands.setContent(initialHtml);
       }
     }
-  }, [editor, targetBlogId, isLoadingFullBlog, translations, currentLang]);
+  }, [editor, targetBlogId, isLoadingFullBlog, currentLang]);
 
   // Strictly typed helper functions
   const updateActiveTransField = <K extends keyof BlogTranslation>(
