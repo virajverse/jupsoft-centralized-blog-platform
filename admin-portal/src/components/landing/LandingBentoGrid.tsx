@@ -46,34 +46,40 @@ export const LandingBentoGrid: React.FC = () => {
                 <FileEdit className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-xs font-mono text-blue-500 font-semibold uppercase tracking-wider">Pillar 01</span>
+                <span className="text-xs font-mono text-blue-500 font-semibold uppercase tracking-wider">Editorial</span>
                 <h4 className="text-xl font-bold text-slate-900 dark:text-white">
-                  Linear-Grade Tiptap Editorial Studio
+                  Distraction-Free Rich Text Studio
                 </h4>
               </div>
             </div>
 
             <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed mb-6">
-              Structured JSON content output with rich formatting, embedded code blocks, zero layout shifts, and real-time word count telemetry.
+              Structured block content with rich typography, embedded media, code blocks, zero layout shifts, and real-time telemetry.
             </p>
 
-            {/* UI Mockup Component */}
-            <div className="p-5 rounded-2xl bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800">
-              <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-200 dark:border-slate-800 text-xs font-mono">
-                <span className="text-indigo-500 font-medium">Output: Tiptap JSON Schema</span>
-                <span className="text-emerald-500 font-semibold flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Validated
+            {/* Visual Article Preview Mockup */}
+            <div className="p-5 rounded-2xl bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800 text-xs">
+                <span className="font-semibold text-slate-700 dark:text-slate-300">Live Editor Canvas</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 text-[11px]">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Auto-Saved
                 </span>
               </div>
-              <pre className="text-xs font-mono text-slate-700 dark:text-slate-300 overflow-x-auto leading-relaxed">
-{`{
-  "type": "doc",
-  "content": [
-    { "type": "heading", "attrs": { "level": 1 }, "text": "Enterprise Multi-Tenant Headless CMS" },
-    { "type": "paragraph", "text": "Decoupled Next.js 16 + NestJS 11 blog engine serving isolated domains." }
-  ]
-}`}
-              </pre>
+              <div className="space-y-1.5">
+                <h5 className="text-base font-bold text-slate-900 dark:text-white">
+                  Modern Enterprise Content Distribution
+                </h5>
+                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                  Decoupled headless publishing allows organizations to govern multiple digital touchpoints from a single administrative hub while serving lightweight, cache-optimized pages to end readers.
+                </p>
+              </div>
+              <div className="flex items-center gap-3 pt-1 text-[10px] font-mono text-slate-400">
+                <span>384 Words</span>
+                <span>•</span>
+                <span>2 Min Read</span>
+                <span>•</span>
+                <span className="text-indigo-500 font-medium">4 Languages Synced</span>
+              </div>
             </div>
           </div>
 
@@ -85,9 +91,9 @@ export const LandingBentoGrid: React.FC = () => {
                   <Kanban className="w-6 h-6" />
                 </div>
                 <div>
-                  <span className="text-xs font-mono text-purple-500 font-semibold uppercase tracking-wider">Pillar 02</span>
+                  <span className="text-xs font-mono text-purple-500 font-semibold uppercase tracking-wider">Governance</span>
                   <h4 className="text-xl font-bold text-slate-900 dark:text-white">
-                    5-Stage Kanban Workflow
+                    Multi-Stage Editorial Kanban
                   </h4>
                 </div>
               </div>
@@ -124,9 +130,9 @@ export const LandingBentoGrid: React.FC = () => {
                   <GitMerge className="w-6 h-6" />
                 </div>
                 <div>
-                  <span className="text-xs font-mono text-emerald-500 font-semibold uppercase tracking-wider">Pillar 03</span>
+                  <span className="text-xs font-mono text-emerald-500 font-semibold uppercase tracking-wider">SEO Continuity</span>
                   <h4 className="text-xl font-bold text-slate-900 dark:text-white">
-                    Auto 301 Redirect Engine
+                    Automated 301 Redirect Engine
                   </h4>
                 </div>
               </div>
@@ -159,15 +165,15 @@ export const LandingBentoGrid: React.FC = () => {
                 <ImageIcon className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-xs font-mono text-amber-500 font-semibold uppercase tracking-wider">Pillar 04</span>
+                <span className="text-xs font-mono text-amber-500 font-semibold uppercase tracking-wider">Media Delivery</span>
                 <h4 className="text-xl font-bold text-slate-900 dark:text-white">
-                  AWS S3 WebP Compression & CDN Pipeline
+                  Automated WebP Media & CDN Distribution
                 </h4>
               </div>
             </div>
 
             <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed mb-6">
-              Pre-signed client URL generation (`POST /admin/media/presigned-url`) with automated Sharp WebP compression and responsive image variants.
+              High-efficiency image processing pipeline with automated WebP conversion, dimension extraction, and distributed edge delivery.
             </p>
 
             {/* S3 Bucket Path Mockup */}

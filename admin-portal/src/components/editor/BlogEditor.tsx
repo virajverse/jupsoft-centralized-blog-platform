@@ -717,7 +717,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
           // If editor is already initialized and mounted, sync content immediately
           const curContent = normTrans[currentLang]?.content;
-          if (editorRef.current && curContent && curContent !== '<p>Start drafting your high-impact article here...</p>' && curContent !== '<p></p>') {
+          if (editorRef.current && curContent && curContent !== '<p></p>') {
             editorRef.current.commands.setContent(curContent);
             editorSyncedBlogIdRef.current = targetBlogId;
             editorSyncedLangRef.current = currentLang;
@@ -779,8 +779,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       const targetContent = translations[currentLang]?.content;
       const hasRealContent = Boolean(
         targetContent &&
-        targetContent !== '<p></p>' &&
-        targetContent !== '<p>Start drafting your high-impact article here...</p>'
+        targetContent !== '<p></p>'
       );
 
       const isSynced = editorSyncedBlogIdRef.current === targetBlogId && editorSyncedLangRef.current === currentLang;
@@ -807,7 +806,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       editorSyncedBlogIdRef.current = 'new-blog';
       editorSyncedLangRef.current = currentLang;
       const initialHtml = translations[currentLang]?.content;
-      if (initialHtml && initialHtml !== '<p>Start drafting your high-impact article here...</p>') {
+      if (initialHtml && initialHtml !== '<p></p>') {
         editor.commands.setContent(initialHtml);
       }
     }
@@ -2063,7 +2062,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
               {/* Tiptap Rich-Text Writing Canvas */}
               <div dir={isRTL ? 'rtl' : 'ltr'} className="flex-1 min-h-[450px] text-slate-900 dark:text-slate-100 pt-2">
-                {isLoadingFullBlog && (!translations[currentLang]?.content || translations[currentLang]?.content === '<p></p>' || translations[currentLang]?.content === '<p>Start drafting your high-impact article here...</p>') ? (
+                {isLoadingFullBlog && (!translations[currentLang]?.content || translations[currentLang]?.content === '<p></p>') ? (
                   <div className="space-y-4 pt-2 animate-pulse min-h-[420px] select-none pointer-events-none">
                     <div className="h-4 w-full rounded bg-slate-200/90 dark:bg-slate-800/90" />
                     <div className="h-4 w-11/12 rounded bg-slate-200/90 dark:bg-slate-800/90" />

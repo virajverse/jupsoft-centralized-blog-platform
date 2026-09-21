@@ -43,16 +43,16 @@ export const LandingArchitecture: React.FC = () => {
                   <Layers className="w-6 h-6" />
                 </div>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                  Port 3000
+                  Frontend Tier
                 </span>
               </div>
 
               <div>
                 <h4 className="text-lg font-bold text-slate-900 dark:text-white mb-1">
-                  Next.js 16 Admin Portal
+                  Next.js Admin Portal
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Linear-grade authoring studio, Tiptap editor, Kanban workflow, and real-time SEO score gauge.
+                  Editorial authoring studio, structured content editor, Kanban workflow, and live SEO telemetry.
                 </p>
               </div>
 
@@ -73,16 +73,16 @@ export const LandingArchitecture: React.FC = () => {
                   <Cpu className="w-6 h-6" />
                 </div>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
-                  Port 4000
+                  API Gateway
                 </span>
               </div>
 
               <div>
                 <h4 className="text-lg font-bold text-slate-900 dark:text-white mb-1">
-                  NestJS 11 Backend API
+                  NestJS Backend Engine
                 </h4>
                 <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                  Modular REST controllers, Prisma ORM, Webhook revalidation dispatcher, and rate limiting.
+                  High-throughput REST services, automated webhook dispatchers, and tenant-scoped caching.
                 </p>
               </div>
 

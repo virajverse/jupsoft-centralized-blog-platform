@@ -8,7 +8,6 @@ import {
   Mail,
   ArrowRight,
   Layers,
-  ShieldCheck,
   AlertCircle,
   Eye,
   EyeOff,
@@ -168,14 +167,6 @@ export default function LoginPage() {
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
-              </div>
-            </div>
-
-            {/* Security Badge */}
-            <div className="flex items-center justify-end">
-              <div className="flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-mono">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>JWT SSL Active</span>
               </div>
             </div>
 

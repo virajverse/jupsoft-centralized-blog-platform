@@ -21,8 +21,9 @@ import {
   ArrowRightLeft,
   Tags,
   CheckCircle2,
-  Layers,
-  Sparkles
+  AlertCircle,
+  Info,
+  Layers
 } from 'lucide-react';
 import { isGlobalScopeRole, canCreateBlog, cleanAvatarUrl, canAccessModule } from '../../../utils/permissions';
 
@@ -413,7 +414,13 @@ export const ZohoNavbar: React.FC = () => {
       {/* Floating Notification Toast */}
       {notification && (
         <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-800 dark:text-slate-200 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-150">
-          <Sparkles className="w-4 h-4 text-red-500 shrink-0" />
+          {notification.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+          ) : notification.type === 'warning' ? (
+            <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+          ) : (
+            <Info className="w-4 h-4 text-blue-500 shrink-0" />
+          )}
           <span>{notification.message}</span>
           <button type="button" onClick={clearNotification} className="ml-2 text-slate-400 hover:text-slate-600">
             <X className="w-3.5 h-3.5" />

@@ -36,7 +36,7 @@ export const LandingMetrics: React.FC = () => {
     {
       value: '85 / 100',
       label: 'Avg SEO Score',
-      sublabel: '80+ Gate - Product Differentiator',
+      sublabel: 'Automated 8-Point Quality Gate',
       icon: Star,
       color: 'from-emerald-500 to-emerald-600',
     },

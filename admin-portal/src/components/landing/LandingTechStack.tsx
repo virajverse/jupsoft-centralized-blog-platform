@@ -8,13 +8,13 @@ export const LandingTechStack: React.FC = () => {
     { name: 'Next.js 16.3.5', role: 'Admin Studio & SSR/ISR', category: 'Frontend' },
     { name: 'NestJS 11', role: 'Modular REST API & RBAC', category: 'Backend' },
     { name: 'Tailwind CSS v4', role: 'Obsidian Design System', category: 'Styling' },
-    { name: 'Prisma ORM', role: '11 Strictly Mapped Tables', category: 'Database' },
+    { name: 'Prisma ORM', role: 'Type-Safe Schema & Migrations', category: 'Database' },
     { name: 'PostgreSQL 16', role: 'Relational Source of Truth', category: 'Database' },
-    { name: 'Redis 7 Alpine', role: 'Sub-300ms Public Read Cache', category: 'Cache' },
+    { name: 'Redis Cache', role: 'Sub-300ms High-Throughput Layer', category: 'Cache' },
     { name: 'AWS S3 & CloudFront', role: 'WebP Image Pipeline & CDN', category: 'Storage' },
-    { name: 'Tiptap WYSIWYG', role: 'Structured JSON Editorial Studio', category: 'Editor' },
+    { name: 'Tiptap WYSIWYG', role: 'Structured Content Studio', category: 'Editor' },
     { name: 'Zustand 5', role: 'Client State & Website Scoping', category: 'State' },
-    { name: 'Docker Compose', role: 'Local Infrastructure Automation', category: 'DevOps' },
+    { name: 'Docker Compose', role: 'Containerized Infrastructure', category: 'DevOps' },
   ];
 
   return (
@@ -24,13 +24,13 @@ export const LandingTechStack: React.FC = () => {
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
           <h2 className="text-xs font-mono font-semibold uppercase tracking-widest text-indigo-600 dark:text-indigo-400 mb-3">
-            Monorepo Architecture
+            Platform Infrastructure
           </h2>
           <h3 className="text-3xl sm:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight mb-4">
-            Production-Grade Technology Matrix
+            Production Technology Matrix
           </h3>
           <p className="text-base sm:text-lg text-slate-600 dark:text-slate-400">
-            Built on a decoupled, strictly-typed monorepo stack following Technical Requirement Document (TRD v1.0).
+            Engineered with modern decoupled services, strict schema validation, and high-performance edge caching.
           </p>
         </div>
 

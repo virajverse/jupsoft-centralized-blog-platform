@@ -45,7 +45,6 @@ import {
   Settings,
   Lock,
   Unlock,
-  Sparkles,
   RotateCcw
 } from 'lucide-react';
 
@@ -1043,7 +1042,7 @@ _Please log in and update your password on your first sign-in._`;
                                   )}
                                   {customUnlocked.length > 0 && (
                                     <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-indigo-600 dark:text-indigo-400 pl-0.5" title={`Unlocked: ${customUnlocked.join(', ')}`}>
-                                      <Sparkles className="w-2.5 h-2.5" />
+                                      <Unlock className="w-2.5 h-2.5" />
                                       <span>+{customUnlocked.length} unlocked ({customUnlocked.join(', ')})</span>
                                     </span>
                                   )}
@@ -1553,7 +1552,7 @@ _Please log in and update your password on your first sign-in._`;
                             {isCurrentlyAllowed ? (
                               isCustomUnlocked ? (
                                 <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 uppercase tracking-wider shrink-0">
-                                  <Sparkles className="w-2.5 h-2.5" />
+                                  <Unlock className="w-2.5 h-2.5" />
                                   <span>Unlocked</span>
                                 </span>
                               ) : (
@@ -1925,7 +1924,7 @@ _Please log in and update your password on your first sign-in._`;
                             {isCurrentlyAllowed ? (
                               isCustomUnlocked ? (
                                 <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 uppercase tracking-wider shrink-0">
-                                  <Sparkles className="w-2.5 h-2.5" />
+                                  <Unlock className="w-2.5 h-2.5" />
                                   <span>Unlocked</span>
                                 </span>
                               ) : (

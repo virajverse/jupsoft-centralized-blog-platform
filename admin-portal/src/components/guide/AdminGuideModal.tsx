@@ -12,28 +12,26 @@ import {
   Globe, 
   FileText, 
   Kanban, 
-  Sparkles, 
   Tag, 
   Image as ImageIcon, 
   ArrowRightLeft, 
   BarChart3, 
   Users, 
-  Code2, 
   Settings, 
   ShieldCheck, 
-  Bot, 
   Zap, 
-  ExternalLink,
   ChevronRight,
   Shield,
-  KeyRound
+  KeyRound,
+  CheckCircle2,
+  Lock,
+  Cpu
 } from 'lucide-react';
 
 export const AdminGuideModal: React.FC = () => {
   const isGuideOpen = useBlogStore((s) => s.isGuideOpen);
   const setGuideOpen = useBlogStore((s) => s.setGuideOpen);
-  const activeRole = useBlogStore((s) => s.activeRole);
-  const [activeTab, setActiveTab] = useState<'all' | 'architecture' | 'modules' | 'workflow' | 'seo' | 'mcp' | 'settings'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'architecture' | 'modules' | 'workflow' | 'seo' | 'api' | 'settings'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [copied, setCopied] = useState(false);
 
@@ -55,86 +53,59 @@ export const AdminGuideModal: React.FC = () => {
   if (!isGuideOpen) return null;
 
   const copyFullGuide = () => {
-    const text = `# 🏢 Jupsoft Centralized Blog Platform — Admin Panel Complete Guide
-Super Admin Control Center & Multi-Site Operational Manual
+    const text = `# 🏢 Jupsoft Centralized Multi-Site Content Engine — Administrator Manual
+Super Admin Operations & Architecture Reference
 
-## 🎯 1. Admin Panel Kya Hai Aur Kyun Banaya Gaya?
-Pehle har website (Jupsoft Cloud, DigifyNext, School ERP) ke alag-alag CMS ya WordPress setup the, jisse:
-- Content writers ko alag-alag logins karne padte the.
-- SEO standards aur design consistent nahi the.
-- Single post ko multiple sites ya multiple languages me manage karna mushkil tha.
+## 1. Centralized Multi-Tenant Architecture Overview
+The Jupsoft Centralized Content Platform consolidates editorial and publishing operations across multiple tenant domains into a single unified control hub.
 
-### 🌟 Centralized Headless Architecture:
-- **Single Source of Truth**: Saara content, media, aur users ek hi centralized platform (blogary.jupsoft.com) me store hote hain.
-- **3 Connected Tenant Websites**:
+### Core Architectural Principles:
+- **Single Source of Truth**: All articles, media assets, categories, and user credentials reside in a central PostgreSQL database.
+- **Connected Tenant Properties**:
   1. \`site-cloud\` ➔ Jupsoft Cloud & ERP (cloud.jupsoft.com)
   2. \`site-growth\` ➔ DigifyNext Marketing (digifynext.com)
   3. \`site-edtech\` ➔ School ERP Platform (schoolerp.in)
-- **Instant Delivery via Webhooks & Edge Cache**: Jab aap Admin panel me blog publish karte hain, toh consumer websites ko HMAC signed webhook jata hai aur unka cache instantly purge ho jata hai.
+- **Instant Edge Invalidation**: Publishing or updating articles triggers HMAC-SHA256 signed webhooks to target consumer frontends, immediately purging edge cache without rebuilding or redeploying sites.
 
 ---
 
-## 🧭 2. Core Architecture: Scope Switcher (All Domains vs Tenant)
-- **Global Scope (\`?site=all\`)**: Saari websites ka aggregate data dikhta hai (total blogs across all sites, pending reviews, overall traffic).
-- **Tenant Scope (\`?site=site-cloud\`)**: Specific site filter ho jati hai — Blogs, Categories, Tags, Media, aur 301 Redirects usi site ke dikhte hain.
+## 2. Multi-Tenant Scoping: Network vs. Site Scope
+- **Global Network Scope (\`?site=all\`)**: Provides an aggregated view of total articles across all client domains, cross-site publishing velocity, pending reviews, and unified telemetry.
+- **Tenant Scope (\`?site=site-cloud\`)**: Filters the entire workspace context—including Articles, Taxonomy, Media Library, and 301 Permanent Redirects—strictly to the selected brand domain.
 
 ---
 
-## 📱 3. Har Ek Module Ka Walkthrough (Core Modules)
+## 3. Core Operational Modules Directory
 
-1. **Dashboard (/dashboard)**: Stat cards, attention alerts, live published vs draft metric, quick shortcuts.
-2. **Blogs & TipTap Editor (/blogs)**: Rich text editor, multi-language tabs (EN, HI, FR, AR), auto-slug, word counter.
-3. **Editorial Workflow Kanban (/workflow)**: 6-Stage sequential pipeline:
-   Draft ➔ Under Review ➔ Approved ➔ Published (or Scheduled / Archived).
-4. **Automated SEO Audit Engine (0-100 Score)**: 8 real-time checks:
-   - Title Length (50-60 chars)
-   - Meta Description (150-160 chars)
-   - Focus Keyword in Title
-   - Focus Keyword in First 100 Words
-   - Content Word Count (300+ words)
-   - Heading Structure (H1/H2 hierarchy)
-   - Image Alt Text validation
-   - Robots Directive validation
-5. **Taxonomy: Categories & Tags (/taxonomy)**: Hierarchical categories and flat tag keywords scoped per tenant.
-6. **Media Asset Library (/media)**: WebP optimization, multi-resolution resizing, presigned S3 uploads, soft-delete.
-7. **301 SEO Redirects (/settings?tab=redirects)**: Preserve SEO ranking and link equity when URLs change (housed in Settings).
-8. **Analytics & Reader Telemetry (/analytics)**: Pageviews, unique visitors, scroll completion depth (25%-100%), traffic referrers.
+1. **Dashboard (/dashboard)**: High-level KPI metrics, active publications, pending editorial reviews, and recent content stream.
+2. **Blog Studio (/blogs)**: Structured article drafting, multi-language tabs (EN, HI, FR, AR), auto-generated SEO slugs, and word count telemetry.
+3. **Editorial Workflow Kanban (/workflow)**: 6-Stage sequential pipeline: Draft ➔ Under Review ➔ Approved ➔ Published (or Scheduled / Archived).
+4. **Automated SEO Engine**: Real-time 8-point algorithmic quality audit verifying titles, meta descriptions, focus keywords, heading hierarchy, and image alt text.
+5. **Taxonomy & Tags (/taxonomy)**: Tenant-isolated category hierarchy and flat keyword tags preventing cross-domain taxonomy bleeding.
+6. **Media Asset Library (/media)**: Automated WebP conversion, dimension extraction, secure storage, and soft-delete retention.
+7. **301 SEO Redirects (/settings?tab=redirects)**: Preserves search ranking equity and eliminates 404 errors by automating permanent redirects when slugs update.
+8. **Analytics Hub (/analytics)**: Real-time reader telemetry, unique visitors, pageview velocity, and author productivity metrics.
 9. **Team Management & RBAC (/users)**: 7 granular roles (Super Admin, Website Admin, Role Admin, Editor, Content Writer, Publisher, SEO Manager).
-10. **Tenant & System Settings (/settings)**:
-    - Onboard new websites in real-time.
-    - **Tenant Live Secret API Key**: Generated via backend crypto & stored in PostgreSQL database. Unmask via Eye icon or regenerate instantly with Rotate Key.
-    - Webhook revalidation endpoint configuration with HMAC signing.
-    - 301 SEO Redirects tab for tenant URL mapping.
-    - Danger Zone: Cascading website deletion (Super Admin only).
-11. **System Audit Trail & Compliance (/settings?tab=audit)**:
-    - Immutable audit logs capturing user, role, IP address, event, and timestamp.
+10. **Tenant & System Settings (/settings)**: Domain mapping, cryptographic API key rotation, webhook subscriptions, and storage prefixes.
+11. **System Audit Trail (/settings?tab=audit)**: Immutable compliance logs recording user actions, IP addresses, events, and timestamps.
 
 ---
 
-## ⚡ 4. Real-World Walkthrough: Ek Blog Publish Karne Ka Complete Flow
-1. Writer logs in ──> Scope select karta hai ("site-cloud")
-2. /blogs/new me Title, Content aur Featured Image dalta hai
-3. Focus keyword "Cloud ERP" set karta hai ──> SEO score 85/100 aata hai
-4. Hindi Tab me jakar Hindi Translation paste karta hai
-5. "Submit for Review" click karta hai ──> Status: Under Review
-6. Super Admin / Editor /workflow me jakar review karta hai
-7. "Approve" ──> "Publish" click karta hai
-8. Backend Database update karta hai ──> Redis cache invalidate karta hai
-9. Webhook trigger hota hai ──> cloud.jupsoft.com par instant blog live ho jata hai!
+## 4. End-to-End Content Publishing Lifecycle
+1. **Scope Selection**: Writer selects target domain from the scope selector.
+2. **Article Drafting**: Content is authored in the editor canvas with featured media and excerpts.
+3. **SEO Optimization**: Focus keyword is assigned, and the 8-point automated audit scores the article.
+4. **Multi-Language Translations**: Content is translated and reviewed across supported locale tabs.
+5. **Editorial Review**: Writer submits draft; article transitions to "Under Review".
+6. **Editorial Approval**: Editor reviews content on Kanban board and approves for release.
+7. **Publication & Cache Purge**: Publisher triggers release; backend updates database, clears Redis cache, and fires HMAC webhook.
+8. **Instant Edge Availability**: Consumer frontend updates within sub-300ms.
 
 ---
 
-## 🤖 5. Agent Mode (FastMCP Integration)
-Viraj, aapne jo 51 Tools wala FastMCP Server banaya hai:
-Aap kisi bhi AI agent (Antigravity IDE, Claude, GPT) ko bolenge:
-"DigifyNext marketing ke liye AI trends 2026 par ek fresh blog likho, Hindi translation dalo, SEO audit run karo aur direct publish kardo."
-Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
-
----
-
-## 🔒 6. Security: Database vs .env Secrets Architecture
-- **Database (Website Table)**: Tenant ID, Domain, Name, API Key, Webhook URL.
-- **.env / AWS Secrets Manager**: JWT Secret, Database Password, AWS Keys, HMAC Webhook Secret.
+## 5. Security Architecture: Database vs. Environment Secrets
+- **Database Level (Website Table)**: Tenant IDs, domain mappings, public brand names, secret API keys, and webhook endpoints.
+- **Environment Level (.env / Secrets Manager)**: JWT signing keys, PostgreSQL credentials, AWS S3 storage keys, and HMAC signing secrets.
 `;
 
     navigator.clipboard.writeText(text);
@@ -161,15 +132,15 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black tracking-tight text-slate-900 dark:text-white">
-                  Jupsoft Centralized Blog Platform
+                <h2 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+                  Jupsoft Centralized Content Platform
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/60">
-                  Super Admin Manual
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/60">
+                  Operations Manual
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Complete operational guide, architecture reference, and publishing workflows
+                Architecture overview, module directory, and publishing workflows
               </p>
             </div>
           </div>
@@ -200,10 +171,10 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
               { id: 'all', label: 'All Sections' },
               { id: 'architecture', label: 'Architecture & Scopes' },
               { id: 'modules', label: 'Core Modules' },
-              { id: 'workflow', label: 'Publishing Flow' },
+              { id: 'workflow', label: 'Publishing Lifecycle' },
               { id: 'seo', label: 'SEO Engine' },
-              { id: 'settings', label: 'API Keys & Secrets' },
-              { id: 'mcp', label: 'AI Agent (MCP)' },
+              { id: 'settings', label: 'Security & Secrets' },
+              { id: 'api', label: 'Headless API & Webhooks' },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -219,11 +190,11 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
             ))}
           </div>
 
-          <div className="relative min-w-[200px]">
+          <div className="relative min-w-[220px]">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               type="text"
-              placeholder="Search topics (e.g. SEO, webhook, API key)..."
+              placeholder="Search documentation..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-8.5 pr-3 py-1 text-xs rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-600"
@@ -234,46 +205,46 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
         {/* Scrollable Manual Content */}
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 text-xs leading-relaxed scrollbar-thin">
 
-          {/* Section 1: Introduction & Problem Statement */}
-          {(activeTab === 'all' || activeTab === 'architecture') && matchesSearch('admin panel centralized headless architecture tenants') && (
-            <div className="p-6 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 space-y-4">
+          {/* Section 1: Introduction & Architecture */}
+          {(activeTab === 'all' || activeTab === 'architecture') && matchesSearch('admin panel centralized headless architecture tenants single source truth') && (
+            <div className="p-6 rounded-2xl bg-slate-50 dark:bg-[#111827]/60 border border-slate-200 dark:border-slate-800 space-y-4">
               <div className="flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-indigo-600 text-white font-bold text-xs">01</span>
-                <h3 className="text-base font-black text-slate-900 dark:text-white">
-                  🎯 Admin Panel Kya Hai Aur Kyun Banaya Gaya?
+                <span className="p-1.5 rounded-lg bg-red-600 text-white font-bold text-xs">01</span>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Centralized Multi-Tenant Architecture Overview
                 </h3>
               </div>
               <p className="text-slate-600 dark:text-slate-300">
-                Pehle company ki har website (<strong>Jupsoft Cloud</strong>, <strong>DigifyNext</strong>, <strong>School ERP</strong>) ke alag-alag CMS ya WordPress setup the, jisse:
+                The platform consolidates content operations across multiple enterprise properties (<strong>Jupsoft Cloud</strong>, <strong>DigifyNext</strong>, <strong>School ERP</strong>) into an integrated management engine.
               </p>
-              <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-300 ml-2">
-                <li>Content writers aur editors ko har site ke liye alag-alag login aur credentials yaad rakhne padte the.</li>
-                <li>SEO audit standards, structured data (JSON-LD), aur design language consistent nahi the.</li>
-                <li>Ek single post ko multiple sites ya multiple languages (EN, HI, FR, AR) me publish karna almost impossible tha.</li>
-              </ul>
 
-              <div className="mt-4 p-4 rounded-xl bg-white dark:bg-[#0d121f] border border-indigo-100 dark:border-indigo-900/50 space-y-2">
-                <h4 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-500" />
-                  🌟 Centralized Headless Architecture Solution
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800">
-                    <div className="font-bold text-slate-900 dark:text-slate-100 mb-1">Single Source of Truth</div>
-                    <p className="text-[11px] text-slate-500">Saara content, media aur user accounts ek centralized backend (<code className="font-mono text-indigo-600">blogary.jupsoft.com</code>) me manage hote hain.</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+                <div className="p-3.5 rounded-xl bg-white dark:bg-[#0d121f] border border-slate-200 dark:border-slate-800">
+                  <div className="font-bold text-slate-900 dark:text-slate-100 mb-1 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    <span>Single Source of Truth</span>
                   </div>
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800">
-                    <div className="font-bold text-slate-900 dark:text-slate-100 mb-1">3 Connected Tenants</div>
-                    <p className="text-[11px] text-slate-500">
-                      <strong>site-cloud</strong> ➔ cloud.jupsoft.com<br />
-                      <strong>site-growth</strong> ➔ digifynext.com<br />
-                      <strong>site-edtech</strong> ➔ schoolerp.in
-                    </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    All articles, media assets, categories, and users are managed in one centralized database engine.
+                  </p>
+                </div>
+                <div className="p-3.5 rounded-xl bg-white dark:bg-[#0d121f] border border-slate-200 dark:border-slate-800">
+                  <div className="font-bold text-slate-900 dark:text-slate-100 mb-1 flex items-center gap-1.5">
+                    <Globe className="w-4 h-4 text-blue-500" />
+                    <span>Connected Tenant Sites</span>
                   </div>
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800">
-                    <div className="font-bold text-slate-900 dark:text-slate-100 mb-1">HMAC Instant Purge</div>
-                    <p className="text-[11px] text-slate-500">Publish karte hi consumer websites ko SHA-256 HMAC webhook dispatch hota hai aur unka Next.js cache instant refresh ho jata hai.</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Supports isolated brand domains with distinct categories, tags, and media folders.
+                  </p>
+                </div>
+                <div className="p-3.5 rounded-xl bg-white dark:bg-[#0d121f] border border-slate-200 dark:border-slate-800">
+                  <div className="font-bold text-slate-900 dark:text-slate-100 mb-1 flex items-center gap-1.5">
+                    <Zap className="w-4 h-4 text-amber-500" />
+                    <span>Instant Edge Cache Purge</span>
                   </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Publishing events automatically trigger signed HMAC webhooks for sub-300ms live site updates.
+                  </p>
                 </div>
               </div>
             </div>
@@ -284,12 +255,12 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
             <div className="p-6 rounded-2xl bg-white dark:bg-[#0d121f] border border-slate-200 dark:border-slate-800 space-y-4">
               <div className="flex items-center gap-2">
                 <span className="p-1.5 rounded-lg bg-red-600 text-white font-bold text-xs">02</span>
-                <h3 className="text-base font-black text-slate-900 dark:text-white">
-                  🧭 Core Architecture: Scope Switcher (All Domains vs Tenant)
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Scope Management: Global Network vs Tenant Scope
                 </h3>
               </div>
               <p className="text-slate-600 dark:text-slate-300">
-                Top Navbar aur Sidebar me aapko dynamic <strong>Scope Switcher</strong> milta hai jo poore portal ki state ko switch karta hai:
+                The top navigation and sidebar provide a dynamic <strong>Scope Switcher</strong> to seamlessly filter administrative views:
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -299,7 +270,7 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                     <span>Global Scope (?site=all)</span>
                   </div>
                   <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                    Super Admin bird&apos;s-eye view: Saari 3 websites ka aggregated data dikhta hai — total published blogs, pending workflow reviews, aur combined telemetry traffic.
+                    Network-wide visibility: aggregated metrics, total publication counts, review queues across all domains, and cross-site telemetry.
                   </p>
                 </div>
 
@@ -309,20 +280,20 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                     <span>Tenant Scope (?site=site-cloud)</span>
                   </div>
                   <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                    Selected site filter ho jati hai — Blogs, Categories, Tags, Media Assets, aur 301 Redirects usi single site ke context me display aur edit hote hain.
+                    Domain-specific workspace: articles, taxonomies, media assets, and 301 redirects are strictly partitioned to the selected tenant.
                   </p>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Section 3: Core Modules Detailed Walkthrough */}
+          {/* Section 3: Core Modules Directory */}
           {(activeTab === 'all' || activeTab === 'modules') && (
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <span className="p-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs">03</span>
-                <h3 className="text-base font-black text-slate-900 dark:text-white">
-                  📱 Har Ek Module Ka Walkthrough (Core Modules)
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Core Operational Modules Directory
                 </h3>
               </div>
 
@@ -332,27 +303,27 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                   <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
                     <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
                       <BarChart3 className="w-4 h-4 text-blue-600" />
-                      <span>1️⃣ Dashboard (/dashboard)</span>
+                      <span>1. Dashboard (/dashboard)</span>
                     </div>
                     <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-400 text-[11px]">
-                      <li><strong>KPI Stat Cards</strong>: Live blogs count, Under Review items, and Media assets.</li>
-                      <li><strong>Recent Blogs Table</strong>: Status pills, views, and instant 1-click edit shortcuts.</li>
-                      <li><strong>Admin Profile Widget</strong>: Logged-in admin avatar, active role, and assigned domains.</li>
+                      <li><strong>Scorecard Metrics</strong>: Live published articles, under review queue, draft totals, and word volume.</li>
+                      <li><strong>Recent Editorial Stream</strong>: Fast-action table with instant edit shortcuts and language coverage.</li>
+                      <li><strong>Tenant Infrastructure</strong>: Connected domain statuses and quick links.</li>
                     </ul>
                   </div>
                 )}
 
-                {/* 2. All Blogs & TipTap Editor */}
+                {/* 2. Blog Studio */}
                 {matchesSearch('articles editor tiptap multi-language translations') && (
                   <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
                     <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
                       <FileText className="w-4 h-4 text-indigo-600" />
-                      <span>2️⃣ Blogs &amp; TipTap Editor (/blogs)</span>
+                      <span>2. Blog Studio &amp; Content Editor (/blogs)</span>
                     </div>
                     <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-400 text-[11px]">
-                      <li><strong>TipTap Canvas</strong>: H2/H3 headings, bold, italic, code blocks, images, hyperlinks.</li>
-                      <li><strong>Multi-Language (TRD §5)</strong>: Dedicated tabs for English (en), Hindi (hi), Arabic (ar), French (fr).</li>
-                      <li><strong>Dynamic Slugs</strong>: Auto-generated SEO friendly slug with manual edit override.</li>
+                      <li><strong>Structured Editor</strong>: Headings, block formatting, hyperlinks, and embedded media assets.</li>
+                      <li><strong>Multi-Language Support</strong>: Independent translation tabs for English, Hindi, Arabic, and French.</li>
+                      <li><strong>Auto-Generated Slugs</strong>: Dynamic SEO slug generation with manual override.</li>
                     </ul>
                   </div>
                 )}
@@ -362,10 +333,10 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                   <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
                     <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
                       <Kanban className="w-4 h-4 text-purple-600" />
-                      <span>3️⃣ Editorial Kanban Pipeline (/workflow)</span>
+                      <span>3. Editorial Workflow Kanban (/workflow)</span>
                     </div>
                     <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                      <strong>6 Sequential Stages</strong>: Draft ➔ Under Review ➔ Approved ➔ Published (or Scheduled / Archived). Role-based guard rails ensure writers cannot publish directly without editor sign-off.
+                      <strong>6 Sequential Stages</strong>: Draft ➔ Under Review ➔ Approved ➔ Published (or Scheduled / Archived). Granular RBAC ensures content writers cannot release articles without editorial approval.
                     </p>
                   </div>
                 )}
@@ -374,11 +345,11 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                 {matchesSearch('seo engine audit score checks') && (
                   <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
                     <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
-                      <Sparkles className="w-4 h-4 text-amber-600" />
-                      <span>4️⃣ Real-Time SEO Engine (0-100 Score)</span>
+                      <ShieldCheck className="w-4 h-4 text-amber-600" />
+                      <span>4. Real-Time SEO Quality Engine</span>
                     </div>
                     <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                      <strong>8 Real-Time Checks</strong>: Title length (50-60 chars), Meta description (150-160 chars), Keyword in title, Keyword in opening 100 words, 300+ word count, H2/H3 structure, Alt text, and Robots directive.
+                      <strong>8 Quality Standards</strong>: Title length, meta description character limits, focus keyword placement, minimum word depth, heading structure, image alt text, and indexability tags.
                     </p>
                   </div>
                 )}
@@ -388,10 +359,10 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                   <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
                     <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
                       <Tag className="w-4 h-4 text-emerald-600" />
-                      <span>5️⃣ Taxonomy: Categories &amp; Tags (/taxonomy)</span>
+                      <span>5. Taxonomy &amp; Tags Engine (/taxonomy)</span>
                     </div>
                     <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                      Hierarchical Categories (Parent-Child) and flat Tags. Each tenant maintains isolated categories so School ERP tags never bleed into Jupsoft Cloud.
+                      Hierarchical Categories (Parent/Child trees) and flat Tags. Each tenant maintains isolated taxonomies to keep brand content clearly structured.
                     </p>
                   </div>
                 )}
@@ -401,10 +372,10 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                   <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
                     <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
                       <ImageIcon className="w-4 h-4 text-cyan-600" />
-                      <span>6️⃣ Media Asset Library (/media)</span>
+                      <span>6. Media Asset Library (/media)</span>
                     </div>
                     <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                      Direct drag-and-drop, automated WebP compression, multi-size thumbnail generation, S3 presigned upload pipeline, and soft-delete security.
+                      Drag-and-drop asset management, automated WebP compression, dimension metadata extraction, and multi-tenant folder isolation.
                     </p>
                   </div>
                 )}
@@ -414,10 +385,10 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                   <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
                     <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
                       <ArrowRightLeft className="w-4 h-4 text-rose-600" />
-                      <span>7️⃣ 301 SEO Redirects (/settings?tab=redirects)</span>
+                      <span>7. 301 SEO Redirects (/settings?tab=redirects)</span>
                     </div>
                     <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                      Prevents 404 errors and preserves search rankings when slugs change. Cleanly integrated into Tenant Settings for effortless URL continuity.
+                      Preserves search rankings and eliminates broken links by automating permanent 301 redirect rules when article slugs change.
                     </p>
                   </div>
                 )}
@@ -427,10 +398,10 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                   <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
                     <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
                       <BarChart3 className="w-4 h-4 text-violet-600" />
-                      <span>8️⃣ Analytics &amp; Telemetry (/analytics)</span>
+                      <span>8. Analytics &amp; Telemetry (/analytics)</span>
                     </div>
                     <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                      Visualizes public website views, unique readers, scroll completion rate (25%, 50%, 75%, 100%), and referrers (Google, LinkedIn, Direct).
+                      Tracks public reader engagement, unique views, publication velocity trends, and author productivity metrics.
                     </p>
                   </div>
                 )}
@@ -440,69 +411,56 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                   <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
                     <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
                       <Users className="w-4 h-4 text-orange-600" />
-                      <span>9️⃣ Team Management &amp; RBAC (/users)</span>
+                      <span>9. Team Management &amp; RBAC (/users)</span>
                     </div>
                     <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                      Multi-tenant Role-Based Access Control: Super Admin, Website Admin, Role Admin, Editor, Content Writer, Publisher, SEO Manager.
+                      Role-Based Access Control: Super Admin, Website Admin, Role Admin, Editor, Content Writer, Publisher, and SEO Manager.
                     </p>
                   </div>
                 )}
 
-                {/* 10. Tenant & System Settings */}
+                {/* 10. Tenant Settings */}
                 {matchesSearch('settings tenant api key rotation onboard domain') && (
                   <div className="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 space-y-2">
                     <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-300">
                       <Settings className="w-4 h-4 text-amber-600" />
-                      <span>🔟 Tenant &amp; API Key Settings (/settings)</span>
+                      <span>10. Tenant Configuration &amp; API Keys (/settings)</span>
                     </div>
                     <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-400 text-[11px]">
-                      <li><strong>Tenant Onboarding</strong>: Create new websites on the fly with custom domains and languages.</li>
-                      <li><strong>Secret API Key &amp; Rotation</strong>: Database-stored API keys with Eye unmask toggle and 1-click &quot;Rotate Key&quot; feature.</li>
-                      <li><strong>Webhook URL Config</strong>: Set custom revalidation endpoints per website.</li>
+                      <li><strong>Tenant Onboarding</strong>: Create new website properties with custom domains and languages.</li>
+                      <li><strong>API Key Management</strong>: Secure tenant API key generation with 1-click rotation.</li>
+                      <li><strong>Webhook Endpoints</strong>: Configure cache revalidation webhook targets per domain.</li>
                     </ul>
-                  </div>
-                )}
-
-                {/* 11. System Audit Trail */}
-                {matchesSearch('audit trail compliance logs security') && (
-                  <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
-                    <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
-                      <ShieldCheck className="w-4 h-4 text-teal-600" />
-                      <span>1️⃣1️⃣ System Audit Trail (/settings?tab=audit)</span>
-                    </div>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                      Immutable enterprise audit logs capturing user name, assigned role, client IP address, action (<code className="font-mono text-indigo-600">website.created</code>, <code className="font-mono text-indigo-600">blog.published</code>), and precise timestamp.
-                    </p>
                   </div>
                 )}
               </div>
             </div>
           )}
 
-          {/* Section 4: Publishing Flow */}
+          {/* Section 4: Publishing Lifecycle */}
           {(activeTab === 'all' || activeTab === 'workflow') && matchesSearch('publishing flow workflow steps') && (
-            <div className="p-6 rounded-2xl bg-gradient-to-br from-purple-50/40 via-white to-indigo-50/40 dark:from-purple-950/20 dark:via-[#0d121f] dark:to-indigo-950/20 border border-purple-200 dark:border-purple-900/40 space-y-4">
+            <div className="p-6 rounded-2xl bg-slate-50 dark:bg-[#111827]/60 border border-slate-200 dark:border-slate-800 space-y-4">
               <div className="flex items-center gap-2">
                 <span className="p-1.5 rounded-lg bg-purple-600 text-white font-bold text-xs">04</span>
-                <h3 className="text-base font-black text-slate-900 dark:text-white">
-                  ⚡ Real-World Walkthrough: Ek Blog Publish Karne Ka Complete Flow
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Content Publishing Lifecycle
                 </h3>
               </div>
 
               <div className="space-y-2.5">
                 {[
-                  { step: '1', title: 'Writer Logs In & Selects Scope', desc: 'Scope dropdown se target website select karta hai (e.g. "site-cloud").' },
-                  { step: '2', title: 'Create Blog (/blogs/new)', desc: 'Title, Content body (TipTap editor), excerpt, aur featured image upload karta hai.' },
-                  { step: '3', title: 'Focus Keyword & SEO Audit', desc: 'Focus keyword set karta hai (e.g. "Cloud ERP") — system real-time 8 checks run karke 85/100 score dikhata hai.' },
-                  { step: '4', title: 'Multi-Language Translation', desc: 'Hindi (HI) tab me switch karke translated Title aur Content paste karta hai.' },
-                  { step: '5', title: 'Submit for Review', desc: 'Button click karta hai — blog "Draft" se "Under Review" state me chala jata hai.' },
-                  { step: '6', title: 'Editor / Super Admin Review', desc: 'Editorial team /workflow kanban board par blog ko check karti hai aur "Approve" karti hai.' },
-                  { step: '7', title: 'Publish Triggered', desc: '"Publish Now" click karne par blog public database me "Published" mark hota hai.' },
-                  { step: '8', title: 'Redis Cache & Edge Invalidation', desc: 'Backend Redis cache ko invalidate karta hai aur HMAC SHA-256 webhook consumer site ko dispatch karta hai.' },
-                  { step: '9', title: 'Live on Consumer Site!', desc: 'Target website (e.g. cloud.jupsoft.com) par bina build restart kiye blog instantly live ho jata hai!' },
+                  { step: '1', title: 'Scope Selection', desc: 'Select the target website domain from the global scope selector.' },
+                  { step: '2', title: 'Draft Authoring', desc: 'Draft article content in the editor canvas, adding excerpts and featured media.' },
+                  { step: '3', title: 'SEO Optimization', desc: 'Assign a focus keyword and run real-time checks to achieve an optimal quality score.' },
+                  { step: '4', title: 'Multi-Language Localization', desc: 'Add translations across supported locale tabs (EN, HI, FR, AR).' },
+                  { step: '5', title: 'Editorial Review Submission', desc: 'Submit the completed draft, transitioning status to "Under Review".' },
+                  { step: '6', title: 'Editorial Approval', desc: 'Reviewers inspect content on the Kanban board and mark it "Approved".' },
+                  { step: '7', title: 'Production Release Trigger', desc: 'Publisher triggers release, updating the database and publishing status.' },
+                  { step: '8', title: 'Edge Cache Invalidation', desc: 'Backend clears Redis cache and dispatches an HMAC-signed webhook to the consumer frontend.' },
+                  { step: '9', title: 'Live on Public Domain', desc: 'Consumer website serves updated article content with sub-300ms read latency.' },
                 ].map((s) => (
-                  <div key={s.step} className="flex items-start gap-3 p-2.5 rounded-xl bg-white/80 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800">
-                    <span className="w-6 h-6 rounded-full bg-[#4c22cf] text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                  <div key={s.step} className="flex items-start gap-3 p-2.5 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800">
+                    <span className="w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
                       {s.step}
                     </span>
                     <div>
@@ -520,24 +478,24 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
             <div className="p-6 rounded-2xl bg-white dark:bg-[#0d121f] border border-slate-200 dark:border-slate-800 space-y-4">
               <div className="flex items-center gap-2">
                 <span className="p-1.5 rounded-lg bg-amber-600 text-white font-bold text-xs">05</span>
-                <h3 className="text-base font-black text-slate-900 dark:text-white">
-                  🔍 Automated SEO Audit Engine (8 Standards)
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Automated SEO Quality Standards (8 Benchmarks)
                 </h3>
               </div>
               <p className="text-slate-600 dark:text-slate-300">
-                Har blog save hone par frontend aur backend dono par yeh 8 algorithmic SEO checks run hote hain:
+                Every article is evaluated against 8 real-time algorithmic quality checks:
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
-                  { label: '1. Title Length', rule: '50 to 60 characters ideal. Google search results me cut-off prevent karta hai.' },
-                  { label: '2. Meta Description', rule: '150 to 160 characters. SERP preview snippet ke liye optimal range.' },
-                  { label: '3. Focus Keyword in Title', rule: 'Selected keyword post ke main title ke start ya body me hona chahiye.' },
-                  { label: '4. Keyword in Opening 100 Words', rule: 'Search crawlers ko topic context confirm karne ke liye first paragraph me keyword zaroori hai.' },
-                  { label: '5. Content Word Count', rule: 'Minimum 300+ words standard article depth ke liye required hain.' },
-                  { label: '6. Heading Hierarchy', rule: 'Page par exactly 1 H1 hona chahiye aur structured H2/H3 subheadings hone chahiye.' },
-                  { label: '7. Image Alt Attributes', rule: 'Featured image aur embedded content images me descriptive alt text hona mandatory hai.' },
-                  { label: '8. Robots Directive', rule: 'Ensure karta hai ki robots meta tag search engines ko page index karne allow kare (index, follow).' },
+                  { label: '1. Title Length', rule: 'Optimal between 50 and 60 characters to prevent SERP truncation.' },
+                  { label: '2. Meta Description', rule: 'Optimal between 150 and 160 characters for complete SERP snippet previews.' },
+                  { label: '3. Focus Keyword in Title', rule: 'Target search query must be present in the article headline.' },
+                  { label: '4. Keyword in Opening 100 Words', rule: 'Search crawlers require immediate topic context in introductory paragraphs.' },
+                  { label: '5. Content Depth & Length', rule: 'Minimum 300+ words required for topical depth and search indexing.' },
+                  { label: '6. Heading Structure', rule: 'Exactly one H1 element followed by properly nested H2 and H3 subheadings.' },
+                  { label: '7. Image Alt Text Attributes', rule: 'All cover photos and embedded images must include descriptive alt attributes.' },
+                  { label: '8. Indexing Directives', rule: 'Verifies robots directives allow proper search engine crawling (index, follow).' },
                 ].map((check, idx) => (
                   <div key={idx} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
                     <div className="font-bold text-slate-900 dark:text-slate-200 text-xs mb-0.5">{check.label}</div>
@@ -548,13 +506,13 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
             </div>
           )}
 
-          {/* Section 6: API Keys & Secrets Architecture */}
+          {/* Section 6: Security Architecture */}
           {(activeTab === 'all' || activeTab === 'settings') && matchesSearch('api key rotation secrets env database security') && (
             <div className="p-6 rounded-2xl bg-white dark:bg-[#0d121f] border border-slate-200 dark:border-slate-800 space-y-4">
               <div className="flex items-center gap-2">
                 <span className="p-1.5 rounded-lg bg-teal-600 text-white font-bold text-xs">06</span>
-                <h3 className="text-base font-black text-slate-900 dark:text-white">
-                  🔒 Secrets vs Database Configuration Architecture
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Security Architecture: Database vs Infrastructure Secrets
                 </h3>
               </div>
 
@@ -562,47 +520,45 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
                 <div className="p-4 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 space-y-2">
                   <div className="flex items-center gap-2 font-bold text-emerald-800 dark:text-emerald-300">
                     <KeyRound className="w-4 h-4" />
-                    <span>Database System (Website Table)</span>
+                    <span>Database Configuration (Website Table)</span>
                   </div>
                   <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                    Tenant specific dynamic configs — Website ID, Domain, Name, Tenant Secret API Key, aur Webhook URL. Naye websites create hone par automatically database me store hote hain bina <code className="font-mono">.env</code> chhue.
+                    Tenant-scoped settings—Website ID, domain mapping, tenant secret API keys, and webhook URLs. Adding new websites stores credentials dynamically without modifying environment files.
                   </p>
                 </div>
 
                 <div className="p-4 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/40 space-y-2">
                   <div className="flex items-center gap-2 font-bold text-purple-800 dark:text-purple-300">
                     <Shield className="w-4 h-4" />
-                    <span>System Secrets (.env / AWS Secrets Manager)</span>
+                    <span>System Secrets (.env / Cloud Secret Store)</span>
                   </div>
                   <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                    Global infrastructure secrets — <code className="font-mono">JWT_SECRET</code>, <code className="font-mono">DATABASE_URL</code>, <code className="font-mono">WEBHOOK_DEFAULT_SECRET</code>, aur AWS S3 Credentials. Inhe code ya client-side se strictly isolate rakha jata hai.
+                    Infrastructure-level secrets—<code className="font-mono text-indigo-600 dark:text-indigo-400">JWT_SECRET</code>, <code className="font-mono text-indigo-600 dark:text-indigo-400">DATABASE_URL</code>, and AWS credentials. Strictly isolated from client-side bundles.
                   </p>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Section 7: Agent Mode MCP */}
-          {(activeTab === 'all' || activeTab === 'mcp') && matchesSearch('agent mode mcp fastmcp tools autonomous') && (
-            <div className="p-6 rounded-2xl bg-gradient-to-br from-indigo-900 to-[#250f6b] text-white space-y-4 shadow-xl">
+          {/* Section 7: Headless API & Webhooks */}
+          {(activeTab === 'all' || activeTab === 'api') && matchesSearch('api webhooks headless integration revalidation') && (
+            <div className="p-6 rounded-2xl bg-slate-50 dark:bg-[#111827]/60 border border-slate-200 dark:border-slate-800 space-y-4">
               <div className="flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-white/20 text-white font-bold text-xs">07</span>
-                <h3 className="text-base font-black text-white flex items-center gap-2">
-                  <Bot className="w-5 h-5 text-amber-300" />
-                  🤖 AI Agent Mode (51 FastMCP Tools Integration)
+                <span className="p-1.5 rounded-lg bg-indigo-600 text-white font-bold text-xs">07</span>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Cpu className="w-4 h-4 text-indigo-500" />
+                  Headless API &amp; Webhook Integration
                 </h3>
               </div>
-              <p className="text-indigo-100 text-xs leading-relaxed">
-                Aapke platform me <strong>51 Tools wala FastMCP Server</strong> configured hai. Aap kisi bhi autonomous AI agent (Antigravity IDE, Claude, GPT-4) ko natural language me prompt dekar poora content lifecycle automate kar sakte hain:
+              <p className="text-slate-600 dark:text-slate-300 text-xs leading-relaxed">
+                The platform exposes REST API endpoints for headless consumer frontends and automated editorial workflows:
               </p>
 
-              <div className="p-4 rounded-xl bg-white/10 backdrop-blur-xs border border-white/15 font-mono text-xs text-amber-200">
-                &ldquo;DigifyNext marketing ke liye AI trends 2026 par ek fresh blog likho, Hindi translation dalo, SEO audit run karo aur direct publish kardo.&rdquo;
+              <div className="p-4 rounded-xl bg-white dark:bg-[#0d121f] border border-slate-200 dark:border-slate-800 font-mono text-xs text-slate-700 dark:text-slate-300 space-y-1">
+                <div><span className="text-emerald-600 font-bold">POST</span> /api/blogs ── Create content programmatically</div>
+                <div><span className="text-blue-600 font-bold">GET</span> /api/public/blogs/:slug ── Fetch published article by slug</div>
+                <div><span className="text-amber-600 font-bold">POST</span> /api/revalidate ── HMAC-signed ISR revalidation webhook</div>
               </div>
-
-              <p className="text-indigo-200/80 text-[11px]">
-                Agent bina browser khole backend ke saare tools (<code className="text-white">create_blog</code>, <code className="text-white">auto_translate</code>, <code className="text-white">audit_seo</code>, <code className="text-white">approve_blog</code>, <code className="text-white">publish_blog</code>) automatically execute karke 30 seconds me post live kar dega!
-              </p>
             </div>
           )}
 
@@ -611,13 +567,13 @@ Agent bina UI khole backend par saare 51 tools automatically execute kar dega!
         {/* Modal Footer */}
         <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/60 flex items-center justify-between shrink-0">
           <div className="text-[11px] text-slate-400">
-            Jupsoft Enterprise CMS v2.0 · Centralized Multi-Site Architecture
+            Jupsoft Enterprise Content Management Platform
           </div>
           <button
             onClick={() => setGuideOpen(false)}
-            className="px-5 py-2 rounded-xl bg-[#4c22cf] hover:bg-[#3d1bb0] text-white font-bold text-xs transition-all shadow-md cursor-pointer"
+            className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-all shadow-md cursor-pointer"
           >
-            Got It, Close Manual
+            Close Manual
           </button>
         </div>
       </div>
