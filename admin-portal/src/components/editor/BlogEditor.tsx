@@ -2053,7 +2053,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-400 shadow-2xs"
                   title="Open SEO & Settings Audit"
                 >
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                   <span>SEO Score:</span>
                   <span className={seoResult.score >= 80 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-amber-600 dark:text-amber-400 font-bold'}>
                     {seoResult.score}/100
@@ -2096,7 +2096,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <ShieldCheck className="w-3 h-3" />
+              <CheckCircle2 className="w-3 h-3" />
               <span>SEO</span>
               <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
                 seoResult.score >= 80 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
@@ -2835,7 +2835,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                           </p>
                         </div>
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300">
-                          <ShieldCheck className="w-3.5 h-3.5" />
+                          <CheckCircle2 className="w-3.5 h-3.5" />
                           Automated WebP Conversion Included
                         </span>
                       </>
