@@ -133,6 +133,16 @@ export class PublicV1Service {
             },
           },
           website: { select: { domain: true, name: true } },
+          blogCategories: {
+            include: {
+              category: { select: { id: true, name: true, slug: true } },
+            },
+          },
+          blogTags: {
+            include: {
+              tag: { select: { id: true, name: true, slug: true } },
+            },
+          },
         },
       }),
     ]);
@@ -142,22 +152,29 @@ export class PublicV1Service {
         b.translations.find((t) => t.lang === lang) ||
         b.translations.find((t) => t.lang === 'en') ||
         b.translations[0];
+      const cats = (b.blogCategories || []).map((bc: any) => bc.category).filter(Boolean);
+      const tags = (b.blogTags || []).map((bt: any) => bt.tag).filter(Boolean);
       return {
         id: b.id,
         slug: tr?.slug || b.id,
         title: tr?.title || 'Untitled',
         excerpt: tr?.excerpt || '',
         featuredImage: this.normalizeMediaUrl(b.featuredImage),
+        featuredImageAlt: b.featuredImageAlt || tr?.title || '',
         authorName: this.cleanAuthorName(b.authorName),
+        authorAvatar: b.authorAvatar ? this.normalizeMediaUrl(b.authorAvatar) : '',
         publishedAt: b.publishDate?.toISOString(),
         readTimeMinutes: b.readTimeMinutes,
+        categories: cats,
+        primaryCategory: cats[0]?.name || '',
+        tags: tags,
+        categoryIds: b.categoryIds,
+        tagIds: b.tagIds,
         seo: {
           metaTitle: tr?.metaTitle || tr?.title,
           metaDescription: tr?.metaDescription || tr?.excerpt,
           canonicalUrl: tr?.canonicalUrl || `https://${b.website.domain}/blog/${tr?.slug}`,
         },
-        categoryIds: b.categoryIds,
-        tagIds: b.tagIds,
       };
     });
 
@@ -172,7 +189,7 @@ export class PublicV1Service {
     return result;
   }
 
-  private formatBlogDetail(translation: any, redirect?: { statusCode: number; fromSlug: string; toSlug: string }) {
+  private async formatBlogDetail(translation: any, redirect?: { statusCode: number; fromSlug: string; toSlug: string }) {
     const b = translation.blog;
 
     // Increment viewCount atomically without mutating updatedAt — TRD §14 (Analytics: view_count)
@@ -180,6 +197,26 @@ export class PublicV1Service {
       this.prisma
         .$executeRawUnsafe('UPDATE blogs SET view_count = view_count + 1 WHERE id = $1', b.id)
         .catch(() => {});
+    }
+
+    let cats = (b.blogCategories || []).map((bc: any) => bc.category).filter(Boolean);
+    if (cats.length === 0 && b.categoryIds && b.categoryIds.length > 0) {
+      try {
+        cats = await this.prisma.category.findMany({
+          where: { id: { in: b.categoryIds } },
+          select: { id: true, name: true, slug: true },
+        });
+      } catch (e) {}
+    }
+
+    let tags = (b.blogTags || []).map((bt: any) => bt.tag).filter(Boolean);
+    if (tags.length === 0 && b.tagIds && b.tagIds.length > 0) {
+      try {
+        tags = await this.prisma.tag.findMany({
+          where: { id: { in: b.tagIds } },
+          select: { id: true, name: true, slug: true },
+        });
+      } catch (e) {}
     }
 
     return {
@@ -192,9 +229,16 @@ export class PublicV1Service {
         content: translation.content,
         excerpt: translation.excerpt,
         featuredImage: this.normalizeMediaUrl(b.featuredImage),
+        featuredImageAlt: b.featuredImageAlt || translation.title || '',
         authorName: this.cleanAuthorName(b.authorName),
+        authorAvatar: b.authorAvatar ? this.normalizeMediaUrl(b.authorAvatar) : '',
         publishedAt: b.publishDate instanceof Date ? b.publishDate.toISOString() : b.publishDate,
         readTimeMinutes: b.readTimeMinutes,
+        categories: cats,
+        primaryCategory: cats[0]?.name || '',
+        tags: tags,
+        categoryIds: b.categoryIds || [],
+        tagIds: b.tagIds || [],
         // TRD §11 SEO fields
         seo: {
           metaTitle: translation.metaTitle || translation.title,
@@ -204,7 +248,7 @@ export class PublicV1Service {
             translation.canonicalUrl ||
             `https://${b.website?.domain || ''}/blog/${translation.slug}`,
           focusKeyword: translation.focusKeyword,
-          robots: translation.robots,
+          robots: translation.robots || 'index, follow',
           ogTitle: translation.ogTitle || translation.title,
           ogDescription: translation.ogDescription || translation.excerpt,
           ogImage: this.normalizeMediaUrl(translation.ogImage || b.featuredImage),
@@ -239,6 +283,21 @@ export class PublicV1Service {
     const cached = await this.redis.get<unknown>(cacheKey);
     if (cached) return cached;
 
+    const blogIncludes = {
+      website: true,
+      translations: { select: { lang: true, slug: true, title: true } },
+      blogCategories: {
+        include: {
+          category: { select: { id: true, name: true, slug: true } },
+        },
+      },
+      blogTags: {
+        include: {
+          tag: { select: { id: true, name: true, slug: true } },
+        },
+      },
+    };
+
     // 1. Direct match by slug, lang, and website (latest updated first)
     let translation = await this.prisma.blogTranslation.findFirst({
       where: {
@@ -251,10 +310,7 @@ export class PublicV1Service {
       },
       include: {
         blog: {
-          include: {
-            website: true,
-            translations: { select: { lang: true, slug: true, title: true } },
-          },
+          include: blogIncludes,
         },
       },
     });
@@ -272,7 +328,7 @@ export class PublicV1Service {
         include: {
           blog: {
             include: {
-              website: true,
+              ...blogIncludes,
               translations: true,
             },
           },
@@ -308,7 +364,7 @@ export class PublicV1Service {
           include: {
             blog: {
               include: {
-                website: true,
+                ...blogIncludes,
                 translations: true,
               },
             },
@@ -321,7 +377,7 @@ export class PublicV1Service {
             targetTranslation.blog.translations.find((t) => t.lang === 'en') ||
             targetTranslation;
 
-          const redirectResult = this.formatBlogDetail(
+          const redirectResult = await this.formatBlogDetail(
             { ...resolved, blog: targetTranslation.blog },
             { statusCode: redirect.statusCode || 301, fromSlug: slug, toSlug: redirect.toSlug },
           );
@@ -333,7 +389,7 @@ export class PublicV1Service {
       throw new NotFoundException(`No published article found for slug "${slug}"`);
     }
 
-    const result = this.formatBlogDetail(translation);
+    const result = await this.formatBlogDetail(translation);
     // TRD §16: Populate cache — TTL 3600s for individual blog detail
     await this.redis.set(cacheKey, result, 3600);
     return result;
