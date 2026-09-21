@@ -64,7 +64,8 @@ import {
   UploadCloud,
   FileText,
   Sparkles,
-  Languages
+  Languages,
+  UserCheck
 } from 'lucide-react';
 import { LanguageCode, BlogStatus, Blog, BlogTranslation, BlogSEO, MediaItem } from '../../types';
 import { createEmptySEO } from '../../data/initialData';
@@ -96,6 +97,8 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     activeRole,
     addRedirect,
     currentUser,
+    users,
+    fetchUsers,
   } = useBlogStore();
 
   const targetBlogId = blogId !== undefined ? blogId : editingBlogId;
@@ -216,6 +219,26 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   const [selectedCategories, setSelectedCategories] = useState<string[]>(existingBlog?.categoryIds || []);
   const [selectedTags, setSelectedTags] = useState<string[]>(existingBlog?.tagIds || []);
   const [scheduledAt, setScheduledAt] = useState(existingBlog?.scheduledAt || '');
+
+  // Author & Byline state
+  const cleanCurrentName = (currentUser?.name || 'Aarav Sharma').replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim();
+  const [authorMode, setAuthorMode] = useState<'user' | 'custom'>(() => {
+    if (existingBlog?.authorId === 'usr-custom') return 'custom';
+    return 'user';
+  });
+  const [selectedAuthorId, setSelectedAuthorId] = useState<string>(
+    existingBlog?.authorId || currentUser?.id || 'usr-superadmin'
+  );
+  const [authorName, setAuthorName] = useState<string>(
+    existingBlog?.authorName?.replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim() || cleanCurrentName
+  );
+  const [authorAvatar, setAuthorAvatar] = useState<string>(
+    existingBlog?.authorAvatar || currentUser?.avatar || '/uploads/avatars/avatar-default.webp'
+  );
+
+  useEffect(() => {
+    if (fetchUsers) fetchUsers();
+  }, [fetchUsers]);
 
   // Per-language dictionary state
   const defaultTrans = (lang: LanguageCode): BlogTranslation => ({
@@ -425,6 +448,16 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         if (Array.isArray(fullBlog.tagIds)) setSelectedTags(fullBlog.tagIds);
         if (fullBlog.scheduledAt) setScheduledAt(fullBlog.scheduledAt);
         if (fullBlog.websiteId) setSelectedWebsiteId(fullBlog.websiteId);
+        if (fullBlog.authorId) {
+          setSelectedAuthorId(fullBlog.authorId);
+          if (fullBlog.authorId === 'usr-custom') setAuthorMode('custom');
+        }
+        if (fullBlog.authorName) {
+          setAuthorName(fullBlog.authorName.replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim());
+        }
+        if (fullBlog.authorAvatar) {
+          setAuthorAvatar(fullBlog.authorAvatar);
+        }
       })
       .catch((err) => {
         console.warn('API getBlogById fetch failed, using local store data:', err);
@@ -607,7 +640,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         dateModified: new Date().toISOString(),
         author: {
           '@type': 'Person',
-          name: existingBlog?.authorName || 'Current User',
+          name: authorName || 'Staff Writer',
         },
         publisher: {
           '@type': 'Organization',
@@ -625,7 +658,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       null,
       2
     );
-  }, [activeTrans, featuredImage, existingBlog, activeSite]);
+  }, [activeTrans, featuredImage, existingBlog, activeSite, authorName]);
 
   const copySchemaJson = () => {
     navigator.clipboard.writeText(jsonLdSchema);
@@ -801,9 +834,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     const newBlog: Blog = {
       id,
       websiteId: targetSiteId,
-      authorId: currentUser?.id || existingBlog?.authorId || 'usr-superadmin',
-      authorName: currentUser?.name || existingBlog?.authorName || 'Staff Writer',
-      authorAvatar: currentUser?.avatar || existingBlog?.authorAvatar || '/uploads/avatars/avatar-default.webp',
+      authorId: authorMode === 'user' ? selectedAuthorId : 'usr-custom',
+      authorName: authorName.trim() || cleanCurrentName,
+      authorAvatar: authorAvatar || '/uploads/avatars/avatar-default.webp',
       featuredImage,
       featuredImageAlt,
       status,
@@ -1947,6 +1980,93 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   />
                 </div>
 
+                {/* Author & Byline Governance */}
+                <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                      <UserCheck className="w-3 h-3 text-blue-500" /> Author / Byline
+                    </label>
+                    <div className="flex items-center gap-1 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAuthorMode('user');
+                          const matchedUser = users.find((u) => u.id === selectedAuthorId) || currentUser;
+                          if (matchedUser) {
+                            setAuthorName(matchedUser.name.replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim());
+                            setAuthorAvatar(matchedUser.avatar || '/uploads/avatars/avatar-default.webp');
+                          }
+                        }}
+                        className={`px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors ${
+                          authorMode === 'user'
+                            ? 'bg-blue-600 text-white font-semibold'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        }`}
+                      >
+                        Team
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAuthorMode('custom')}
+                        className={`px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors ${
+                          authorMode === 'custom'
+                            ? 'bg-blue-600 text-white font-semibold'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        }`}
+                      >
+                        Custom
+                      </button>
+                    </div>
+                  </div>
+
+                  {authorMode === 'user' ? (
+                    <div className="space-y-1">
+                      <select
+                        value={selectedAuthorId}
+                        onChange={(e) => {
+                          const uId = e.target.value;
+                          setSelectedAuthorId(uId);
+                          const found = users.find((u) => u.id === uId) || (currentUser?.id === uId ? currentUser : null);
+                          if (found) {
+                            setAuthorName(found.name.replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim());
+                            if (found.avatar) setAuthorAvatar(found.avatar);
+                          }
+                        }}
+                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-400 cursor-pointer"
+                      >
+                        {currentUser && (
+                          <option value={currentUser.id}>
+                            {currentUser.name.replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim()} (You)
+                          </option>
+                        )}
+                        {users
+                          .filter((u) => u.id !== currentUser?.id)
+                          .map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.name.replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim()} ({u.role})
+                            </option>
+                          ))}
+                      </select>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                        Public byline: <strong className="text-slate-700 dark:text-slate-300">{authorName}</strong>
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <input
+                        type="text"
+                        value={authorName}
+                        onChange={(e) => setAuthorName(e.target.value)}
+                        placeholder="e.g. DigifyNext Team, Editorial Desk, Guest Author"
+                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-slate-400"
+                      />
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                        Enter any custom team desk or guest writer byline.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 {/* Categories */}
                 <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
@@ -2499,13 +2619,13 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
                   <div className="flex items-center gap-2.5">
                     <img
-                      src={existingBlog?.authorAvatar || '/uploads/avatars/avatar-default.webp'}
+                      src={authorAvatar || '/uploads/avatars/avatar-default.webp'}
                       alt="Author"
                       className="w-9 h-9 rounded-full object-cover border border-slate-200 dark:border-slate-700"
                     />
                     <div>
                       <div className="font-semibold text-slate-900 dark:text-white">
-                        {existingBlog?.authorName || 'Staff Writer'}
+                        {authorName || 'Staff Writer'}
                       </div>
                       <div className="text-[11px]">
                         {status === 'Published' ? 'Published' : status === 'Scheduled' ? 'Scheduled for' : 'Updated'}{' '}

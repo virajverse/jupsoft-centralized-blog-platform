@@ -162,6 +162,21 @@ export class CreateBlogDto {
   @IsIn(BLOG_STATUSES)
   status?: string;
 
+  @ApiProperty({ example: 'usr-123', required: false })
+  @IsString()
+  @IsOptional()
+  authorId?: string;
+
+  @ApiProperty({ example: 'Aarav Sharma', required: false })
+  @IsString()
+  @IsOptional()
+  authorName?: string;
+
+  @ApiProperty({ example: '/uploads/avatars/avatar.webp', required: false })
+  @IsString()
+  @IsOptional()
+  authorAvatar?: string;
+
   @ApiProperty({ type: [BlogTranslationInputDto] })
   @IsArray()
   @ArrayMinSize(1)
@@ -207,6 +222,21 @@ export class UpdateBlogDto {
   @IsArray()
   @IsOptional()
   tagIds?: string[];
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  authorId?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  authorName?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  authorAvatar?: string;
 
   @ApiProperty({ type: [BlogTranslationInputDto], required: false })
   @IsArray()

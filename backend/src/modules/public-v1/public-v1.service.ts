@@ -61,6 +61,12 @@ export class PublicV1Service {
     return url;
   }
 
+  cleanAuthorName(name?: string | null): string {
+    if (!name) return 'DigifyNext Team';
+    const cleaned = name.replace(/\s*\([^)]*(?:admin|editor|author|superadmin|user)[^)]*\)/gi, '').trim();
+    return cleaned || 'DigifyNext Team';
+  }
+
   // ─── TRD §13: key format blogs:{website}:{page}:{lang}[:{category}][:{tag}]
   async getPublishedBlogs(params: {
     websiteId: string;
@@ -142,7 +148,7 @@ export class PublicV1Service {
         title: tr?.title || 'Untitled',
         excerpt: tr?.excerpt || '',
         featuredImage: this.normalizeMediaUrl(b.featuredImage),
-        authorName: b.authorName,
+        authorName: this.cleanAuthorName(b.authorName),
         publishedAt: b.publishDate?.toISOString(),
         readTimeMinutes: b.readTimeMinutes,
         seo: {
@@ -186,7 +192,7 @@ export class PublicV1Service {
         content: translation.content,
         excerpt: translation.excerpt,
         featuredImage: this.normalizeMediaUrl(b.featuredImage),
-        authorName: b.authorName,
+        authorName: this.cleanAuthorName(b.authorName),
         publishedAt: b.publishDate instanceof Date ? b.publishDate.toISOString() : b.publishDate,
         readTimeMinutes: b.readTimeMinutes,
         // TRD §11 SEO fields
@@ -219,7 +225,7 @@ export class PublicV1Service {
           image: b.featuredImage ? [this.normalizeMediaUrl(b.featuredImage)] : [],
           datePublished: b.publishDate instanceof Date ? b.publishDate.toISOString() : b.publishDate,
           dateModified: b.updatedAt instanceof Date ? b.updatedAt.toISOString() : new Date().toISOString(),
-          author: { '@type': 'Person', name: b.authorName },
+          author: { '@type': 'Person', name: this.cleanAuthorName(b.authorName) },
           description: translation.excerpt,
         },
       },

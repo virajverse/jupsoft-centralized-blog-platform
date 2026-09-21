@@ -297,9 +297,9 @@ export class BlogsService {
       const createdBlog = await tx.blog.create({
         data: {
           websiteId: dto.websiteId,
-          authorId: user.id,
-          authorName: user.name,
-          authorAvatar: user.avatar || '',
+          authorId: dto.authorId || user.id,
+          authorName: dto.authorName?.trim() || user.name.replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim(),
+          authorAvatar: dto.authorAvatar !== undefined ? dto.authorAvatar : (user.avatar || ''),
           featuredImage: dto.featuredImage?.trim() || '/uploads/blogs/default-blog-cover.webp',
           featuredImageAlt: dto.featuredImageAlt || '',
           status: initialStatus,
@@ -454,6 +454,15 @@ export class BlogsService {
         categoryIds: dto.categoryIds,
         tagIds: dto.tagIds,
       };
+      if (dto.authorId) {
+        blogUpdateData.authorId = dto.authorId;
+      }
+      if (dto.authorName !== undefined) {
+        blogUpdateData.authorName = dto.authorName.trim();
+      }
+      if (dto.authorAvatar !== undefined) {
+        blogUpdateData.authorAvatar = dto.authorAvatar;
+      }
       if (dto.websiteId) {
         blogUpdateData.websiteId = dto.websiteId;
       }
