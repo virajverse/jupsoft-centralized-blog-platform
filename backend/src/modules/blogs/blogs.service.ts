@@ -522,15 +522,8 @@ export class BlogsService {
       if (dto.translations && dto.translations.length > 0) {
         for (const t of dto.translations) {
           const oldTrans = existing.translations.find((ot) => ot.lang === t.lang);
-          let effectiveContent = t.content ? sanitizeContent(t.content) : t.content;
-          // Guard: If incoming content is empty or blank <p></p>, but DB already has substantial content (> 15 chars), preserve existing content!
-          if (
-            (!effectiveContent || effectiveContent === '<p></p>' || effectiveContent.trim() === '') &&
-            oldTrans?.content &&
-            oldTrans.content.length > 15
-          ) {
-            effectiveContent = oldTrans.content;
-          }
+          // Only preserve old content if translation content was omitted (undefined)
+          let effectiveContent = t.content !== undefined ? sanitizeContent(t.content) : (oldTrans?.content || '');
 
           await tx.blogTranslation.upsert({
             where: {

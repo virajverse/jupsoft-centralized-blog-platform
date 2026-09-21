@@ -171,9 +171,12 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isInternalLangSwitchRef = useRef(false);
+  const [, setSelectionTick] = useState(0);
 
   const handleLanguageTabClick = (lang: LanguageCode) => {
     if (lang === currentLang) return;
+    isInternalLangSwitchRef.current = true;
     if (editor) {
       const currentHtml = editor.getHTML();
       setTranslations((prev) => {
@@ -321,6 +324,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       attributes: {
         class: 'tiptap focus:outline-none min-h-[420px]',
       },
+    },
+    onSelectionUpdate: () => {
+      setSelectionTick((t) => t + 1);
     },
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
@@ -507,17 +513,22 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     }
   }, [editor]);
 
-  // Sync editor content ONLY when language tab changes via URL
+  // Sync editor content ONLY when language tab changes via URL (e.g. browser back/forward)
   const prevLangRef = useRef<LanguageCode>(currentLang);
   useEffect(() => {
     if (prevLangRef.current !== currentLang) {
       prevLangRef.current = currentLang;
+      // If switched via UI tab button, content is already synchronously set in handleLanguageTabClick
+      if (isInternalLangSwitchRef.current) {
+        isInternalLangSwitchRef.current = false;
+        return;
+      }
       if (editor) {
         const langContent = translations[currentLang]?.content || '<p></p>';
         editor.commands.setContent(langContent);
       }
     }
-  }, [currentLang, editor]);
+  }, [currentLang, editor, translations]);
 
   // Strictly typed helper functions
   const updateActiveTransField = <K extends keyof BlogTranslation>(

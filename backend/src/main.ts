@@ -7,6 +7,7 @@ import { join } from 'path';
 import * as fs from 'fs';
 import { AppModule } from './app.module';
 import helmet from 'helmet';
+import { json, urlencoded } from 'express';
 import { JsonLogger } from './common/logger/json-logger';
 import { PrismaService } from './prisma/prisma.service';
 
@@ -52,6 +53,10 @@ async function bootstrap() {
     });
     logger.log(`📁 Universal widget mounted: /widget -> ${widgetDir}`);
   }
+
+  // Increase body parser limits for rich multi-language blog posts and media payloads
+  app.use(json({ limit: '25mb' }));
+  app.use(urlencoded({ limit: '25mb', extended: true }));
 
   // 2. Helmet — HTTP Security Headers
   app.use(
@@ -237,6 +242,9 @@ async function bootstrap() {
     });
     logger.log('Swagger docs: http://localhost:' + port + '/api/docs');
   }
+
+  // Enable graceful shutdown hooks for PM2 SIGTERM / SIGINT
+  app.enableShutdownHooks();
 
   await app.listen(port);
   logger.log('Jupsoft CMS Backend running on port ' + port + ' [' + nodeEnv + ']');

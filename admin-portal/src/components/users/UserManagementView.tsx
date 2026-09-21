@@ -129,7 +129,7 @@ const PERMISSIONS_MATRIX: RBACPermission[] = [
     id: 'site.manage',
     label: '301 Redirects & Taxonomy',
     description: 'Can add 301 redirects, categories, and tags',
-    allowedRoles: ['Super Admin', 'Website Admin', 'Publisher'],
+    allowedRoles: ['Super Admin', 'Website Admin', 'Publisher', 'SEO Manager'],
   },
   {
     id: 'users.manage',

@@ -422,8 +422,9 @@ export const useBlogStore = create<BlogState>()(
       saveBlog: async (savedBlog) => {
         try {
           let apiResult: Blog;
-          const isNewDraft = savedBlog.id.startsWith('new-');
-          const exists = !isNewDraft && get().blogs.some((b) => b.id === savedBlog.id);
+          // Detect if blog is existing by checking if it has a real DB ID (not a client temporary ID)
+          const isClientTempId = !savedBlog.id || savedBlog.id.startsWith('new-') || savedBlog.id.startsWith('draft-') || savedBlog.id.startsWith('blog-');
+          const exists = !isClientTempId || get().blogs.some((b) => b.id === savedBlog.id);
           if (exists) {
             apiResult = await apiClient.updateBlog(savedBlog.id, savedBlog as Partial<Blog>);
           } else {

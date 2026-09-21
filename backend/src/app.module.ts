@@ -34,18 +34,18 @@ import { RedisModule } from './common/providers/redis.module';
     RedisModule,
 
     // TRD §15: Dual-tier rate limiting
-    // Tier 1: 'global'     → 60 req/min per IP  (admin routes)
-    // Tier 2: 'public-api' → 120 req/min per API key (public /v1 routes via ApiKeyThrottlerGuard)
+    // Tier 1: 'global'     → 300 req/min per IP  (admin routes, SPA navigation, and autosave)
+    // Tier 2: 'public-api' → 600 req/min per API key (public /v1 routes via ApiKeyThrottlerGuard)
     ThrottlerModule.forRoot([
       {
         name: 'global',
         ttl: 60000,
-        limit: 60,
+        limit: 300,
       },
       {
         name: 'public-api',
         ttl: 60000,
-        limit: 120,
+        limit: 600,
       },
     ]),
 
