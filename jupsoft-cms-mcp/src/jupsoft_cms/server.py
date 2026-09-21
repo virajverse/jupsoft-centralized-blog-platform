@@ -112,6 +112,7 @@ def cms_get_website(website_id: str) -> Dict[str, Any]:
 def cms_create_website(
     name: str,
     domain: str,
+    website_id: Optional[str] = None,
     description: str = "",
     default_language: str = "en",
     supported_languages: Optional[List[str]] = None,
@@ -119,9 +120,10 @@ def cms_create_website(
 ) -> Dict[str, Any]:
     """
     Create a new tenant website. Only Super Admin can do this.
-    Example: name='My Blog', domain='localhost:5004' (or 'myblog.com')
+    website_id: Unique slug / identifier (e.g. 'site-fintech'). If omitted, auto-generated from name.
+    domain: Primary domain hostname (e.g. 'fintech.jupsoft.com' or 'localhost:5004').
     """
-    return service.create_website(name, domain, description, default_language, supported_languages or ["en"], logo_url)
+    return service.create_website(name, domain, description, default_language, supported_languages or ["en"], logo_url, website_id=website_id)
 
 
 @mcp.tool()
@@ -272,6 +274,7 @@ def cms_upsert_translation(
     language: str,
     title: str,
     content: str,
+    slug: Optional[str] = None,
     excerpt: str = "",
     meta_title: Optional[str] = None,
     meta_description: Optional[str] = None,
@@ -284,12 +287,14 @@ def cms_upsert_translation(
     """
     Add or update a translation in a specific language (e.g. 'hi' for Hindi, 'ar' for Arabic) for an existing blog post.
     language: 2-letter ISO code e.g. 'hi', 'fr', 'ar', 'es'
+    slug: Optional custom URL slug. If omitted, auto-generated cleanly.
     """
     return service.upsert_translation(
         blog_id=blog_id,
         language=language,
         title=title,
         content=content,
+        slug=slug,
         excerpt=excerpt,
         meta_title=meta_title or title,
         meta_description=meta_description or excerpt,

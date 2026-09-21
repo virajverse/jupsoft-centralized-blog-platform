@@ -170,12 +170,11 @@ class JupsoftCMSService:
     def get_website(self, website_id: str) -> Dict[str, Any]:
         return self._get(f"/admin/websites/{website_id}")
 
-    def create_website(self, name: str, domain: str, description: str = "", default_language: str = "en", supported_languages: List[str] = None, logo_url: str = "") -> Dict[str, Any]:
+    def create_website(self, name: str, domain: str, description: str = "", default_language: str = "en", supported_languages: List[str] = None, logo_url: str = "", website_id: Optional[str] = None) -> Dict[str, Any]:
         import re, time as _time
-        # Backend requires 'id' as a custom slug — auto-generate from name
-        auto_id = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-') + '-' + str(int(_time.time()))[-4:]
+        site_id = website_id or (re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-') + '-' + str(int(_time.time()))[-4:])
         body = {
-            "id": auto_id,
+            "id": site_id,
             "name": name, "domain": domain, "description": description,
             "defaultLanguage": default_language, "supportedLanguages": supported_languages or ["en"],
         }
@@ -217,9 +216,12 @@ class JupsoftCMSService:
     def get_blog(self, blog_id: str) -> Dict[str, Any]:
         return self._get(f"/admin/blogs/{blog_id}")
 
-    def _make_slug(self, title: str) -> str:
-        import re
-        return re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
+    def _make_slug(self, title: str, fallback_prefix: str = "post") -> str:
+        import re, time as _time
+        slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
+        if not slug:
+            slug = f"{fallback_prefix}-{int(_time.time())}"
+        return slug
 
     def _build_blog_payload(self, title=None, content=None, excerpt=None, featured_image=None, featured_image_alt=None,
                              category_ids=None, tag_ids=None, meta_title=None, meta_description=None, focus_keyword=None,
@@ -227,7 +229,7 @@ class JupsoftCMSService:
         translation: Dict[str, Any] = {"lang": language or "en"}
         if title is not None:
             translation["title"] = title
-            translation["slug"] = self._make_slug(title)
+            translation["slug"] = self._make_slug(title, fallback_prefix=f"{language or 'post'}")
         if content is not None:
             translation["content"] = content
         if excerpt is not None:
@@ -238,7 +240,7 @@ class JupsoftCMSService:
             translation["metaDescription"] = meta_description
         if focus_keyword is not None:
             translation["focusKeyword"] = focus_keyword
-        if canonical_url is not None:
+        if canonical_url:
             translation["canonicalUrl"] = canonical_url
         if og_title is not None:
             translation["ogTitle"] = og_title
@@ -333,23 +335,26 @@ class JupsoftCMSService:
         return self._put(f"/admin/blogs/{blog_id}", payload)
 
     def upsert_translation(self, blog_id: str, language: str, title: str, content: str,
-                           excerpt: str = "", meta_title: str = "", meta_description: str = "",
-                           focus_keyword: str = "", canonical_url: str = "",
-                           og_title: str = "", og_description: str = "", og_image: str = "") -> Dict[str, Any]:
-        trans = {
+                           slug: Optional[str] = None, excerpt: str = "", meta_title: str = "",
+                           meta_description: str = "", focus_keyword: str = "",
+                           canonical_url: str = "", og_title: str = "",
+                           og_description: str = "", og_image: str = "") -> Dict[str, Any]:
+        chosen_slug = slug or self._make_slug(title, fallback_prefix=f"{language}-post")
+        trans: Dict[str, Any] = {
             "lang": language,
             "title": title,
-            "slug": self._make_slug(title),
+            "slug": chosen_slug,
             "content": content,
             "excerpt": excerpt,
             "metaTitle": meta_title or title,
             "metaDescription": meta_description or excerpt,
             "focusKeyword": focus_keyword,
-            "canonicalUrl": canonical_url,
             "ogTitle": og_title or title,
             "ogDescription": og_description or excerpt,
             "ogImage": og_image,
         }
+        if canonical_url:
+            trans["canonicalUrl"] = canonical_url
         return self._put(f"/admin/blogs/{blog_id}", {"translations": [trans]})
 
     def delete_blog(self, blog_id: str) -> Dict[str, Any]:
