@@ -7,31 +7,12 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   private readonly logger = new Logger(PrismaService.name);
 
   async onModuleInit() {
-    const nodeEnv = process.env.NODE_ENV || 'development';
-    const maxRetries = nodeEnv === 'production' ? 5 : 1;
-    let lastErr: Error | null = null;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        await this.$connect();
-        this.logger.log('✅ Connected to PostgreSQL via Prisma');
-        await this.ensureInitialSeed();
-        return; // success
-      } catch (err: any) {
-        lastErr = err;
-        if (attempt < maxRetries) {
-          const delay = attempt * 2000; // 2s, 4s, 6s, 8s, 10s
-          this.logger.warn(`⚠️ PostgreSQL connection attempt ${attempt}/${maxRetries} failed. Retrying in ${delay / 1000}s... (${err.message})`);
-          await new Promise((r) => setTimeout(r, delay));
-        }
-      }
-    }
-
-    if (nodeEnv === 'production') {
-      this.logger.error(`❌ FATAL: PostgreSQL unreachable after ${maxRetries} attempts: ${lastErr?.message}. Exiting process so PM2 can restart.`);
-      process.exit(1);
-    } else {
-      this.logger.warn(`⚠️ Warning: PostgreSQL not reachable yet. Start with docker compose up -d or verify DATABASE_URL. (${lastErr?.message})`);
+    try {
+      await this.$connect();
+      this.logger.log('✅ Connected to PostgreSQL via Prisma');
+      await this.ensureInitialSeed();
+    } catch (err: any) {
+      this.logger.warn(`⚠️ Warning: PostgreSQL not reachable yet: ${err?.message}. Prisma will reconnect lazily on incoming requests.`);
     }
   }
 
