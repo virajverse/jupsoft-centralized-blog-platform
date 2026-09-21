@@ -168,17 +168,26 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleLanguageTabClick = (lang: LanguageCode) => {
+    if (lang === currentLang) return;
     if (editor) {
       const currentHtml = editor.getHTML();
-      setTranslations((prev) => ({
-        ...prev,
-        [currentLang]: {
-          ...prev[currentLang],
-          content: currentHtml,
-        },
-      }));
+      setTranslations((prev) => {
+        const next = {
+          ...prev,
+          [currentLang]: {
+            ...prev[currentLang],
+            content: currentHtml,
+          },
+        };
+        const nextContent = next[lang]?.content || '<p></p>';
+        editor.commands.setContent(nextContent);
+        return next;
+      });
     }
     setParam('lang', lang === 'en' ? null : lang);
   };
@@ -276,6 +285,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     extensions: [
       StarterKit.configure({
         link: false,
+        heading: {
+          levels: [1, 2, 3],
+        },
       }),
       Underline,
       Highlight.configure({
@@ -305,6 +317,11 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     ],
     content: activeTrans.content,
     immediatelyRender: false,
+    editorProps: {
+      attributes: {
+        class: 'tiptap focus:outline-none min-h-[420px]',
+      },
+    },
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
       setTranslations((prev) => ({
@@ -314,6 +331,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           content: html,
         },
       }));
+      setHasUnsavedChanges(true);
     },
   });
 
@@ -410,15 +428,19 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [editor]);
 
-  // Load full blog detail from backend API to ensure rich HTML content is never missing or wiped
+  // Load full blog detail from backend API once on initial mount (never during typing)
   const [isLoadingFullBlog, setIsLoadingFullBlog] = useState(false);
+  const loadedBlogIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!targetBlogId) return;
+    if (loadedBlogIdRef.current === targetBlogId) return; // Only fetch once!
     let active = true;
     setIsLoadingFullBlog(true);
     apiClient.getBlogById(targetBlogId)
       .then((fullBlog: any) => {
         if (!active || !fullBlog) return;
+        loadedBlogIdRef.current = targetBlogId;
         if (fullBlog.translations) {
           setTranslations((prev) => {
             const next = { ...prev };
@@ -435,7 +457,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
             return next;
           });
 
-          // Sync into editor if already mounted
+          // Sync into editor once on initial load
           const curContent = fullBlog.translations[currentLang]?.content;
           if (editor && curContent) {
             editor.commands.setContent(curContent);
@@ -469,16 +491,30 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     return () => {
       active = false;
     };
-  }, [targetBlogId, editor]);
+  }, [targetBlogId]); // NEVER depend on editor here!
 
-  // Sync editor content when language tab switches
+  // Sync editor content ONCE when editor mounts if initial content exists
+  const initialContentSyncedRef = useRef(false);
   useEffect(() => {
-    if (editor && activeTrans) {
-      if (editor.getHTML() !== activeTrans.content) {
-        editor.commands.setContent(activeTrans.content || '<p></p>');
+    if (editor && !initialContentSyncedRef.current) {
+      initialContentSyncedRef.current = true;
+      const initialHtml = translations[currentLang]?.content;
+      if (initialHtml && initialHtml !== '<p>Start drafting your high-impact article here...</p>') {
+        editor.commands.setContent(initialHtml);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor]);
+
+  // Sync editor content ONLY when language tab changes via URL
+  const prevLangRef = useRef<LanguageCode>(currentLang);
+  useEffect(() => {
+    if (prevLangRef.current !== currentLang) {
+      prevLangRef.current = currentLang;
+      if (editor) {
+        const langContent = translations[currentLang]?.content || '<p></p>';
+        editor.commands.setContent(langContent);
+      }
+    }
   }, [currentLang, editor]);
 
   // Strictly typed helper functions
@@ -493,6 +529,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         [field]: value,
       },
     }));
+    setHasUnsavedChanges(true);
   };
 
   const updateActiveSeoField = <K extends keyof BlogSEO>(
@@ -509,6 +546,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         },
       },
     }));
+    setHasUnsavedChanges(true);
   };
 
   function slugify(text: string) {
@@ -551,7 +589,91 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         },
       };
     });
+    setHasUnsavedChanges(true);
   };
+
+  // Real Auto-Save: Debounced 2.5 seconds after editing stops
+  useEffect(() => {
+    if (!hasUnsavedChanges || isSaving) return;
+    const effectiveTitle = activeTrans?.title?.trim() || translations.en?.title?.trim();
+    if (!effectiveTitle) return; // Don't auto-save without an article title
+
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+
+    autoSaveTimerRef.current = setTimeout(async () => {
+      try {
+        setIsSaving(true);
+        const targetSiteId = selectedWebsiteId || (activeWebsiteId !== 'all' ? activeWebsiteId : 'site-cloud');
+        const id = existingBlog?.id || targetBlogId || `blog-${Date.now()}`;
+        const currentEditorHtml = editor ? editor.getHTML() : undefined;
+        const cleanedTranslations = { ...translations };
+        if (currentEditorHtml !== undefined && cleanedTranslations[currentLang]) {
+          cleanedTranslations[currentLang] = {
+            ...cleanedTranslations[currentLang],
+            content: currentEditorHtml,
+          };
+        }
+
+        const autoSavedBlog: Blog = {
+          id,
+          websiteId: targetSiteId,
+          authorId: authorMode === 'user' ? selectedAuthorId : 'usr-custom',
+          authorName: authorName.trim() || cleanCurrentName,
+          authorAvatar: authorAvatar || '/uploads/avatars/avatar-default.webp',
+          featuredImage,
+          featuredImageAlt,
+          status,
+          publishDate: existingBlog?.publishDate,
+          scheduledAt: scheduledAt || undefined,
+          publishedBy: existingBlog?.publishedBy,
+          viewCount: existingBlog?.viewCount || 0,
+          readTimeMinutes: Math.max(1, Math.round((editor?.getText().split(/\s+/).length || 100) / 180)),
+          categoryIds: selectedCategories,
+          tagIds: selectedTags,
+          translations: cleanedTranslations,
+          workflowLogs: existingBlog?.workflowLogs || [],
+          createdAt: existingBlog?.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        await saveBlog(autoSavedBlog);
+        setHasUnsavedChanges(false);
+        const now = new Date();
+        setLastSavedTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      } catch (err) {
+        console.warn('Auto-save error:', err);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 2500);
+
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [
+    hasUnsavedChanges,
+    isSaving,
+    activeTrans?.title,
+    translations,
+    selectedWebsiteId,
+    activeWebsiteId,
+    existingBlog,
+    targetBlogId,
+    editor,
+    currentLang,
+    authorMode,
+    selectedAuthorId,
+    authorName,
+    cleanCurrentName,
+    authorAvatar,
+    featuredImage,
+    featuredImageAlt,
+    status,
+    scheduledAt,
+    selectedCategories,
+    selectedTags,
+    saveBlog,
+  ]);
 
   const [isTranslating, setIsTranslating] = useState(false);
 
@@ -811,13 +933,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     const currentEditorHtml = editor ? editor.getHTML() : undefined;
     const cleanedTranslations = { ...translations };
     if (currentEditorHtml !== undefined && cleanedTranslations[currentLang]) {
-      const existingContent = existingBlog?.translations?.[currentLang]?.content;
-      const isBlank = !currentEditorHtml || currentEditorHtml === '<p></p>' || currentEditorHtml.trim() === '';
-      const safeContent = (isBlank && existingContent && existingContent.length > 20) ? existingContent : currentEditorHtml;
-
       cleanedTranslations[currentLang] = {
         ...cleanedTranslations[currentLang],
-        content: safeContent,
+        content: currentEditorHtml,
       };
     }
 
@@ -867,6 +985,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     setIsSaving(true);
     try {
       await saveBlog(newBlog);
+      setHasUnsavedChanges(false);
       showNotification(status === 'Published' ? 'Blog published successfully! 🎉' : 'Blog saved successfully! ✅', 'success');
       router.push(`/blogs?site=${targetSiteId}`);
     } catch (err: any) {
@@ -952,8 +1071,22 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           )}
 
           <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-400 font-mono pl-1">
-            <span className={`w-1.5 h-1.5 rounded-full ${isSaving ? 'bg-amber-400 animate-pulse' : 'bg-emerald-500'}`} />
-            {isSaving ? 'Saving...' : 'Saved'}
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                isSaving
+                  ? 'bg-amber-400 animate-pulse'
+                  : hasUnsavedChanges
+                  ? 'bg-amber-400'
+                  : 'bg-emerald-500'
+              }`}
+            />
+            {isSaving
+              ? 'Saving...'
+              : hasUnsavedChanges
+              ? 'Unsaved changes'
+              : lastSavedTime
+              ? `Saved ${lastSavedTime}`
+              : 'Saved'}
           </span>
         </div>
 
@@ -1033,13 +1166,14 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
             
             {/* Docked Editor Toolbar at Top of Document Sheet */}
             {editor && (
-              <div className="sticky top-0 z-30 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3 shadow-2xs rounded-t-2xl">
+              <div className="sticky top-0 z-30 bg-white dark:bg-[#0f172a] border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3 shadow-xs rounded-t-2xl">
                 {/* Left: Complete Professional Toolbar Controls */}
                 <div className="flex flex-wrap items-center gap-1">
                   {/* Style / Heading Group */}
                   <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 p-0.5 rounded-lg border border-slate-200/60 dark:border-slate-700/60">
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().setParagraph().run()}
                       className={`px-2 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${
                         !editor.isActive('heading') ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -1050,6 +1184,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
                       className={`px-2 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${
                         editor.isActive('heading', { level: 1 }) ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -1060,6 +1195,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
                       className={`px-2 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${
                         editor.isActive('heading', { level: 2 }) ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -1070,6 +1206,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
                       className={`px-2 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${
                         editor.isActive('heading', { level: 3 }) ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -1086,6 +1223,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   <div className="flex items-center gap-0.5">
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().toggleBold().run()}
                       className={`p-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
                         editor.isActive('bold') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -1096,6 +1234,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().toggleItalic().run()}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive('italic') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -1106,6 +1245,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().toggleUnderline().run()}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive('underline') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -1116,6 +1256,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().toggleStrike().run()}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive('strike') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -1126,6 +1267,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().toggleHighlight({ color: '#fef08a' }).run()}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive('highlight') ? 'bg-amber-300 text-slate-900 shadow-2xs font-semibold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -1136,6 +1278,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().toggleCode().run()}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive('code') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -1152,6 +1295,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   <div className="hidden sm:flex items-center gap-0.5">
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().setTextAlign('left').run()}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive({ textAlign: 'left' }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -1162,6 +1306,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().setTextAlign('center').run()}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive({ textAlign: 'center' }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -1172,6 +1317,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().setTextAlign('right').run()}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive({ textAlign: 'right' }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -1182,6 +1328,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().setTextAlign('justify').run()}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive({ textAlign: 'justify' }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -1198,6 +1345,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   <div className="flex items-center gap-0.5">
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().toggleBulletList().run()}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive('bulletList') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -1208,6 +1356,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().toggleOrderedList().run()}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive('orderedList') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -1218,6 +1367,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().toggleBlockquote().run()}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive('blockquote') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -1228,6 +1378,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().toggleCodeBlock().run()}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive('codeBlock') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -1238,6 +1389,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().setHorizontalRule().run()}
                       className="p-1.5 rounded-md text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                       title="Horizontal Divider"
@@ -1252,6 +1404,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={handleOpenLinkModal}
                       title={editor.isActive('link') ? 'Edit Link (Ctrl+K)' : 'Insert Link (Ctrl+K)'}
                       className={`px-2 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
@@ -1267,6 +1420,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     {editor.isActive('link') && (
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={handleRemoveLink}
                         title="Unlink"
                         className="p-1.5 rounded-md text-xs text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
@@ -1297,6 +1451,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   <div className="hidden md:flex items-center gap-0.5">
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
                       className="p-1.5 rounded-md text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                       title="Clear Formatting"
@@ -1305,6 +1460,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().undo().run()}
                       className="p-1.5 rounded-md text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                       title="Undo (Ctrl+Z)"
@@ -1313,6 +1469,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => editor.chain().focus().redo().run()}
                       className="p-1.5 rounded-md text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                       title="Redo (Ctrl+Y)"
@@ -1354,7 +1511,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     alt={featuredImageAlt || 'Cover'}
                     className="w-full h-full object-cover"
                   />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                  <div className="absolute bottom-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-slate-900/70 p-1.5 rounded-xl backdrop-blur-xs shadow-lg">
                     <button
                       type="button"
                       onClick={() => {
@@ -1362,7 +1519,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                         setMediaModalTab(siteMedia.length > 0 ? 'library' : 'upload');
                         setMediaPickerOpen(true);
                       }}
-                      className="px-3.5 py-1.5 rounded-lg bg-white/95 hover:bg-white text-slate-900 text-xs font-semibold shadow-md flex items-center gap-1.5 cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-900 text-xs font-semibold shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
                     >
                       <ImageIcon className="w-3.5 h-3.5" /> Change Cover
                     </button>
@@ -1372,7 +1529,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                         setFeaturedImage('');
                         setFeaturedImageAlt('');
                       }}
-                      className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-md flex items-center gap-1.5 cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
                     >
                       <X className="w-3.5 h-3.5" /> Remove
                     </button>
@@ -1575,7 +1732,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
               <div dir={isRTL ? 'rtl' : 'ltr'} className="flex-1 min-h-[450px] text-slate-900 dark:text-slate-100 pt-2">
                 <EditorContent
                   editor={editor}
-                  className="prose prose-slate dark:prose-invert max-w-none text-base sm:text-lg leading-relaxed focus:outline-none min-h-[420px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:focus:outline-none [&_.ProseMirror]:ring-0 [&_.ProseMirror]:border-none [&_.ProseMirror-focused]:outline-none [&_*]:outline-none"
+                  className="tiptap prose prose-slate dark:prose-invert max-w-none text-base sm:text-lg leading-relaxed focus:outline-none min-h-[420px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:focus:outline-none [&_.ProseMirror]:ring-0 [&_.ProseMirror]:border-none [&_.ProseMirror-focused]:outline-none [&_*]:outline-none"
                 />
               </div>
             </div>
