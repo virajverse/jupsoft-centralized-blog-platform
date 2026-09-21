@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Blog, Website, UserRole, LanguageCode } from '../../types';
 import { canCreateBlog, canAccessModule, cleanAvatarUrl } from '../../utils/permissions';
+import { apiClient } from '../../services/apiClient';
 
 interface ZohoDashboardViewProps {
   blogs: Blog[];
@@ -285,6 +286,16 @@ export const ZohoDashboardView: React.FC<ZohoDashboardViewProps> = ({
                   return (
                     <tr
                       key={blog.id}
+                      onMouseEnter={() => {
+                        try {
+                          const existing = sessionStorage.getItem(`jupsoft_editing_blog_${blog.id}`);
+                          if (!existing) {
+                            apiClient.getBlogById(blog.id).then((full) => {
+                              if (full) sessionStorage.setItem(`jupsoft_editing_blog_${blog.id}`, JSON.stringify(full));
+                            }).catch(() => {});
+                          }
+                        } catch {}
+                      }}
                       className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors h-9"
                     >
                       {/* Title & Slug */}

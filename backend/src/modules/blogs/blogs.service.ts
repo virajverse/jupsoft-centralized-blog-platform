@@ -208,6 +208,15 @@ export class BlogsService {
   }
 
   async findOne(id: string, caller?: AuthenticatedUser) {
+    const cacheKey = `admin:blogs:detail:${id}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) {
+      if (caller) {
+        this.assertBlogOwnership({ id: cached.id, websiteId: cached.websiteId }, caller);
+      }
+      return cached;
+    }
+
     const blog = await this.prisma.blog.findUnique({
       where: { id },
       include: {
@@ -225,7 +234,7 @@ export class BlogsService {
       this.assertBlogOwnership({ id, websiteId: blog.websiteId }, caller);
     }
 
-    return {
+    const result = {
       id: blog.id,
       websiteId: blog.websiteId,
       authorId: blog.authorId,
@@ -277,6 +286,9 @@ export class BlogsService {
       createdAt: blog.createdAt instanceof Date ? blog.createdAt.toISOString() : (blog.createdAt ? String(blog.createdAt) : new Date().toISOString()),
       updatedAt: blog.updatedAt instanceof Date ? blog.updatedAt.toISOString() : (blog.updatedAt ? String(blog.updatedAt) : new Date().toISOString()),
     };
+
+    await this.redis.set(cacheKey, result, 120);
+    return result;
   }
 
   async create(dto: CreateBlogDto, user: AuthenticatedUser, ipAddress: string) {

@@ -21,6 +21,7 @@ import {
 import { Blog, Website, UserRole, LanguageCode } from '../../types';
 import { canCreateBlog, canDeleteBlog } from '../../utils/permissions';
 import { useBlogStore } from '../../store/useBlogStore';
+import { apiClient } from '../../services/apiClient';
 
 interface ZohoBlogListViewProps {
   blogs: Blog[];
@@ -291,6 +292,16 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
                   return (
                     <tr
                       key={blog.id}
+                      onMouseEnter={() => {
+                        try {
+                          const existing = sessionStorage.getItem(`jupsoft_editing_blog_${blog.id}`);
+                          if (!existing) {
+                            apiClient.getBlogById(blog.id).then((full) => {
+                              if (full) sessionStorage.setItem(`jupsoft_editing_blog_${blog.id}`, JSON.stringify(full));
+                            }).catch(() => {});
+                          }
+                        } catch {}
+                      }}
                       className={`hover:bg-red-50/25 dark:hover:bg-red-950/15 transition-colors h-9 ${
                         isChecked ? 'bg-red-50/40 dark:bg-red-950/20' : ''
                       }`}

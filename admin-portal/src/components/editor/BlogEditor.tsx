@@ -255,6 +255,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   const editorRef = useRef<any>(null);
   const editorSyncedBlogIdRef = useRef<string | null>(null);
   const editorSyncedLangRef = useRef<LanguageCode | null>(null);
+  const editorSyncedContentRef = useRef<string | null>(null);
 
   const handleLanguageTabClick = (lang: LanguageCode) => {
     if (lang === currentLang) return;
@@ -720,6 +721,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
             editorRef.current.commands.setContent(curContent);
             editorSyncedBlogIdRef.current = targetBlogId;
             editorSyncedLangRef.current = currentLang;
+            editorSyncedContentRef.current = curContent;
           }
         }
 
@@ -751,7 +753,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     return () => {
       active = false;
     };
-  }, [targetBlogId]);
+  }, [targetBlogId, currentLang]);
 
   // Synchronize editor content when editor becomes ready or when blog/language data changes
   const prevLangRef = useRef<LanguageCode>(currentLang);
@@ -767,27 +769,34 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         const langContent = translations[currentLang]?.content || '<p></p>';
         editor.commands.setContent(langContent);
         editorSyncedLangRef.current = currentLang;
+        editorSyncedContentRef.current = langContent;
       }
       return;
     }
 
     // Case 2: Editing an existing blog post
     if (targetBlogId) {
-      // Fast Render: Only wait for backend API if we have zero cached data in memory
-      if (isLoadingFullBlog && !existingBlog && !translations[currentLang]?.title) {
-        return;
-      }
+      const targetContent = translations[currentLang]?.content;
+      const hasRealContent = Boolean(
+        targetContent &&
+        targetContent !== '<p></p>' &&
+        targetContent !== '<p>Start drafting your high-impact article here...</p>'
+      );
 
-      if (editorSyncedBlogIdRef.current !== targetBlogId || editorSyncedLangRef.current !== currentLang) {
-        const targetContent = translations[currentLang]?.content;
-        if (targetContent !== undefined && targetContent !== '<p>Start drafting your high-impact article here...</p>') {
+      const isSynced = editorSyncedBlogIdRef.current === targetBlogId && editorSyncedLangRef.current === currentLang;
+
+      // Sync if not yet synced, or if real content arrived from API but editor hasn't synced it yet
+      if (!isSynced || (hasRealContent && editorSyncedContentRef.current !== targetContent)) {
+        if (hasRealContent) {
           editor.commands.setContent(targetContent);
           editorSyncedBlogIdRef.current = targetBlogId;
           editorSyncedLangRef.current = currentLang;
-        } else if (editorSyncedBlogIdRef.current !== targetBlogId && targetContent) {
+          editorSyncedContentRef.current = targetContent;
+        } else if (!isSynced && targetContent !== undefined && !isLoadingFullBlog) {
           editor.commands.setContent(targetContent);
           editorSyncedBlogIdRef.current = targetBlogId;
           editorSyncedLangRef.current = currentLang;
+          editorSyncedContentRef.current = targetContent;
         }
       }
       return;
@@ -2054,10 +2063,26 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
               {/* Tiptap Rich-Text Writing Canvas */}
               <div dir={isRTL ? 'rtl' : 'ltr'} className="flex-1 min-h-[450px] text-slate-900 dark:text-slate-100 pt-2">
-                <EditorContent
-                  editor={editor}
-                  className="tiptap prose prose-slate dark:prose-invert max-w-none text-base sm:text-lg leading-relaxed focus:outline-none min-h-[420px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:focus:outline-none [&_.ProseMirror]:ring-0 [&_.ProseMirror]:border-none [&_.ProseMirror-focused]:outline-none [&_*]:outline-none"
-                />
+                {isLoadingFullBlog && (!translations[currentLang]?.content || translations[currentLang]?.content === '<p></p>' || translations[currentLang]?.content === '<p>Start drafting your high-impact article here...</p>') ? (
+                  <div className="space-y-4 pt-2 animate-pulse min-h-[420px] select-none pointer-events-none">
+                    <div className="h-4 w-full rounded bg-slate-200/90 dark:bg-slate-800/90" />
+                    <div className="h-4 w-11/12 rounded bg-slate-200/90 dark:bg-slate-800/90" />
+                    <div className="h-4 w-5/6 rounded bg-slate-200/90 dark:bg-slate-800/90" />
+                    <div className="h-4 w-3/4 rounded bg-slate-200/90 dark:bg-slate-800/90" />
+                    <div className="pt-6 pb-2">
+                      <div className="h-7 w-2/5 rounded-lg bg-slate-200 dark:bg-slate-800" />
+                    </div>
+                    <div className="h-4 w-full rounded bg-slate-200/90 dark:bg-slate-800/90" />
+                    <div className="h-4 w-10/12 rounded bg-slate-200/90 dark:bg-slate-800/90" />
+                    <div className="h-4 w-4/5 rounded bg-slate-200/90 dark:bg-slate-800/90" />
+                    <div className="h-4 w-2/3 rounded bg-slate-200/90 dark:bg-slate-800/90" />
+                  </div>
+                ) : (
+                  <EditorContent
+                    editor={editor}
+                    className="tiptap prose prose-slate dark:prose-invert max-w-none text-base sm:text-lg leading-relaxed focus:outline-none min-h-[420px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:focus:outline-none [&_.ProseMirror]:ring-0 [&_.ProseMirror]:border-none [&_.ProseMirror-focused]:outline-none [&_*]:outline-none"
+                  />
+                )}
               </div>
             </div>
 
