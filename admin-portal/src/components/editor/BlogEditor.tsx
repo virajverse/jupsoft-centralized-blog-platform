@@ -901,60 +901,60 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
 
-    autoSaveTimerRef.current = setTimeout(async () => {
-      try {
-        setIsSaving(true);
-        const targetSiteId = selectedWebsiteId || (activeWebsiteId !== 'all' ? activeWebsiteId : 'site-cloud');
-        const currentEditorHtml = editor ? editor.getHTML() : undefined;
-        const cleanedTranslations = { ...translations };
-        if (currentEditorHtml !== undefined && cleanedTranslations[currentLang]) {
-          cleanedTranslations[currentLang] = {
-            ...cleanedTranslations[currentLang],
-            content: preserveEmptyParagraphs(currentEditorHtml),
-          };
-        }
-        // Normalize empty paragraphs across all authored translations
-        for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
-          if (cleanedTranslations[l]?.content) {
-            cleanedTranslations[l] = {
-              ...cleanedTranslations[l],
-              content: preserveEmptyParagraphs(cleanedTranslations[l].content),
-            };
-          }
-        }
+    // autoSaveTimerRef.current = setTimeout(async () => {
+    //   try {
+    //     setIsSaving(true);
+    //     const targetSiteId = selectedWebsiteId || (activeWebsiteId !== 'all' ? activeWebsiteId : 'site-cloud');
+    //     const currentEditorHtml = editor ? editor.getHTML() : undefined;
+    //     const cleanedTranslations = { ...translations };
+    //     if (currentEditorHtml !== undefined && cleanedTranslations[currentLang]) {
+    //       cleanedTranslations[currentLang] = {
+    //         ...cleanedTranslations[currentLang],
+    //         content: preserveEmptyParagraphs(currentEditorHtml),
+    //       };
+    //     }
+    //     // Normalize empty paragraphs across all authored translations
+    //     for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
+    //       if (cleanedTranslations[l]?.content) {
+    //         cleanedTranslations[l] = {
+    //           ...cleanedTranslations[l],
+    //           content: preserveEmptyParagraphs(cleanedTranslations[l].content),
+    //         };
+    //       }
+    //     }
 
-        const autoSavedBlog: Blog = {
-          id: realId,
-          websiteId: targetSiteId,
-          authorId: authorMode === 'user' ? selectedAuthorId : 'usr-custom',
-          authorName: authorName.trim() || cleanCurrentName,
-          authorAvatar: authorAvatar || '/uploads/avatars/avatar-default.webp',
-          featuredImage,
-          featuredImageAlt,
-          status,
-          publishDate: existingBlog?.publishDate,
-          scheduledAt: scheduledAt || undefined,
-          publishedBy: existingBlog?.publishedBy,
-          viewCount: existingBlog?.viewCount || 0,
-          readTimeMinutes: Math.max(1, Math.round((editor?.getText().split(/\s+/).length || 100) / 180)),
-          categoryIds: selectedCategories,
-          tagIds: selectedTags,
-          translations: cleanedTranslations,
-          workflowLogs: existingBlog?.workflowLogs || [],
-          createdAt: existingBlog?.createdAt || new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
+    //     const autoSavedBlog: Blog = {
+    //       id: realId,
+    //       websiteId: targetSiteId,
+    //       authorId: authorMode === 'user' ? selectedAuthorId : 'usr-custom',
+    //       authorName: authorName.trim() || cleanCurrentName,
+    //       authorAvatar: authorAvatar || '/uploads/avatars/avatar-default.webp',
+    //       featuredImage,
+    //       featuredImageAlt,
+    //       status,
+    //       publishDate: existingBlog?.publishDate,
+    //       scheduledAt: scheduledAt || undefined,
+    //       publishedBy: existingBlog?.publishedBy,
+    //       viewCount: existingBlog?.viewCount || 0,
+    //       readTimeMinutes: Math.max(1, Math.round((editor?.getText().split(/\s+/).length || 100) / 180)),
+    //       categoryIds: selectedCategories,
+    //       tagIds: selectedTags,
+    //       translations: cleanedTranslations,
+    //       workflowLogs: existingBlog?.workflowLogs || [],
+    //       createdAt: existingBlog?.createdAt || new Date().toISOString(),
+    //       updatedAt: new Date().toISOString(),
+    //     };
 
-        await saveBlog(autoSavedBlog);
-        setHasUnsavedChanges(false);
-        const now = new Date();
-        setLastSavedTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-      } catch (err) {
-        console.warn('Auto-save error:', err);
-      } finally {
-        setIsSaving(false);
-      }
-    }, 2500);
+    //     await saveBlog(autoSavedBlog);
+    //     setHasUnsavedChanges(false);
+    //     const now = new Date();
+    //     setLastSavedTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    //   } catch (err) {
+    //     console.warn('Auto-save error:', err);
+    //   } finally {
+    //     setIsSaving(false);
+    //   }
+    // }, 2500);
 
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
