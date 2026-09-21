@@ -19,6 +19,8 @@ export const BlogList: React.FC = () => {
     activeRole,
     deleteBlog,
     fetchBlogs,
+    fetchCategories,
+    fetchTags,
     isLoading
   } = useBlogStore(
     useShallow((s) => ({
@@ -29,6 +31,8 @@ export const BlogList: React.FC = () => {
       activeRole: s.activeRole,
       deleteBlog: s.deleteBlog,
       fetchBlogs: s.fetchBlogs,
+      fetchCategories: s.fetchCategories,
+      fetchTags: s.fetchTags,
       isLoading: s.isLoading,
     }))
   );
@@ -43,7 +47,9 @@ export const BlogList: React.FC = () => {
       setActiveWebsite(siteParam);
     }
     fetchBlogs(effectiveSiteId);
-  }, [effectiveSiteId, fetchBlogs, siteParam, activeWebsiteId, websites, setActiveWebsite]);
+    if (fetchCategories) fetchCategories(effectiveSiteId === 'all' ? undefined : effectiveSiteId);
+    if (fetchTags) fetchTags(effectiveSiteId === 'all' ? undefined : effectiveSiteId);
+  }, [effectiveSiteId, fetchBlogs, fetchCategories, fetchTags, siteParam, activeWebsiteId, websites, setActiveWebsite]);
 
   // Read URL query params
   const statusParam = searchParams.get('status') || 'All';

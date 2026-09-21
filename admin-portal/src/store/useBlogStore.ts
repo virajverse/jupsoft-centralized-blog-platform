@@ -53,7 +53,7 @@ interface BlogState {
   // Actions
   fetchBlogs: (overrideSiteId?: string) => Promise<void>;
   fetchWebsites: () => Promise<void>;
-  fetchMedia: () => Promise<void>;
+  fetchMedia: (overrideSiteId?: string) => Promise<void>;
   fetchUsers: () => Promise<void>;
   fetchCategories: (websiteId?: string) => Promise<void>;
   fetchTags: (websiteId?: string) => Promise<void>;
@@ -169,18 +169,14 @@ export const useBlogStore = create<BlogState>()(
         }
       },
 
-      fetchMedia: async () => {
+      fetchMedia: async (overrideSiteId?: string) => {
         try {
-          const siteId = get().activeWebsiteId;
+          const siteId = overrideSiteId !== undefined ? overrideSiteId : get().activeWebsiteId;
           const mediaList = await apiClient.getMedia(siteId === 'all' ? undefined : siteId);
           if (Array.isArray(mediaList)) {
             set((state) => {
-              const currentSite = state.activeWebsiteId;
-              const base = currentSite === 'all'
-                ? []
-                : state.media.filter((m) => m.websiteId !== currentSite);
               const map = new Map<string, MediaItem>();
-              base.forEach((m) => map.set(m.id, m));
+              state.media.forEach((m) => map.set(m.id, m));
               mediaList.forEach((m) => map.set(m.id, m));
               return { media: Array.from(map.values()) };
             });

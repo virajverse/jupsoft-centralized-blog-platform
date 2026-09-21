@@ -311,4 +311,19 @@ code, kbd, samp, pre, .font-mono {
   line-height: 1.75 !important;
 }
 
+/* Tiptap / ProseMirror Empty Placeholder Styles (Like Notion / Medium) */
+.tiptap p.is-empty:first-child::before,
+.tiptap .is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #94a3b8;
+  pointer-events: none;
+  height: 0;
+}
+.dark .tiptap p.is-empty:first-child::before,
+.dark .tiptap .is-empty::before {
+  color: #64748b;
+}
+
+
 

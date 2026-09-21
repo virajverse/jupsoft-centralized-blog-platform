@@ -34,12 +34,14 @@ export const AnalyticsView: React.FC = () => {
   const searchParams = useSearchParams();
   const { setParam } = useQueryState();
 
-  const { blogs, activeWebsiteId, websites, categories } = useBlogStore(
+  const { blogs, activeWebsiteId, websites, categories, fetchBlogs, fetchCategories } = useBlogStore(
     useShallow((s) => ({
       blogs: s.blogs,
       activeWebsiteId: s.activeWebsiteId,
       websites: s.websites,
       categories: s.categories,
+      fetchBlogs: s.fetchBlogs,
+      fetchCategories: s.fetchCategories,
     }))
   );
   
@@ -85,6 +87,11 @@ export const AnalyticsView: React.FC = () => {
     setLoadingLive(true);
     setRefreshTrigger((c) => c + 1);
   };
+
+  useEffect(() => {
+    fetchBlogs(effectiveSiteId === 'all' ? undefined : effectiveSiteId);
+    fetchCategories(effectiveSiteId === 'all' ? undefined : effectiveSiteId);
+  }, [effectiveSiteId, fetchBlogs, fetchCategories]);
 
   useEffect(() => {
     let active = true;

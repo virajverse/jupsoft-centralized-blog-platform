@@ -6,13 +6,15 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../hooks/useQueryState';
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, Extension } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import TiptapLink from '@tiptap/extension-link';
 import Underline from '@tiptap/extension-underline';
 import TextAlign from '@tiptap/extension-text-align';
 import Highlight from '@tiptap/extension-highlight';
+import Placeholder from '@tiptap/extension-placeholder';
+import { canSplit } from '@tiptap/pm/transform';
 import { analyzeSEO } from '../../utils/seoAuditor';
 import { 
   ArrowLeft, 
@@ -74,6 +76,31 @@ import { canPublish, canApprove } from '../../utils/permissions';
 import { apiClient } from '../../services/apiClient';
 import { resolveMediaUrl, extractS3Key } from '../../utils/mediaUtils';
 
+// Professional CMS Heading Behavior: Pressing Enter at the end of a heading exits to a normal paragraph
+const HeadingEnterExit = Extension.create({
+  name: 'headingEnterExit',
+  addKeyboardShortcuts() {
+    return {
+      Enter: ({ editor }) => {
+        const { state } = editor;
+        const { selection } = state;
+        const { $from, empty } = selection;
+
+        if (!empty || $from.parent.type.name !== 'heading') {
+          return false;
+        }
+
+        const isAtEnd = $from.parentOffset === $from.parent.content.size;
+        if (isAtEnd) {
+          return editor.chain().splitBlock().setParagraph().run();
+        }
+
+        return false;
+      },
+    };
+  },
+});
+
 interface BlogEditorProps {
   blogId?: string | null;
 }
@@ -93,6 +120,8 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     media,
     addMediaItem,
     fetchMedia,
+    fetchCategories,
+    fetchTags,
     saveBlog, 
     showNotification,
     activeRole,
@@ -111,6 +140,8 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       media: s.media,
       addMediaItem: s.addMediaItem,
       fetchMedia: s.fetchMedia,
+      fetchCategories: s.fetchCategories,
+      fetchTags: s.fetchTags,
       saveBlog: s.saveBlog,
       showNotification: s.showNotification,
       activeRole: s.activeRole,
@@ -138,15 +169,20 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   const activeSite = websites.find((w) => w.id === selectedWebsiteId) || websites[0] || { id: 'site-cloud', name: 'Jupsoft Cloud & ERP' };
   const siteCategories = categories[selectedWebsiteId] || [];
   const siteTags = tags[selectedWebsiteId] || [];
+
+  const [mediaSiteScope, setMediaSiteScope] = useState<'site' | 'all'>('site');
+
   const siteMedia = useMemo(() => {
-    const raw = media.filter((m) => m.websiteId === selectedWebsiteId);
+    const raw = mediaSiteScope === 'all'
+      ? media
+      : media.filter((m) => m.websiteId === selectedWebsiteId);
     const seen = new Set<string>();
     return raw.filter((m) => {
       if (!m?.id || seen.has(m.id)) return false;
       seen.add(m.id);
       return true;
     });
-  }, [media, selectedWebsiteId]);
+  }, [media, selectedWebsiteId, mediaSiteScope]);
 
   // URL query params for language, inspector tab, and status
   const urlLang = searchParams.get('lang') as LanguageCode;
@@ -193,6 +229,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isInternalLangSwitchRef = useRef(false);
   const [, setSelectionTick] = useState(0);
+  const editorRef = useRef<any>(null);
+  const editorSyncedBlogIdRef = useRef<string | null>(null);
+  const editorSyncedLangRef = useRef<LanguageCode | null>(null);
 
   const handleLanguageTabClick = (lang: LanguageCode) => {
     if (lang === currentLang) return;
@@ -209,6 +248,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         };
         const nextContent = next[lang]?.content || '<p></p>';
         editor.commands.setContent(nextContent);
+        editorSyncedLangRef.current = lang;
         return next;
       });
     }
@@ -269,8 +309,11 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   );
 
   useEffect(() => {
+    if (fetchMedia) fetchMedia(selectedWebsiteId);
+    if (fetchCategories) fetchCategories(selectedWebsiteId);
+    if (fetchTags) fetchTags(selectedWebsiteId);
     if (fetchUsers) fetchUsers();
-  }, [fetchUsers]);
+  }, [selectedWebsiteId, fetchMedia, fetchCategories, fetchTags, fetchUsers]);
 
   // Per-language dictionary state
   const defaultTrans = (lang: LanguageCode): BlogTranslation => ({
@@ -280,7 +323,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     title: '',
     slug: '',
     excerpt: '',
-    content: '<p>Start drafting your high-impact article here...</p>',
+    content: '<p></p>',
     seo: createEmptySEO(),
   });
 
@@ -303,11 +346,12 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
   const activeTrans = translations[currentLang];
 
-  // Tiptap Editor instance with rich extensions
+  // Tiptap Editor instance with rich extensions & professional CMS behavior
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         link: false,
+        underline: false,
         heading: {
           levels: [1, 2, 3],
         },
@@ -319,6 +363,16 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       TextAlign.configure({
         types: ['heading', 'paragraph'],
       }),
+      Placeholder.configure({
+        placeholder: ({ node }) => {
+          if (node.type.name === 'heading') {
+            return 'Heading...';
+          }
+          return 'Start drafting your story or article...';
+        },
+        emptyNodeClass: 'is-empty',
+      }),
+      HeadingEnterExit,
       Image.configure({
         inline: false,
         allowBase64: false,
@@ -344,6 +398,18 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       attributes: {
         class: 'tiptap focus:outline-none min-h-[420px]',
       },
+      transformPastedText(text) {
+        // Convert single newlines to double newlines so each line becomes its own block
+        // instead of <br> hard breaks trapped in a single paragraph
+        return text.replace(/\r\n/g, '\n').replace(/(?<!\n)\n(?!\n)/g, '\n\n');
+      },
+      transformPastedHTML(html) {
+        // Replace <br> tags with paragraph boundaries so pasted lines don't get trapped in a single block
+        return html
+          .replace(/<br\s*[\/]?>\s*<\/p>/gi, '</p>')
+          .replace(/<br\s*[\/]?>/gi, '</p><p>')
+          .replace(/<p>\s*<\/p>/gi, '');
+      },
     },
     onSelectionUpdate: () => {
       setSelectionTick((t) => t + 1);
@@ -360,6 +426,20 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       setHasUnsavedChanges(true);
     },
   });
+
+  editorRef.current = editor;
+
+  // Open Media Picker with live server refresh & smart tab defaulting
+  const handleOpenMediaPicker = (target: 'editor' | 'cover') => {
+    setMediaPickerTarget(target);
+    if (fetchMedia) {
+      fetchMedia(selectedWebsiteId);
+      fetchMedia('all');
+    }
+    const hasSiteMedia = media.some((m) => m.websiteId === selectedWebsiteId);
+    setMediaModalTab(hasSiteMedia || media.length > 0 ? 'library' : 'upload');
+    setMediaPickerOpen(true);
+  };
 
   // Open Premium Link Modal with active selection / URL
   const handleOpenLinkModal = () => {
@@ -440,6 +520,117 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     showNotification('Link removed.', 'info');
   };
 
+  // Splits any embedded <br> (hardBreak) nodes in the current block into separate paragraph blocks
+  const handleSplitHardBreaksBeforeBlock = (action?: () => void) => {
+    if (!editor) return;
+    const { state, view } = editor;
+    const { selection } = state;
+    const { $from } = selection;
+    const parent = $from.parent;
+    const parentStart = $from.start();
+
+    const hardBreakOffsets: number[] = [];
+    parent.descendants((child, pos) => {
+      if (child.type.name === 'hardBreak') {
+        hardBreakOffsets.push(pos);
+      }
+    });
+
+    if (hardBreakOffsets.length > 0) {
+      let tr = state.tr;
+      for (let i = hardBreakOffsets.length - 1; i >= 0; i--) {
+        const absPos = parentStart + hardBreakOffsets[i];
+        try {
+          tr = tr.delete(absPos, absPos + 1);
+          if (canSplit(tr.doc, absPos)) {
+            tr = tr.split(absPos);
+          }
+        } catch {
+          // Safely catch any edge-case boundary errors
+        }
+      }
+      view.dispatch(tr);
+    }
+
+    if (action) {
+      action();
+    }
+  };
+
+  // Convert current block to normal paragraph cleanly without affecting other lines
+  const handleFormatParagraph = () => {
+    if (!editor) return;
+    handleSplitHardBreaksBeforeBlock();
+    editor.chain().focus().setParagraph().run();
+  };
+
+  // Professional Heading Formatter:
+  // Converts ONLY the active line or user selection into a heading without cascading to adjacent text
+  const handleFormatHeading = (level: 1 | 2 | 3) => {
+    if (!editor) return;
+
+    // 1. If this heading level is already active, toggle it back to paragraph
+    if (editor.isActive('heading', { level })) {
+      editor.chain().focus().setParagraph().run();
+      return;
+    }
+
+    const { state, view } = editor;
+    const { selection } = state;
+    const { $from, from, to, empty } = selection;
+    const parent = $from.parent;
+    const parentStart = $from.start();
+    const parentEnd = $from.end();
+
+    // 2. Check if parent contains any <br> (hardBreak) nodes
+    const hardBreakOffsets: number[] = [];
+    parent.descendants((child, pos) => {
+      if (child.type.name === 'hardBreak') {
+        hardBreakOffsets.push(pos);
+      }
+    });
+
+    if (hardBreakOffsets.length > 0) {
+      // Split all hard breaks into distinct blocks so only the targeted line is transformed
+      let tr = state.tr;
+      for (let i = hardBreakOffsets.length - 1; i >= 0; i--) {
+        const absPos = parentStart + hardBreakOffsets[i];
+        try {
+          tr = tr.delete(absPos, absPos + 1);
+          if (canSplit(tr.doc, absPos)) {
+            tr = tr.split(absPos);
+          }
+        } catch {
+          // Safely catch any edge-case boundary errors
+        }
+      }
+      view.dispatch(tr);
+      editor.chain().focus().setHeading({ level }).run();
+      return;
+    }
+
+    // 3. If user selected a sub-portion of text inside the block
+    if (!empty && (from > parentStart || to < parentEnd)) {
+      let tr = state.tr;
+      try {
+        if (to < parentEnd && canSplit(tr.doc, to)) {
+          tr = tr.split(to);
+        }
+        if (from > parentStart && canSplit(tr.doc, from)) {
+          tr = tr.split(from);
+        }
+      } catch {
+        // Safely catch any edge-case boundary errors
+      }
+      view.dispatch(tr);
+      editor.chain().focus().setHeading({ level }).run();
+      return;
+    }
+
+    // 4. Default: convert the clean isolated block to heading
+    editor.chain().focus().setHeading({ level }).run();
+  };
+
   // Keyboard shortcut (Ctrl+K / Cmd+K) listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -469,28 +660,43 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         if (!active || !fullBlog) return;
         loadedBlogIdRef.current = targetBlogId;
         initialBlogRef.current = fullBlog;
-        if (fullBlog.translations) {
+
+        const rawTrans = fullBlog.translations;
+        const normTrans: Record<string, any> = {};
+        if (Array.isArray(rawTrans)) {
+          rawTrans.forEach((t: any) => {
+            const l = t.lang || t.languageCode;
+            if (l) normTrans[l] = t;
+          });
+        } else if (rawTrans && typeof rawTrans === 'object') {
+          Object.assign(normTrans, rawTrans);
+        }
+
+        if (Object.keys(normTrans).length > 0) {
           setTranslations((prev) => {
             const next = { ...prev };
             (['en', 'hi', 'fr', 'ar'] as LanguageCode[]).forEach((l) => {
-              if (fullBlog.translations[l]) {
+              if (normTrans[l]) {
                 next[l] = {
                   ...defaultTrans(l),
-                  ...fullBlog.translations[l],
-                  content: fullBlog.translations[l].content || '<p></p>',
-                  seo: fullBlog.translations[l].seo || createEmptySEO(),
+                  ...normTrans[l],
+                  content: normTrans[l].content || '<p></p>',
+                  seo: normTrans[l].seo || createEmptySEO(),
                 };
               }
             });
             return next;
           });
 
-          // Sync into editor once on initial load
-          const curContent = fullBlog.translations[currentLang]?.content;
-          if (editor && curContent) {
-            editor.commands.setContent(curContent);
+          // If editor is already initialized and mounted, sync content immediately
+          const curContent = normTrans[currentLang]?.content;
+          if (editorRef.current && curContent && curContent !== '<p>Start drafting your high-impact article here...</p>' && curContent !== '<p></p>') {
+            editorRef.current.commands.setContent(curContent);
+            editorSyncedBlogIdRef.current = targetBlogId;
+            editorSyncedLangRef.current = currentLang;
           }
         }
+
         if (fullBlog.status) setStatus(fullBlog.status as BlogStatus);
         if (fullBlog.featuredImage) setFeaturedImage(fullBlog.featuredImage);
         if (fullBlog.featuredImageAlt) setFeaturedImageAlt(fullBlog.featuredImageAlt);
@@ -519,36 +725,55 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     return () => {
       active = false;
     };
-  }, [targetBlogId]); // NEVER depend on editor here!
+  }, [targetBlogId]);
 
-  // Sync editor content ONCE when editor mounts if initial content exists
-  const initialContentSyncedRef = useRef(false);
+  // Synchronize editor content when editor becomes ready or when blog/language data changes
+  const prevLangRef = useRef<LanguageCode>(currentLang);
   useEffect(() => {
-    if (editor && !initialContentSyncedRef.current) {
-      initialContentSyncedRef.current = true;
+    if (!editor) return;
+
+    // Case 1: Active language switched via external URL change
+    if (prevLangRef.current !== currentLang) {
+      prevLangRef.current = currentLang;
+      if (isInternalLangSwitchRef.current) {
+        isInternalLangSwitchRef.current = false;
+      } else {
+        const langContent = translations[currentLang]?.content || '<p></p>';
+        editor.commands.setContent(langContent);
+        editorSyncedLangRef.current = currentLang;
+      }
+      return;
+    }
+
+    // Case 2: Editing an existing blog post
+    if (targetBlogId) {
+      if (isLoadingFullBlog) return; // Wait for backend payload
+
+      if (editorSyncedBlogIdRef.current !== targetBlogId || editorSyncedLangRef.current !== currentLang) {
+        const targetContent = translations[currentLang]?.content;
+        if (targetContent !== undefined && targetContent !== '<p>Start drafting your high-impact article here...</p>') {
+          editor.commands.setContent(targetContent);
+          editorSyncedBlogIdRef.current = targetBlogId;
+          editorSyncedLangRef.current = currentLang;
+        } else if (editorSyncedBlogIdRef.current !== targetBlogId && targetContent) {
+          editor.commands.setContent(targetContent);
+          editorSyncedBlogIdRef.current = targetBlogId;
+          editorSyncedLangRef.current = currentLang;
+        }
+      }
+      return;
+    }
+
+    // Case 3: Creating a brand new blog draft
+    if (!editorSyncedBlogIdRef.current) {
+      editorSyncedBlogIdRef.current = 'new-blog';
+      editorSyncedLangRef.current = currentLang;
       const initialHtml = translations[currentLang]?.content;
       if (initialHtml && initialHtml !== '<p>Start drafting your high-impact article here...</p>') {
         editor.commands.setContent(initialHtml);
       }
     }
-  }, [editor]);
-
-  // Sync editor content ONLY when language tab changes via URL (e.g. browser back/forward)
-  const prevLangRef = useRef<LanguageCode>(currentLang);
-  useEffect(() => {
-    if (prevLangRef.current !== currentLang) {
-      prevLangRef.current = currentLang;
-      // If switched via UI tab button, content is already synchronously set in handleLanguageTabClick
-      if (isInternalLangSwitchRef.current) {
-        isInternalLangSwitchRef.current = false;
-        return;
-      }
-      if (editor) {
-        const langContent = translations[currentLang]?.content || '<p></p>';
-        editor.commands.setContent(langContent);
-      }
-    }
-  }, [currentLang, editor, translations]);
+  }, [editor, targetBlogId, isLoadingFullBlog, translations, currentLang]);
 
   // Strictly typed helper functions
   const updateActiveTransField = <K extends keyof BlogTranslation>(
@@ -1232,9 +1457,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => editor.chain().focus().setParagraph().run()}
+                      onClick={handleFormatParagraph}
                       className={`px-2 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${
-                        !editor.isActive('heading') ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                        editor.isActive('paragraph') ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                       }`}
                       title="Paragraph"
                     >
@@ -1243,7 +1468,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+                      onClick={() => handleFormatHeading(1)}
                       className={`px-2 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${
                         editor.isActive('heading', { level: 1 }) ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                       }`}
@@ -1254,7 +1479,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                      onClick={() => handleFormatHeading(2)}
                       className={`px-2 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${
                         editor.isActive('heading', { level: 2 }) ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                       }`}
@@ -1265,7 +1490,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+                      onClick={() => handleFormatHeading(3)}
                       className={`px-2 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${
                         editor.isActive('heading', { level: 3 }) ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                       }`}
@@ -1354,7 +1579,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => editor.chain().focus().setTextAlign('left').run()}
+                      onClick={() => handleSplitHardBreaksBeforeBlock(() => editor.chain().focus().setTextAlign('left').run())}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive({ textAlign: 'left' }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
@@ -1365,7 +1590,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => editor.chain().focus().setTextAlign('center').run()}
+                      onClick={() => handleSplitHardBreaksBeforeBlock(() => editor.chain().focus().setTextAlign('center').run())}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive({ textAlign: 'center' }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
@@ -1376,7 +1601,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => editor.chain().focus().setTextAlign('right').run()}
+                      onClick={() => handleSplitHardBreaksBeforeBlock(() => editor.chain().focus().setTextAlign('right').run())}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive({ textAlign: 'right' }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
@@ -1387,7 +1612,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => editor.chain().focus().setTextAlign('justify').run()}
+                      onClick={() => handleSplitHardBreaksBeforeBlock(() => editor.chain().focus().setTextAlign('justify').run())}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive({ textAlign: 'justify' }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
@@ -1404,7 +1629,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => editor.chain().focus().toggleBulletList().run()}
+                      onClick={() => handleSplitHardBreaksBeforeBlock(() => editor.chain().focus().toggleBulletList().run())}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive('bulletList') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
@@ -1415,7 +1640,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                      onClick={() => handleSplitHardBreaksBeforeBlock(() => editor.chain().focus().toggleOrderedList().run())}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive('orderedList') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
@@ -1426,7 +1651,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => editor.chain().focus().toggleBlockquote().run()}
+                      onClick={() => handleSplitHardBreaksBeforeBlock(() => editor.chain().focus().toggleBlockquote().run())}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive('blockquote') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
@@ -1437,7 +1662,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+                      onClick={() => handleSplitHardBreaksBeforeBlock(() => editor.chain().focus().toggleCodeBlock().run())}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive('codeBlock') ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
@@ -1489,11 +1714,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
                     <button
                       type="button"
-                      onClick={() => {
-                        setMediaPickerTarget('editor');
-                        setMediaModalTab(siteMedia.length > 0 ? 'library' : 'upload');
-                        setMediaPickerOpen(true);
-                      }}
+                      onClick={() => handleOpenMediaPicker('editor')}
                       className="px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/80 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
                       title="Insert WebP Image (Upload or Media Library)"
                     >
@@ -1572,11 +1793,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   <div className="absolute bottom-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-slate-900/70 p-1.5 rounded-xl backdrop-blur-xs shadow-lg">
                     <button
                       type="button"
-                      onClick={() => {
-                        setMediaPickerTarget('cover');
-                        setMediaModalTab(siteMedia.length > 0 ? 'library' : 'upload');
-                        setMediaPickerOpen(true);
-                      }}
+                      onClick={() => handleOpenMediaPicker('cover')}
                       className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-900 text-xs font-semibold shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
                     >
                       <ImageIcon className="w-3.5 h-3.5" /> Change Cover
@@ -1597,11 +1814,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800/80">
                   <button
                     type="button"
-                    onClick={() => {
-                      setMediaPickerTarget('cover');
-                      setMediaModalTab(siteMedia.length > 0 ? 'library' : 'upload');
-                      setMediaPickerOpen(true);
-                    }}
+                    onClick={() => handleOpenMediaPicker('cover')}
                     className="group inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:border-blue-400 bg-white dark:bg-slate-850 hover:bg-blue-50/40 dark:hover:bg-blue-950/20 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-all cursor-pointer shadow-2xs"
                   >
                     <div className="w-5 h-5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
@@ -2523,7 +2736,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 <ImageIcon className="w-3.5 h-3.5" />
                 <span>Media Library</span>
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono">
-                  {siteMedia.length}
+                  {mediaSiteScope === 'all' ? media.length : siteMedia.length}
                 </span>
               </button>
               <button
@@ -2621,6 +2834,50 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
               {/* TAB 2: MEDIA LIBRARY */}
               {mediaModalTab === 'library' && (
                 <div className="space-y-4">
+                  {/* Scope Selector: This Site vs Global Library */}
+                  <div className="flex items-center justify-between gap-2 pb-1 border-b border-slate-100 dark:border-slate-800">
+                    <div className="inline-flex rounded-lg p-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setMediaSiteScope('site')}
+                        className={`px-3 py-1 rounded-md font-semibold text-xs transition-all cursor-pointer ${
+                          mediaSiteScope === 'site'
+                            ? 'bg-white dark:bg-[#0f172a] text-blue-600 dark:text-blue-400 shadow-xs'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                      >
+                        This Site ({media.filter((m) => m.websiteId === selectedWebsiteId).length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMediaSiteScope('all');
+                          if (fetchMedia) fetchMedia('all');
+                        }}
+                        className={`px-3 py-1 rounded-md font-semibold text-xs transition-all cursor-pointer ${
+                          mediaSiteScope === 'all'
+                            ? 'bg-white dark:bg-[#0f172a] text-blue-600 dark:text-blue-400 shadow-xs'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                      >
+                        All Sites Library ({media.length})
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (fetchMedia) {
+                          fetchMedia(selectedWebsiteId);
+                          fetchMedia('all');
+                        }
+                      }}
+                      className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                      title="Sync Media Library from Server"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
                   {/* Search bar within library */}
                   {siteMedia.length > 0 && (
                     <div className="relative">
@@ -2636,19 +2893,52 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   )}
 
                   {siteMedia.length === 0 ? (
-                    <div className="py-12 text-center text-xs text-slate-400 space-y-3">
+                    <div className="py-10 text-center text-xs text-slate-400 space-y-3">
                       <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800/80 mx-auto flex items-center justify-center text-slate-400">
                         <ImageIcon className="w-6 h-6" />
                       </div>
-                      <div>No media assets uploaded for {activeSite.name} yet.</div>
-                      <button
-                        type="button"
-                        onClick={() => setMediaModalTab('upload')}
-                        className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer inline-flex items-center gap-1.5"
-                      >
-                        <UploadCloud className="w-3.5 h-3.5" />
-                        Upload & Convert First Image
-                      </button>
+                      <div className="text-slate-700 dark:text-slate-300 font-semibold text-sm">
+                        {mediaSiteScope === 'site'
+                          ? `No media assets uploaded for ${activeSite.name} yet.`
+                          : 'No media assets found in library.'}
+                      </div>
+                      {mediaSiteScope === 'site' && media.length > 0 ? (
+                        <>
+                          <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                            {media.length} media assets exist across other sites in your centralized platform. You can use any of them here!
+                          </p>
+                          <div className="flex items-center justify-center gap-2 pt-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMediaSiteScope('all');
+                                if (fetchMedia) fetchMedia('all');
+                              }}
+                              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                            >
+                              <Globe className="w-3.5 h-3.5" />
+                              View All Sites Library ({media.length})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setMediaModalTab('upload')}
+                              className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                            >
+                              <UploadCloud className="w-3.5 h-3.5" />
+                              Upload New Image
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setMediaModalTab('upload')}
+                          className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                        >
+                          <UploadCloud className="w-3.5 h-3.5" />
+                          Upload & Convert First Image
+                        </button>
+                      )}
                     </div>
                   ) : filteredSiteMedia.length === 0 ? (
                     <div className="py-8 text-center text-xs text-slate-400">
