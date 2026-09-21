@@ -32,7 +32,7 @@ const mockPrisma = {
   $executeRawUnsafe: jest.fn(),
 };
 
-const mockRedis = { get: jest.fn(() => null), set: jest.fn(), delPattern: jest.fn() };
+const mockRedis = { get: jest.fn(() => null), set: jest.fn(), del: jest.fn(), delPattern: jest.fn() };
 const mockWebhook = { dispatchWebhook: jest.fn().mockResolvedValue(undefined) };
 const mockEmail = { sendWorkflowNotification: jest.fn() };
 const mockSupabase = {

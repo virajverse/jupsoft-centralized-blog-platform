@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useBlogStore } from '../../store/useBlogStore';
 import { ZohoDashboardView } from './ZohoDashboardView';
 
@@ -10,8 +10,14 @@ export const DashboardOverview: React.FC = () => {
     activeWebsiteId, 
     websites, 
     activeRole,
-    currentUser
+    currentUser,
+    fetchBlogs,
   } = useBlogStore();
+
+  useEffect(() => {
+    // Populate all blogs on mount for metrics & connected tenants counts
+    fetchBlogs('all');
+  }, [fetchBlogs]);
 
   const isAllSites = activeWebsiteId === 'all';
   const activeSite = websites.find((w) => w.id === activeWebsiteId) || websites[0];

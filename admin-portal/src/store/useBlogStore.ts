@@ -134,6 +134,7 @@ export const useBlogStore = create<BlogState>()(
           const siteId = overrideSiteId !== undefined ? overrideSiteId : get().activeWebsiteId;
           const res = await apiClient.getBlogs({
             websiteId: siteId === 'all' ? undefined : siteId,
+            limit: 100,
           });
           if (res && Array.isArray(res.data)) {
             set((state) => {

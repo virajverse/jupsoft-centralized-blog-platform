@@ -10,6 +10,9 @@ node_modules/
 !.env.example
 *.env
 !backend/.env
+!.env
+!admin-portal/.env
+!admin-portal/.env.local
 
 # Local database seed scripts
 prisma/seed.ts

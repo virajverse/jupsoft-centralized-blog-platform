@@ -20,7 +20,11 @@
     "test": "pnpm --filter ./backend run test",
     "test:cov": "pnpm --filter ./backend run test:cov",
     "test:ci": "pnpm --filter ./backend run test:ci",
-    "fts:migrate": "pnpm --filter ./backend run fts:migrate"
+    "fts:migrate": "pnpm --filter ./backend run fts:migrate",
+    "db:sync": "node scripts/sync-databases.js --pull",
+    "db:sync:pull": "node scripts/sync-databases.js --pull",
+    "db:sync:push": "node scripts/sync-databases.js --push",
+    "db:sync:status": "node scripts/sync-databases.js --status"
   },
   "keywords": ["cms", "blog", "multi-tenant", "nestjs", "nextjs"],
   "author": "Jupsoft Technologies",
