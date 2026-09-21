@@ -139,7 +139,12 @@ async function bootstrap() {
           hostname = normalizedOrigin.replace(/^https?:\/\//, '');
         }
 
-        if (hostname.endsWith('.jupsoft.com') || hostname === 'jupsoft.com') {
+        if (
+          hostname.endsWith('.jupsoft.com') ||
+          hostname === 'jupsoft.com' ||
+          hostname.endsWith('.netlify.app') ||
+          hostname.endsWith('.vercel.app')
+        ) {
           return callback(null, true);
         }
 

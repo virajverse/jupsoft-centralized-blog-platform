@@ -152,6 +152,8 @@ export const ZohoNavbar: React.FC = () => {
           <Menu className="w-4 h-4" />
         </button>
 
+        <img src="/logomobileapp.png" alt="Jupsoft" className="lg:hidden h-5 w-auto object-contain shrink-0" />
+
         <div className="flex items-center gap-2 text-xs truncate">
           <span className="font-bold text-slate-900 dark:text-white tracking-tight">
             {title}

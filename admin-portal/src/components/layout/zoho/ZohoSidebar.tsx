@@ -199,7 +199,7 @@ export const ZohoSidebar: React.FC = () => {
               className="w-10 h-10 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 flex items-center justify-center p-1.5 transition-transform hover:scale-105 border border-slate-700/60 shadow-xs"
               title="Jupsoft CMS - Editorial Studio"
             >
-              <img src="/jupsoft-icon.png?v=2" alt="Jupsoft" className="w-full h-full object-contain" />
+              <img src="/logomobileapp.png" alt="Jupsoft" className="w-full h-full object-contain" />
             </Link>
             {/* Multi-Tenant Status Indicator Dots */}
             <div className="flex items-center gap-0.5">
@@ -275,10 +275,13 @@ export const ZohoSidebar: React.FC = () => {
         >
           {/* Top Section Header */}
           <div className="p-3 border-b border-slate-200 dark:border-slate-800/80 flex items-center justify-between shrink-0">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              Editorial Studio
-            </span>
-            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <img src="/logoadminapp.png" alt="Jupsoft CMS" className="h-4 w-auto object-contain shrink-0" />
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 truncate">
+                Editorial
+              </span>
+            </div>
+            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold border border-slate-200 dark:border-slate-700 shrink-0">
               CMS
             </span>
           </div>

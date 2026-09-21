@@ -100,8 +100,8 @@ export default function LoginPage() {
         <div className="text-center space-y-3">
           <div className="flex justify-center">
             <img 
-              src="/jupsoft-logo.png?v=2" 
-              alt="Jupsoft" 
+              src="/logoadminapp.png" 
+              alt="Jupsoft CMS" 
               className="h-14 w-auto object-contain drop-shadow-xs transition-transform hover:scale-105" 
             />
           </div>

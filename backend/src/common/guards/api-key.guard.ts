@@ -50,8 +50,13 @@ export class ApiKeyGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const authHeader = request.headers['authorization'];
-    const xApiKey = request.headers['x-api-key'] as string;
-    const queryApiKey = request.query?.apiKey as string;
+    const xApiKey =
+      (request.headers['x-api-key'] as string) ||
+      (request.headers['api-key'] as string) ||
+      (request.headers['apikey'] as string);
+    const queryApiKey =
+      (request.query?.apiKey as string) ||
+      (request.query?.api_key as string);
     const websiteParam =
       (request.query?.website as string) ||
       (request.query?.websiteId as string) ||
@@ -71,9 +76,11 @@ export class ApiKeyGuard implements CanActivate {
     // 1. Extract API Key / Bearer token if provided
     let tokenValue: string | null = null;
     if (authHeader) {
-      const [type, token] = authHeader.split(' ');
-      if (type === 'Bearer' && token) {
-        tokenValue = token;
+      const parts = authHeader.trim().split(' ');
+      if (parts.length === 2 && parts[0].toLowerCase() === 'bearer') {
+        tokenValue = parts[1];
+      } else if (parts.length === 1) {
+        tokenValue = parts[0];
       }
     } else if (xApiKey) {
       tokenValue = xApiKey;
@@ -237,7 +244,9 @@ export class ApiKeyGuard implements CanActivate {
 
       const isAuthorizedDomain =
         Boolean(callerHost && targetDomain && (callerHost === targetDomain || callerHost.endsWith('.' + targetDomain))) ||
-        (isDev && isLocalhost);
+        (isDev && isLocalhost) ||
+        callerHost.endsWith('.netlify.app') ||
+        callerHost.endsWith('.vercel.app');
 
       if (!isAuthorizedDomain) {
         throw new UnauthorizedException(

@@ -114,7 +114,18 @@ export class PublicV1Service {
         take: safeLimit,
         orderBy: { publishDate: 'desc' },
         include: {
-          translations: true,
+          translations: {
+            select: {
+              id: true,
+              lang: true,
+              slug: true,
+              title: true,
+              excerpt: true,
+              metaTitle: true,
+              metaDescription: true,
+              canonicalUrl: true,
+            },
+          },
           website: { select: { domain: true, name: true } },
         },
       }),
