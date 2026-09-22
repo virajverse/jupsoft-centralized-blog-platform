@@ -91,8 +91,8 @@ Whenever you start an operation with the Jupsoft CMS MCP tool or when the MCP se
 |---|---|---|
 | `CMS_API_BASE` | `https://blogary.jupsoft.com` | Base URL of CMS REST backend. Local dev is `http://localhost:4010`. |
 | `CMS_ADMIN_EMAIL` | `admin@jupsoft.com` | Super Admin email for auto-authentication. |
-| `CMS_ADMIN_PASSWORD` | `Jupsoft#SuperAdmin2026!$` | Super Admin master password. |
-| `CMS_WEBHOOK_SECRET` | `wh_sec_jupsoft_default_revalidate_2026` | Shared secret for HMAC SHA-256 webhook signing. |
+| `CMS_ADMIN_PASSWORD` | *(Required secret — never stored in code)* | Super Admin master password. |
+| `CMS_WEBHOOK_SECRET` | *(Required secret — same value as backend `WEBHOOK_DEFAULT_SECRET`)* | Shared secret for HMAC SHA-256 webhook signing. No hardcoded fallback exists. |
 | `JWT_SECRET` | *(Production Secret)* | Used by NestJS backend to sign bearer access tokens (7d). |
 | `JWT_REFRESH_SECRET` | *(Production Secret)* | Used to sign long-lived refresh tokens (30d). |
 | `DATABASE_URL` | *(Supabase PostgreSQL Pooler)* | `postgresql://postgres:...@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres` |
@@ -102,9 +102,9 @@ When client websites connect to Blogary CMS, they configure:
 ```env
 NEXT_PUBLIC_CMS_API_URL=https://blogary.jupsoft.com
 CMS_API_URL=https://blogary.jupsoft.com
-CMS_TENANT_API_KEY=jup_live_sec_cloud_9934afbc82a104
+CMS_TENANT_API_KEY=<your-tenant-api-key>
 CMS_WEBSITE_ID=site-cloud
-CMS_WEBHOOK_SECRET=wh_sec_jupsoft_default_revalidate_2026
+CMS_WEBHOOK_SECRET=<same-value-as-backend-WEBHOOK_DEFAULT_SECRET>
 ```
 
 ---

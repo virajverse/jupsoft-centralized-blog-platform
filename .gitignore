@@ -38,6 +38,13 @@ Thumbs.db
 *.sln
 *.sw?
 
+# Secrets — NEVER commit (P0 Fix C6)
+.env
+.env.*
+*.env
+!.env.example
+!.env.sample
+
 # Database & Redis dumps
 *.rdb
 dump.rdb

@@ -65,7 +65,14 @@ if (fs.existsSync(envPath)) {
 const websiteId = params.site || process.env.CMS_WEBSITE_ID || parsedEnv.CMS_WEBSITE_ID || '';
 const apiKey = params.key || process.env.CMS_TENANT_API_KEY || parsedEnv.CMS_TENANT_API_KEY || '';
 const apiUrl = (params.url || process.env.CMS_API_URL || process.env.NEXT_PUBLIC_CMS_API_URL || parsedEnv.CMS_API_URL || parsedEnv.NEXT_PUBLIC_CMS_API_URL || 'https://blogary.jupsoft.com').replace(/\/$/, '');
-const webhookSec = params.secret || process.env.CMS_WEBHOOK_SECRET || parsedEnv.CMS_WEBHOOK_SECRET || 'wh_sec_jupsoft_default_revalidate_2026';
+// No hardcoded default secret — require it explicitly (env, .env.local, or --secret).
+const webhookSec = params.secret || process.env.CMS_WEBHOOK_SECRET || parsedEnv.CMS_WEBHOOK_SECRET || '';
+if (!webhookSec) {
+  console.warn(
+    '\x1b[33m%s\x1b[0m',
+    '⚠️  CMS_WEBHOOK_SECRET not provided — revalidation webhooks will be rejected (401/500). Set it via --secret or CMS_WEBHOOK_SECRET (same value as the CMS backend WEBHOOK_DEFAULT_SECRET).',
+  );
+}
 
 console.log('\x1b[33m%s\x1b[0m', `🔍 Inspecting project at: ${cwd}\n`);
 
@@ -317,9 +324,10 @@ export default function BlogDetailPage(props: BlogDetailPageProps) {
     `NEXT_PUBLIC_CMS_API_URL=${apiUrl}`,
     `CMS_API_URL=${apiUrl}`,
     `CMS_TENANT_API_KEY=${apiKey || 'YOUR_TENANT_API_KEY_HERE'}`,
-    `CMS_WEBSITE_ID=${websiteId || 'YOUR_WEBSITE_ID_HERE'}`,
-    `CMS_WEBHOOK_SECRET=${webhookSec}`
+    `CMS_WEBSITE_ID=${websiteId || 'YOUR_WEBSITE_ID_HERE'}`
   ];
+  // Only write the webhook secret when one was explicitly provided — never persist an empty/default value.
+  if (webhookSec) envEntries.push(`CMS_WEBHOOK_SECRET=${webhookSec}`);
 
   let existingEnv = '';
   if (fs.existsSync(envPath)) existingEnv = fs.readFileSync(envPath, 'utf8');

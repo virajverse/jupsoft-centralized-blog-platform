@@ -164,6 +164,11 @@ cd backend
 npx prisma db push --skip-generate
 npx prisma generate
 npx ts-node prisma/seed.example.ts || true
+
+# P1: Apply PostgreSQL Full-Text Search migration (tsvector + GIN index).
+# Non-fatal: without it, /v1/search falls back to ILIKE (works, but slower).
+npx ts-node scripts/run-fts-migration.ts || \
+  echo -e "${YELLOW}⚠ FTS migration skipped — search falls back to ILIKE. Run manually: pnpm run fts:migrate${NC}"
 cd ..
 echo -e "${GREEN}✓ PostgreSQL database synced and seeded successfully.${NC}"
 
@@ -255,12 +260,9 @@ echo -e "👉 Admin Studio:       ${CYAN}https://blogary.jupsoft.com${NC}"
 echo -e "👉 Swagger API Docs:   ${CYAN}https://blogary.jupsoft.com/api/docs${NC}"
 echo -e "👉 Public API Health:  ${CYAN}https://blogary.jupsoft.com/v1/health${NC}"
 echo ""
-echo -e "${YELLOW}🔑 Super Admin Login Credentials:${NC}"
+echo -e "${YELLOW}🔑 Super Admin Login:${NC}"
 echo -e "   Email:    ${GREEN}superadmin@jupsoft.com${NC} (or admin@jupsoft.com)"
-echo -e "   Password: ${GREEN}Jupsoft#SuperAdmin2026!\$${NC}"
+echo -e "   Password: set ${CYAN}SEED_SUPERADMIN_PASSWORD${NC} in backend/.env before first boot."
+echo -e "             (If unset, a random password is generated and printed ${YELLOW}once${NC} in the backend logs.)"
 echo ""
-echo -e "${YELLOW}🔑 Website Admins:${NC}"
-echo -e "   Cloud ERP:  admin@cloud.jupsoft.com  | Pass: CloudAdmin#Jupsoft2026@"
-echo -e "   DigifyNext: admin@digifynext.com     | Pass: GrowthAdmin#Digify2026%"
-echo -e "   School ERP: admin@schoolerp.in       | Pass: SchoolAdmin#EdTech2026^"
 echo -e "${BLUE}==================================================================${NC}"

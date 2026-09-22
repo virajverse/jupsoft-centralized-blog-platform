@@ -181,28 +181,43 @@ NODE_ENV=development
 PLATFORM_BASE_URL=http://localhost:4000
 
 # PostgreSQL (Prisma)
-DATABASE_URL=postgresql://jupsoft_admin:jupsoft_secret_2026@localhost:5432/jupsoft_cms?schema=public
+DATABASE_URL=postgresql://<user>:<password>@localhost:5432/jupsoft_cms?schema=public
+DIRECT_URL=
 
 # Redis Cache
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=
 
-# JWT Secrets
-JWT_SECRET=jupsoft_enterprise_jwt_super_secret_key_2026
+# JWT Secrets (generate with: openssl rand -hex 32 — never reuse example values)
+JWT_SECRET=<generate-a-random-secret>
 JWT_EXPIRATION=7d
-JWT_REFRESH_SECRET=jupsoft_enterprise_refresh_super_secret_key_2026
+JWT_REFRESH_SECRET=<generate-a-random-secret>
 JWT_REFRESH_EXPIRATION=30d
 
 # AWS S3 & CloudFront
+# Production REQUIRES real credentials — the backend refuses to boot in
+# production without them, and S3 upload failures throw (no silent fallback).
 AWS_REGION=ap-south-1
-AWS_ACCESS_KEY_ID=mock_aws_access_key
-AWS_SECRET_ACCESS_KEY=mock_aws_secret_key
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
 AWS_S3_BUCKET=jupsoft-blogs-storage
 CLOUDFRONT_DOMAIN=https://cdn.jupsoft.com
+SES_FROM_EMAIL=noreply@jupsoft.com
 
-# Webhook Secret
-WEBHOOK_DEFAULT_SECRET=wh_sec_jupsoft_default_revalidate_2026
+# Webhook Secret (generate with: openssl rand -hex 32 — no default/hardcoded value)
+# Consumer sites must set the SAME value as CMS_WEBHOOK_SECRET.
+WEBHOOK_DEFAULT_SECRET=<generate-a-random-secret>
+
+# ── Optional bootstrap/ops overrides (P1) ──────────────────────────────
+# First-boot secrets; if unset, secure random values are generated and
+# printed ONCE in the backend logs.
+#SEED_SUPERADMIN_PASSWORD=<initial-superadmin-password>
+#SEED_API_KEY_SITE_CLOUD=<tenant-api-key>
+#SEED_API_KEY_SITE_GROWTH=<tenant-api-key>
+#SEED_API_KEY_SITE_EDTECH=<tenant-api-key>
+# Analytics raw-event retention in days (default: 90)
+#ANALYTICS_RETENTION_DAYS=90
 ```
 
 ---

@@ -244,9 +244,9 @@ Configure the following variables in your local `.env.local` file:
 | `NEXT_PUBLIC_CMS_API_URL` | Public fallback URL for client widgets | `https://blogary.jupsoft.com` |
 | `CMS_WEBSITE_ID` | Your Tenant ID registered in the CMS Admin Portal | `site-cloud` |
 | `CMS_TENANT_API_KEY` | Your private tenant API key | `jup_sec_...` |
-| `CMS_WEBHOOK_SECRET` | Secret key for webhook revalidation | `wh_sec_jupsoft_default_revalidate_2026` *(Default)* |
+| `CMS_WEBHOOK_SECRET` | Secret key for webhook revalidation (same value as the CMS backend `WEBHOOK_DEFAULT_SECRET`) | *(Required — no default)* |
 
-> **Note on Zero-Config Webhook Fallback:** If `CMS_WEBHOOK_SECRET` is omitted or undefined in the environment, the SDK automatically falls back to `wh_sec_jupsoft_default_revalidate_2026`. This guarantees that webhook pings from the Admin Portal never fail with `401 Unauthorized`.
+> **Note:** There is **no fallback webhook secret**. If `CMS_WEBHOOK_SECRET` is missing, the webhook receiver rejects every request (500) and `verifyWebhookSignature` returns `false` — a hardcoded default would be public in the SDK source and would let anyone forge revalidation requests.
 
 ---
 
@@ -259,7 +259,7 @@ When deploying to remote hosting platforms like Netlify or Vercel:
    - `CMS_API_URL` = `https://blogary.jupsoft.com`
    - `CMS_WEBSITE_ID` = `<your-website-id>`
    - `CMS_TENANT_API_KEY` = `<your-api-key>`
-   - `CMS_WEBHOOK_SECRET` = `wh_sec_jupsoft_default_revalidate_2026`
+   - `CMS_WEBHOOK_SECRET` = `<same-value-as-backend-WEBHOOK_DEFAULT_SECRET>`
 3. ⚠️ **Important for Netlify:** Environment variable changes only take effect on **future deploys**. Go to **Deploys ➔ Trigger deploy ➔ "Clear cache and deploy site"** after setting variables.
 
 ---

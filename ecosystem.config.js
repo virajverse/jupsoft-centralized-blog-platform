@@ -4,7 +4,10 @@ module.exports = {
       name: 'blogary-backend',
       cwd: './backend',
       script: 'dist/src/main.js',
-      instances: 1,
+      // P1: one worker per CPU core (cluster mode load-balances the HTTP port).
+      // The backend is stateless — sessions/locks/buffers all live in Redis/Postgres.
+      instances: 'MAX',
+      exec_mode: 'cluster',
       autorestart: true,
       watch: false,
       max_memory_restart: '1G',

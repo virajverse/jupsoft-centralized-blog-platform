@@ -10,14 +10,26 @@ export async function POST(req: NextRequest) {
     req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
 
   const expectedSecret =
-    (typeof process !== 'undefined' ? process.env?.CMS_WEBHOOK_SECRET : undefined) ||
-    'wh_sec_jupsoft_default_revalidate_2026';
+    typeof process !== 'undefined' ? process.env?.CMS_WEBHOOK_SECRET?.trim() : undefined;
+
+  // Fail closed: without a configured secret, reject everything (a hardcoded default
+  // secret would be public in the source and allow forged revalidation requests).
+  if (!expectedSecret) {
+    return NextResponse.json(
+      {
+        ok: false,
+        message:
+          'CMS_WEBHOOK_SECRET is not configured on this server. Set it (same value as backend WEBHOOK_DEFAULT_SECRET) to accept webhooks.',
+      },
+      { status: 500 },
+    );
+  }
 
   // Multi-Gate Authentication:
   // 1. Direct Secret header check (fast, works across custom setups)
   // 2. Cryptographic HMAC SHA-256 signature verification
   let isValid = false;
-  if (headerSecret && headerSecret.trim() === expectedSecret.trim()) {
+  if (headerSecret && headerSecret.trim() === expectedSecret) {
     isValid = true;
   } else if (signature) {
     isValid = await jupsoft.verifyWebhookSignature(bodyText, signature, expectedSecret);

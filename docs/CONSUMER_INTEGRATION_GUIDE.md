@@ -23,8 +23,8 @@ In your consumer website's `.env.local`:
 NEXT_PUBLIC_CMS_API_URL=https://api.jupsoft.com
 # Your tenant-specific API key (obtain from CMS Admin Portal -> Settings)
 CMS_TENANT_API_KEY=key_cloud_prod_8f9a2b1c3d4e5f6a7b8c9d0e
-# Webhook shared secret for HMAC-SHA256 revalidation
-CMS_WEBHOOK_SECRET=wh_sec_jupsoft_default_revalidate_2026
+# Webhook shared secret for HMAC-SHA256 revalidation (same value as backend WEBHOOK_DEFAULT_SECRET — no default)
+CMS_WEBHOOK_SECRET=<your-webhook-secret>
 ```
 
 ---
@@ -184,7 +184,10 @@ import { revalidateTag } from 'next/cache';
 import * as crypto from 'crypto';
 
 export async function POST(req: NextRequest) {
-  const secret = process.env.CMS_WEBHOOK_SECRET || 'wh_sec_jupsoft_default_revalidate_2026';
+  const secret = process.env.CMS_WEBHOOK_SECRET; // required — no hardcoded fallback
+  if (!secret) {
+    return NextResponse.json({ ok: false, error: 'CMS_WEBHOOK_SECRET not configured' }, { status: 500 });
+  }
   const signatureHeader = req.headers.get('x-signature') || '';
   const timestampHeader = req.headers.get('x-timestamp') || '';
 

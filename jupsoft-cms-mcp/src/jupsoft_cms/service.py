@@ -17,7 +17,8 @@ logger = logging.getLogger("jupsoft_cms.service")
 
 DEFAULT_API_BASE = "https://blogary.jupsoft.com"
 DEFAULT_ADMIN_EMAIL = "superadmin@jupsoft.com"
-DEFAULT_ADMIN_PASSWORD = "Jupsoft#SuperAdmin2026!$"
+# Credentials are NEVER hardcoded — CMS_ADMIN_PASSWORD must come from the environment.
+DEFAULT_ADMIN_PASSWORD = ""
 
 
 class JupsoftCMSService:
@@ -25,6 +26,11 @@ class JupsoftCMSService:
         self.api_base = os.environ.get("CMS_API_BASE", DEFAULT_API_BASE).rstrip("/")
         self.admin_email = os.environ.get("CMS_ADMIN_EMAIL", DEFAULT_ADMIN_EMAIL)
         self.admin_password = os.environ.get("CMS_ADMIN_PASSWORD", DEFAULT_ADMIN_PASSWORD)
+        if not self.admin_password:
+            raise RuntimeError(
+                "CMS_ADMIN_PASSWORD environment variable is not set — refusing to run with "
+                "default/hardcoded credentials."
+            )
         self._token: Optional[str] = None
         self._refresh_token: Optional[str] = None
         self._token_expires_at: float = 0.0
