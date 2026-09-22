@@ -794,6 +794,102 @@ export class BlogsService {
     return this.findOne(id);
   }
 
+  async duplicateBlog(id: string, user?: AuthenticatedUser, ipAddress?: string) {
+    const existing = await this.prisma.blog.findUnique({
+      where: { id },
+      include: { translations: true, website: true, blogCategories: true, blogTags: true },
+    });
+
+    if (!existing) {
+      throw new NotFoundException(`Blog with ID "${id}" not found`);
+    }
+
+    if (user) {
+      this.assertBlogOwnership({ id, websiteId: existing.websiteId }, user);
+    }
+
+    const newBlogId = `blog-${Date.now()}`;
+    const cleanUserName = user?.name?.trim() || 'System';
+
+    return this.prisma.$transaction(async (tx) => {
+      // Create new blog with 'Draft' status
+      const createdBlog = await tx.blog.create({
+        data: {
+          id: newBlogId,
+          websiteId: existing.websiteId, // Defaults to same website; user can change it later
+          authorId: existing.authorId,
+          authorName: existing.authorName,
+          authorAvatar: existing.authorAvatar,
+          featuredImage: existing.featuredImage,
+          featuredImageAlt: existing.featuredImageAlt,
+          status: 'Draft',
+          readTimeMinutes: existing.readTimeMinutes,
+          translations: {
+            create: existing.translations.map((t) => ({
+              lang: t.lang,
+              title: `${t.title} (Copy)`,
+              slug: `${t.slug}-copy-${Date.now().toString().slice(-4)}`, // Ensure unique slug
+              excerpt: t.excerpt,
+              content: t.content,
+              metaTitle: t.metaTitle,
+              metaDescription: t.metaDescription,
+              metaKeywords: t.metaKeywords,
+              canonicalUrl: t.canonicalUrl,
+              focusKeyword: t.focusKeyword,
+              robots: t.robots,
+              ogTitle: t.ogTitle,
+              ogDescription: t.ogDescription,
+              ogImage: t.ogImage,
+              twitterTitle: t.twitterTitle,
+              twitterDescription: t.twitterDescription,
+              twitterImage: t.twitterImage,
+            })),
+          },
+        },
+      });
+
+      // Copy categories
+      if (existing.blogCategories.length > 0) {
+        await tx.blogCategory.createMany({
+          data: existing.blogCategories.map(bc => ({ blogId: newBlogId, categoryId: bc.categoryId })),
+        });
+      }
+
+      // Copy tags
+      if (existing.blogTags.length > 0) {
+        await tx.blogTag.createMany({
+          data: existing.blogTags.map(bt => ({ blogId: newBlogId, tagId: bt.tagId })),
+        });
+      }
+
+      // Workflow Log for Creation
+      await tx.workflowLog.create({
+        data: {
+          blogId: newBlogId,
+          fromStatus: 'Draft',
+          toStatus: 'Draft',
+          changedBy: cleanUserName,
+          role: user?.roles?.[0] || 'User',
+          notes: `Blog duplicated from ${existing.id}`,
+        },
+      });
+
+      // Audit Log
+      await tx.systemAuditLog.create({
+        data: {
+          userName: cleanUserName,
+          role: user?.roles?.[0] || 'User',
+          websiteId: existing.websiteId,
+          event: 'blog.duplicated',
+          ipAddress: ipAddress || '',
+          details: `Duplicated blog "${existing.translations[0]?.title}" -> "${newBlogId}"`,
+        },
+      });
+
+      return createdBlog;
+    });
+  }
+
   async delete(id: string, user: AuthenticatedUser, ipAddress: string) {
     const blog = await this.prisma.blog.findUnique({
       where: { id },

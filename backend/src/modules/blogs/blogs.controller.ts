@@ -46,9 +46,20 @@ export class BlogsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get full blog detail by ID' })
-  async findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  @ApiOperation({ summary: 'Get full details of a specific blog for editing' })
+  async findOne(@Param('id') id: string, @CurrentUser() user?: AuthenticatedUser) {
     return this.blogsService.findOne(id, user);
+  }
+
+  @Post(':id/duplicate')
+  @Roles('Super Admin', 'Website Admin', 'Role Admin', 'Editor', 'Content Writer')
+  @ApiOperation({ summary: 'Duplicate an existing blog (creates a draft copy)' })
+  async duplicateBlog(
+    @Param('id') id: string,
+    @Ip() ipAddress: string,
+    @CurrentUser() user?: AuthenticatedUser,
+  ) {
+    return this.blogsService.duplicateBlog(id, user, ipAddress);
   }
 
   @Post()

@@ -436,6 +436,10 @@ class ApiClient {
     return this.request(`/admin/blogs/${id}`, { method: 'DELETE' });
   }
 
+  async duplicateBlog(id: string): Promise<Blog> {
+    return this.request(`/admin/blogs/${id}/duplicate`, { method: 'POST' });
+  }
+
   async submitBlogForReview(id: string, notes?: string): Promise<Blog> {
     return this.request(`/admin/blogs/${id}/submit`, { method: 'POST', body: JSON.stringify({ notes }) });
   }

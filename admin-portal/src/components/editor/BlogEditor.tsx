@@ -61,7 +61,10 @@ import {
   SlidersHorizontal,
   UploadCloud,
   FileText,
-  UserCheck
+  UserCheck,
+  Smartphone,
+  Tablet,
+  Monitor
 } from 'lucide-react';
 import { LanguageCode, BlogStatus, Blog, BlogTranslation, BlogSEO, MediaItem } from '../../types';
 import { createEmptySEO } from '../../data/initialData';
@@ -252,6 +255,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     );
   }, [siteMedia, mediaSearchQuery]);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -3190,17 +3194,39 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       {previewOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex flex-col items-center p-3 sm:p-6 overflow-hidden animate-in fade-in">
           {/* Top Control Bar */}
-          <div className="w-full max-w-4xl flex items-center justify-between pb-3 text-white">
+          <div className="w-full flex items-center justify-between pb-3 text-white" style={{ maxWidth: previewMode === 'desktop' ? '56rem' : previewMode === 'tablet' ? '768px' : '375px', transition: 'max-width 0.3s ease' }}>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-mono text-slate-300">
                 <Globe className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="truncate max-w-[240px] sm:max-w-md">
-                  https://{activeSite.domain}/blog/{activeTrans.slug || 'untitled-slug'}
+                <span className="truncate max-w-[150px] sm:max-w-xs">
+                  {activeSite.domain}/blog/{activeTrans.slug || 'untitled-slug'}
                 </span>
               </div>
-              <span className="hidden sm:inline-block text-[11px] text-slate-400">
-                {status} ({currentLang.toUpperCase()})
-              </span>
+            </div>
+
+            {/* Device Toggles */}
+            <div className="hidden sm:flex items-center bg-slate-900 border border-slate-700 rounded-lg p-1">
+              <button
+                onClick={() => setPreviewMode('mobile')}
+                className={`p-1.5 rounded-md transition-colors ${previewMode === 'mobile' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                title="Mobile View"
+              >
+                <Smartphone className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setPreviewMode('tablet')}
+                className={`p-1.5 rounded-md transition-colors ${previewMode === 'tablet' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                title="Tablet View"
+              >
+                <Tablet className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setPreviewMode('desktop')}
+                className={`p-1.5 rounded-md transition-colors ${previewMode === 'desktop' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                title="Desktop View"
+              >
+                <Monitor className="w-4 h-4" />
+              </button>
             </div>
 
             {/* Close Modal */}
@@ -3213,8 +3239,8 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           </div>
 
           {/* Clean Article Preview Container */}
-          <div className="flex-1 w-full max-w-4xl flex justify-center overflow-hidden">
-            <div className="w-full h-full bg-white dark:bg-[#0b0f19] rounded-xl border border-slate-700/60 shadow-2xl overflow-y-auto p-6 sm:p-10 space-y-6">
+          <div className="flex-1 w-full flex justify-center overflow-hidden transition-all duration-300 ease-in-out" style={{ maxWidth: previewMode === 'desktop' ? '56rem' : previewMode === 'tablet' ? '768px' : '375px' }}>
+            <div className="w-full h-full bg-white dark:bg-[#0b0f19] rounded-xl border border-slate-700/60 shadow-2xl overflow-y-auto p-4 sm:p-10 space-y-6">
               {/* Categories & Title */}
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">

@@ -11,7 +11,9 @@ import {
   Edit3,
   Globe,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  MoreVertical,
+  Copy
 } from 'lucide-react';
 import { Blog, Website, UserRole, LanguageCode } from '../../types';
 import { canCreateBlog, canDeleteBlog } from '../../utils/permissions';
@@ -64,6 +66,8 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const siteQuery = `?site=${activeWebsiteId}`;
 
   // Pagination state (0-delay performance)
@@ -412,26 +416,63 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
                             <Edit3 className="w-3.5 h-3.5" />
                           </Link>
 
-                          {canDeleteBlog(activeRole) && (
+                          {/* 3-Dots Menu */}
+                          <div className="relative">
                             <button
                               type="button"
-                              disabled={deletingId === blog.id}
-                              onClick={async () => {
-                                if (confirm('Are you sure you want to delete this blog?')) {
-                                  setDeletingId(blog.id);
-                                  try {
-                                    await deleteBlog(blog.id);
-                                  } finally {
-                                    setDeletingId(null);
-                                  }
-                                }
-                              }}
-                              className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer disabled:opacity-50"
-                              title="Delete Blog"
+                              onClick={() => setOpenDropdownId(openDropdownId === blog.id ? null : blog.id)}
+                              className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                             >
-                              <Trash2 className={`w-3.5 h-3.5 ${deletingId === blog.id ? 'animate-spin text-rose-500' : ''}`} />
+                              <MoreVertical className="w-3.5 h-3.5" />
                             </button>
-                          )}
+                            
+                            {openDropdownId === blog.id && (
+                              <div className="absolute right-0 top-7 mt-1 w-32 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-50">
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    setOpenDropdownId(null);
+                                    setDuplicatingId(blog.id);
+                                    try {
+                                      await apiClient.duplicateBlog(blog.id);
+                                      await fetchBlogs();
+                                    } catch (err) {
+                                      console.error(err);
+                                    } finally {
+                                      setDuplicatingId(null);
+                                    }
+                                  }}
+                                  disabled={duplicatingId === blog.id}
+                                  className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                                >
+                                  <Copy className={`w-3.5 h-3.5 ${duplicatingId === blog.id ? 'animate-spin' : ''}`} />
+                                  Duplicate
+                                </button>
+                                
+                                {canDeleteBlog(activeRole) && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      setOpenDropdownId(null);
+                                      if (confirm('Are you sure you want to delete this blog?')) {
+                                        setDeletingId(blog.id);
+                                        try {
+                                          await deleteBlog(blog.id);
+                                        } finally {
+                                          setDeletingId(null);
+                                        }
+                                      }
+                                    }}
+                                    disabled={deletingId === blog.id}
+                                    className="w-full text-left px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                                  >
+                                    <Trash2 className={`w-3.5 h-3.5 ${deletingId === blog.id ? 'animate-spin' : ''}`} />
+                                    Delete
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </tr>
