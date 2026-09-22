@@ -172,7 +172,7 @@ export class WebhookDispatcherService {
       return;
     }
 
-    const defaultSecret = this.configService.get<string>('WEBHOOK_DEFAULT_SECRET') || 'wh_sec_jupsoft_default_revalidate_2026';
+    const defaultSecret = this.configService.get<string>('WEBHOOK_DEFAULT_SECRET') || '';
 
     const payload: WebhookPayload = {
       event,
@@ -185,6 +185,13 @@ export class WebhookDispatcherService {
     await Promise.allSettled(
       activeEndpoints.map(async (endpoint) => {
         const secret = endpoint.secret?.trim() || defaultSecret;
+        if (!secret) {
+          // Fail closed: never dispatch an unsigned/unverifiable webhook.
+          this.logger.error(
+            `Webhook endpoint "${endpoint.name}" (${endpoint.url}) SKIPPED for event "${event}": no per-endpoint secret and WEBHOOK_DEFAULT_SECRET is not set. Refusing to send unsigned webhook — set WEBHOOK_DEFAULT_SECRET in backend/.env.`,
+          );
+          return;
+        }
         const signature = crypto
           .createHmac('sha256', secret)
           .update(payloadString)
@@ -194,9 +201,8 @@ export class WebhookDispatcherService {
           `⚡ Dispatching Webhook [${endpoint.name}] → ${endpoint.url} (event: ${event}, slug: ${slug})`,
         );
 
-        const startTime = Date.now();
-        let statusCode = 0;
-        let responseBody = '';
+        let statusCode: number;
+        let responseBody: string;
         let delivered = false;
 
         try {
@@ -290,8 +296,13 @@ export class WebhookDispatcherService {
 
     this.assertNotInternalUrl(targetUrl);
 
-    const defaultSecret = this.configService.get<string>('WEBHOOK_DEFAULT_SECRET') || 'wh_sec_jupsoft_default_revalidate_2026';
+    const defaultSecret = this.configService.get<string>('WEBHOOK_DEFAULT_SECRET') || '';
     const secret = configuredSecret?.trim() || defaultSecret;
+    if (!secret) {
+      throw new BadRequestException(
+        'No webhook secret available: set WEBHOOK_DEFAULT_SECRET in backend/.env or configure a secret on this endpoint. Unsigned test pings are refused.',
+      );
+    }
     const payload: WebhookPayload = {
       event,
       website: website.domain,
@@ -303,10 +314,10 @@ export class WebhookDispatcherService {
     const signature = crypto.createHmac('sha256', secret).update(payloadString).digest('hex');
 
     const startTime = Date.now();
-    let statusCode = 0;
-    let statusText = '';
-    let responseBody = '';
-    let delivered = false;
+    let statusCode: number;
+    let statusText: string;
+    let responseBody: string;
+    let delivered: boolean;
 
     try {
       this.logger.log(`⚡ Sending LIVE test ping to: ${targetUrl}`);
@@ -368,8 +379,6 @@ export class WebhookDispatcherService {
     } catch (err) {
       const latencyMs = Date.now() - startTime;
       const errorMsg = err instanceof Error ? err.message : 'Connection failed';
-      statusCode = 0;
-      statusText = 'Connection Error';
 
       try {
         await this.prisma.webhookDeliveryLog.create({

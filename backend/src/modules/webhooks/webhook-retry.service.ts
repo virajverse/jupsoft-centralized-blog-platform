@@ -47,8 +47,7 @@ export class WebhookRetryService {
     this.logger.log(`⚡ Retrying ${failedWebhooks.length} failed webhook(s)...`);
 
     const defaultSecret =
-      this.configService.get<string>('WEBHOOK_DEFAULT_SECRET') ||
-      'wh_sec_jupsoft_default_revalidate_2026';
+      this.configService.get<string>('WEBHOOK_DEFAULT_SECRET') || '';
 
     // Batch-fetch all unique websites to eliminate N+1 DB queries
     const uniqueWebsiteIds = [...new Set(failedWebhooks.map((w) => w.websiteId))];
@@ -78,6 +77,18 @@ export class WebhookRetryService {
               }
             } catch {}
           }
+        }
+
+        // Fail closed: no secret → never retry with an unsigned webhook (avoid infinite unsigned retries).
+        if (!secret) {
+          this.logger.error(
+            `Webhook retry SKIPPED for ${wh.targetUrl} (event ${wh.event}): no endpoint secret and WEBHOOK_DEFAULT_SECRET is not set.`,
+          );
+          await this.prisma.webhookDeliveryLog.update({
+            where: { id: wh.id },
+            data: { attempt: wh.attempt + 1 },
+          });
+          continue;
         }
 
         const payload = {

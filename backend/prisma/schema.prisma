@@ -275,6 +275,7 @@ model AnalyticsEvent {
 
   @@index([blogId, websiteId])
   @@index([websiteId, timestamp])
+  @@index([timestamp]) // P1: fast retention purge (analytics.service purgeExpiredEvents)
   @@map("analytics")
 }
 

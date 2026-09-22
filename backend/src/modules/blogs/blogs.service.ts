@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WebhookDispatcherService } from '../webhooks/webhook-dispatcher.service';
 import { CreateBlogDto, UpdateBlogDto, TransitionBlogStatusDto } from './dto/create-blog.dto';
@@ -535,7 +535,7 @@ export class BlogsService {
         for (const t of dto.translations) {
           const oldTrans = existing.translations.find((ot) => ot.lang === t.lang);
           // Only preserve old content if translation content was omitted (undefined)
-          let effectiveContent = t.content !== undefined ? sanitizeContent(t.content) : (oldTrans?.content || '');
+          const effectiveContent = t.content !== undefined ? sanitizeContent(t.content) : (oldTrans?.content || '');
 
           await tx.blogTranslation.upsert({
             where: {
@@ -614,11 +614,12 @@ export class BlogsService {
 
   // ─── Helper: invalidate all Redis cache keys for this blog (TRD §13)
   private async invalidateCache(websiteId: string, translations: Array<{ slug: string }>): Promise<void> {
-    for (const tr of translations) {
-      await this.redis.delPattern(`blog:${websiteId}:${tr.slug}:*`);
-    }
-    await this.redis.delPattern(`blogs:${websiteId}:*`);
-    await this.redis.delPattern(`search:${websiteId}:*`);
+    // P1: O(1) namespace-generation bumps replace per-slug SCAN delPattern calls
+    // (SCAN on every publish was the #1 Redis bottleneck under traffic).
+    void translations;
+    await this.redis.invalidateNamespace('blog');
+    await this.redis.invalidateNamespace('blogs');
+    await this.redis.invalidateNamespace('search');
     await this.redis.delPattern('admin:blogs:*');
     await this.redis.del(`redirects:${websiteId}`);
     await this.redis.delPattern('admin:redirects:*');
@@ -774,7 +775,6 @@ export class BlogsService {
 
     // TRD §13: Invalidate all cache keys for this blog and lists
     await this.invalidateCache(blog.websiteId, blog.translations);
-    await this.redis.delPattern(`blogs:${blog.websiteId}:*`);
 
     // Dispatch revalidation webhook if article was published
     if (blog.status === 'Published') {

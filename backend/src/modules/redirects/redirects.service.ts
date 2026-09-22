@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisProvider } from '../../common/providers/redis.provider';
 import { CreateRedirectDto } from './dto/redirect.dto';
@@ -57,7 +57,7 @@ export class RedirectsService {
 
     // Invalidate Redis caches
     await this.redis.del(`redirects:${dto.websiteId}`);
-    await this.redis.delPattern(`blog:${dto.websiteId}:${cleanFrom}:*`);
+    await this.redis.invalidateNamespace('blog');
     await this.redis.delPattern('admin:redirects:*');
 
     // Record in audit log
@@ -85,7 +85,7 @@ export class RedirectsService {
 
     // Invalidate Redis caches
     await this.redis.del(`redirects:${redirect.websiteId}`);
-    await this.redis.delPattern(`blog:${redirect.websiteId}:${redirect.fromSlug}:*`);
+    await this.redis.invalidateNamespace('blog');
     await this.redis.delPattern('admin:redirects:*');
 
     await this.prisma.systemAuditLog.create({

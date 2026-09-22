@@ -1,7 +1,32 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 
 const prisma = new PrismaClient();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bootstrap secrets are NEVER hardcoded.
+//   Priority: explicit env var → secure random value (printed ONCE at the end).
+//   SEED_DEMO_PASSWORD   → single password applied to every demo user
+//   SEED_API_KEY_<SITE>  → per-tenant API key override
+// ─────────────────────────────────────────────────────────────────────────────
+const generatedSecrets: string[] = [];
+
+function seedPassword(email: string): string {
+  const fromEnv = process.env.SEED_DEMO_PASSWORD?.trim();
+  if (fromEnv) return fromEnv;
+  const pw = `Jup-${crypto.randomBytes(12).toString('base64url')}!`;
+  generatedSecrets.push(`password ${email} → ${pw}`);
+  return pw;
+}
+
+function seedApiKey(envKey: string, prefix: string): string {
+  const fromEnv = process.env[envKey]?.trim();
+  if (fromEnv) return fromEnv;
+  const key = `${prefix}${crypto.randomBytes(16).toString('hex')}`;
+  generatedSecrets.push(`apiKey ${envKey} → ${key}`);
+  return key;
+}
 
 async function main() {
   if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_SEED) {
@@ -32,7 +57,7 @@ async function main() {
       domain: 'cloud.jupsoft.com',
       logoUrl: '/uploads/logos/jupsoft-cloud-logo.webp',
       description: 'Enterprise Cloud ERP, Distributed Systems & AI Infrastructure.',
-      apiKey: 'jup_live_sec_cloud_9934afbc82a104',
+      apiKey: seedApiKey('SEED_API_KEY_SITE_CLOUD', 'jup_live_sec_cloud_'),
       s3Prefix: 'blogs/cloud/',
       status: 'active',
       defaultLanguage: 'en',
@@ -45,7 +70,7 @@ async function main() {
       domain: 'digifynext.com',
       logoUrl: '/uploads/logos/digifynext-growth-logo.webp',
       description: 'Performance SEO, Conversion Funnels & Growth Marketing Analytics.',
-      apiKey: 'digi_live_sec_growth_8821ecde71a209',
+      apiKey: seedApiKey('SEED_API_KEY_SITE_GROWTH', 'jup_live_sec_growth_'),
       s3Prefix: 'blogs/growth/',
       status: 'active',
       defaultLanguage: 'en',
@@ -58,7 +83,7 @@ async function main() {
       domain: 'schoolerp.in',
       logoUrl: '/uploads/logos/school-erp-logo.webp',
       description: 'K-12 School Management, Exam Portals & Student Information Systems.',
-      apiKey: 'erp_live_sec_edtech_7710bba190c301',
+      apiKey: seedApiKey('SEED_API_KEY_SITE_EDTECH', 'jup_live_sec_edtech_'),
       s3Prefix: 'blogs/edtech/',
       status: 'active',
       defaultLanguage: 'en',
@@ -78,7 +103,7 @@ async function main() {
       id: 'usr-superadmin',
       name: 'Aarav Sharma (Super Admin)',
       email: 'superadmin@jupsoft.com',
-      password: 'Jupsoft#SuperAdmin2026!$',
+      password: seedPassword('superadmin@jupsoft.com'),
       avatar: '/uploads/avatars/avatar-1.webp',
       status: 'active',
       lastLoginIp: '192.168.1.1',
@@ -93,7 +118,7 @@ async function main() {
       id: 'usr-admin-alias',
       name: 'Aarav Sharma (Admin Alias)',
       email: 'admin@jupsoft.com',
-      password: 'Jupsoft#SuperAdmin2026!$',
+      password: seedPassword('admin@jupsoft.com'),
       avatar: '/uploads/avatars/avatar-1.webp',
       status: 'active',
       lastLoginIp: '192.168.1.1',
@@ -108,7 +133,7 @@ async function main() {
       id: 'usr-siteadmin-cloud',
       name: 'Rohit Verma (Cloud Admin)',
       email: 'admin@cloud.jupsoft.com',
-      password: 'CloudAdmin#Jupsoft2026@',
+      password: seedPassword('admin@cloud.jupsoft.com'),
       avatar: '/uploads/avatars/avatar-2.webp',
       status: 'active',
       lastLoginIp: '192.168.1.15',
@@ -120,7 +145,7 @@ async function main() {
       id: 'usr-siteadmin-growth',
       name: 'Neha Kapoor (Growth Admin)',
       email: 'admin@digifynext.com',
-      password: 'GrowthAdmin#Digify2026%',
+      password: seedPassword('admin@digifynext.com'),
       avatar: '/uploads/avatars/avatar-3.webp',
       status: 'active',
       lastLoginIp: '10.0.1.22',
@@ -132,7 +157,7 @@ async function main() {
       id: 'usr-siteadmin-edtech',
       name: 'Rajesh Nair (School ERP Admin)',
       email: 'admin@schoolerp.in',
-      password: 'SchoolAdmin#EdTech2026^',
+      password: seedPassword('admin@schoolerp.in'),
       avatar: '/uploads/avatars/avatar-4.webp',
       status: 'active',
       lastLoginIp: '10.0.2.33',
@@ -144,7 +169,7 @@ async function main() {
       id: 'usr-roleadmin-editor',
       name: 'Sameer Joshi (Lead Editor)',
       email: 'lead.editor@jupsoft.com',
-      password: 'LeadEditor#Jupsoft2026!',
+      password: seedPassword('lead.editor@jupsoft.com'),
       avatar: '/uploads/avatars/avatar-4.webp',
       status: 'active',
       lastLoginIp: '192.168.1.42',
@@ -156,7 +181,7 @@ async function main() {
       id: 'usr-editor',
       name: 'Priya Sen (Editor)',
       email: 'editor@jupsoft.com',
-      password: 'Editor#Jupsoft2026!',
+      password: seedPassword('editor@jupsoft.com'),
       avatar: '/uploads/avatars/avatar-5.webp',
       status: 'active',
       lastLoginIp: '192.168.1.55',
@@ -168,7 +193,7 @@ async function main() {
       id: 'usr-writer',
       name: 'Ananya Roy (Content Writer)',
       email: 'writer@jupsoft.com',
-      password: 'Writer#Jupsoft2026!',
+      password: seedPassword('writer@jupsoft.com'),
       avatar: '/uploads/avatars/avatar-6.webp',
       status: 'active',
       lastLoginIp: '192.168.1.88',
@@ -180,7 +205,7 @@ async function main() {
       id: 'usr-seo',
       name: 'Vikram Mehta (SEO Manager)',
       email: 'seo@jupsoft.com',
-      password: 'SeoManager#Jupsoft2026!',
+      password: seedPassword('seo@jupsoft.com'),
       avatar: '/uploads/avatars/avatar-7.webp',
       status: 'active',
       lastLoginIp: '192.168.1.99',
@@ -193,7 +218,7 @@ async function main() {
       id: 'usr-publisher',
       name: 'Karan Malhotra (Publisher)',
       email: 'publisher@jupsoft.com',
-      password: 'Publisher#Jupsoft2026!',
+      password: seedPassword('publisher@jupsoft.com'),
       avatar: '/uploads/avatars/avatar-8.webp',
       status: 'active',
       lastLoginIp: '192.168.1.101',
@@ -228,7 +253,7 @@ async function main() {
       });
     }
   }
-  console.log('✅ Seeded ' + users.length + ' enterprise users with distinct passwords across Super Admin, Website Admin, Role Admin, and Contributor tiers.');
+  console.log('✅ Seeded ' + users.length + ' enterprise users across Super Admin, Website Admin, Role Admin, and Contributor tiers.');
 
   // 4. Seed Taxonomy: Categories & Tags for all 3 Sites
   const categories = [
@@ -828,6 +853,12 @@ async function main() {
       details: 'Initialized 3 isolated multi-tenant websites with hierarchical RBAC delegates.',
     },
   });
+
+  if (generatedSecrets.length > 0) {
+    console.warn('\n🔑 GENERATED SECRETS — SHOWN ONCE ONLY. Copy them now (or pre-set the matching env vars and re-seed):');
+    for (const line of generatedSecrets) console.warn('   ' + line);
+    console.warn('');
+  }
 
   console.log('🎉 Database seeding completed successfully! All 3 SaaS test websites are live and ready.');
 }

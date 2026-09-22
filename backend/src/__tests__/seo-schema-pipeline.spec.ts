@@ -41,6 +41,8 @@ describe('Pipeline: SEO, Schema.org JSON-LD & Consumer Delivery (TRD §11, §12)
     ping: jest.fn().mockResolvedValue(true),
     bufferViewIncrement: jest.fn().mockResolvedValue(undefined),
     drainViewCountBuffer: jest.fn().mockResolvedValue({}),
+    nsKey: jest.fn(async (ns: string, suffix: string) => `${ns}:g0:${suffix}`),
+    invalidateNamespace: jest.fn(),
   };
 
   const mockConfig = {

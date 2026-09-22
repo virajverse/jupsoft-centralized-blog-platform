@@ -48,7 +48,6 @@ export function sanitizeContent(html: string): string {
 
 @Injectable()
 export class HtmlSanitizePipe implements PipeTransform {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   transform(value: unknown, _metadata: ArgumentMetadata) {
     if (typeof value === 'string') {
       return sanitizeContent(value);

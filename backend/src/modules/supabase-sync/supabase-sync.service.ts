@@ -30,7 +30,7 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
     const isPrimaryDbSupabase =
       dbUrl.includes('supabase.co') || dbUrl.includes('supabase.com') || dbUrl.includes('pooler.supabase');
 
-    let targetUrl = '';
+    let targetUrl: string;
     if (isPrimaryDbSupabase) {
       targetUrl = localUrl;
       this.mirrorTargetName = 'Local PostgreSQL (localhost:5432)';

@@ -54,8 +54,11 @@ export class RedisProvider implements OnModuleDestroy {
         connectTimeout: 1000,           // Fast 1s timeout
         maxRetriesPerRequest: 1,        // Fail fast to memory cache
         retryStrategy: (times) => {
-          if (times > 5) return null;   // Stop reconnect attempts after 5 tries, rely on L1
-          return Math.min(times * 300, 2000);
+          // P0 Fix (C4): NEVER return null — that permanently ends the
+          // connection (L2 dead until process restart → all traffic falls
+          // through to Postgres). Back off forever with a 5s ceiling instead,
+          // so Redis self-heals after blips/restarts.
+          return Math.min(times * 500, 5000);
         },
       });
 
@@ -214,6 +217,65 @@ export class RedisProvider implements OnModuleDestroy {
         } while (cursor !== '0');
       } catch (err) {}
     }
+  }
+
+  // ─── P1: O(1) Namespace-Generation Cache Keys ─────────────────────────────
+  //
+  // Instead of SCAN-based delPattern invalidation (O(keyspace) on every
+  // publish — the #1 Redis bottleneck under traffic), keys embed the current
+  // namespace generation:  `blog:g12:site-1:my-slug:en`
+  // Invalidating = INCR the generation counter (O(1)). Old-generation keys
+  // become unreachable instantly and expire naturally via their TTL.
+
+  /** Per-process fallback generation (used when Redis L2 is offline). */
+  private readonly memoryGenerations = new Map<string, number>();
+
+  private generationKey(namespace: string): string {
+    return `gen:${namespace}`;
+  }
+
+  /** Current generation for a namespace (Redis-backed so all PM2 workers agree). */
+  async getGeneration(namespace: string): Promise<number> {
+    if (this.client && this.isConnected) {
+      try {
+        const raw = await this.client.get(this.generationKey(namespace));
+        if (raw !== null) {
+          const gen = parseInt(raw, 10);
+          if (!Number.isNaN(gen)) return gen;
+        }
+      } catch (err) {
+        // fall through to process-local generation
+      }
+    }
+    return this.memoryGenerations.get(namespace) || 0;
+  }
+
+  /**
+   * Build a generation-prefixed cache key for a namespace.
+   * Reads are O(1) GET; no SCAN ever needed for invalidation.
+   */
+  async nsKey(namespace: string, suffix: string): Promise<string> {
+    const gen = await this.getGeneration(namespace);
+    return `${namespace}:g${gen}:${suffix}`;
+  }
+
+  /**
+   * O(1) invalidation of an entire namespace (e.g. all `blog:` list/detail
+   * entries). Atomic INCR on Redis so every cluster worker sees it instantly;
+   * falls back to a process-local bump when Redis is offline.
+   */
+  async invalidateNamespace(namespace: string): Promise<void> {
+    if (this.client && this.isConnected) {
+      try {
+        const next = await this.client.incr(this.generationKey(namespace));
+        this.memoryGenerations.set(namespace, next);
+        return;
+      } catch (err) {
+        // fall through to process-local bump
+      }
+    }
+    const next = (this.memoryGenerations.get(namespace) || 0) + 1;
+    this.memoryGenerations.set(namespace, next);
   }
 
   /**

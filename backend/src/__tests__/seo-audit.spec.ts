@@ -16,7 +16,13 @@ const mockPrisma = {
   $transaction: jest.fn(async (fn: any) => fn(mockPrisma)),
   $executeRawUnsafe: jest.fn(),
 };
-const mockRedis = { get: jest.fn(() => null), set: jest.fn(), delPattern: jest.fn() };
+const mockRedis = {
+  get: jest.fn(() => null),
+  set: jest.fn(),
+  delPattern: jest.fn(),
+  nsKey: jest.fn(async (ns: string, suffix: string) => `${ns}:g0:${suffix}`),
+  invalidateNamespace: jest.fn(),
+};
 const mockWebhook = { dispatchWebhook: jest.fn() };
 const mockEmail = { sendWorkflowNotification: jest.fn() };
 const mockSupabase = { syncBlog: jest.fn() };

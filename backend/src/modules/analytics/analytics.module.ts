@@ -10,9 +10,12 @@
 import { Module } from '@nestjs/common';
 import { PublicAnalyticsController, AdminAnalyticsController } from './analytics.controller';
 import { AnalyticsService } from './analytics.service';
+import { ApiKeyThrottlerGuard } from '../../common/guards/api-key-throttler.guard';
 
 @Module({
-  providers: [AnalyticsService],
+  // P0 Fix (C3): ApiKeyThrottlerGuard registered for the /v1/track endpoint
+  // (replaces the old @SkipThrottle which allowed unlimited anonymous INSERTs)
+  providers: [AnalyticsService, ApiKeyThrottlerGuard],
   controllers: [PublicAnalyticsController, AdminAnalyticsController],
 })
 export class AnalyticsModule {}

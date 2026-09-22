@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Ip } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { BlogsService } from './blogs.service';
-import { CreateBlogDto, UpdateBlogDto, TransitionBlogStatusDto } from './dto/create-blog.dto';
+import { CreateBlogDto, UpdateBlogDto } from './dto/create-blog.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -37,8 +37,9 @@ export class BlogsController {
         status,
         search,
         authorId,
-        page: page ? Number(page) : 1,
-        limit: limit ? Number(limit) : 20,
+        page: page ? Math.max(1, Number(page) || 1) : 1,
+        // P0 Fix (C8): clamp limit — previously ?limit=1000000 ran unbounded findMany
+        limit: Math.max(1, Math.min(Number(limit) || 20, 100)),
       },
       user,
     );

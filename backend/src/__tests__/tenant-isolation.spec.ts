@@ -6,7 +6,7 @@
  */
 import { BlogsService } from '../modules/blogs/blogs.service';
 import { MediaService } from '../modules/media/media.service';
-import { NotFoundException, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 
 // ─── 1. BlogsService Tenant Isolation ──────────────────────────────────────
 
@@ -32,7 +32,15 @@ const mockPrisma = {
   $executeRawUnsafe: jest.fn(),
 };
 
-const mockRedis = { get: jest.fn(() => null), set: jest.fn(), del: jest.fn(), delPattern: jest.fn() };
+const mockRedis = {
+  get: jest.fn(() => null),
+  set: jest.fn(),
+  del: jest.fn(),
+  delPattern: jest.fn(),
+  nsKey: jest.fn(async (ns: string, suffix: string) => `${ns}:g0:${suffix}`),
+  invalidateNamespace: jest.fn(),
+  acquireLock: jest.fn().mockResolvedValue(true),
+};
 const mockWebhook = { dispatchWebhook: jest.fn().mockResolvedValue(undefined) };
 const mockEmail = { sendWorkflowNotification: jest.fn() };
 const mockSupabase = {

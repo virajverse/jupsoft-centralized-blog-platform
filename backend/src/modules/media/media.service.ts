@@ -12,7 +12,7 @@
  * TRD §10 S3 Layout: s3://<bucket>/blogs/<website>/<yyyy>/<mm>/<file>
  */
 
-import { Injectable, NotFoundException, Logger, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, BadRequestException, ForbiddenException, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisProvider } from '../../common/providers/redis.provider';
@@ -33,6 +33,9 @@ export class MediaService {
   private s3Client: S3Client;
   private bucket: string;
   private cdnDomain: string;
+  private isProduction = false;
+  private isTest = false;
+  private hasAwsCredentials = false;
 
   constructor(
     private prisma: PrismaService,
@@ -42,23 +45,35 @@ export class MediaService {
     const region = this.configService.get<string>('AWS_REGION') || 'ap-south-1';
     const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID') || '';
     const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY') || '';
+    const nodeEnv = this.configService.get<string>('NODE_ENV') || 'development';
+
+    this.isProduction = nodeEnv === 'production';
+    this.isTest = nodeEnv === 'test';
+    this.hasAwsCredentials = Boolean(accessKeyId && secretAccessKey);
+
+    // ── Production refuses mock/local-only storage (no silent fallbacks) ──
+    if (this.isProduction && !this.hasAwsCredentials) {
+      throw new Error(
+        '[FATAL] AWS S3 credentials (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY) are not configured. ' +
+          'Production will NOT run with local-only/mock media storage — configure real credentials.',
+      );
+    }
 
     this.bucket = this.configService.get<string>('AWS_S3_BUCKET') || 'jupsoft-blogs-storage';
     const envCdn = this.configService.get<string>('CLOUDFRONT_DOMAIN');
-    const nodeEnv = this.configService.get<string>('NODE_ENV') || 'development';
     const platformBase = this.configService.get<string>('PLATFORM_BASE_URL') || 'https://blogary.jupsoft.com';
 
     // Auto-fallback: if CLOUDFRONT_DOMAIN points to the inactive cdn.jupsoft.com domain, route through active platform uploads
     if (envCdn && !envCdn.includes('cdn.jupsoft.com')) {
       this.cdnDomain = envCdn.replace(/\/+$/, '');
-    } else if (nodeEnv === 'production') {
+    } else if (this.isProduction) {
       this.cdnDomain = `${platformBase.replace(/\/+$/, '')}/uploads`;
     } else {
       this.cdnDomain = 'http://localhost:4000/uploads';
     }
 
     const s3Config: any = { region };
-    if (accessKeyId && !accessKeyId.startsWith('mock_')) {
+    if (this.hasAwsCredentials) {
       s3Config.credentials = { accessKeyId, secretAccessKey };
     }
     this.s3Client = new S3Client(s3Config);
@@ -85,7 +100,7 @@ export class MediaService {
     const s3Key = `blogs/${tenantSlug}/${year}/${month}/${cleanFileName}`;
     const cdnUrl = `${this.cdnDomain}/${s3Key}`;
 
-    let presignedUrl = `https://${this.bucket}.s3.amazonaws.com/${s3Key}?mock_signature=true`;
+    let presignedUrl: string;
 
     try {
       const command = new PutObjectCommand({
@@ -95,7 +110,10 @@ export class MediaService {
       });
       presignedUrl = await getSignedUrl(this.s3Client, command, { expiresIn: 900 });
     } catch (err) {
-      this.logger.warn(`Could not sign actual AWS URL (mock credentials). Using fallback: ${(err as Error).message}`);
+      // No mock URL fallback — a fake upload URL would silently break media storage.
+      throw new InternalServerErrorException(
+        `Failed to sign S3 upload URL: ${(err as Error).message}. Check AWS credentials and bucket configuration.`,
+      );
     }
 
     return { uploadUrl: presignedUrl, s3Key, cdnUrl, fileName: cleanFileName, fileType: dto.fileType };
@@ -227,7 +245,7 @@ export class MediaService {
     const cleanKey = s3Key.replace(/^\/+/, '');
     const cdnUrl = `${this.cdnDomain}/${cleanKey}`;
 
-    // 1. Always save a copy locally on disk for local dev / testing serving
+    // 1. Always save a copy locally on disk (served via /uploads in dev & as durable fallback)
     try {
       const uploadsDir = join(process.cwd(), 'uploads');
       const targetPath = join(uploadsDir, cleanKey);
@@ -241,19 +259,34 @@ export class MediaService {
       this.logger.warn(`Could not save local copy for ${cleanKey}: ${(fsErr as Error).message}`);
     }
 
-    // 2. Upload to S3 if live AWS credentials exist
-    const accessKey = this.configService.get<string>('AWS_ACCESS_KEY_ID') || '';
-    if (accessKey && !accessKey.startsWith('mock_')) {
-      try {
-        await this.s3Client.send(new PutObjectCommand({
-          Bucket: this.bucket,
-          Key: cleanKey,
-          Body: buffer,
-          ContentType: contentType,
-        }));
-      } catch (err) {
-        this.logger.warn(`S3 upload skipped (mock credentials): ${(err as Error).message}`);
+    // 2. Production MUST have durable S3 storage — no silent skip.
+    if (!this.hasAwsCredentials) {
+      if (this.isProduction) {
+        throw new InternalServerErrorException(
+          'AWS S3 credentials are not configured — refusing to accept media uploads without durable storage.',
+        );
       }
+      this.logger.warn(`S3 upload skipped (AWS credentials not configured — dev only): ${cleanKey}`);
+      return cdnUrl;
+    }
+
+    // 3. Unit tests run hermetically (no network); integration tests should override NODE_ENV.
+    if (this.isTest) {
+      return cdnUrl;
+    }
+
+    // 4. Real S3 upload — failures surface loudly instead of returning a CDN URL for a file that does not exist.
+    try {
+      await this.s3Client.send(new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: cleanKey,
+        Body: buffer,
+        ContentType: contentType,
+      }));
+    } catch (err) {
+      throw new InternalServerErrorException(
+        `S3 upload failed for "${cleanKey}": ${(err as Error).message}`,
+      );
     }
     return cdnUrl;
   }
@@ -315,24 +348,18 @@ export class MediaService {
       },
     });
 
-    // In local / dev mode, ensure a valid file exists on disk
+    // No fabricated placeholder files — if the asset is genuinely missing, log it loudly.
     try {
       const cleanKey = s3Key.replace(/^\/+/, '');
       const uploadsDir = join(process.cwd(), 'uploads');
       const targetPath = join(uploadsDir, cleanKey);
       if (!fs.existsSync(targetPath)) {
-        const targetDir = dirname(targetPath);
-        if (!fs.existsSync(targetDir)) {
-          fs.mkdirSync(targetDir, { recursive: true });
-        }
-        const svg = `<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
-          <rect width="100%" height="100%" fill="#4f46e5"/>
-          <text x="50%" y="50%" font-size="20" fill="#ffffff" font-family="sans-serif" font-weight="bold" text-anchor="middle" dy=".3em">${dto.fileName}</text>
-        </svg>`;
-        await sharpFn(Buffer.from(svg)).webp({ quality: 80 }).toFile(targetPath);
+        this.logger.warn(
+          `Media file not found on local disk for "${cleanKey}" — expected to exist in S3/CDN. Record registered without a local copy.`,
+        );
       }
     } catch (diskErr) {
-      this.logger.warn(`Could not ensure local asset for ${s3Key}: ${(diskErr as Error).message}`);
+      this.logger.warn(`Could not verify local asset for ${s3Key}: ${(diskErr as Error).message}`);
     }
 
     // Invert media cache
