@@ -257,7 +257,7 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto min-h-[200px]">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/60 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider h-8">
@@ -279,11 +279,15 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                {paginatedBlogs.map((blog) => {
+                {paginatedBlogs.map((blog, idx) => {
                   const isChecked = selectedIds.includes(blog.id);
                   const defaultTrans = blog.translations['en'] || Object.values(blog.translations)[0];
                   const tenant = websites.find((w) => w.id === blog.websiteId);
                   const availableLangs = ALL_LANGUAGES.filter((l) => blog.translations[l]);
+
+                  // Smart dropdown positioning to avoid clipping
+                  const isLastItems = idx >= paginatedBlogs.length - 2 && paginatedBlogs.length > 2;
+                  const dropdownPositionClass = isLastItems ? 'bottom-full mb-1' : 'top-7 mt-1';
 
                   return (
                     <tr
@@ -427,7 +431,7 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
                             </button>
                             
                             {openDropdownId === blog.id && (
-                              <div className="absolute right-0 top-7 mt-1 w-32 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-50">
+                              <div className={`absolute right-0 w-32 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-50 ${dropdownPositionClass}`}>
                                 <button
                                   type="button"
                                   onClick={async () => {
