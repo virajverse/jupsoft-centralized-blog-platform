@@ -270,6 +270,7 @@ export class PublicV1Service {
         tags: tags,
         categoryIds: b.categoryIds || [],
         tagIds: b.tagIds || [],
+        translations: b.translations || [],
         // TRD §11 SEO fields
         seo: {
           metaTitle: translation.metaTitle || translation.title,
