@@ -46,10 +46,18 @@ function LoginInner() {
       ? 'Your session has expired. Please sign in again.'
       : errorMsg;
 
+  // Only logout ONCE on initial mount if session was expired, NOT on subsequent re-renders after user clicks login!
+  const hasLoggedOutOnExpiredRef = React.useRef(false);
+
   React.useEffect(() => {
-    if (sessionExpired) {
-      // Zustand store is an external system — syncing it inside an effect is correct
+    if (sessionExpired && !hasLoggedOutOnExpiredRef.current) {
+      hasLoggedOutOnExpiredRef.current = true;
       useBlogStore.getState().logout();
+      return;
+    }
+
+    // If user arrived with session=expired and hasn't logged in yet, do not attempt auto-redirect
+    if (sessionExpired && !sessionExpiredHandled) {
       return;
     }
 
@@ -58,7 +66,7 @@ function LoginInner() {
         .split('; ')
         .find((c) => c.startsWith('jupsoft_auth_token='))
         ?.split('=')[1];
-      return cookieToken || localStorage.getItem('jupsoft_auth_token');
+      return cookieToken || (typeof localStorage !== 'undefined' ? localStorage.getItem('jupsoft_auth_token') : null);
     };
 
     const token = getActiveToken();
@@ -75,9 +83,9 @@ function LoginInner() {
         document.cookie = `jupsoft_auth_token=${token}; path=/; max-age=86400; SameSite=Lax`;
       }
       const redirect = searchParams.get('redirect') || '/dashboard';
-      router.replace(redirect);
+      window.location.href = redirect;
     }
-  }, [isAuthenticated, router, searchParams, sessionExpired]);
+  }, [isAuthenticated, searchParams, sessionExpired, sessionExpiredHandled]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,7 +103,8 @@ function LoginInner() {
       if (res.success) {
         const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
         const redirect = urlParams?.get('redirect') || '/dashboard';
-        router.push(redirect);
+        // Clean full navigation ensures cookies and storage hydrate immediately into the protected layout
+        window.location.href = redirect;
       } else {
         setErrorMsg(res.message || 'Authentication failed. Please check your credentials.');
       }

@@ -63,6 +63,7 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
   isLoading,
 }) => {
   const categories = useBlogStore((s) => s.categories);
+  const showNotification = useBlogStore((s) => s.showNotification);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -438,10 +439,22 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
                                     setOpenDropdownId(null);
                                     setDuplicatingId(blog.id);
                                     try {
-                                      await apiClient.duplicateBlog(blog.id);
+                                      const duplicatedBlog = await apiClient.duplicateBlog(blog.id);
+                                      if (duplicatedBlog && duplicatedBlog.id) {
+                                        useBlogStore.setState((state) => ({
+                                          blogs: [duplicatedBlog, ...state.blogs.filter((b) => b.id !== duplicatedBlog.id)],
+                                        }));
+                                      }
                                       await fetchBlogs();
-                                    } catch (err) {
+                                      if (selectedStatus !== 'All' && selectedStatus !== 'Draft') {
+                                        handleStatusChange('Draft');
+                                        showNotification('Blog duplicated! Switched to Drafts tab.', 'success');
+                                      } else {
+                                        showNotification('Blog duplicated successfully as Draft!', 'success');
+                                      }
+                                    } catch (err: any) {
                                       console.error(err);
+                                      showNotification(err?.message || 'Failed to duplicate blog', 'warning');
                                     } finally {
                                       setDuplicatingId(null);
                                     }

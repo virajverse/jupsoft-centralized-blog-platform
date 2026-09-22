@@ -71,6 +71,7 @@ import { createEmptySEO } from '../../data/initialData';
 import { canPublish, canApprove } from '../../utils/permissions';
 import { apiClient } from '../../services/apiClient';
 import { resolveMediaUrl, extractS3Key } from '../../utils/mediaUtils';
+import { resolveEffectiveWebsiteId } from '../../utils/tenantHelper';
 import { BlogEditorSkeleton } from './BlogEditorSkeleton';
 
 interface BlogTranslationPayload {
@@ -189,15 +190,14 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     return inStore || cachedBlogFromSession || null;
   }, [targetBlogId, blogs, cachedBlogFromSession]);
 
-  // Target website selection: scoped to existing post's site or current filter or fallback to first site
+  // Target website selection: scoped to existing post's site or dynamic effective site
   const [selectedWebsiteId, setSelectedWebsiteId] = useState<string>(() => {
     if (existingBlog?.websiteId) return existingBlog.websiteId;
-    if (activeWebsiteId && activeWebsiteId !== 'all') return activeWebsiteId;
-    return websites[0]?.id || 'site-cloud';
+    return resolveEffectiveWebsiteId(websites, activeWebsiteId, currentUser);
   });
 
   const activeSite = useMemo(
-    () => websites.find((w) => w.id === selectedWebsiteId) || websites[0] || { id: 'site-cloud', name: 'Jupsoft Cloud & ERP' },
+    () => websites.find((w) => w.id === selectedWebsiteId) || websites[0] || null,
     [websites, selectedWebsiteId]
   );
   const siteCategories = categories[selectedWebsiteId] || [];
@@ -741,7 +741,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   ...defaultTrans(l),
                   ...normTrans[l],
                   content: normTrans[l].content || '<p></p>',
-                  seo: normTrans[l].seo || createEmptySEO(),
+                  seo: { ...createEmptySEO(), ...(normTrans[l].seo || {}) },
                 };
               }
             });
@@ -969,7 +969,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
       const autoSavedBlog: any = {
         id: realId,
-        websiteId: selectedWebsiteId || (activeWebsiteId !== 'all' ? activeWebsiteId : 'site-cloud'),
+        websiteId: selectedWebsiteId || resolveEffectiveWebsiteId(websites, activeWebsiteId, currentUser),
         authorId: authorMode === 'user' ? selectedAuthorId : 'usr-custom',
         authorName: authorName.trim() || cleanCurrentName,
         authorAvatar: authorAvatar || '/uploads/avatars/avatar-default.webp',
@@ -1173,7 +1173,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
     setUploadingImage(true);
     const cleanName = file.name.replace(/\.[^/.]+$/, '') + '.webp';
-    const uploadSiteId = selectedWebsiteId || activeWebsiteId || 'site-cloud';
+    const uploadSiteId = selectedWebsiteId || resolveEffectiveWebsiteId(websites, activeWebsiteId, currentUser);
     const uploadSite = websites.find((w) => w.id === uploadSiteId) || websites[0];
 
     try {
@@ -1273,7 +1273,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       return;
     }
 
-    const targetSiteId = selectedWebsiteId || (activeWebsiteId !== 'all' ? activeWebsiteId : 'site-cloud');
+    const targetSiteId = selectedWebsiteId || resolveEffectiveWebsiteId(websites, activeWebsiteId, currentUser);
     const baseBlog = initialBlogRef.current || existingBlog;
     const isCurrentlyPublished = baseBlog?.status === 'Published' || status === 'Published';
     const id = baseBlog?.id || `blog-${Date.now()}`;
@@ -3289,7 +3289,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => {
-                        const url = `https://${activeSite?.domain || 'company.com'}/blog/${activeTrans.slug || 'article'}`;
+                        const rawDomain = activeSite?.domain || (typeof window !== 'undefined' ? window.location.host : 'localhost');
+                        const domain = rawDomain.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+                        const url = `https://${domain}/blog/${activeTrans.slug || 'article'}`;
                         navigator.clipboard?.writeText(url);
                         showNotification(`Blog link copied to clipboard: ${url}`, 'success');
                       }}
@@ -3320,7 +3322,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
               {/* Rendered HTML Content */}
               <div
-                className="prose prose-slate dark:prose-invert max-w-none text-sm sm:text-base leading-relaxed"
+                className="blog-preview-content prose max-w-none"
                 dangerouslySetInnerHTML={{ __html: activeTrans.content }}
               />
 

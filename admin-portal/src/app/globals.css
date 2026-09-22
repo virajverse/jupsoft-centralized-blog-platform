@@ -325,5 +325,294 @@ code, kbd, samp, pre, .font-mono {
   color: #64748b;
 }
 
+/* ==========================================================================
+   Realistic Enterprise Blog Reader & Preview Typography Engine
+   (Provides authentic Medium / SaaS Blog rendering with proper spacing)
+   ========================================================================== */
+.blog-preview-content,
+.blog-article-preview,
+.prose {
+  color: #334155;
+  font-size: 1.0625rem; /* 17px */
+  line-height: 1.85;
+  letter-spacing: -0.011em;
+}
 
+.dark .blog-preview-content,
+.dark .blog-article-preview,
+.dark .prose {
+  color: #cbd5e1;
+}
 
+/* Headings with clear hierarchy & breathing room */
+.blog-preview-content h1,
+.blog-article-preview h1,
+.prose h1 {
+  font-size: 2.25rem !important; /* 36px */
+  font-weight: 800 !important;
+  line-height: 1.25 !important;
+  margin-top: 2.75rem !important;
+  margin-bottom: 1.25rem !important;
+  color: #0f172a !important;
+  letter-spacing: -0.025em !important;
+}
+.dark .blog-preview-content h1,
+.dark .blog-article-preview h1,
+.dark .prose h1 {
+  color: #f8fafc !important;
+}
+
+.blog-preview-content h2,
+.blog-article-preview h2,
+.prose h2 {
+  font-size: 1.65rem !important; /* 26px */
+  font-weight: 750 !important;
+  line-height: 1.35 !important;
+  margin-top: 2.5rem !important;
+  margin-bottom: 1rem !important;
+  color: #0f172a !important;
+  letter-spacing: -0.02em !important;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.7) !important;
+  padding-bottom: 0.5rem !important;
+}
+.dark .blog-preview-content h2,
+.dark .blog-article-preview h2,
+.dark .prose h2 {
+  color: #f8fafc !important;
+  border-bottom-color: rgba(51, 65, 85, 0.6) !important;
+}
+
+.blog-preview-content h3,
+.blog-article-preview h3,
+.prose h3 {
+  font-size: 1.35rem !important; /* 21px */
+  font-weight: 700 !important;
+  line-height: 1.4 !important;
+  margin-top: 2rem !important;
+  margin-bottom: 0.75rem !important;
+  color: #1e293b !important;
+  letter-spacing: -0.015em !important;
+}
+.dark .blog-preview-content h3,
+.dark .blog-article-preview h3,
+.dark .prose h3 {
+  color: #f1f5f9 !important;
+}
+
+.blog-preview-content h4,
+.blog-article-preview h4,
+.prose h4 {
+  font-size: 1.15rem !important;
+  font-weight: 650 !important;
+  line-height: 1.45 !important;
+  margin-top: 1.75rem !important;
+  margin-bottom: 0.5rem !important;
+  color: #1e293b !important;
+}
+.dark .blog-preview-content h4,
+.dark .blog-article-preview h4,
+.dark .prose h4 {
+  color: #e2e8f0 !important;
+}
+
+/* Paragraphs with readable spacing */
+.blog-preview-content p,
+.blog-article-preview p,
+.prose p {
+  margin-top: 0 !important;
+  margin-bottom: 1.4rem !important;
+  line-height: 1.85 !important;
+}
+
+/* Ordered & Unordered Lists with authentic bullet points & numbering */
+.blog-preview-content ul,
+.blog-article-preview ul,
+.prose ul {
+  list-style-type: disc !important;
+  padding-left: 2rem !important;
+  margin-top: 1rem !important;
+  margin-bottom: 1.5rem !important;
+}
+
+.blog-preview-content ol,
+.blog-article-preview ol,
+.prose ol {
+  list-style-type: decimal !important;
+  padding-left: 2rem !important;
+  margin-top: 1rem !important;
+  margin-bottom: 1.5rem !important;
+}
+
+.blog-preview-content li,
+.blog-article-preview li,
+.prose li {
+  margin-top: 0.45rem !important;
+  margin-bottom: 0.45rem !important;
+  padding-left: 0.35rem !important;
+  line-height: 1.75 !important;
+}
+
+.blog-preview-content li > p,
+.blog-article-preview li > p,
+.prose li > p {
+  margin-bottom: 0.45rem !important;
+}
+
+/* Bold & Strong text */
+.blog-preview-content strong,
+.blog-preview-content b,
+.blog-article-preview strong,
+.blog-article-preview b,
+.prose strong,
+.prose b {
+  font-weight: 700 !important;
+  color: #0f172a !important;
+}
+.dark .blog-preview-content strong,
+.dark .blog-preview-content b,
+.dark .blog-article-preview strong,
+.dark .blog-article-preview b,
+.dark .prose strong,
+.dark .prose b {
+  color: #f8fafc !important;
+}
+
+/* Blockquotes with accent line & soft tint */
+.blog-preview-content blockquote,
+.blog-article-preview blockquote,
+.prose blockquote {
+  border-left: 4px solid #6366f1 !important;
+  background: rgba(99, 102, 241, 0.05) !important;
+  padding: 1rem 1.5rem !important;
+  border-radius: 0 0.75rem 0.75rem 0 !important;
+  margin: 1.75rem 0 !important;
+  font-style: italic !important;
+  color: #475569 !important;
+}
+.dark .blog-preview-content blockquote,
+.dark .blog-article-preview blockquote,
+.dark .prose blockquote {
+  border-left-color: #818cf8 !important;
+  background: rgba(99, 102, 241, 0.1) !important;
+  color: #94a3b8 !important;
+}
+
+/* Code & Preformatted Blocks */
+.blog-preview-content pre,
+.blog-article-preview pre,
+.prose pre {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  padding: 1.25rem 1.5rem !important;
+  border-radius: 0.75rem !important;
+  margin: 1.75rem 0 !important;
+  overflow-x: auto !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 0.9rem !important;
+  line-height: 1.6 !important;
+}
+
+.blog-preview-content code:not(pre code),
+.blog-article-preview code:not(pre code),
+.prose code:not(pre code) {
+  background-color: rgba(99, 102, 241, 0.1) !important;
+  color: #4f46e5 !important;
+  padding: 0.2rem 0.45rem !important;
+  border-radius: 0.35rem !important;
+  font-size: 0.875em !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+}
+.dark .blog-preview-content code:not(pre code),
+.dark .blog-article-preview code:not(pre code),
+.dark .prose code:not(pre code) {
+  background-color: rgba(99, 102, 241, 0.2) !important;
+  color: #a5b4fc !important;
+}
+
+/* Hyperlinks */
+.blog-preview-content a,
+.blog-article-preview a,
+.prose a {
+  color: #4f46e5 !important;
+  text-decoration: underline !important;
+  text-underline-offset: 3px !important;
+  font-weight: 500 !important;
+}
+.blog-preview-content a:hover,
+.blog-article-preview a:hover,
+.prose a:hover {
+  color: #4338ca !important;
+}
+.dark .blog-preview-content a,
+.dark .blog-article-preview a,
+.dark .prose a {
+  color: #818cf8 !important;
+}
+.dark .blog-preview-content a:hover,
+.dark .blog-article-preview a:hover,
+.dark .prose a:hover {
+  color: #a5b4fc !important;
+}
+
+/* Media & Images */
+.blog-preview-content img,
+.blog-article-preview img,
+.prose img {
+  border-radius: 0.75rem !important;
+  margin: 2rem auto !important;
+  max-width: 100% !important;
+  height: auto !important;
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Dividers */
+.blog-preview-content hr,
+.blog-article-preview hr,
+.prose hr {
+  border: none !important;
+  border-top: 1px solid #e2e8f0 !important;
+  margin: 2.5rem 0 !important;
+}
+.dark .blog-preview-content hr,
+.dark .blog-article-preview hr,
+.dark .prose hr {
+  border-top-color: #334155 !important;
+}
+
+/* Tables */
+.blog-preview-content table,
+.blog-article-preview table,
+.prose table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 2rem 0 !important;
+  font-size: 0.95rem !important;
+}
+.blog-preview-content th,
+.blog-article-preview th,
+.prose th {
+  background-color: #f8fafc !important;
+  padding: 0.75rem 1rem !important;
+  font-weight: 700 !important;
+  text-align: left !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #0f172a !important;
+}
+.dark .blog-preview-content th,
+.dark .blog-article-preview th,
+.dark .prose th {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+.blog-preview-content td,
+.blog-article-preview td,
+.prose td {
+  padding: 0.75rem 1rem !important;
+  border: 1px solid #e2e8f0 !important;
+}
+.dark .blog-preview-content td,
+.dark .blog-article-preview td,
+.dark .prose td {
+  border-color: #334155 !important;
+}

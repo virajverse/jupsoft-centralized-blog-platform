@@ -33,7 +33,7 @@ interface ZohoDashboardViewProps {
   activeSite: Website;
   isAllSites: boolean;
   activeRole: UserRole;
-  currentUser: UserAccount;
+  currentUser: UserAccount | null;
   isLoading?: boolean;
 }
 
@@ -53,7 +53,7 @@ export const ZohoDashboardView: React.FC<ZohoDashboardViewProps> = ({
   activeRole,
   isLoading,
 }) => {
-  const setActiveWebsiteId = useBlogStore((s) => s.setActiveWebsiteId);
+  const setActiveWebsite = useBlogStore((s) => s.setActiveWebsite);
   const siteQuery = `?site=${activeWebsiteId}`;
 
   // Recent 8 blogs
@@ -404,7 +404,7 @@ export const ZohoDashboardView: React.FC<ZohoDashboardViewProps> = ({
                   return (
                     <div
                       key={site.id}
-                      onClick={() => setActiveWebsiteId(site.id)}
+                      onClick={() => setActiveWebsite(site.id)}
                       className={`flex items-center justify-between p-2 rounded-lg border transition-colors cursor-pointer ${
                         isSelected
                           ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/60'

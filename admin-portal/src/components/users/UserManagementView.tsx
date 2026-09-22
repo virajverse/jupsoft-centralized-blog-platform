@@ -270,7 +270,7 @@ _Please log in and update your password on your first sign-in._`;
   };
 
   // Invite Form state
-  const defaultInviteSite = activeWebsiteId !== 'all' ? activeWebsiteId : (visibleWebsites[0]?.id || websites[0]?.id || 'site-cloud');
+  const defaultInviteSite = activeWebsiteId !== 'all' ? activeWebsiteId : (visibleWebsites[0]?.id || websites[0]?.id || '');
   const [inviteName, setInviteName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteWebsiteId, setInviteWebsiteId] = useState<string>(defaultInviteSite);

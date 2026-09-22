@@ -59,30 +59,26 @@ export interface WebhookDeliveryLogItem {
 
 export function getApiBase(): string {
   const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  const backendPort = process.env.NEXT_PUBLIC_API_PORT || '4010';
+
+  // 1. In SSR / Node server context
   if (typeof window === 'undefined') {
-    return (envUrl || 'http://localhost:4010').replace(/\/+$/, '');
+    return (process.env.INTERNAL_API_URL || envUrl || `http://localhost:${backendPort}`).replace(/\/+$/, '');
   }
 
-  // 1. If explicit env URL is set to a remote domain or path
+  // 2. Explicit custom remote API URL (e.g. deployed separate API endpoint)
   if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
     return envUrl.replace(/\/+$/, '');
   }
 
-  // 2. If running on production blogary domain
-  if (window.location.hostname === 'blogary.jupsoft.com') {
-    return 'https://blogary.jupsoft.com';
+  // 3. In browser: standard ports (80 / 443) or reverse proxy setups (same origin)
+  if (!window.location.port || window.location.port === '80' || window.location.port === '443') {
+    return window.location.origin;
   }
 
-  // 3. If accessed via VPS IP or custom domain (not localhost)
-  const host = window.location.hostname;
-  if (host && host !== 'localhost' && host !== '127.0.0.1') {
-    if (!window.location.port || window.location.port === '80' || window.location.port === '443') {
-      return window.location.origin;
-    }
-    return `${window.location.protocol}//${host}:4010`;
-  }
-
-  return (envUrl || 'http://localhost:4010').replace(/\/+$/, '');
+  // 4. In browser: development port (e.g. Next.js on 3000 -> backend on configured port)
+  const host = window.location.hostname || 'localhost';
+  return `${window.location.protocol}//${host}:${backendPort}`;
 }
 
 export const API_BASE = getApiBase();
@@ -242,7 +238,7 @@ class ApiClient {
         // Refresh failed — force clean logout without loop
         if (typeof window !== 'undefined') {
           try {
-            ['jupsoft_cms_platform_store_v7', 'jupsoft_cms_platform_store_v6'].forEach((key) => {
+            ['jupsoft_blog_store', 'jupsoft_cms_platform_store_v7', 'jupsoft_cms_platform_store_v6'].forEach((key) => {
               const rawStore = localStorage.getItem(key);
               if (rawStore) {
                 const parsed = JSON.parse(rawStore);
@@ -401,7 +397,7 @@ class ApiClient {
       transArray.push(...blog.translations);
     }
 
-    const cleanWebsiteId = (blog.websiteId && blog.websiteId !== 'all') ? blog.websiteId : 'site-cloud';
+    const cleanWebsiteId = (blog.websiteId && blog.websiteId !== 'all') ? blog.websiteId : '';
 
     // Strictly whitelist only properties defined in CreateBlogDto / UpdateBlogDto
     const payload: Record<string, unknown> = {

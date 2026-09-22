@@ -109,7 +109,6 @@ export const ZohoSidebar: React.FC = () => {
       shortLabel: 'Blogs',
       fullLabel: 'Blogs',
       icon: FileText,
-      badge: displayedBlogs.length > 0 ? displayedBlogs.length : null,
       isActive: pathname.startsWith('/blogs'),
     },
     {

@@ -21,6 +21,7 @@ import {
   INITIAL_WEBSITES,
   INITIAL_MODULES
 } from '../data/initialData';
+import { resolveEffectiveWebsiteId } from '../utils/tenantHelper';
 
 
 interface BlogState {
@@ -331,7 +332,7 @@ export const useBlogStore = create<BlogState>()(
             let websiteId = get().activeWebsiteId;
             if (!isSuper) {
               if (websiteId === 'all' || !assignedWebsites.includes(websiteId)) {
-                websiteId = assignedWebsites[0] || 'site-cloud';
+                websiteId = resolveEffectiveWebsiteId(get().websites, null, user);
               }
             }
             
@@ -399,8 +400,8 @@ export const useBlogStore = create<BlogState>()(
         if (user && user.roleAssignments) {
           const assignedSites = Object.keys(user.roleAssignments).filter((k) => k !== 'all');
           if (id === 'all' || !user.roleAssignments[id]) {
-            const fallbackSiteId = assignedSites[0] || 'site-cloud';
-            const roleForSite = user.roleAssignments[fallbackSiteId] || activeRole;
+            const fallbackSiteId = resolveEffectiveWebsiteId(get().websites, null, user);
+            const roleForSite = (user.roleAssignments && user.roleAssignments[fallbackSiteId]) || activeRole;
             set({ activeWebsiteId: fallbackSiteId, activeRole: roleForSite as UserRole });
             return;
           }
@@ -456,9 +457,9 @@ export const useBlogStore = create<BlogState>()(
           const isClientTempId = !savedBlog.id || savedBlog.id.startsWith('new-') || savedBlog.id.startsWith('draft-') || savedBlog.id.startsWith('blog-');
           const exists = !isClientTempId || get().blogs.some((b) => b.id === savedBlog.id);
           if (exists) {
-            apiResult = await apiClient.updateBlog(savedBlog.id, savedBlog as Partial<Blog>);
+            apiResult = await apiClient.updateBlog(savedBlog.id, savedBlog as any);
           } else {
-            apiResult = await apiClient.createBlog(savedBlog as Partial<Blog>);
+            apiResult = await apiClient.createBlog(savedBlog as any);
           }
           set((state) => {
             const finalBlog = { ...savedBlog, ...apiResult };
@@ -723,7 +724,7 @@ export const useBlogStore = create<BlogState>()(
 
       addUser: async (user) => {
         try {
-          const targetWebsiteId = Object.keys(user.roleAssignments)[0] || 'site-cloud';
+          const targetWebsiteId = Object.keys(user.roleAssignments)[0] || resolveEffectiveWebsiteId(get().websites, get().activeWebsiteId, get().currentUser);
           const targetRole = Object.values(user.roleAssignments)[0] || 'Content Writer';
           const created = await apiClient.inviteUser({
             name: user.name,

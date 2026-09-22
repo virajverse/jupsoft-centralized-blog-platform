@@ -89,13 +89,16 @@ async function bootstrap() {
   const rawAllowedOrigins = configService.get<string>('ALLOWED_ORIGINS') || '';
   const allowAllOrigins = rawAllowedOrigins.trim() === '*' || rawAllowedOrigins.split(',').map((s) => s.trim()).includes('*');
   const staticAllowedOrigins = new Set(
-    (
-      rawAllowedOrigins ||
-      'http://localhost:3000,http://localhost:4000,http://localhost:4010,https://blogary.jupsoft.com,http://blogary.jupsoft.com,https://cms.jupsoft.com,https://api.cms.jupsoft.com,https://cloud.jupsoft.com,https://jupsoft.com,https://digifynext.com,https://schoolerp.in'
-    )
-      .split(',')
-      .map((o) => o.trim().toLowerCase().replace(/\/+$/, '')),
+    rawAllowedOrigins
+      ? rawAllowedOrigins.split(',').map((o) => o.trim().toLowerCase().replace(/\/+$/, ''))
+      : []
   );
+
+  const platformBaseUrl = configService.get<string>('PLATFORM_BASE_URL') || '';
+  let platformHost = '';
+  try {
+    if (platformBaseUrl) platformHost = new URL(platformBaseUrl).hostname.toLowerCase();
+  } catch {}
 
   // Dynamic In-Memory Cache for registered tenant domains (Zero DB query overhead)
   const prisma = app.get(PrismaService);
@@ -150,36 +153,28 @@ async function bootstrap() {
         return callback(null, false);
       }
 
-      // 3. Instant check for platform domain (*.jupsoft.com, blogary.jupsoft.com, static origins)
+      let hostname = '';
+      try {
+        const parsed = new URL(origin);
+        hostname = parsed.hostname.toLowerCase();
+      } catch {
+        hostname = normalizedOrigin.replace(/^https?:\/\//, '');
+      }
+
+      // 3. Instant check: Explicitly configured static origins or platform base domain
       if (
-        normalizedOrigin.includes('blogary.jupsoft.com') ||
-        normalizedOrigin.endsWith('.jupsoft.com') ||
-        normalizedOrigin === 'https://jupsoft.com' ||
-        normalizedOrigin === 'http://jupsoft.com' ||
-        staticAllowedOrigins.has(normalizedOrigin)
+        staticAllowedOrigins.has(normalizedOrigin) ||
+        (platformHost && (hostname === platformHost || hostname.endsWith(`.${platformHost}`))) ||
+        hostname.endsWith('.jupsoft.com') ||
+        hostname === 'jupsoft.com' ||
+        hostname.endsWith('.netlify.app') ||
+        hostname.endsWith('.vercel.app')
       ) {
         return callback(null, true);
       }
 
       // 4. Dynamic check for registered tenant websites in database (O(1) memory lookup)
       try {
-        let hostname = '';
-        try {
-          const parsed = new URL(origin);
-          hostname = parsed.hostname.toLowerCase();
-        } catch {
-          hostname = normalizedOrigin.replace(/^https?:\/\//, '');
-        }
-
-        if (
-          hostname.endsWith('.jupsoft.com') ||
-          hostname === 'jupsoft.com' ||
-          hostname.endsWith('.netlify.app') ||
-          hostname.endsWith('.vercel.app')
-        ) {
-          return callback(null, true);
-        }
-
         const tenantDomains = await getTenantDomains();
         if (tenantDomains.has(hostname) || tenantDomains.has(normalizedOrigin.replace(/^https?:\/\//, ''))) {
           return callback(null, true);

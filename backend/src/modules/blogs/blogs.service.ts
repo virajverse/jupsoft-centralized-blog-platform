@@ -541,7 +541,7 @@ export class BlogsService {
           // Only preserve old content if translation content was omitted (undefined)
           const effectiveContent = t.content !== undefined ? sanitizeContent(t.content) : (oldTrans?.content || '');
 
-          if (dto.isAutoSave && existing.status === 'Published') {
+          if (dto.isAutoSave && existing.status === 'Published' && tx.blogRevision) {
             // Draft over Published: Save to BlogRevision
             await tx.blogRevision.upsert({
               where: {
@@ -570,9 +570,11 @@ export class BlogsService {
             });
           } else {
             // Standard save/publish: Overwrite live BlogTranslation and delete any pending Draft Revisions
-            await tx.blogRevision.deleteMany({
-              where: { blogId: id, lang: t.lang },
-            });
+            if (tx.blogRevision) {
+              await tx.blogRevision.deleteMany({
+                where: { blogId: id, lang: t.lang },
+              });
+            }
 
             await tx.blogTranslation.upsert({
               where: {
@@ -888,6 +890,11 @@ export class BlogsService {
 
       return createdBlog;
     });
+
+    // Invalidate admin list caches so new duplicate appears immediately in all list queries
+    await this.redis.delPattern('admin:blogs:*');
+
+    return this.findOne(newBlogId);
   }
 
   async delete(id: string, user: AuthenticatedUser, ipAddress: string) {

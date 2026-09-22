@@ -100,7 +100,7 @@ export const AnalyticsView: React.FC = () => {
 
   useEffect(() => {
     let active = true;
-    const siteId = isFilteredSingleSite ? effectiveSiteId : (websites[0]?.id || 'site-cloud');
+    const siteId = isFilteredSingleSite ? effectiveSiteId : (websites[0]?.id || '');
     if (!siteId) return;
     const days = rangeParam === '7d' ? 7 : rangeParam === '30d' ? 30 : rangeParam === '90d' ? 90 : 365;
 
