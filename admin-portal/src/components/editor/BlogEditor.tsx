@@ -266,6 +266,8 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   const editorSyncedBlogIdRef = useRef<string | null>(null);
   const editorSyncedLangRef = useRef<LanguageCode | null>(null);
   const editorSyncedContentRef = useRef<string | null>(null);
+  const currentLangRef = useRef<LanguageCode>(currentLang);
+  currentLangRef.current = currentLang;
 
   const handleLanguageTabClick = (lang: LanguageCode) => {
     if (lang === currentLang) return;
@@ -284,8 +286,16 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         },
       }));
 
-      // 2. Set new content in editor OUTSIDE setTranslations state updater
-      const nextContent = translations[lang]?.content || '<p></p>';
+      // 2. Determine target language content:
+      // If the target language has not been authored or translated, enforce clean empty state ('<p></p>')
+      // NEVER allow English content to cross-contaminate an untranslated tab!
+      const targetTrans = translations[lang];
+      const enContent = translations['en']?.content || '';
+      const isUntranslated = !targetTrans?.title || (lang !== 'en' && targetTrans.content === enContent);
+      const nextContent = (!isUntranslated && targetTrans?.content && targetTrans.content !== '<p></p>')
+        ? targetTrans.content
+        : '<p></p>';
+
       editorSyncedLangRef.current = lang;
       editorSyncedContentRef.current = nextContent;
       editor.commands.setContent(nextContent);
@@ -464,11 +474,16 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       if (isInternalLangSwitchRef.current) {
         return;
       }
+      const activeLang = currentLangRef.current;
+      // Guard against stale HTML leaking during language transition
+      if (editorSyncedLangRef.current !== activeLang) {
+        return;
+      }
       const html = editor.getHTML();
       setTranslations((prev) => ({
         ...prev,
-        [currentLang]: {
-          ...(prev[currentLang] || defaultTrans(currentLang)),
+        [activeLang]: {
+          ...(prev[activeLang] || defaultTrans(activeLang)),
           content: html,
         },
       }));
@@ -698,6 +713,37 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [editor, handleOpenLinkModal]);
 
+  // Flush uncommitted edits directly to fast sessionStorage cache on immediate page refresh
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      const realId = existingBlog?.id || targetBlogId;
+      if (!realId || typeof window === 'undefined' || !editor) return;
+      try {
+        const currentHtml = editor.getHTML();
+        const base = initialBlogRef.current || existingBlog;
+        if (!base) return;
+        const fastBlog = {
+          ...base,
+          translations: {
+            ...translations,
+            [currentLang]: {
+              ...(translations[currentLang] || defaultTrans(currentLang)),
+              content: preserveEmptyParagraphs(currentHtml),
+            },
+          },
+        };
+        sessionStorage.setItem(`jupsoft_editing_blog_${realId}`, JSON.stringify(fastBlog));
+      } catch {}
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handleBeforeUnload);
+    };
+  }, [existingBlog, targetBlogId, editor, translations, currentLang, defaultTrans]);
+
   // Load full blog detail from backend API once on initial mount (never during typing)
   const [isLoadingFullBlog, setIsLoadingFullBlog] = useState(false);
   const loadedBlogIdRef = useRef<string | null>(null);
@@ -793,43 +839,41 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   useEffect(() => {
     if (!editor) return;
 
-    // Case 1: Active language switched via external URL change
+    // Case 1: Active language switched via external URL change or internal tab click
     if (prevLangRef.current !== currentLang) {
       prevLangRef.current = currentLang;
-      if (isInternalLangSwitchRef.current) {
-        isInternalLangSwitchRef.current = false;
-      } else {
-        const langContent = translations[currentLang]?.content || '<p></p>';
-        editor.commands.setContent(langContent);
-        editorSyncedLangRef.current = currentLang;
-        editorSyncedContentRef.current = langContent;
-      }
+      const targetTrans = translations[currentLang];
+      const enContent = translations['en']?.content || '';
+      const isUntranslated = currentLang !== 'en' && (!targetTrans?.title || targetTrans.content === enContent);
+      const targetContent = (!isUntranslated && targetTrans?.content && targetTrans.content !== '<p></p>')
+        ? targetTrans.content
+        : '<p></p>';
+
+      editor.commands.setContent(targetContent);
+      editorSyncedLangRef.current = currentLang;
+      editorSyncedContentRef.current = targetContent;
+      isInternalLangSwitchRef.current = false;
       return;
     }
 
     // Case 2: Editing an existing blog post
     if (targetBlogId) {
-      const targetContent = translations[currentLang]?.content;
-      const hasRealContent = Boolean(
-        targetContent &&
-        targetContent !== '<p></p>'
-      );
+      const targetTrans = translations[currentLang];
+      const enContent = translations['en']?.content || '';
+      const isUntranslated = currentLang !== 'en' && (!targetTrans?.title || targetTrans.content === enContent);
+      const targetContent = (!isUntranslated && targetTrans?.content && targetTrans.content !== '<p></p>')
+        ? targetTrans.content
+        : '<p></p>';
 
+      const hasRealContent = Boolean(targetContent && targetContent !== '<p></p>');
       const isSynced = editorSyncedBlogIdRef.current === targetBlogId && editorSyncedLangRef.current === currentLang;
 
       // Sync if not yet synced, or if real content arrived from API but editor hasn't synced it yet
       if (!isSynced || (hasRealContent && editorSyncedContentRef.current !== targetContent)) {
-        if (hasRealContent) {
-          editor.commands.setContent(targetContent);
-          editorSyncedBlogIdRef.current = targetBlogId;
-          editorSyncedLangRef.current = currentLang;
-          editorSyncedContentRef.current = targetContent;
-        } else if (!isSynced && targetContent !== undefined && !isLoadingFullBlog) {
-          editor.commands.setContent(targetContent);
-          editorSyncedBlogIdRef.current = targetBlogId;
-          editorSyncedLangRef.current = currentLang;
-          editorSyncedContentRef.current = targetContent;
-        }
+        editor.commands.setContent(targetContent);
+        editorSyncedBlogIdRef.current = targetBlogId;
+        editorSyncedLangRef.current = currentLang;
+        editorSyncedContentRef.current = targetContent;
       }
       return;
     }
@@ -951,7 +995,13 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       const currentEditorHtml = editor ? editor.getHTML() : undefined;
       const cleanedTranslations = { ...translations };
       
-      if (currentEditorHtml !== undefined && cleanedTranslations[currentLang]) {
+      // Auto-save guard: Only update currentLang content if editor is truly synced to currentLang
+      if (
+        currentEditorHtml !== undefined &&
+        cleanedTranslations[currentLang] &&
+        editorSyncedLangRef.current === currentLang &&
+        !isInternalLangSwitchRef.current
+      ) {
         cleanedTranslations[currentLang] = {
           ...cleanedTranslations[currentLang],
           content: preserveEmptyParagraphs(currentEditorHtml),
@@ -993,12 +1043,15 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       try {
         await saveBlog(autoSavedBlog); // Silent background save
         initialBlogRef.current = autoSavedBlog;
+        try {
+          sessionStorage.setItem(`jupsoft_editing_blog_${realId}`, JSON.stringify(autoSavedBlog));
+        } catch {}
         setHasUnsavedChanges(false);
         // NO notification & NO router.push()! User stays right where they are.
       } catch (err) {
         console.warn('Auto-save failed silently:', err);
       }
-    }, 2500);
+    }, 1000);
 
     const autoSaveTimer = autoSaveTimerRef.current;
     return () => {
@@ -1033,46 +1086,57 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
   const handleAiTranslate = async () => {
     const enSource = translations['en'];
-    if (!enSource?.title && !enSource?.content) {
+    const enTitle = enSource?.title?.trim();
+    const enContent = (currentLang === 'en' ? (editor?.getHTML() || enSource?.content) : enSource?.content)?.trim();
+
+    if (!enTitle && !enContent) {
       showNotification('Please enter an English title or content first to translate from.', 'warning');
       return;
     }
+
     setIsTranslating(true);
     try {
-      const sourceContent = currentLang === 'en' ? (editor?.getHTML() || enSource.content) : enSource.content;
       const res = await apiClient.translateText({
         from: 'en',
         to: currentLang,
-        title: enSource.title,
-        excerpt: enSource.excerpt,
-        content: sourceContent,
+        title: enTitle,
+        excerpt: enSource?.excerpt,
+        content: enContent,
       });
 
-      const translatedTitle = res.title || enSource.title;
-      const translatedExcerpt = res.excerpt || enSource.excerpt;
-      const translatedContent = res.content || sourceContent;
+      const translatedTitle = res.title || enTitle || '';
+      const translatedExcerpt = res.excerpt || enSource?.excerpt || '';
+      const translatedContent = res.content || enContent || '<p></p>';
       const newSlug = slugify(translatedTitle) || `post-${Date.now()}`;
 
-      setTranslations((prev) => ({
-        ...prev,
-        [currentLang]: {
-          ...prev[currentLang],
-          title: translatedTitle,
-          slug: newSlug,
-          excerpt: translatedExcerpt,
-          content: translatedContent,
-          seo: {
-            ...prev[currentLang].seo,
-            metaTitle: translatedTitle,
-            metaDescription: translatedExcerpt,
-            canonicalUrl: `https://${activeSite.domain}/blog/${newSlug}`,
+      const siteDomain = activeSite?.domain || (typeof window !== 'undefined' ? window.location.host : 'localhost');
+
+      setTranslations((prev) => {
+        const cur = prev[currentLang] || defaultTrans(currentLang);
+        return {
+          ...prev,
+          [currentLang]: {
+            ...cur,
+            title: translatedTitle,
+            slug: newSlug,
+            excerpt: translatedExcerpt,
+            content: translatedContent,
+            seo: {
+              ...(cur.seo || createEmptySEO()),
+              metaTitle: translatedTitle,
+              metaDescription: translatedExcerpt,
+              canonicalUrl: `https://${siteDomain}/blog/${newSlug}`,
+            },
           },
-        },
-      }));
+        };
+      });
 
       if (editor && translatedContent) {
+        editorSyncedLangRef.current = currentLang;
+        editorSyncedContentRef.current = translatedContent;
         editor.commands.setContent(translatedContent);
       }
+      setHasUnsavedChanges(true);
       showNotification(`AI Translation complete for ${currentLang.toUpperCase()}! ✨`, 'success');
     } catch (err: unknown) {
       console.error('AI translation failed:', err);
@@ -1281,7 +1345,11 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     // Ensure active editor HTML is synced into the active language translation
     const currentEditorHtml = editor ? editor.getHTML() : undefined;
     const cleanedTranslations = { ...translations };
-    if (currentEditorHtml !== undefined && cleanedTranslations[currentLang]) {
+    if (
+      currentEditorHtml !== undefined &&
+      cleanedTranslations[currentLang] &&
+      editorSyncedLangRef.current === currentLang
+    ) {
       cleanedTranslations[currentLang] = {
         ...cleanedTranslations[currentLang],
         content: preserveEmptyParagraphs(currentEditorHtml),

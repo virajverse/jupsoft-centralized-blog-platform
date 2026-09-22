@@ -134,4 +134,14 @@ describe('XSS Sanitization (sanitizeContent)', () => {
     expect(result).not.toContain('onerror');
     expect(result).not.toContain('alert');
   });
+
+  // ── 12.16: Safe Image Transform & Alignment Preservation ───────────
+  it('should preserve image rotation, alignment, and sizing attributes', () => {
+    const rotatedImage = '<img src="https://example.com/pic.webp" data-rotate="90" data-align="center" style="transform: rotate(90deg); margin-left: auto; margin-right: auto; width: 450px;" />';
+    const result = sanitizeContent(rotatedImage);
+    expect(result).toContain('data-rotate="90"');
+    expect(result).toContain('data-align="center"');
+    expect(result).toContain('transform:rotate(90deg)');
+    expect(result).toContain('width:450px');
+  });
 });

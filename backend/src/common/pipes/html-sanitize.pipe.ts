@@ -27,10 +27,28 @@ const ALLOWED_TAGS = [
 
 const ALLOWED_ATTRIBUTES: SanitizeHtml.IOptions['allowedAttributes'] = {
   a: ['href', 'title', 'target', 'rel'],
-  img: ['src', 'alt', 'title', 'width', 'height', 'loading'],
+  img: ['src', 'alt', 'title', 'width', 'height', 'loading', 'data-rotate', 'data-align', 'data-width'],
   td: ['colspan', 'rowspan'],
   th: ['colspan', 'rowspan', 'scope'],
-  '*': ['class', 'id'],
+  '*': ['class', 'id', 'style'],
+};
+
+const ALLOWED_STYLES: SanitizeHtml.IOptions['allowedStyles'] = {
+  '*': {
+    'text-align': [/.*/],
+    'color': [/.*/],
+    'background-color': [/.*/],
+  },
+  img: {
+    'transform': [/.*/],
+    'transform-origin': [/.*/],
+    'width': [/.*/],
+    'max-width': [/.*/],
+    'height': [/.*/],
+    'margin-left': [/.*/],
+    'margin-right': [/.*/],
+    'display': [/.*/],
+  },
 };
 
 export function sanitizeContent(html: string): string {
@@ -38,6 +56,7 @@ export function sanitizeContent(html: string): string {
   const sanitized = sanitizeHtml(html, {
     allowedTags: ALLOWED_TAGS,
     allowedAttributes: ALLOWED_ATTRIBUTES,
+    allowedStyles: ALLOWED_STYLES,
     allowedSchemes: ['http', 'https', 'mailto'], // TRD §15: block javascript: URIs
   });
   // Preserve empty paragraphs authored in WYSIWYG editor.
