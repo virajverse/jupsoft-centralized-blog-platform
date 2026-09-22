@@ -7,16 +7,11 @@ import {
   Search,
   RefreshCw,
   X,
-  Building2,
   Trash2,
   Edit3,
-  ExternalLink,
   Globe,
   ChevronLeft,
-  ChevronRight,
-  Filter,
-  CheckSquare,
-  Square
+  ChevronRight
 } from 'lucide-react';
 import { Blog, Website, UserRole, LanguageCode } from '../../types';
 import { canCreateBlog, canDeleteBlog } from '../../utils/permissions';
@@ -48,20 +43,17 @@ interface ZohoBlogListViewProps {
 const ALL_LANGUAGES: LanguageCode[] = ['en', 'hi', 'fr', 'ar'];
 
 export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
-  blogs,
   baseBlogs,
   filteredBlogs,
   activeWebsiteId,
   websites,
   activeRole,
   isAllSites,
-  activeSite,
   selectedStatus,
   selectedTenantFilter,
   searchVal,
   queryParam,
   handleStatusChange,
-  handleTenantChange,
   handleSearchChange,
   clearSearch,
   deleteBlog,
@@ -79,7 +71,7 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
   const [pageSize, setPageSize] = useState<number>(15);
 
   React.useEffect(() => {
-    setCurrentPage(1);
+    queueMicrotask(() => setCurrentPage(1));
   }, [selectedStatus, selectedTenantFilter, queryParam]);
 
   const totalPages = Math.max(1, Math.ceil(filteredBlogs.length / pageSize));

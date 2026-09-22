@@ -9,11 +9,7 @@ import {
   Terminal, 
   Play, 
   RotateCcw, 
-  Sparkles, 
-  Globe, 
-  ShieldCheck,
-  Zap,
-  Sliders
+  Sparkles
 } from 'lucide-react';
 
 export const LandingInteractivePlayground: React.FC = () => {

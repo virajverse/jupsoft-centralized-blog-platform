@@ -49,7 +49,7 @@ export const TopProgressBar: React.FC = () => {
 
   // When pathname or searchParams change, finish loading
   useEffect(() => {
-    finish();
+    queueMicrotask(finish);
   }, [pathname, searchParams]);
 
   // Global event listeners and link click interception

@@ -8,8 +8,19 @@
 
 import {
   Blog, Website, Category, Tag, MediaItem,
-  UserAccount, RedirectItem, SystemAuditLog, BlogStatus,
+  UserAccount, RedirectItem, SystemAuditLog, BlogStatus, BlogSEO, BlogTranslation,
 } from '../types';
+
+type BlogTranslationPayload = Omit<Partial<BlogTranslation>, 'seo' | 'languageCode'> & {
+  lang?: string;
+  languageCode?: string;
+  seo?: Partial<BlogSEO>;
+  [key: string]: unknown;
+};
+
+type BlogPayloadInput = Omit<Partial<Blog>, 'translations'> & {
+  translations?: Record<string, BlogTranslationPayload> | BlogTranslationPayload[];
+};
 
 export interface WebhookEndpoint {
   id: string;
@@ -245,6 +256,7 @@ class ApiClient {
           } catch {}
 
           if (window.location.pathname !== '/login') {
+            // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intentional full reload on session expiry: wipes stale client state; this service module has no router
             window.location.href = '/login?session=expired';
           }
         }
@@ -354,11 +366,11 @@ class ApiClient {
     return this.request(`/admin/blogs/${id}`);
   }
 
-  private formatBlogPayload(blog: Partial<Blog>): Record<string, any> {
+  private formatBlogPayload(blog: BlogPayloadInput): Record<string, unknown> {
     // Format translations dictionary to backend DTO array
-    const transArray: any[] = [];
+    const transArray: BlogTranslationPayload[] = [];
     if (blog.translations && !Array.isArray(blog.translations)) {
-      for (const [lang, t] of Object.entries(blog.translations as Record<string, any>)) {
+      for (const [lang, t] of Object.entries(blog.translations)) {
         if (t && typeof t === 'object' && t.title && t.title.trim()) {
           const rawSlug = t.slug && t.slug.trim()
             ? t.slug.trim()
@@ -392,7 +404,7 @@ class ApiClient {
     const cleanWebsiteId = (blog.websiteId && blog.websiteId !== 'all') ? blog.websiteId : 'site-cloud';
 
     // Strictly whitelist only properties defined in CreateBlogDto / UpdateBlogDto
-    const payload: Record<string, any> = {
+    const payload: Record<string, unknown> = {
       websiteId: cleanWebsiteId,
       translations: transArray,
     };
@@ -410,12 +422,12 @@ class ApiClient {
     return payload;
   }
 
-  async createBlog(blog: Partial<Blog>): Promise<Blog> {
+  async createBlog(blog: BlogPayloadInput): Promise<Blog> {
     const payload = this.formatBlogPayload(blog);
     return this.request('/admin/blogs', { method: 'POST', body: JSON.stringify(payload) });
   }
 
-  async updateBlog(id: string, updates: Partial<Blog>): Promise<Blog> {
+  async updateBlog(id: string, updates: BlogPayloadInput): Promise<Blog> {
     const payload = this.formatBlogPayload(updates);
     return this.request(`/admin/blogs/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
   }

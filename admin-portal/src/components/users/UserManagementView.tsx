@@ -6,7 +6,7 @@ import { useBlogStore } from '../../store/useBlogStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../hooks/useQueryState';
 import { UserAccount, UserRole, Website } from '../../types';
-import { getAllowedInviteRoles, canManageUsers, isGlobalScopeRole, cleanAvatarUrl, canAccessModule, getDefaultRoleModules, AppModule } from '../../utils/permissions';
+import { getAllowedInviteRoles, canManageUsers, isGlobalScopeRole, cleanAvatarUrl, getDefaultRoleModules, AppModule } from '../../utils/permissions';
 import { 
   Users, 
   ShieldCheck, 
@@ -216,7 +216,9 @@ export const UserManagementView: React.FC = () => {
 
   React.useEffect(() => {
     let active = true;
-    setIsLoadingUsers(true);
+    queueMicrotask(() => {
+      if (active) setIsLoadingUsers(true);
+    });
     fetchUsers().finally(() => {
       if (active) setIsLoadingUsers(false);
     });

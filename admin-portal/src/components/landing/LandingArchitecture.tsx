@@ -2,15 +2,11 @@
 
 import React from 'react';
 import { 
-  Server, 
   Cpu, 
   Database, 
   Layers, 
   Globe, 
-  Zap, 
-  ShieldCheck, 
-  ArrowRight,
-  HardDrive
+  Zap
 } from 'lucide-react';
 
 export const LandingArchitecture: React.FC = () => {

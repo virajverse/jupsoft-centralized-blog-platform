@@ -15,7 +15,7 @@ export const DashboardLayoutSwitcher: React.FC<{ children: React.ReactNode }> = 
   const pathname = usePathname();
 
   useEffect(() => {
-    setMounted(true);
+    queueMicrotask(() => setMounted(true));
   }, []);
 
   const isEditorRoute = pathname === '/blogs/new' || (pathname?.startsWith('/blogs/') && pathname !== '/blogs');

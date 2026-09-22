@@ -60,9 +60,11 @@ export const MediaLibraryView: React.FC = () => {
   useEffect(() => {
     let active = true;
     if (siteParam && siteParam !== activeWebsiteId && (siteParam === 'all' || websites.some((w) => w.id === siteParam))) {
-      setActiveWebsite(siteParam);
+      queueMicrotask(() => setActiveWebsite(siteParam));
     }
-    setIsLoadingMedia(true);
+    queueMicrotask(() => {
+      if (active) setIsLoadingMedia(true);
+    });
     fetchMedia(effectiveSiteId).finally(() => {
       if (active) setIsLoadingMedia(false);
     });

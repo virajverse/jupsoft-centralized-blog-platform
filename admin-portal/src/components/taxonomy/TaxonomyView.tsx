@@ -12,7 +12,6 @@ import {
   Trash2,
   RefreshCw
 } from 'lucide-react';
-import { Category, Tag } from '../../types';
 
 export const TaxonomyView: React.FC = () => {
   const searchParams = useSearchParams();
@@ -70,10 +69,12 @@ export const TaxonomyView: React.FC = () => {
   useEffect(() => {
     let active = true;
     if (siteParam && siteParam !== activeWebsiteId && (siteParam === 'all' || websites.some((w) => w.id === siteParam))) {
-      setActiveWebsite(siteParam);
+      queueMicrotask(() => setActiveWebsite(siteParam));
     }
     if (targetSiteId) {
-      setIsLoadingTaxonomy(true);
+      queueMicrotask(() => {
+        if (active) setIsLoadingTaxonomy(true);
+      });
       Promise.all([
         fetchCategories(targetSiteId),
         fetchTags(targetSiteId)

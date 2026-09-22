@@ -6,8 +6,7 @@ import { useBlogStore } from '../../store/useBlogStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../hooks/useQueryState';
 import { Website, LanguageCode } from '../../types';
-import { apiClient } from '../../services/apiClient';
-import { 
+import {
   Globe, 
   Copy, 
   Check, 
@@ -22,13 +21,10 @@ import {
   Search,
   Eye,
   EyeOff,
-  ExternalLink,
-  Send,
   AlertCircle,
   Trash2,
   Settings,
-  ArrowRightLeft,
-  KeyRound
+  ArrowRightLeft
 } from 'lucide-react';
 import { RedirectsView } from '../redirects/RedirectsView';
 
@@ -78,7 +74,9 @@ export const SettingsView: React.FC = () => {
 
   useEffect(() => {
     let active = true;
-    setIsLoadingSettings(true);
+    queueMicrotask(() => {
+      if (active) setIsLoadingSettings(true);
+    });
     Promise.all([
       fetchWebsites(),
       fetchBlogs()
@@ -90,7 +88,7 @@ export const SettingsView: React.FC = () => {
 
   useEffect(() => {
     if (siteParam && siteParam !== activeWebsiteId && (siteParam === 'all' || websites.some((w) => w.id === siteParam))) {
-      setActiveWebsite(siteParam);
+      queueMicrotask(() => setActiveWebsite(siteParam));
     }
     fetchAuditLogs(effectiveSiteId === 'all' ? undefined : effectiveSiteId);
   }, [siteParam, effectiveSiteId, activeWebsiteId, websites, setActiveWebsite, fetchAuditLogs]);
@@ -211,7 +209,7 @@ export const SettingsView: React.FC = () => {
       const cleanSlug = activeSite.id.replace(/^site-/, '');
       const randomHex = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 6);
       const newKey = `jup_live_sec_${cleanSlug}_${randomHex}`;
-      await updateWebsite(activeSite.id, { apiKey: newKey } as any);
+      await updateWebsite(activeSite.id, { apiKey: newKey });
       showNotification(`New API key generated successfully for ${activeSite.name}!`, 'success');
       setShowApiKey(true);
     } catch (err: unknown) {

@@ -2,26 +2,21 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
   FileText,
   AlertCircle,
   Plus,
-  Globe,
   Clock,
-  ExternalLink,
   ChevronRight,
   ArrowRightLeft,
   Kanban,
   CheckCircle2,
-  Users,
   Settings,
   TrendingUp,
-  Radio,
-  BookOpen
+  Radio
 } from 'lucide-react';
-import { Blog, Website, UserRole, LanguageCode } from '../../types';
-import { canCreateBlog, canAccessModule, cleanAvatarUrl } from '../../utils/permissions';
+import { Blog, Website, UserAccount, UserRole, LanguageCode } from '../../types';
+import { canCreateBlog } from '../../utils/permissions';
 import { apiClient } from '../../services/apiClient';
 
 interface ZohoDashboardViewProps {
@@ -37,7 +32,7 @@ interface ZohoDashboardViewProps {
   activeSite: Website;
   isAllSites: boolean;
   activeRole: UserRole;
-  currentUser: any;
+  currentUser: UserAccount;
   isLoading?: boolean;
 }
 
@@ -48,7 +43,6 @@ export const ZohoDashboardView: React.FC<ZohoDashboardViewProps> = ({
   displayedBlogs,
   publishedBlogs,
   underReviewBlogs,
-  approvedBlogs,
   draftBlogs,
   totalWords,
   websites,
@@ -56,10 +50,8 @@ export const ZohoDashboardView: React.FC<ZohoDashboardViewProps> = ({
   activeSite,
   isAllSites,
   activeRole,
-  currentUser,
   isLoading,
 }) => {
-  const router = useRouter();
   const siteQuery = `?site=${activeWebsiteId}`;
 
   // Recent 8 blogs

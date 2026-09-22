@@ -2,11 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname, useSearchParams, useRouter } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../../store/useBlogStore';
 import { useShallow } from 'zustand/react/shallow';
-import { useQueryState } from '../../../hooks/useQueryState';
-import { canAccessModule, isGlobalScopeRole, AppModule } from '../../../utils/permissions';
+import { canAccessModule, AppModule } from '../../../utils/permissions';
 import {
   LayoutDashboard,
   FileText,
@@ -16,7 +15,6 @@ import {
   BarChart3,
   Settings,
   Users,
-  Boxes,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
@@ -24,10 +22,8 @@ import {
 } from 'lucide-react';
 
 export const ZohoSidebar: React.FC = () => {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { setParam } = useQueryState();
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
   const { 
     blogs, 
@@ -57,7 +53,7 @@ export const ZohoSidebar: React.FC = () => {
 
   // Clear pending navigation state as soon as pathname updates
   useEffect(() => {
-    setNavigatingTo(null);
+    queueMicrotask(() => setNavigatingTo(null));
   }, [pathname]);
 
   // Sync site param from URL
@@ -77,7 +73,6 @@ export const ZohoSidebar: React.FC = () => {
     }
   };
 
-  const isSuperAdmin = isGlobalScopeRole(activeRole);
   const isAllSites = activeWebsiteId === 'all';
   const displayedBlogs = isAllSites ? blogs : blogs.filter((b) => b.websiteId === activeWebsiteId);
   const underReviewCount = displayedBlogs.filter((b) => b.status === 'Under Review').length;

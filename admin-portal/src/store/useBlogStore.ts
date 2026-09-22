@@ -599,9 +599,9 @@ export const useBlogStore = create<BlogState>()(
             };
           });
           return created;
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error('Failed to create category:', err);
-          set({ notification: { message: err?.message || 'Failed to create category', type: 'warning' } });
+          set({ notification: { message: err instanceof Error ? err.message : 'Failed to create category', type: 'warning' } });
         }
       },
 
@@ -618,9 +618,9 @@ export const useBlogStore = create<BlogState>()(
               notification: { message: 'Category deleted', type: 'info' },
             };
           });
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error('Failed to delete category:', err);
-          set({ notification: { message: err?.message || 'Failed to delete category', type: 'warning' } });
+          set({ notification: { message: err instanceof Error ? err.message : 'Failed to delete category', type: 'warning' } });
         }
       },
 
@@ -642,9 +642,9 @@ export const useBlogStore = create<BlogState>()(
             };
           });
           return created;
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error('Failed to create tag:', err);
-          set({ notification: { message: err?.message || 'Failed to create tag', type: 'warning' } });
+          set({ notification: { message: err instanceof Error ? err.message : 'Failed to create tag', type: 'warning' } });
         }
       },
 
@@ -661,9 +661,9 @@ export const useBlogStore = create<BlogState>()(
               notification: { message: 'Tag deleted', type: 'info' },
             };
           });
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error('Failed to delete tag:', err);
-          set({ notification: { message: err?.message || 'Failed to delete tag', type: 'warning' } });
+          set({ notification: { message: err instanceof Error ? err.message : 'Failed to delete tag', type: 'warning' } });
         }
       },
 
@@ -834,10 +834,11 @@ export const useBlogStore = create<BlogState>()(
             }));
           }
           return res;
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error('resetUserPassword error:', err);
-          set({ notification: { message: err?.message || 'Failed to reset password', type: 'warning' } });
-          return { success: false, message: err?.message };
+          const message = err instanceof Error ? err.message : 'Failed to reset password';
+          set({ notification: { message, type: 'warning' } });
+          return { success: false, message };
         }
       },
 

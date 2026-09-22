@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../hooks/useQueryState';
@@ -20,17 +20,12 @@ import {
   RefreshCw,
   TrendingUp,
   PieChart as PieChartIcon,
-  BarChart3,
-  Layers,
-  Sparkles,
-  CheckCircle2,
-  AlertCircle
+  BarChart3
 } from 'lucide-react';
 import { LanguageCode, Category, BlogStatus } from '../../types';
 import { apiClient } from '../../services/apiClient';
 
 export const AnalyticsView: React.FC = () => {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { setParam } = useQueryState();
 

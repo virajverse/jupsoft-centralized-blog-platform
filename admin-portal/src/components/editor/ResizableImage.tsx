@@ -52,8 +52,10 @@ const ResizableImageView: React.FC<ReactNodeViewProps> = ({
 
   // Sync when node attrs change externally (undo / redo / lang switch)
   useEffect(() => {
-    setLocalWidth(nodeWidth);
-    setCustomPx(nodeWidth ? String(nodeWidth) : '');
+    queueMicrotask(() => {
+      setLocalWidth(nodeWidth);
+      setCustomPx(nodeWidth ? String(nodeWidth) : '');
+    });
   }, [nodeWidth]);
 
   const applyWidth = useCallback(
