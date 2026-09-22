@@ -462,7 +462,11 @@ export const useBlogStore = create<BlogState>()(
             apiResult = await apiClient.createBlog(savedBlog as any);
           }
           set((state) => {
-            const finalBlog = { ...savedBlog, ...apiResult };
+            const finalBlog = {
+              ...apiResult,
+              ...savedBlog,
+              translations: savedBlog.translations || apiResult?.translations,
+            };
             const newBlogs = exists
               ? state.blogs.map((b) => (b.id === savedBlog.id ? finalBlog : b))
               : [finalBlog, ...state.blogs.filter((b) => b.id !== savedBlog.id && b.id !== finalBlog.id)];

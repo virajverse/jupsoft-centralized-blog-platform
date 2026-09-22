@@ -624,12 +624,16 @@ export class BlogsService {
       }
     });
 
-    // TRD §13: Invalidate Redis cache on update so consuming sites get fresh content
-    const updated = await this.findOne(id);
+    // TRD §13: Invalidate Redis cache on update so consuming sites and admin get fresh content
+    await this.redis.del(`admin:blogs:detail:${id}`);
+    await this.redis.del(`admin:blog:${id}`);
+    await this.redis.delPattern('admin:blogs:detail:*');
+    await this.redis.delPattern('admin:blog:*');
     await this.invalidateCache(existing.websiteId, existing.translations);
     if (dto.translations && dto.translations.length > 0) {
       await this.invalidateCache(existing.websiteId, dto.translations);
     }
+    const updated = await this.findOne(id);
 
     // TRD §13: On-Demand Webhook ISR Revalidation Trigger on update
     if (existing.status === 'Published' || dto.status === 'Published') {
@@ -658,6 +662,8 @@ export class BlogsService {
     await this.redis.invalidateNamespace('blog');
     await this.redis.invalidateNamespace('blogs');
     await this.redis.invalidateNamespace('search');
+    await this.redis.delPattern('admin:blogs:detail:*');
+    await this.redis.delPattern('admin:blog:*');
     await this.redis.delPattern('admin:blogs:*');
     await this.redis.delPattern(`blog:*:${websiteId}:*`);
     await this.redis.delPattern(`blogs:*:${websiteId}:*`);

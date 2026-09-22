@@ -1350,13 +1350,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     // Ensure active editor HTML is synced into the active language translation
     const currentEditorHtml = editor ? editor.getHTML() : undefined;
     const cleanedTranslations = { ...translations };
-    if (
-      currentEditorHtml !== undefined &&
-      cleanedTranslations[currentLang] &&
-      editorSyncedLangRef.current === currentLang
-    ) {
+    if (currentEditorHtml !== undefined) {
       cleanedTranslations[currentLang] = {
-        ...cleanedTranslations[currentLang],
+        ...(cleanedTranslations[currentLang] || defaultTrans(currentLang)),
         content: preserveEmptyParagraphs(currentEditorHtml),
       };
     }
@@ -1443,6 +1439,13 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       await saveBlog(newBlog);
       initialBlogRef.current = newBlog;
       setHasUnsavedChanges(false);
+      try {
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem(`jupsoft_editing_blog_${id}`);
+          sessionStorage.removeItem(`editor_draft_${id}_${currentLang}`);
+        }
+      } catch {}
+      loadedBlogIdRef.current = null;
       showNotification(status === 'Published' ? 'Blog published successfully! 🎉' : 'Blog saved successfully! ✅', 'success');
       router.push(`/blogs?site=${targetSiteId}`);
     } catch (err: unknown) {
@@ -1753,7 +1756,10 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => handleSplitHardBreaksBeforeBlock(() => editor.chain().focus().setTextAlign('left').run())}
+                      onClick={() => {
+                        editor.chain().focus().setTextAlign('left').run();
+                        setHasUnsavedChanges(true);
+                      }}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive({ textAlign: 'left' }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
@@ -1764,7 +1770,10 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => handleSplitHardBreaksBeforeBlock(() => editor.chain().focus().setTextAlign('center').run())}
+                      onClick={() => {
+                        editor.chain().focus().setTextAlign('center').run();
+                        setHasUnsavedChanges(true);
+                      }}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive({ textAlign: 'center' }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
@@ -1775,7 +1784,10 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => handleSplitHardBreaksBeforeBlock(() => editor.chain().focus().setTextAlign('right').run())}
+                      onClick={() => {
+                        editor.chain().focus().setTextAlign('right').run();
+                        setHasUnsavedChanges(true);
+                      }}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive({ textAlign: 'right' }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
@@ -1786,7 +1798,10 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => handleSplitHardBreaksBeforeBlock(() => editor.chain().focus().setTextAlign('justify').run())}
+                      onClick={() => {
+                        editor.chain().focus().setTextAlign('justify').run();
+                        setHasUnsavedChanges(true);
+                      }}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive({ textAlign: 'justify' }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
