@@ -936,8 +936,65 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
 
-    // Auto-save disabled intentionally — manual Save only.
-    // autoSaveTimerRef.current = setTimeout(async () => { ... }, 2500);
+    // 🚀 EMERGENCY AUTO-SAVE (2.5s Debounce)
+    autoSaveTimerRef.current = setTimeout(async () => {
+      const baseBlog = initialBlogRef.current || existingBlog;
+      
+      // CRITICAL RULE: NEVER Auto-Publish a draft.
+      // If UI says 'Published' but DB is not, force it to 'Draft'. Only manual save can publish.
+      const safeStatus = (status === 'Published' && baseBlog?.status !== 'Published') ? 'Draft' : status;
+
+      const currentEditorHtml = editor ? editor.getHTML() : undefined;
+      const cleanedTranslations = { ...translations };
+      
+      if (currentEditorHtml !== undefined && cleanedTranslations[currentLang]) {
+        cleanedTranslations[currentLang] = {
+          ...cleanedTranslations[currentLang],
+          content: preserveEmptyParagraphs(currentEditorHtml),
+        };
+      }
+
+      for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
+        if (cleanedTranslations[l]?.content) {
+          cleanedTranslations[l].content = preserveEmptyParagraphs(cleanedTranslations[l].content);
+        }
+        if (cleanedTranslations[l]?.title && !cleanedTranslations[l]?.slug) {
+          cleanedTranslations[l].slug = slugify(cleanedTranslations[l].title);
+        }
+      }
+
+      const autoSavedBlog: any = {
+        id: realId,
+        websiteId: selectedWebsiteId || (activeWebsiteId !== 'all' ? activeWebsiteId : 'site-cloud'),
+        authorId: authorMode === 'user' ? selectedAuthorId : 'usr-custom',
+        authorName: authorName.trim() || cleanCurrentName,
+        authorAvatar: authorAvatar || '/uploads/avatars/avatar-default.webp',
+        featuredImage,
+        featuredImageAlt,
+        status: safeStatus, 
+        publishDate: baseBlog?.publishDate, // No new publish date
+        scheduledAt: scheduledAt || undefined,
+        publishedBy: baseBlog?.publishedBy,
+        viewCount: baseBlog?.viewCount || 0,
+        readTimeMinutes: Math.max(2, Math.round((editor?.getText().split(/\\s+/).length || 200) / 180)),
+        categoryIds: selectedCategories,
+        tagIds: selectedTags,
+        translations: cleanedTranslations,
+        workflowLogs: baseBlog?.workflowLogs || [],
+        createdAt: baseBlog?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isAutoSave: true, // 🚀 Backend ko batayega ki ye revision hai
+      };
+
+      try {
+        await saveBlog(autoSavedBlog); // Silent background save
+        initialBlogRef.current = autoSavedBlog;
+        setHasUnsavedChanges(false);
+        // NO notification & NO router.push()! User stays right where they are.
+      } catch (err) {
+        console.warn('Auto-save failed silently:', err);
+      }
+    }, 2500);
 
     const autoSaveTimer = autoSaveTimerRef.current;
     return () => {

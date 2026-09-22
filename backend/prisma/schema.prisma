@@ -94,6 +94,7 @@ model Blog {
   website              Website                @relation(fields: [websiteId], references: [id], onDelete: Cascade)
   author               User                   @relation(fields: [authorId], references: [id], onDelete: Cascade)
   translations         BlogTranslation[]
+  revisions            BlogRevision[]
   workflowLogs         WorkflowLog[]
   blogCategories       BlogCategory[]         // TRD §9: M:N via blog_categories
   blogTags             BlogTag[]              // TRD §9: M:N via blog_tags
@@ -103,6 +104,27 @@ model Blog {
   @@index([status, scheduledAt])
   @@index([authorId])
   @@map("blogs")
+}
+
+model BlogRevision {
+  id                   String                 @id @default(uuid())
+  blogId               String
+  lang                 String                 // en | hi | fr | ar
+  title                String
+  slug                 String
+  excerpt              String                 @default("") @db.Text
+  content              String                 @default("") @db.Text
+  
+  metaTitle            String                 @default("")
+  metaDescription      String                 @default("")
+  
+  createdBy            String                 @default("System")
+  createdAt            DateTime               @default(now())
+
+  blog                 Blog                   @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  @@unique([blogId, lang])
+  @@map("blog_revisions")
 }
 
 model BlogTranslation {

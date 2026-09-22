@@ -222,6 +222,7 @@ export class BlogsService {
       include: {
         website: true,
         translations: true,
+        revisions: true,
         workflowLogs: { orderBy: { timestamp: 'desc' } },
       },
     });
@@ -233,6 +234,8 @@ export class BlogsService {
     if (caller) {
       this.assertBlogOwnership({ id, websiteId: blog.websiteId }, caller);
     }
+
+    const revisionsMap = new Map((blog.revisions || []).map(r => [r.lang, r]));
 
     const result = {
       id: blog.id,
@@ -251,14 +254,15 @@ export class BlogsService {
       categoryIds: blog.categoryIds,
       tagIds: blog.tagIds,
       translations: (blog.translations || []).reduce((acc, t) => {
+        const rev = revisionsMap.get(t.lang);
         acc[t.lang] = {
-          title: t.title,
-          slug: t.slug,
-          excerpt: t.excerpt,
-          content: t.content,
+          title: rev?.title || t.title,
+          slug: rev?.slug || t.slug,
+          excerpt: rev?.excerpt ?? t.excerpt,
+          content: rev?.content ?? t.content,
           seo: {
-            metaTitle: t.metaTitle,
-            metaDescription: t.metaDescription,
+            metaTitle: rev?.metaTitle || t.metaTitle,
+            metaDescription: rev?.metaDescription || t.metaDescription,
             metaKeywords: t.metaKeywords,
             canonicalUrl: t.canonicalUrl,
             focusKeyword: t.focusKeyword,
@@ -537,49 +541,83 @@ export class BlogsService {
           // Only preserve old content if translation content was omitted (undefined)
           const effectiveContent = t.content !== undefined ? sanitizeContent(t.content) : (oldTrans?.content || '');
 
-          await tx.blogTranslation.upsert({
-            where: {
-              blogId_lang: { blogId: id, lang: t.lang },
-            },
-            update: {
-              title: t.title,
-              slug: t.slug,
-              excerpt: t.excerpt,
-              content: effectiveContent, // TRD §15: XSS + Wipeout protected
-              metaTitle: t.metaTitle,
-              metaDescription: t.metaDescription,
-              metaKeywords: t.metaKeywords,
-              canonicalUrl: t.canonicalUrl,
-              focusKeyword: t.focusKeyword,
-              robots: t.robots,
-              ogTitle: t.ogTitle,
-              ogDescription: t.ogDescription,
-              ogImage: t.ogImage,
-              twitterTitle: t.twitterTitle,
-              twitterDescription: t.twitterDescription,
-              twitterImage: t.twitterImage,
-            },
-            create: {
-              blogId: id,
-              lang: t.lang,
-              title: t.title,
-              slug: t.slug,
-              excerpt: t.excerpt || '',
-              content: sanitizeContent(t.content || ''), // TRD §15: XSS
-              metaTitle: t.metaTitle || t.title,
-              metaDescription: t.metaDescription || '',
-              metaKeywords: t.metaKeywords || '',
-              canonicalUrl: t.canonicalUrl || '',
-              focusKeyword: t.focusKeyword || '',
-              robots: t.robots || 'index, follow',
-              ogTitle: t.ogTitle || t.title,
-              ogDescription: t.ogDescription || '',
-              ogImage: t.ogImage || '',
-              twitterTitle: t.twitterTitle || t.title,
-              twitterDescription: t.twitterDescription || '',
-              twitterImage: t.twitterImage || '',
-            },
-          });
+          if (dto.isAutoSave && existing.status === 'Published') {
+            // Draft over Published: Save to BlogRevision
+            await tx.blogRevision.upsert({
+              where: {
+                blogId_lang: { blogId: id, lang: t.lang },
+              },
+              update: {
+                title: t.title,
+                slug: t.slug,
+                excerpt: t.excerpt,
+                content: effectiveContent,
+                metaTitle: t.metaTitle,
+                metaDescription: t.metaDescription,
+                createdBy: user.name,
+              },
+              create: {
+                blogId: id,
+                lang: t.lang,
+                title: t.title,
+                slug: t.slug,
+                excerpt: t.excerpt || '',
+                content: effectiveContent,
+                metaTitle: t.metaTitle || t.title,
+                metaDescription: t.metaDescription || '',
+                createdBy: user.name,
+              },
+            });
+          } else {
+            // Standard save/publish: Overwrite live BlogTranslation and delete any pending Draft Revisions
+            await tx.blogRevision.deleteMany({
+              where: { blogId: id, lang: t.lang },
+            });
+
+            await tx.blogTranslation.upsert({
+              where: {
+                blogId_lang: { blogId: id, lang: t.lang },
+              },
+              update: {
+                title: t.title,
+                slug: t.slug,
+                excerpt: t.excerpt,
+                content: effectiveContent, // TRD §15: XSS + Wipeout protected
+                metaTitle: t.metaTitle,
+                metaDescription: t.metaDescription,
+                metaKeywords: t.metaKeywords,
+                canonicalUrl: t.canonicalUrl,
+                focusKeyword: t.focusKeyword,
+                robots: t.robots,
+                ogTitle: t.ogTitle,
+                ogDescription: t.ogDescription,
+                ogImage: t.ogImage,
+                twitterTitle: t.twitterTitle,
+                twitterDescription: t.twitterDescription,
+                twitterImage: t.twitterImage,
+              },
+              create: {
+                blogId: id,
+                lang: t.lang,
+                title: t.title,
+                slug: t.slug,
+                excerpt: t.excerpt || '',
+                content: effectiveContent, // TRD §15: XSS
+                metaTitle: t.metaTitle || t.title,
+                metaDescription: t.metaDescription || '',
+                metaKeywords: t.metaKeywords || '',
+                canonicalUrl: t.canonicalUrl || '',
+                focusKeyword: t.focusKeyword || '',
+                robots: t.robots || 'index, follow',
+                ogTitle: t.ogTitle || t.title,
+                ogDescription: t.ogDescription || '',
+                ogImage: t.ogImage || '',
+                twitterTitle: t.twitterTitle || t.title,
+                twitterDescription: t.twitterDescription || '',
+                twitterImage: t.twitterImage || '',
+              },
+            });
+          }
         }
       }
     });

@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsNotEmpty,
   IsString,
   IsOptional,
@@ -186,6 +187,11 @@ export class CreateBlogDto {
 }
 
 export class UpdateBlogDto {
+  @ApiProperty({ required: false })
+  @IsBoolean()
+  @IsOptional()
+  isAutoSave?: boolean;
+
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
