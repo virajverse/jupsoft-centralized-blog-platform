@@ -302,6 +302,7 @@ _Please log in and update your password on your first sign-in._`;
   const [editManagedRoles, setEditManagedRoles] = useState<UserRole[]>(['Editor', 'Content Writer']);
   const [editStatus, setEditStatus] = useState<'active' | 'suspended'>('active');
   const [editCustomModules, setEditCustomModules] = useState<AppModule[]>([]);
+  const [isSavingUserEdit, setIsSavingUserEdit] = useState(false);
 
   const handleEditRoleChange = (newRole: UserRole) => {
     setEditRole(newRole);
@@ -376,22 +377,29 @@ _Please log in and update your password on your first sign-in._`;
 
   const handleSaveUserEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingUser) return;
+    if (!editingUser || isSavingUserEdit) return;
 
-    const updatedRoles = {
-      ...editingUser.roleAssignments,
-      [editWebsiteId]: editRole,
-    };
+    setIsSavingUserEdit(true);
+    try {
+      const updatedRoles = {
+        ...editingUser.roleAssignments,
+        [editWebsiteId]: editRole,
+      };
 
-    await updateUser(editingUser.id, {
-      roleAssignments: updatedRoles,
-      managedRoles: editRole === 'Role Admin' ? (editManagedRoles.length > 0 ? editManagedRoles : (['Editor', 'Content Writer'] as UserRole[])) : undefined,
-      customModules: editCustomModules,
-      status: editStatus,
-    });
+      await updateUser(editingUser.id, {
+        roleAssignments: updatedRoles,
+        managedRoles: editRole === 'Role Admin' ? (editManagedRoles.length > 0 ? editManagedRoles : (['Editor', 'Content Writer'] as UserRole[])) : undefined,
+        customModules: editCustomModules,
+        status: editStatus,
+      });
 
-    showNotification(`Updated role and module access for ${editingUser.name}`, 'success');
-    setEditingUser(null);
+      showNotification(`Updated role and module access for ${editingUser.name}`, 'success');
+      setEditingUser(null);
+    } catch (err: unknown) {
+      showNotification(err instanceof Error ? err.message : 'Failed to update user', 'warning');
+    } finally {
+      setIsSavingUserEdit(false);
+    }
   };
 
   const handleTabChange = (tab: 'hierarchy' | 'directory' | 'matrix') => {
@@ -2096,9 +2104,21 @@ _Please log in and update your password on your first sign-in._`;
               <button
                 type="submit"
                 form="edit-user-form"
-                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs cursor-pointer shadow-xs transition-colors"
+                disabled={isSavingUserEdit}
+                className={`px-5 py-2 rounded-xl text-white font-bold text-xs shadow-xs transition-all flex items-center gap-2 ${
+                  isSavingUserEdit
+                    ? 'bg-red-400 cursor-not-allowed opacity-80'
+                    : 'bg-red-600 hover:bg-red-700 cursor-pointer'
+                }`}
               >
-                Save Changes
+                {isSavingUserEdit ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Saving Changes...</span>
+                  </>
+                ) : (
+                  <span>Save Changes</span>
+                )}
               </button>
             </div>
           </div>

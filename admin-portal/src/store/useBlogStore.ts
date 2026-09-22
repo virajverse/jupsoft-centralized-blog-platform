@@ -194,12 +194,22 @@ export const useBlogStore = create<BlogState>()(
         try {
           const userList = await apiClient.getUsers();
           if (Array.isArray(userList)) {
+            const savedCustomModules = (() => {
+              if (typeof window === 'undefined') return {};
+              try { return JSON.parse(localStorage.getItem('jupsoft_user_custom_modules') || '{}'); } catch { return {}; }
+            })();
+            const savedManagedRoles = (() => {
+              if (typeof window === 'undefined') return {};
+              try { return JSON.parse(localStorage.getItem('jupsoft_user_managed_roles') || '{}'); } catch { return {}; }
+            })();
+
             set((state) => {
               const merged = userList.map((apiUser) => {
                 const existing = state.users.find((u) => u.id === apiUser.id);
                 return {
                   ...apiUser,
-                  customModules: apiUser.customModules || existing?.customModules,
+                  customModules: savedCustomModules[apiUser.id] || apiUser.customModules || existing?.customModules,
+                  managedRoles: savedManagedRoles[apiUser.id] || (apiUser as any).managedRoles || existing?.managedRoles,
                 };
               });
               return { users: merged };
@@ -300,8 +310,13 @@ export const useBlogStore = create<BlogState>()(
           }
           if (profileRes.status === 'fulfilled' && profileRes.value) {
             const u = profileRes.value;
+            const savedCustomModules = (() => {
+              if (typeof window === 'undefined') return {};
+              try { return JSON.parse(localStorage.getItem('jupsoft_user_custom_modules') || '{}'); } catch { return {}; }
+            })();
             updates.currentUser = {
               ...u,
+              customModules: savedCustomModules[u.id] || get().currentUser?.customModules || (u as any).customModules,
               avatar: cleanAvatarUrl(u.avatar) || '/uploads/avatars/avatar-default.webp',
             };
           }
@@ -345,11 +360,15 @@ export const useBlogStore = create<BlogState>()(
               user.role ||
               'Content Writer'
             ) as UserRole;
+            const savedCustomModules = (() => {
+              if (typeof window === 'undefined') return {};
+              try { return JSON.parse(localStorage.getItem('jupsoft_user_custom_modules') || '{}'); } catch { return {}; }
+            })();
             set({
               isAuthenticated: true,
               currentUser: {
                 ...user,
-                customModules: user.customModules || localUser?.customModules,
+                customModules: savedCustomModules[user.id] || user.customModules || localUser?.customModules,
                 avatar: cleanAvatarUrl(user.avatar) || '/uploads/avatars/avatar-default.webp',
               },
               activeWebsiteId: websiteId,
@@ -756,11 +775,31 @@ export const useBlogStore = create<BlogState>()(
       },
 
       updateUser: async (id, updates) => {
+        if (updates.customModules && typeof window !== 'undefined') {
+          try {
+            const stored = JSON.parse(localStorage.getItem('jupsoft_user_custom_modules') || '{}');
+            stored[id] = updates.customModules;
+            localStorage.setItem('jupsoft_user_custom_modules', JSON.stringify(stored));
+          } catch {}
+        }
+        if (updates.managedRoles && typeof window !== 'undefined') {
+          try {
+            const stored = JSON.parse(localStorage.getItem('jupsoft_user_managed_roles') || '{}');
+            stored[id] = updates.managedRoles;
+            localStorage.setItem('jupsoft_user_managed_roles', JSON.stringify(stored));
+          } catch {}
+        }
+
         try {
           if (updates.roleAssignments) {
-            const [websiteId, role] = Object.entries(updates.roleAssignments)[0] || [];
-            if (websiteId && role) {
-              await apiClient.updateUserRole(id, role, websiteId);
+            for (const [websiteId, role] of Object.entries(updates.roleAssignments)) {
+              if (websiteId && role) {
+                try {
+                  await apiClient.updateUserRole(id, role, websiteId);
+                } catch (roleErr) {
+                  console.warn(`apiClient.updateUserRole failed for ${websiteId}:`, roleErr);
+                }
+              }
             }
           }
           if (updates.status) {

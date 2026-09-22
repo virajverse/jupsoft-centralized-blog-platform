@@ -19,6 +19,7 @@ import { Blog, Website, UserAccount, UserRole, LanguageCode } from '../../types'
 import { canCreateBlog } from '../../utils/permissions';
 import { apiClient } from '../../services/apiClient';
 import { useBlogStore } from '../../store/useBlogStore';
+import { useQueryState } from '../../hooks/useQueryState';
 
 interface ZohoDashboardViewProps {
   blogs: Blog[];
@@ -53,6 +54,7 @@ export const ZohoDashboardView: React.FC<ZohoDashboardViewProps> = ({
   activeRole,
   isLoading,
 }) => {
+  const { setParam } = useQueryState();
   const setActiveWebsite = useBlogStore((s) => s.setActiveWebsite);
   const siteQuery = `?site=${activeWebsiteId}`;
 
@@ -63,7 +65,8 @@ export const ZohoDashboardView: React.FC<ZohoDashboardViewProps> = ({
 
   const scheduledBlogs = displayedBlogs.filter((b) => b.status === 'Scheduled');
 
-  if (isLoading) {
+  // Only show full skeleton on cold initial load (never on tenant switch)
+  if (isLoading && blogs.length === 0) {
     return (
       <div className="space-y-3 font-sans text-slate-800 dark:text-slate-200 animate-in fade-in duration-150">
         {/* Context Strip Skeleton */}
@@ -404,7 +407,10 @@ export const ZohoDashboardView: React.FC<ZohoDashboardViewProps> = ({
                   return (
                     <div
                       key={site.id}
-                      onClick={() => setActiveWebsite(site.id)}
+                      onClick={() => {
+                        setActiveWebsite(site.id);
+                        setParam('site', site.id, true);
+                      }}
                       className={`flex items-center justify-between p-2 rounded-lg border transition-colors cursor-pointer ${
                         isSelected
                           ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/60'
