@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
@@ -74,6 +74,17 @@ import { canPublish, canApprove } from '../../utils/permissions';
 import { apiClient } from '../../services/apiClient';
 import { resolveMediaUrl, extractS3Key } from '../../utils/mediaUtils';
 import { BlogEditorSkeleton } from './BlogEditorSkeleton';
+
+interface BlogTranslationPayload {
+  lang?: LanguageCode;
+  languageCode?: LanguageCode;
+  title?: string;
+  slug?: string;
+  excerpt?: string;
+  content?: string;
+  seo?: Partial<BlogSEO>;
+  [key: string]: unknown;
+}
 
 // Professional CMS Heading Behavior: Pressing Enter at the end of a heading exits to a normal paragraph
 const HeadingEnterExit = Extension.create({
@@ -187,7 +198,10 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     return websites[0]?.id || 'site-cloud';
   });
 
-  const activeSite = websites.find((w) => w.id === selectedWebsiteId) || websites[0] || { id: 'site-cloud', name: 'Jupsoft Cloud & ERP' };
+  const activeSite = useMemo(
+    () => websites.find((w) => w.id === selectedWebsiteId) || websites[0] || { id: 'site-cloud', name: 'Jupsoft Cloud & ERP' },
+    [websites, selectedWebsiteId]
+  );
   const siteCategories = categories[selectedWebsiteId] || [];
   const siteTags = tags[selectedWebsiteId] || [];
 
@@ -250,7 +264,6 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isInternalLangSwitchRef = useRef(false);
   const [, setSelectionTick] = useState(0);
-  const editorRef = useRef<any>(null);
   const editorSyncedBlogIdRef = useRef<string | null>(null);
   const editorSyncedLangRef = useRef<LanguageCode | null>(null);
   const editorSyncedContentRef = useRef<string | null>(null);
@@ -260,19 +273,23 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     isInternalLangSwitchRef.current = true;
     if (editor) {
       const currentHtml = editor.getHTML();
-      setTranslations((prev) => {
-        const next = {
-          ...prev,
-          [currentLang]: {
-            ...prev[currentLang],
-            content: currentHtml,
-          },
-        };
-        const nextContent = next[lang]?.content || '<p></p>';
-        editor.commands.setContent(nextContent);
-        editorSyncedLangRef.current = lang;
-        return next;
-      });
+      // 1. Save current language content into state cleanly
+      setTranslations((prev) => ({
+        ...prev,
+        [currentLang]: {
+          ...(prev[currentLang] || defaultTrans(currentLang)),
+          content: currentHtml,
+        },
+        [lang]: {
+          ...(prev[lang] || defaultTrans(lang)),
+        },
+      }));
+
+      // 2. Set new content in editor OUTSIDE setTranslations state updater
+      const nextContent = translations[lang]?.content || '<p></p>';
+      editorSyncedLangRef.current = lang;
+      editorSyncedContentRef.current = nextContent;
+      editor.commands.setContent(nextContent);
     }
     setParam('lang', lang === 'en' ? null : lang);
   };
@@ -338,7 +355,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   }, [selectedWebsiteId, fetchMedia, fetchCategories, fetchTags, fetchUsers]);
 
   // Per-language dictionary state
-  const defaultTrans = (lang: LanguageCode): BlogTranslation => ({
+  const defaultTrans = useCallback((lang: LanguageCode): BlogTranslation => ({
     id: `trans-${lang}-${Date.now()}`,
     blogId: existingBlog?.id || `blog-${Date.now()}`,
     languageCode: lang,
@@ -347,7 +364,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     excerpt: '',
     content: '<p></p>',
     seo: createEmptySEO(),
-  });
+  }), [existingBlog?.id]);
 
   const [translations, setTranslations] = useState<Record<LanguageCode, BlogTranslation>>(() => {
     if (existingBlog?.translations) {
@@ -366,7 +383,18 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     };
   });
 
-  const activeTrans = translations[currentLang];
+  const activeTrans = useMemo<BlogTranslation>(() => {
+    const t = translations[currentLang];
+    if (!t) return defaultTrans(currentLang);
+    return {
+      ...defaultTrans(currentLang),
+      ...t,
+      seo: {
+        ...createEmptySEO(),
+        ...(t.seo || {}),
+      },
+    };
+  }, [translations, currentLang, defaultTrans]);
 
   // Tiptap Editor instance with rich extensions & professional CMS behavior
   const editor = useEditor({
@@ -433,11 +461,15 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       setSelectionTick((t) => t + 1);
     },
     onUpdate: ({ editor }) => {
+      // Ignore onUpdate triggered when programmatically loading content for a switched language
+      if (isInternalLangSwitchRef.current) {
+        return;
+      }
       const html = editor.getHTML();
       setTranslations((prev) => ({
         ...prev,
         [currentLang]: {
-          ...prev[currentLang],
+          ...(prev[currentLang] || defaultTrans(currentLang)),
           content: html,
         },
       }));
@@ -448,8 +480,6 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       setHasUnsavedChanges(true);
     },
   });
-
-  editorRef.current = editor;
 
   // Open Media Picker with live server refresh & smart tab defaulting
   const handleOpenMediaPicker = (target: 'editor' | 'cover') => {
@@ -665,12 +695,12 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editor]);
+  }, [editor, handleOpenLinkModal]);
 
   // Load full blog detail from backend API once on initial mount (never during typing)
   const [isLoadingFullBlog, setIsLoadingFullBlog] = useState(false);
   const loadedBlogIdRef = useRef<string | null>(null);
-  const initialBlogRef = useRef<any>(existingBlog || null);
+  const initialBlogRef = useRef<Blog | null>(existingBlog);
 
   useEffect(() => {
     if (!targetBlogId) return;
@@ -678,7 +708,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     let active = true;
     setIsLoadingFullBlog(true);
     apiClient.getBlogById(targetBlogId)
-      .then((fullBlog: any) => {
+      .then((fullBlog: Blog) => {
         if (!active || !fullBlog) return;
         loadedBlogIdRef.current = targetBlogId;
         initialBlogRef.current = fullBlog;
@@ -686,15 +716,19 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           sessionStorage.setItem(`jupsoft_editing_blog_${targetBlogId}`, JSON.stringify(fullBlog));
         } catch {}
 
-        const rawTrans = fullBlog.translations;
-        const normTrans: Record<string, any> = {};
+        const rawTrans = fullBlog.translations as unknown;
+        const normTrans: Record<string, BlogTranslationPayload> = {};
         if (Array.isArray(rawTrans)) {
-          rawTrans.forEach((t: any) => {
+          rawTrans.forEach((t: BlogTranslationPayload) => {
             const l = t.lang || t.languageCode;
             if (l) normTrans[l] = t;
           });
         } else if (rawTrans && typeof rawTrans === 'object') {
-          Object.assign(normTrans, rawTrans);
+          Object.entries(rawTrans).forEach(([language, translation]) => {
+            if (translation && typeof translation === 'object') {
+              normTrans[language] = translation as BlogTranslationPayload;
+            }
+          });
         }
 
         if (Object.keys(normTrans).length > 0) {
@@ -715,8 +749,8 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
           // If editor is already initialized and mounted, sync content immediately
           const curContent = normTrans[currentLang]?.content;
-          if (editorRef.current && curContent && curContent !== '<p></p>') {
-            editorRef.current.commands.setContent(curContent);
+          if (editor && curContent && curContent !== '<p></p>') {
+            editor.commands.setContent(curContent);
             editorSyncedBlogIdRef.current = targetBlogId;
             editorSyncedLangRef.current = currentLang;
             editorSyncedContentRef.current = curContent;
@@ -751,7 +785,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     return () => {
       active = false;
     };
-  }, [targetBlogId, currentLang]);
+  }, [targetBlogId, currentLang, defaultTrans, editor]);
 
   // Synchronize editor content when editor becomes ready or when blog/language data changes
   const prevLangRef = useRef<LanguageCode>(currentLang);
@@ -808,20 +842,23 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         editor.commands.setContent(initialHtml);
       }
     }
-  }, [editor, targetBlogId, isLoadingFullBlog, currentLang]);
+  }, [editor, targetBlogId, isLoadingFullBlog, currentLang, translations, defaultTrans]);
 
   // Strictly typed helper functions
   const updateActiveTransField = <K extends keyof BlogTranslation>(
     field: K,
     value: BlogTranslation[K]
   ) => {
-    setTranslations((prev) => ({
-      ...prev,
-      [currentLang]: {
-        ...prev[currentLang],
-        [field]: value,
-      },
-    }));
+    setTranslations((prev) => {
+      const cur = prev[currentLang] || defaultTrans(currentLang);
+      return {
+        ...prev,
+        [currentLang]: {
+          ...cur,
+          [field]: value,
+        },
+      };
+    });
     setHasUnsavedChanges(true);
   };
 
@@ -829,16 +866,19 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     field: K,
     value: BlogSEO[K]
   ) => {
-    setTranslations((prev) => ({
-      ...prev,
-      [currentLang]: {
-        ...prev[currentLang],
-        seo: {
-          ...prev[currentLang].seo,
-          [field]: value,
+    setTranslations((prev) => {
+      const cur = prev[currentLang] || defaultTrans(currentLang);
+      return {
+        ...prev,
+        [currentLang]: {
+          ...cur,
+          seo: {
+            ...(cur.seo || createEmptySEO()),
+            [field]: value,
+          },
         },
-      },
-    }));
+      };
+    });
     setHasUnsavedChanges(true);
   };
 
@@ -854,11 +894,11 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   // Handle title change & auto-generate slug atomically
   const handleTitleChange = (newTitle: string) => {
     setTranslations((prev) => {
-      const current = prev[currentLang];
+      const current = prev[currentLang] || defaultTrans(currentLang);
       const shouldAutoSlug = !current.slug || current.slug === slugify(current.title || '');
       const newSlug = shouldAutoSlug ? slugify(newTitle) : current.slug;
 
-      const updatedSeo = { ...current.seo };
+      const updatedSeo = { ...(current.seo || createEmptySEO()) };
       if (!updatedSeo.metaTitle || updatedSeo.metaTitle === current.title) {
         updatedSeo.metaTitle = newTitle;
       }
@@ -902,8 +942,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     // Auto-save disabled intentionally — manual Save only.
     // autoSaveTimerRef.current = setTimeout(async () => { ... }, 2500);
 
+    const autoSaveTimer = autoSaveTimerRef.current;
     return () => {
-      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      if (autoSaveTimer) clearTimeout(autoSaveTimer);
     };
   }, [
     hasUnsavedChanges,
@@ -975,9 +1016,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         editor.commands.setContent(translatedContent);
       }
       showNotification(`AI Translation complete for ${currentLang.toUpperCase()}! ✨`, 'success');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('AI translation failed:', err);
-      showNotification(err?.message || 'AI translation service unavailable', 'warning');
+      showNotification(err instanceof Error ? err.message : 'AI translation service unavailable', 'warning');
     } finally {
       setIsTranslating(false);
     }
@@ -1273,9 +1314,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       setHasUnsavedChanges(false);
       showNotification(status === 'Published' ? 'Blog published successfully! 🎉' : 'Blog saved successfully! ✅', 'success');
       router.push(`/blogs?site=${targetSiteId}`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn('saveBlog error:', err);
-      showNotification(err?.message || 'Error saving blog to database.', 'warning');
+      showNotification(err instanceof Error ? err.message : 'Error saving blog to database.', 'warning');
     } finally {
       setIsSaving(false);
     }
@@ -1355,7 +1396,6 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
               title={`Translate English title and content to ${currentLang.toUpperCase()} with AI`}
             >
-              <Sparkles className={`w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 ${isTranslating ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">{isTranslating ? 'Translating...' : `Translate from EN`}</span>
             </button>
           )}

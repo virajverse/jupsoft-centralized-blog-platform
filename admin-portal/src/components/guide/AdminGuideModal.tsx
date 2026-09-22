@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useBlogStore } from '../../store/useBlogStore';
+
+type GuideTab = 'all' | 'architecture' | 'modules' | 'workflow' | 'seo' | 'api' | 'settings';
 import { 
   BookOpen, 
   X, 
@@ -31,7 +33,7 @@ import {
 export const AdminGuideModal: React.FC = () => {
   const isGuideOpen = useBlogStore((s) => s.isGuideOpen);
   const setGuideOpen = useBlogStore((s) => s.setGuideOpen);
-  const [activeTab, setActiveTab] = useState<'all' | 'architecture' | 'modules' | 'workflow' | 'seo' | 'api' | 'settings'>('all');
+  const [activeTab, setActiveTab] = useState<GuideTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [copied, setCopied] = useState(false);
 
@@ -178,7 +180,7 @@ The Jupsoft Centralized Content Platform consolidates editorial and publishing o
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id as GuideTab)}
                 className={`px-3 py-1 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
                   activeTab === tab.id
                     ? 'bg-red-600 text-white shadow-xs'
