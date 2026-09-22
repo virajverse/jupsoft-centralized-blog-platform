@@ -18,6 +18,7 @@ import {
 import { Blog, Website, UserAccount, UserRole, LanguageCode } from '../../types';
 import { canCreateBlog } from '../../utils/permissions';
 import { apiClient } from '../../services/apiClient';
+import { useBlogStore } from '../../store/useBlogStore';
 
 interface ZohoDashboardViewProps {
   blogs: Blog[];
@@ -52,6 +53,7 @@ export const ZohoDashboardView: React.FC<ZohoDashboardViewProps> = ({
   activeRole,
   isLoading,
 }) => {
+  const setActiveWebsiteId = useBlogStore((s) => s.setActiveWebsiteId);
   const siteQuery = `?site=${activeWebsiteId}`;
 
   // Recent 8 blogs
@@ -399,15 +401,16 @@ export const ZohoDashboardView: React.FC<ZohoDashboardViewProps> = ({
                 const count = blogs.filter((b) => b.websiteId === site.id).length;
                 const isSelected = activeWebsiteId === site.id;
 
-                return (
-                  <div
-                    key={site.id}
-                    className={`flex items-center justify-between p-2 rounded-lg border transition-colors ${
-                      isSelected
-                        ? 'bg-red-50/50 dark:bg-red-950/20 border-red-200 dark:border-red-900/60'
-                        : 'bg-slate-50/50 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/60'
-                    }`}
-                  >
+                  return (
+                    <div
+                      key={site.id}
+                      onClick={() => setActiveWebsiteId(site.id)}
+                      className={`flex items-center justify-between p-2 rounded-lg border transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/60'
+                          : 'bg-slate-50/50 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                      }`}
+                    >
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-white truncate">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
