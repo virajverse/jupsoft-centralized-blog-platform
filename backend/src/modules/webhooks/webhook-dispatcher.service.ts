@@ -83,19 +83,24 @@ export class WebhookDispatcherService {
       }
     }
 
-    // Legacy single URL string
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      return [
-        {
-          id: 'primary-isr',
-          name: 'Primary Next.js Cache Revalidation',
-          url: trimmed,
+    // Single URL or comma/newline/semicolon separated multi-URLs
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.includes('http://') || trimmed.includes('https://')) {
+      const urls = trimmed
+        .split(/[\n,;]+/)
+        .map((u) => u.trim())
+        .filter((u) => u.startsWith('http://') || u.startsWith('https://'));
+
+      if (urls.length > 0) {
+        return urls.map((u, idx) => ({
+          id: idx === 0 ? 'primary-isr' : `endpoint_${idx + 1}`,
+          name: idx === 0 ? 'Primary Next.js Cache Revalidation' : `Revalidation Endpoint ${idx + 1}`,
+          url: u,
           events: ['blog.published', 'blog.updated', 'blog.unpublished', 'blog.archived'],
           secret: '',
           isActive: true,
           createdAt: new Date().toISOString(),
-        },
-      ];
+        }));
+      }
     }
 
     return [];

@@ -68,17 +68,19 @@ const ResizableImageView: React.FC<ReactNodeViewProps> = ({
 
   const dragRef = useRef<{ startX: number; startW: number; dir: HandleDir } | null>(null);
 
-  // Local width tracks live drag; syncs back to node attrs on mouseup
-  const [localWidth, setLocalWidth] = useState<number | null>(nodeWidth);
-  const [customPx,   setCustomPx]   = useState<string>(nodeWidth ? String(nodeWidth) : '');
+  // Local width & rotation track live interactions; syncs back to node attrs on mouseup/update
+  const [localWidth,  setLocalWidth]  = useState<number | null>(nodeWidth);
+  const [customPx,    setCustomPx]    = useState<string>(nodeWidth ? String(nodeWidth) : '');
+  const [localRotate, setLocalRotate] = useState<number>(rotate);
 
   // Sync when node attrs change externally (undo / redo / lang switch)
   useEffect(() => {
     queueMicrotask(() => {
       setLocalWidth(nodeWidth);
       setCustomPx(nodeWidth ? String(nodeWidth) : '');
+      setLocalRotate(rotate);
     });
-  }, [nodeWidth]);
+  }, [nodeWidth, rotate]);
 
   const applyWidth = useCallback(
     (w: number | null) => {
@@ -100,6 +102,10 @@ const ResizableImageView: React.FC<ReactNodeViewProps> = ({
   const applyRotation = useCallback(
     (deg: number) => {
       const normalized = ((deg % 360) + 360) % 360;
+      setLocalRotate(normalized);
+      if (imgRef.current) {
+        imgRef.current.style.transform = normalized !== 0 ? `rotate(${normalized}deg)` : 'none';
+      }
       updateAttributes({ rotate: normalized });
     },
     [updateAttributes],
@@ -184,7 +190,7 @@ const ResizableImageView: React.FC<ReactNodeViewProps> = ({
             height: 'auto',
             display: 'block',
             borderRadius: '0.75rem',
-            transform: rotate !== 0 ? `rotate(${rotate}deg)` : 'none',
+            transform: localRotate !== 0 ? `rotate(${localRotate}deg)` : 'none',
             transformOrigin: 'center center',
             transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
             outline: selected ? '2px solid #3b82f6' : 'none',
@@ -265,13 +271,13 @@ const ResizableImageView: React.FC<ReactNodeViewProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <IconButton
                   title="Rotate -90° (Counter-Clockwise)"
-                  onClick={() => applyRotation(rotate - 90)}
+                  onClick={() => applyRotation(localRotate - 90)}
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                 </IconButton>
                 <IconButton
                   title="Rotate +90° (Clockwise)"
-                  onClick={() => applyRotation(rotate + 90)}
+                  onClick={() => applyRotation(localRotate + 90)}
                 >
                   <RotateCw className="w-3.5 h-3.5" />
                 </IconButton>
@@ -283,7 +289,7 @@ const ResizableImageView: React.FC<ReactNodeViewProps> = ({
                     min="0"
                     max="360"
                     step="15"
-                    value={rotate}
+                    value={localRotate}
                     title="Enter custom rotation angle (0° - 360°)"
                     onChange={(e) => applyRotation(parseInt(e.target.value, 10) || 0)}
                     style={{
@@ -302,7 +308,7 @@ const ResizableImageView: React.FC<ReactNodeViewProps> = ({
                   <span style={{ color: '#64748b', fontSize: 11 }}>°</span>
                 </div>
 
-                {rotate !== 0 && (
+                {localRotate !== 0 && (
                   <button
                     type="button"
                     title="Reset rotation to 0°"

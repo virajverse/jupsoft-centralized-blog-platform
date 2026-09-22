@@ -67,11 +67,16 @@ export class WebsitesService {
 
     let webhookUrl = dto.revalidateWebhookUrl?.trim();
     if (webhookUrl) {
-      if (!webhookUrl.startsWith('https://') && !webhookUrl.startsWith('http://')) {
-        throw new BadRequestException('revalidateWebhookUrl must be a valid URL starting with http:// or https://');
+      const isJson = webhookUrl.startsWith('[');
+      const isUrlList = webhookUrl.split(/[\n,;]+/).every((u) => {
+        const t = u.trim();
+        return !t || t.startsWith('http://') || t.startsWith('https://');
+      });
+      if (!isJson && !isUrlList) {
+        throw new BadRequestException('revalidateWebhookUrl must be a valid URL (or comma-separated list of URLs) starting with http:// or https://');
       }
       if (webhookUrl.includes('/blog/api/revalidate')) {
-        webhookUrl = webhookUrl.replace('/blog/api/revalidate', '/api/revalidate');
+        webhookUrl = webhookUrl.replace(/\/blog\/api\/revalidate/g, '/api/revalidate');
       }
     } else {
       webhookUrl = `https://${cleanDomain}/api/revalidate`;
@@ -143,8 +148,16 @@ export class WebsitesService {
   async update(id: string, dto: UpdateWebsiteDto) {
     await this.findOne(id);
 
-    if (dto.revalidateWebhookUrl && !dto.revalidateWebhookUrl.startsWith('https://') && !dto.revalidateWebhookUrl.startsWith('http://')) {
-      throw new BadRequestException('revalidateWebhookUrl must be a valid URL starting with http:// or https://');
+    if (dto.revalidateWebhookUrl) {
+      const raw = dto.revalidateWebhookUrl.trim();
+      const isJson = raw.startsWith('[');
+      const isUrlList = raw.split(/[\n,;]+/).every((u) => {
+        const t = u.trim();
+        return !t || t.startsWith('http://') || t.startsWith('https://');
+      });
+      if (!isJson && !isUrlList) {
+        throw new BadRequestException('revalidateWebhookUrl must be a valid URL (or comma-separated list of URLs) starting with http:// or https://');
+      }
     }
 
     const updated = await this.prisma.website.update({

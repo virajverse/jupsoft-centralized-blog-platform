@@ -528,6 +528,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     if (!linkUrl.trim()) {
       editor.chain().focus().extendMarkRange('link').unsetLink().run();
       setLinkModalOpen(false);
+      setHasUnsavedChanges(true);
       return;
     }
 
@@ -544,14 +545,16 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
     const { from, to } = editor.state.selection;
     const currentSelectedText = editor.state.doc.textBetween(from, to, ' ');
+    const effectiveText = linkText.trim() || currentSelectedText.trim() || href;
 
-    if (linkText && linkText !== currentSelectedText) {
+    // If no text is selected or the anchor text was changed, insert text with link mark
+    if (!currentSelectedText || linkText.trim() !== currentSelectedText.trim() || from === to) {
       editor
         .chain()
         .focus()
         .insertContent({
           type: 'text',
-          text: linkText,
+          text: effectiveText,
           marks: [
             {
               type: 'link',
@@ -577,6 +580,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         .run();
     }
     setLinkModalOpen(false);
+    setHasUnsavedChanges(true);
     showNotification('Link applied successfully! 🔗', 'success');
   };
 
@@ -585,6 +589,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     if (!editor) return;
     editor.chain().focus().extendMarkRange('link').unsetLink().run();
     setLinkModalOpen(false);
+    setHasUnsavedChanges(true);
     showNotification('Link removed.', 'info');
   };
 
