@@ -6,6 +6,20 @@ export class TranslationService {
   private readonly logger = new Logger(TranslationService.name);
 
   /**
+   * Helper function: Run translation promises in controlled batches
+   * This speeds up processing 5x without crashing the free MyMemory API
+   */
+  private async runInBatches<T>(items: any[], batchSize: number, fn: (item: any) => Promise<T>): Promise<T[]> {
+    const results: T[] = [];
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      const batchResults = await Promise.all(batch.map(fn));
+      results.push(...batchResults);
+    }
+    return results;
+  }
+
+  /**
    * Translate a single text string using MyMemory Translation API.
    * Handles character limit chunking (<= 400 chars per request).
    */
@@ -17,11 +31,10 @@ export class TranslationService {
     // If text exceeds 400 chars, split into sentence-based chunks
     if (trimmed.length > 400) {
       const sentences = trimmed.split(/(?<=[.!?\n।])\s+/).filter(Boolean);
-      const translatedSentences: string[] = [];
-      for (const sentence of sentences) {
-        const tr = await this.queryMyMemory(sentence, from, to);
-        translatedSentences.push(tr);
-      }
+      // Run sentence translations in parallel batches
+      const translatedSentences = await this.runInBatches(sentences, 5, (sentence) =>
+        this.queryMyMemory(sentence, from, to)
+      );
       return translatedSentences.join(' ');
     }
 
@@ -34,7 +47,7 @@ export class TranslationService {
       const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(query)}&langpair=${pair}`;
       
       const res = await fetch(url, {
-        signal: AbortSignal.timeout(6000),
+        signal: AbortSignal.timeout(6000), // 6 seconds limit per request
         headers: {
           'User-Agent': 'Jupsoft-CMS-Translator/1.0',
           'Accept': 'application/json',
@@ -65,19 +78,18 @@ export class TranslationService {
     if (from.toLowerCase() === to.toLowerCase()) return html;
 
     const tokens = html.split(/(<[^>]+>)/g);
-    const results: string[] = [];
-
-    for (const tok of tokens) {
+    
+    // Process all HTML tokens in batches of 5 concurrently!
+    const results = await this.runInBatches(tokens, 5, async (tok) => {
       if (tok.startsWith('<') && tok.endsWith('>')) {
         // Retain HTML tag as-is
-        results.push(tok);
+        return tok;
       } else if (tok.trim().length > 0) {
-        const translated = await this.translateSingle(tok, from, to);
-        results.push(translated);
+        return await this.translateSingle(tok, from, to);
       } else {
-        results.push(tok);
+        return tok;
       }
-    }
+    });
 
     return results.join('');
   }
@@ -102,21 +114,23 @@ export class TranslationService {
       to,
     };
 
+    // Execute field translations fully in parallel
+    const promises = [];
+
     if (title) {
-      result.title = await this.translateSingle(title, from, to);
+      promises.push(this.translateSingle(title, from, to).then(res => result.title = res));
     }
-
     if (excerpt) {
-      result.excerpt = await this.translateSingle(excerpt, from, to);
+      promises.push(this.translateSingle(excerpt, from, to).then(res => result.excerpt = res));
     }
-
     if (content) {
-      result.content = await this.translateHtml(content, from, to);
+      promises.push(this.translateHtml(content, from, to).then(res => result.content = res));
+    }
+    if (text) {
+      promises.push(this.translateSingle(text, from, to).then(res => result.translatedText = res));
     }
 
-    if (text) {
-      result.translatedText = await this.translateSingle(text, from, to);
-    }
+    await Promise.all(promises);
 
     return result;
   }
