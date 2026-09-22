@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards, Req, Header, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, Req, Res, Header, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiHeader } from '@nestjs/swagger';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { PublicV1Service } from './public-v1.service';
@@ -13,6 +13,26 @@ import { ApiKeyThrottlerGuard } from '../../common/guards/api-key-throttler.guar
 @Throttle({ 'public-api': { limit: 120, ttl: 60000 } })
 export class PublicV1Controller {
   constructor(private readonly publicV1Service: PublicV1Service) {}
+
+  private applyCacheHeaders(res: any, req: any, fresh?: string): boolean {
+    const isBypass =
+      fresh === '1' ||
+      fresh === 'true' ||
+      req?.headers?.['cache-control']?.includes('no-cache') ||
+      req?.headers?.pragma === 'no-cache';
+
+    if (res && typeof res.setHeader === 'function') {
+      if (isBypass) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+      } else {
+        // Ultra-responsive edge cache (5s CDN cache + 10s stale-while-revalidate)
+        res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=5, stale-while-revalidate=10, must-revalidate');
+      }
+    }
+    return isBypass;
+  }
 
   @Get('health')
   @ApiOperation({ summary: 'Health check endpoint for status monitoring' })
@@ -29,7 +49,6 @@ export class PublicV1Controller {
 
   @Get('blogs')
   @UseGuards(ApiKeyGuard)
-  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
   @ApiHeader({ name: 'Authorization', description: 'Bearer <tenant_api_key>', required: true })
   @ApiOperation({ summary: 'List published articles for consuming website (Paginated, ISR-ready)' })
   @ApiQuery({ name: 'category', required: false })
@@ -37,15 +56,19 @@ export class PublicV1Controller {
   @ApiQuery({ name: 'lang', required: false, example: 'en' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
+  @ApiQuery({ name: 'fresh', required: false, example: '1', description: 'Bypass cache for real-time fresh data' })
   async getPublishedBlogs(
     @Req() req: any,
+    @Res({ passthrough: true }) res: any,
     @Query('category') category?: string,
     @Query('tag') tag?: string,
     @Query('lang') lang?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
+    @Query('fresh') fresh?: string,
   ) {
     const websiteId = req.tenant.id;
+    const bypassCache = this.applyCacheHeaders(res, req, fresh);
     return this.publicV1Service.getPublishedBlogs({
       websiteId,
       category,
@@ -53,22 +76,26 @@ export class PublicV1Controller {
       lang: lang || req.tenant.defaultLanguage || 'en',
       page: page ? Number(page) : 1,
       limit: limit ? Number(limit) : 10,
+      bypassCache,
     });
   }
 
   // ─── TRD §12: GET /blogs/latest?website= (Latest published blogs) ─────────
   @Get('blogs/latest')
   @UseGuards(ApiKeyGuard)
-  @Header('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300')
   @ApiOperation({ summary: 'Retrieve latest published blogs for consuming website (TRD §12)' })
   @ApiQuery({ name: 'website', required: false, description: 'Website slug or domain' })
   @ApiQuery({ name: 'lang', required: false, example: 'en' })
   @ApiQuery({ name: 'limit', required: false, example: 5 })
+  @ApiQuery({ name: 'fresh', required: false, example: '1' })
   async getLatestBlogs(
     @Req() req: any,
+    @Res({ passthrough: true }) res: any,
     @Query('lang') lang?: string,
     @Query('limit') limit?: number,
+    @Query('fresh') fresh?: string,
   ) {
+    this.applyCacheHeaders(res, req, fresh);
     return this.publicV1Service.getLatestBlogs(
       req.tenant.id,
       lang || req.tenant.defaultLanguage || 'en',
@@ -79,16 +106,19 @@ export class PublicV1Controller {
   // ─── TRD §12: GET /blogs/popular?website= (Most-viewed blogs) ─────────────
   @Get('blogs/popular')
   @UseGuards(ApiKeyGuard)
-  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
   @ApiOperation({ summary: 'Retrieve most-viewed popular blogs for consuming website (TRD §12)' })
   @ApiQuery({ name: 'website', required: false, description: 'Website slug or domain' })
   @ApiQuery({ name: 'lang', required: false, example: 'en' })
   @ApiQuery({ name: 'limit', required: false, example: 5 })
+  @ApiQuery({ name: 'fresh', required: false, example: '1' })
   async getPopularBlogs(
     @Req() req: any,
+    @Res({ passthrough: true }) res: any,
     @Query('lang') lang?: string,
     @Query('limit') limit?: number,
+    @Query('fresh') fresh?: string,
   ) {
+    this.applyCacheHeaders(res, req, fresh);
     return this.publicV1Service.getPopularBlogs(
       req.tenant.id,
       lang || req.tenant.defaultLanguage || 'en',
@@ -98,22 +128,25 @@ export class PublicV1Controller {
 
   @Get('blogs/:slug')
   @UseGuards(ApiKeyGuard)
-  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
   @ApiHeader({ name: 'Authorization', description: 'Bearer <tenant_api_key>', required: true })
   @ApiOperation({ summary: 'Retrieve full published post with SEO meta and Schema.org JSON-LD' })
   @ApiQuery({ name: 'lang', required: false, example: 'en' })
+  @ApiQuery({ name: 'fresh', required: false, example: '1', description: 'Bypass cache for real-time fresh data' })
   async getBlogBySlug(
     @Param('slug') slug: string,
     @Req() req: any,
+    @Res({ passthrough: true }) res: any,
     @Query('lang') lang?: string,
+    @Query('fresh') fresh?: string,
   ) {
     const websiteId = req.tenant.id;
-    return this.publicV1Service.getBlogBySlug(slug, websiteId, lang || 'en');
+    const bypassCache = this.applyCacheHeaders(res, req, fresh);
+    return this.publicV1Service.getBlogBySlug(slug, websiteId, lang || 'en', bypassCache);
   }
 
   @Get('categories')
   @UseGuards(ApiKeyGuard)
-  @Header('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=1200')
+  @Header('Cache-Control', 'public, max-age=0, s-maxage=10, stale-while-revalidate=20, must-revalidate')
   @ApiHeader({ name: 'Authorization', description: 'Bearer <tenant_api_key>', required: true })
   @ApiOperation({ summary: 'Retrieve taxonomy category tree for consuming website' })
   async getCategories(@Req() req: any, @Query('websiteId') queryWebsiteId?: string) {
@@ -127,7 +160,7 @@ export class PublicV1Controller {
 
   @Get('tags')
   @UseGuards(ApiKeyGuard)
-  @Header('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=1200')
+  @Header('Cache-Control', 'public, max-age=0, s-maxage=10, stale-while-revalidate=20, must-revalidate')
   @ApiHeader({ name: 'Authorization', description: 'Bearer <tenant_api_key>', required: true })
   @ApiOperation({ summary: 'Retrieve tags list for consuming website' })
   async getTags(@Req() req: any, @Query('websiteId') queryWebsiteId?: string) {
@@ -177,7 +210,7 @@ export class PublicV1Controller {
 
   @Get('redirects')
   @UseGuards(ApiKeyGuard)
-  @Header('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=1200')
+  @Header('Cache-Control', 'public, max-age=0, s-maxage=10, stale-while-revalidate=20, must-revalidate')
   @ApiOperation({ summary: 'Retrieve active 301 permanent redirect rules for consuming website (Edge Middleware ready)' })
   async getRedirects(@Req() req: any) {
     return this.publicV1Service.getRedirects(req.tenant.id);

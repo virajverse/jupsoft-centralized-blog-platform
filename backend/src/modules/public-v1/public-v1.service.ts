@@ -95,8 +95,9 @@ export class PublicV1Service {
     lang?: string;
     page?: number;
     limit?: number;
+    bypassCache?: boolean;
   }) {
-    const { websiteId, category, tag, lang = 'en' } = params;
+    const { websiteId, category, tag, lang = 'en', bypassCache = false } = params;
     const safeLimit = Math.max(1, Math.min(Number(params.limit) || 10, 50));
     const safePage = Math.max(1, Number(params.page) || 1);
     const skip = (safePage - 1) * safeLimit;
@@ -107,8 +108,10 @@ export class PublicV1Service {
       'blogs',
       `${websiteId}:${safePage}:${safeLimit}:${lang}${category ? `:cat-${category}` : ''}${tag ? `:tag-${tag}` : ''}`,
     );
-    const cached = await this.redis.get<unknown>(cacheKey);
-    if (cached) return cached;
+    if (!bypassCache) {
+      const cached = await this.redis.get<unknown>(cacheKey);
+      if (cached) return cached;
+    }
 
     const where: any = {
       websiteId,
@@ -211,8 +214,8 @@ export class PublicV1Service {
       data,
     };
 
-    // TRD §16: Populate cache — TTL 300s for lists
-    await this.redis.set(cacheKey, result, 300);
+    // TRD §16: Populate cache — TTL 60s for lists
+    await this.redis.set(cacheKey, result, 60);
     return result;
   }
 
@@ -309,26 +312,30 @@ export class PublicV1Service {
   }
 
   // ─── TRD §13: key format blog:{website}:{slug}:{lang} (generation-prefixed)
-  async getBlogBySlug(slug: string, websiteId: string, lang = 'en') {
+  async getBlogBySlug(slug: string, websiteId: string, lang = 'en', bypassCache = false) {
     // P1: generation-prefixed key → O(1) invalidation, no SCAN
     const cacheKey = await this.redis.nsKey('blog', `${websiteId}:${slug}:${lang}`);
-    const cached = await this.redis.get<unknown>(cacheKey);
-    if (cached === NOT_FOUND_MARKER) {
-      throw new NotFoundException(`No published article found for slug "${slug}"`);
+    if (!bypassCache) {
+      const cached = await this.redis.get<unknown>(cacheKey);
+      if (cached === NOT_FOUND_MARKER) {
+        throw new NotFoundException(`No published article found for slug "${slug}"`);
+      }
+      if (cached) return cached;
     }
-    if (cached) return cached;
 
     // P1: request coalescing — N concurrent misses share ONE DB resolution
-    return this.coalesce(cacheKey, () => this.loadBlogBySlug(slug, websiteId, lang, cacheKey));
+    return this.coalesce(cacheKey, () => this.loadBlogBySlug(slug, websiteId, lang, cacheKey, bypassCache));
   }
 
-  private async loadBlogBySlug(slug: string, websiteId: string, lang: string, cacheKey: string) {
+  private async loadBlogBySlug(slug: string, websiteId: string, lang: string, cacheKey: string, bypassCache = false) {
     // Re-check: a concurrent request may have populated the cache while we queued
-    const cached = await this.redis.get<unknown>(cacheKey);
-    if (cached === NOT_FOUND_MARKER) {
-      throw new NotFoundException(`No published article found for slug "${slug}"`);
+    if (!bypassCache) {
+      const cached = await this.redis.get<unknown>(cacheKey);
+      if (cached === NOT_FOUND_MARKER) {
+        throw new NotFoundException(`No published article found for slug "${slug}"`);
+      }
+      if (cached) return cached;
     }
-    if (cached) return cached;
 
     const blogIncludes = {
       website: true,
@@ -475,8 +482,8 @@ export class PublicV1Service {
     }
 
     const result = await this.formatBlogDetail(translation);
-    // TRD §16: Populate cache — TTL 3600s for individual blog detail
-    await this.redis.set(cacheKey, result, 3600);
+    // TRD §16: Populate cache — TTL 300s for individual blog detail (responsive updates)
+    await this.redis.set(cacheKey, result, 300);
     return result;
   }
 

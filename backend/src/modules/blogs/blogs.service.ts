@@ -654,13 +654,14 @@ export class BlogsService {
 
   // ─── Helper: invalidate all Redis cache keys for this blog (TRD §13)
   private async invalidateCache(websiteId: string, translations: Array<{ slug: string }>): Promise<void> {
-    // P1: O(1) namespace-generation bumps replace per-slug SCAN delPattern calls
-    // (SCAN on every publish was the #1 Redis bottleneck under traffic).
     void translations;
     await this.redis.invalidateNamespace('blog');
     await this.redis.invalidateNamespace('blogs');
     await this.redis.invalidateNamespace('search');
     await this.redis.delPattern('admin:blogs:*');
+    await this.redis.delPattern(`blog:*:${websiteId}:*`);
+    await this.redis.delPattern(`blogs:*:${websiteId}:*`);
+    await this.redis.delPattern(`search:*:${websiteId}:*`);
     await this.redis.del(`redirects:${websiteId}`);
     await this.redis.delPattern('admin:redirects:*');
   }
