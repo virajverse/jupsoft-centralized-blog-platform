@@ -26,20 +26,24 @@ export const MediaLibraryView: React.FC = () => {
     media, 
     activeWebsiteId, 
     websites, 
+    blogs,
     addMediaItem, 
     deleteMediaItem,
     activeRole,
     fetchMedia,
+    fetchBlogs,
     setActiveWebsite,
   } = useBlogStore(
     useShallow((s) => ({
       media: s.media,
       activeWebsiteId: s.activeWebsiteId,
       websites: s.websites,
+      blogs: s.blogs,
       addMediaItem: s.addMediaItem,
       deleteMediaItem: s.deleteMediaItem,
       activeRole: s.activeRole,
       fetchMedia: s.fetchMedia,
+      fetchBlogs: s.fetchBlogs,
       setActiveWebsite: s.setActiveWebsite,
     }))
   );
@@ -68,13 +72,20 @@ export const MediaLibraryView: React.FC = () => {
     fetchMedia(effectiveSiteId).finally(() => {
       if (active) setIsLoadingMedia(false);
     });
+    // Ensure blogs are available for header/sidebar counts even if entering via direct /media link
+    if (useBlogStore.getState().blogs.length === 0) {
+      fetchBlogs(effectiveSiteId);
+    }
     return () => { active = false; };
-  }, [effectiveSiteId, siteParam, activeWebsiteId, websites, setActiveWebsite, fetchMedia]);
+  }, [effectiveSiteId, siteParam, activeWebsiteId, websites, setActiveWebsite, fetchMedia, fetchBlogs]);
 
   const handleSyncMedia = async () => {
     setIsLoadingMedia(true);
     try {
-      await fetchMedia(effectiveSiteId);
+      await Promise.allSettled([
+        fetchMedia(effectiveSiteId),
+        fetchBlogs(effectiveSiteId),
+      ]);
     } finally {
       setIsLoadingMedia(false);
     }

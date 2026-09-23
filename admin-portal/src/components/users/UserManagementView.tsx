@@ -187,7 +187,8 @@ export const UserManagementView: React.FC = () => {
     updateUser, 
     deleteUser, 
     resetUserPassword,
-    showNotification 
+    showNotification,
+    fetchBlogs,
   } = useBlogStore(
     useShallow((s) => ({
       users: s.users,
@@ -201,6 +202,7 @@ export const UserManagementView: React.FC = () => {
       deleteUser: s.deleteUser,
       resetUserPassword: s.resetUserPassword,
       showNotification: s.showNotification,
+      fetchBlogs: s.fetchBlogs,
     }))
   );
 
@@ -222,8 +224,11 @@ export const UserManagementView: React.FC = () => {
     fetchUsers().finally(() => {
       if (active) setIsLoadingUsers(false);
     });
+    if (useBlogStore.getState().blogs.length === 0) {
+      fetchBlogs();
+    }
     return () => { active = false; };
-  }, [fetchUsers]);
+  }, [fetchUsers, fetchBlogs]);
 
   const handleDeleteUser = async (id: string, name: string) => {
     if (deletingUserId) return;

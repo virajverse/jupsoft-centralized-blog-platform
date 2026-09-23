@@ -296,10 +296,11 @@ export const useBlogStore = create<BlogState>()(
 
       loadInitialData: async () => {
         try {
-          // Lightweight core shell initialization: only websites + current user profile (prevents 8-request waterfall)
-          const [websitesRes, profileRes] = await Promise.allSettled([
+          // Initialize core shell data in parallel: websites, user profile, and active blogs
+          const [websitesRes, profileRes, blogsRes] = await Promise.allSettled([
             apiClient.getWebsites(),
             apiClient.getProfile(),
+            apiClient.getBlogs({ limit: 100 }),
           ]);
 
           const updates: Partial<BlogState> = {};
@@ -319,6 +320,9 @@ export const useBlogStore = create<BlogState>()(
               customModules: savedCustomModules[u.id] || get().currentUser?.customModules || (u as any).customModules,
               avatar: cleanAvatarUrl(u.avatar) || '/uploads/avatars/avatar-default.webp',
             };
+          }
+          if (blogsRes.status === 'fulfilled' && blogsRes.value && Array.isArray(blogsRes.value.data)) {
+            updates.blogs = blogsRes.value.data;
           }
 
           if (Object.keys(updates).length > 0) {

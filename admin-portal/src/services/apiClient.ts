@@ -103,17 +103,58 @@ function deleteCookie(name: string) {
   document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
 }
 
+export interface ApiRequestOptions extends RequestInit {
+  forceRefresh?: boolean;
+}
+
+interface CacheEntry<T = unknown> {
+  data: T;
+  expiresAt: number;
+}
+
 class ApiClient {
   private token: string | null = null;
   private refreshTokenValue: string | null = null;
   private isRefreshing = false;
   private refreshQueue: Array<(token: string | null) => void> = [];
 
+  // In-flight deduplication & short-TTL cache (prevents 10x/8x over-fetching)
+  private cache = new Map<string, CacheEntry<unknown>>();
+  private inFlight = new Map<string, Promise<unknown>>();
+
   constructor() {
     if (typeof window !== 'undefined') {
       this.token = getCookie('jupsoft_auth_token');
       this.refreshTokenValue = getCookie('jupsoft_refresh_token');
     }
+  }
+
+  /**
+   * Clear in-memory response cache.
+   * Can clear all entries or only entries matching a sub-path pattern.
+   */
+  public clearCache(endpointPattern?: string): void {
+    if (!endpointPattern) {
+      this.cache.clear();
+      return;
+    }
+    for (const key of this.cache.keys()) {
+      if (key.includes(endpointPattern)) {
+        this.cache.delete(key);
+      }
+    }
+  }
+
+  /**
+   * Determine TTL based on resource volatility
+   */
+  private getTtlForEndpoint(endpoint: string): number {
+    if (endpoint.startsWith('/admin/websites')) return 30_000; // 30s: tenants rarely change
+    if (endpoint.startsWith('/admin/auth/me')) return 30_000;   // 30s: user profile
+    if (endpoint.startsWith('/admin/categories') || endpoint.startsWith('/admin/tags')) return 15_000; // 15s
+    if (endpoint.startsWith('/admin/blogs')) return 6_000;      // 6s: blog list & counters
+    if (endpoint.startsWith('/v1/health')) return 10_000;       // 10s: health check
+    return 5_000; // 5s default
   }
 
   setTokens(accessToken: string | null, refreshToken?: string | null) {
@@ -148,6 +189,7 @@ class ApiClient {
   clearTokens() {
     this.token = null;
     this.refreshTokenValue = null;
+    this.clearCache();
     deleteCookie('jupsoft_auth_token');
     deleteCookie('jupsoft_refresh_token');
     if (typeof window !== 'undefined') {
@@ -190,7 +232,7 @@ class ApiClient {
     }
   }
 
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  private async executeFetch<T>(endpoint: string, options: ApiRequestOptions = {}): Promise<T> {
     const headers = new Headers(options.headers || {});
     if (!(options.body instanceof FormData)) {
       headers.set('Content-Type', 'application/json');
@@ -276,6 +318,53 @@ class ApiClient {
     }
 
     return response.json();
+  }
+
+  private async request<T>(endpoint: string, options: ApiRequestOptions = {}): Promise<T> {
+    const method = (options.method || 'GET').toUpperCase();
+    const isGet = method === 'GET';
+    const bypassCache = Boolean(options.forceRefresh || options.cache === 'no-store');
+
+    // 1. Mutating requests (POST, PUT, DELETE, PATCH): Clear cache and execute immediately
+    if (!isGet) {
+      const result = await this.executeFetch<T>(endpoint, options);
+      this.clearCache();
+      return result;
+    }
+
+    // 2. GET Request: Check memory cache first
+    const cacheKey = endpoint;
+    if (!bypassCache) {
+      const cached = this.cache.get(cacheKey);
+      if (cached && Date.now() < cached.expiresAt) {
+        return cached.data as T;
+      }
+    }
+
+    // 3. GET Request: Deduplicate in-flight requests (prevent 10x concurrent calls)
+    const inFlightPromise = this.inFlight.get(cacheKey);
+    if (inFlightPromise && !bypassCache) {
+      return inFlightPromise as Promise<T>;
+    }
+
+    // 4. Fire request and store in-flight Promise
+    const fetchPromise = this.executeFetch<T>(endpoint, options)
+      .then((data) => {
+        if (!bypassCache && data !== undefined) {
+          const ttl = this.getTtlForEndpoint(endpoint);
+          this.cache.set(cacheKey, {
+            data,
+            expiresAt: Date.now() + ttl,
+          });
+        }
+        return data;
+      })
+      .finally(() => {
+        this.inFlight.delete(cacheKey);
+      });
+
+    this.inFlight.set(cacheKey, fetchPromise);
+    return fetchPromise;
   }
 
   // ─── Health ───────────────────────────────────────────────────────────────
