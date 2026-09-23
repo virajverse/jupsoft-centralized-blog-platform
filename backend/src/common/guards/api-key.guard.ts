@@ -43,6 +43,10 @@ function isValidAdminJwt(token: string, secret: string): boolean {
 
 const tenantCache = new Map<string, { website: any; expiresAt: number }>();
 
+export function clearTenantCache(): void {
+  tenantCache.clear();
+}
+
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
   constructor(private prisma: PrismaService) {}

@@ -63,6 +63,14 @@ export const RedirectsView: React.FC<RedirectsViewProps> = ({ embedded = false }
 
   // Form State
   const [targetSiteId, setTargetSiteId] = useState<string>(effectiveSiteId === 'all' ? websites[0]?.id : effectiveSiteId);
+
+  React.useEffect(() => {
+    if (effectiveSiteId && effectiveSiteId !== 'all') {
+      setTargetSiteId(effectiveSiteId);
+    } else if (websites.length > 0 && (!targetSiteId || !websites.some((w) => w.id === targetSiteId))) {
+      setTargetSiteId(websites[0].id);
+    }
+  }, [effectiveSiteId, websites, targetSiteId]);
   const [fromSlug, setFromSlug] = useState('');
   const [toSlug, setToSlug] = useState('');
   const [deleteModal, setDeleteModal] = useState<{

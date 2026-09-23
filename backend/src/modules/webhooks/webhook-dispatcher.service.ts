@@ -216,6 +216,7 @@ export class WebhookDispatcherService {
             headers: {
               'Content-Type': 'application/json',
               'x-signature': `sha256=${signature}`, // HMAC-SHA256 — consuming side verifies this
+              'x-hub-signature-256': `sha256=${signature}`, // Standard GitHub/Next.js HMAC header
               'x-timestamp': String(payload.timestamp), // TRD §15: replay protection
               'x-event': event,
               'User-Agent': 'Jupsoft-CMS-Webhook/1.0',
@@ -331,7 +332,9 @@ export class WebhookDispatcherService {
         headers: {
           'Content-Type': 'application/json',
           'x-signature': `sha256=${signature}`,
+          'x-hub-signature-256': `sha256=${signature}`,
           'x-timestamp': String(payload.timestamp),
+          'x-event': event,
           'User-Agent': 'Jupsoft-CMS-Webhook-Tester/1.0',
         },
         body: payloadString,

@@ -2,6 +2,7 @@ import { Injectable, ConflictException, NotFoundException, BadRequestException }
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisProvider } from '../../common/providers/redis.provider';
 import { CreateWebsiteDto, UpdateWebsiteDto } from './dto/create-website.dto';
+import { clearTenantCache } from '../../common/guards/api-key.guard';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -142,6 +143,7 @@ export class WebsitesService {
     });
 
     await this.redis.del('admin:websites:all');
+    clearTenantCache();
     return website;
   }
 
@@ -166,6 +168,7 @@ export class WebsitesService {
     });
 
     await this.redis.del('admin:websites:all');
+    clearTenantCache();
     return updated;
   }
 
@@ -189,6 +192,7 @@ export class WebsitesService {
     });
 
     await this.redis.del('admin:websites:all');
+    clearTenantCache();
     return { success: true, message: `Website tenant "${website.name}" removed.` };
   }
 }

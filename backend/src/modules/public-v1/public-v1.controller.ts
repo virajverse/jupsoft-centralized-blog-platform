@@ -1,4 +1,19 @@
-import { Controller, Get, Param, Query, UseGuards, Req, Res, Header, ForbiddenException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Query,
+  UseGuards,
+  Req,
+  Res,
+  Header,
+  ForbiddenException,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiHeader } from '@nestjs/swagger';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { PublicV1Service } from './public-v1.service';
@@ -44,6 +59,36 @@ export class PublicV1Controller {
       service: 'Jupsoft Centralized CMS Backend',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
+    };
+  }
+
+  @Post('revalidate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'On-demand cache revalidation endpoint (TRD §13 & §15)' })
+  async revalidateCache(
+    @Req() req: any,
+    @Body() body: any,
+    @Headers('x-signature') xSignature?: string,
+    @Headers('x-hub-signature-256') xHubSignature?: string,
+    @Headers('x-event') xEvent?: string,
+    @Query('website') queryWebsite?: string,
+  ) {
+    const payload = body || {};
+    const event = payload.event || xEvent || 'test';
+    const slug = payload.slug || 'all';
+    const websiteDomainOrId = payload.website || queryWebsite || req.headers?.['x-website-id'] || 'all';
+
+    // Invalidate Redis caches for published blogs and search
+    await this.publicV1Service.invalidateBlogCache(websiteDomainOrId, slug);
+
+    return {
+      success: true,
+      revalidated: true,
+      event,
+      slug,
+      website: websiteDomainOrId,
+      message: 'Cache revalidation ping acknowledged successfully',
+      timestamp: new Date().toISOString(),
     };
   }
 
