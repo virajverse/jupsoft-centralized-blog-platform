@@ -324,6 +324,7 @@ export class UsersService {
     await Promise.allSettled([
       this.redis.delPattern('admin:users:*'),
       this.redis.delPattern('auth:user:*'),
+      this.redis.delPattern('auth:profile:*'),
     ]);
   }
 }

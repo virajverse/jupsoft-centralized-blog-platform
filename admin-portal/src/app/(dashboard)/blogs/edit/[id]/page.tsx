@@ -1,12 +1,4 @@
-import dynamic from 'next/dynamic';
-import { BlogEditorSkeleton } from '../../../../../components/editor/BlogEditorSkeleton';
-
-const BlogEditor = dynamic(
-  () => import('../../../../../components/editor/BlogEditor').then((mod) => mod.BlogEditor),
-  {
-    loading: () => <BlogEditorSkeleton />,
-  }
-);
+import { ClientBlogEditor } from '../../../../../components/editor/ClientBlogEditor';
 
 export const metadata = {
   title: 'Edit Blog | Jupsoft CMS',
@@ -19,5 +11,5 @@ interface EditBlogPageProps {
 
 export default async function LegacyEditBlogPage({ params }: EditBlogPageProps) {
   const resolvedParams = await params;
-  return <BlogEditor blogId={resolvedParams.id} />;
+  return <ClientBlogEditor blogId={resolvedParams.id} />;
 }

@@ -103,6 +103,9 @@ model Blog {
   @@index([websiteId, status])
   @@index([status, scheduledAt])
   @@index([authorId])
+  @@index([updatedAt(sort: Desc)])
+  @@index([websiteId, updatedAt(sort: Desc)])
+  @@index([websiteId, status, updatedAt(sort: Desc)])
   @@map("blogs")
 }
 

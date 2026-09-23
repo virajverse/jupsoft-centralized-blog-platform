@@ -79,40 +79,34 @@ export class BlogsService {
     const cached = await this.redis.get<any>(cacheKey);
     if (cached) return cached;
 
-    const [total, blogs] = await Promise.all([
-      this.prisma.blog.count({ where }),
-      this.prisma.blog.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { updatedAt: 'desc' },
-        include: {
-          website: { select: { id: true, name: true, domain: true } },
-          translations: {
-            select: {
-              id: true,
-              lang: true,
-              title: true,
-              slug: true,
-              excerpt: true,
-              metaTitle: true,
-              metaDescription: true,
-              metaKeywords: true,
-              canonicalUrl: true,
-              focusKeyword: true,
-              robots: true,
-              ogTitle: true,
-              ogDescription: true,
-              ogImage: true,
-              twitterTitle: true,
-              twitterDescription: true,
-              twitterImage: true,
-            },
+    // Query blogs with lean projection (stripping heavy SEO & omitting workflow sub-queries in list view)
+    const blogs = await this.prisma.blog.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        website: { select: { id: true, name: true, domain: true } },
+        translations: {
+          select: {
+            id: true,
+            lang: true,
+            title: true,
+            slug: true,
+            excerpt: true,
           },
-          workflowLogs: { orderBy: { timestamp: 'desc' }, take: 5 },
         },
-      }),
-    ]);
+      },
+    });
+
+    // Zero-Round-Trip Count Optimization:
+    // If page 1 and returned blogs < limit, total count is known without an extra DB round-trip!
+    let total: number;
+    if (page === 1 && blogs.length < limit) {
+      total = blogs.length;
+    } else {
+      total = await this.prisma.blog.count({ where });
+    }
 
     // Format response matching frontend Blog interface
     const formatted = blogs.map((b) => ({
@@ -138,32 +132,23 @@ export class BlogsService {
           excerpt: t.excerpt,
           content: '', // Omitted in list view for 0-delay performance; loaded in detail view
           seo: {
-            metaTitle: t.metaTitle,
-            metaDescription: t.metaDescription,
-            metaKeywords: t.metaKeywords,
-            canonicalUrl: t.canonicalUrl,
-            focusKeyword: t.focusKeyword,
-            robots: t.robots,
-            ogTitle: t.ogTitle,
-            ogDescription: t.ogDescription,
-            ogImage: t.ogImage,
-            twitterTitle: t.twitterTitle,
-            twitterDescription: t.twitterDescription,
-            twitterImage: t.twitterImage,
+            metaTitle: '',
+            metaDescription: '',
+            metaKeywords: '',
+            canonicalUrl: '',
+            focusKeyword: '',
+            robots: '',
+            ogTitle: '',
+            ogDescription: '',
+            ogImage: '',
+            twitterTitle: '',
+            twitterDescription: '',
+            twitterImage: '',
           },
         };
         return acc;
       }, {} as any),
-      workflowLogs: b.workflowLogs.map((l) => ({
-        id: l.id,
-        blogId: l.blogId,
-        fromStatus: l.fromStatus,
-        toStatus: l.toStatus,
-        changedBy: l.changedBy,
-        role: l.role,
-        notes: l.notes,
-        timestamp: l.timestamp.toISOString(),
-      })),
+      workflowLogs: [],
       createdAt: b.createdAt.toISOString(),
       updatedAt: b.updatedAt.toISOString(),
     }));

@@ -24,7 +24,9 @@ import {
   AlertCircle,
   Trash2,
   Settings,
-  ArrowRightLeft
+  ArrowRightLeft,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { RedirectsView } from '../redirects/RedirectsView';
 import { DeleteConfirmModal } from '../common/DeleteConfirmModal';
@@ -367,6 +369,9 @@ export const SettingsView: React.FC = () => {
     }
   };
 
+  const [auditPage, setAuditPage] = useState(1);
+  const auditPageSize = 15;
+
   const filteredAuditLogs = auditLogs.filter((log) => {
     if (!auditFilter) return true;
     const q = auditFilter.toLowerCase();
@@ -377,6 +382,13 @@ export const SettingsView: React.FC = () => {
       log.websiteId.toLowerCase().includes(q)
     );
   });
+
+  const totalAuditPages = Math.max(1, Math.ceil(filteredAuditLogs.length / auditPageSize));
+  const safeAuditPage = Math.min(auditPage, totalAuditPages);
+  const paginatedAuditLogs = filteredAuditLogs.slice(
+    (safeAuditPage - 1) * auditPageSize,
+    safeAuditPage * auditPageSize
+  );
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-5 sm:space-y-6">
@@ -1037,7 +1049,10 @@ export const SettingsView: React.FC = () => {
                 type="text"
                 placeholder="Filter logs by event or user..."
                 value={auditFilter}
-                onChange={(e) => setAuditFilter(e.target.value)}
+                onChange={(e) => {
+                  setAuditFilter(e.target.value);
+                  setAuditPage(1);
+                }}
                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
               />
             </div>
@@ -1067,14 +1082,14 @@ export const SettingsView: React.FC = () => {
                       <td className="py-2.5 px-4"><div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-48" /></td>
                     </tr>
                   ))
-                ) : filteredAuditLogs.length === 0 ? (
+                ) : paginatedAuditLogs.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-8 text-center text-xs text-slate-400">
                       No audit logs match current search filter.
                     </td>
                   </tr>
                 ) : (
-                  filteredAuditLogs.map((log) => (
+                  paginatedAuditLogs.map((log) => (
                     <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
                       <td className="py-2.5 px-4 font-mono text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
                         {new Date(log.timestamp).toLocaleString()}
@@ -1103,6 +1118,43 @@ export const SettingsView: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {filteredAuditLogs.length > auditPageSize && (
+            <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+              <div>
+                Showing {(safeAuditPage - 1) * auditPageSize + 1} to{' '}
+                {Math.min(safeAuditPage * auditPageSize, filteredAuditLogs.length)} of{' '}
+                {filteredAuditLogs.length} logs
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setAuditPage((p) => Math.max(1, p - 1))}
+                  disabled={safeAuditPage <= 1}
+                  className="px-2.5 py-1 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Prev</span>
+                </button>
+
+                <span className="font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-semibold text-slate-800 dark:text-slate-200">
+                  {safeAuditPage} / {totalAuditPages}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setAuditPage((p) => Math.min(totalAuditPages, p + 1))}
+                  disabled={safeAuditPage >= totalAuditPages}
+                  className="px-2.5 py-1 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <span>Next</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

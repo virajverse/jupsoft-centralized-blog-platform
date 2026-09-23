@@ -1,12 +1,4 @@
-import dynamic from 'next/dynamic';
-import { BlogEditorSkeleton } from '../../../../components/editor/BlogEditorSkeleton';
-
-const BlogEditor = dynamic(
-  () => import('../../../../components/editor/BlogEditor').then((mod) => mod.BlogEditor),
-  {
-    loading: () => <BlogEditorSkeleton />,
-  }
-);
+import { ClientBlogEditor } from '../../../../components/editor/ClientBlogEditor';
 
 export const metadata = {
   title: 'New Blog | Jupsoft CMS',
@@ -14,5 +6,5 @@ export const metadata = {
 };
 
 export default function NewBlogPage() {
-  return <BlogEditor blogId={null} />;
+  return <ClientBlogEditor blogId={null} />;
 }

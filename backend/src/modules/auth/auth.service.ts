@@ -244,11 +244,25 @@ export class AuthService {
   }
 
   async getProfile(userId: string) {
+    const cacheKey = `auth:profile:${userId}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        avatar: true,
+        status: true,
+        lastLoginIp: true,
         roleAssignments: {
-          include: { website: true },
+          select: {
+            isGlobal: true,
+            websiteId: true,
+            role: true,
+          },
         },
       },
     });
@@ -257,7 +271,7 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
-    return {
+    const profile = {
       id: user.id,
       name: user.name,
       email: user.email,
@@ -270,6 +284,11 @@ export class AuthService {
         return acc;
       }, {} as Record<string, string>),
     };
+
+    // Cache profile for 60 seconds (0-delay for fast multi-tab navigations)
+    await this.redis.set(cacheKey, profile, 60);
+
+    return profile;
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto, ipAddress: string) {
@@ -294,6 +313,8 @@ export class AuthService {
       where: { id: userId },
       data: { passwordHash: newPasswordHash },
     });
+
+    await this.redis.del(`auth:profile:${userId}`);
 
     await this.prisma.systemAuditLog.create({
       data: {
