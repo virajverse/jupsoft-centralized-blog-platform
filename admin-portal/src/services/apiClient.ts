@@ -118,7 +118,7 @@ class ApiClient {
   private isRefreshing = false;
   private refreshQueue: Array<(token: string | null) => void> = [];
 
-  // In-flight deduplication & short-TTL cache (prevents 10x/8x over-fetching)
+  // In-flight deduplication & multi-tier cache (In-memory + sessionStorage for multi-page sweeps)
   private cache = new Map<string, CacheEntry<unknown>>();
   private inFlight = new Map<string, Promise<unknown>>();
 
@@ -130,18 +130,89 @@ class ApiClient {
   }
 
   /**
-   * Clear in-memory response cache.
+   * Retrieve cached response from memory or persistent sessionStorage
+   */
+  private getCacheItem<T>(key: string): T | null {
+    // 1. In-memory check (fastest)
+    const mem = this.cache.get(key);
+    if (mem && Date.now() < mem.expiresAt) {
+      return mem.data as T;
+    }
+
+    // 2. Persistent sessionStorage check (survives full page reloads & multi-page sweeps)
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = sessionStorage.getItem(`jupsoft_cache_${key}`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed.expiresAt === 'number' && parsed.expiresAt > Date.now()) {
+            this.cache.set(key, parsed);
+            return parsed.data as T;
+          } else {
+            sessionStorage.removeItem(`jupsoft_cache_${key}`);
+          }
+        }
+      } catch {}
+    }
+
+    return null;
+  }
+
+  /**
+   * Store cached response in memory and sessionStorage
+   */
+  private setCacheItem(key: string, data: unknown, ttl: number): void {
+    const entry: CacheEntry = {
+      data,
+      expiresAt: Date.now() + ttl,
+    };
+    this.cache.set(key, entry);
+
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem(`jupsoft_cache_${key}`, JSON.stringify(entry));
+      } catch {}
+    }
+  }
+
+  /**
+   * Clear cache (in memory and sessionStorage).
    * Can clear all entries or only entries matching a sub-path pattern.
    */
   public clearCache(endpointPattern?: string): void {
     if (!endpointPattern) {
       this.cache.clear();
+      if (typeof window !== 'undefined') {
+        try {
+          const toRemove: string[] = [];
+          for (let i = 0; i < sessionStorage.length; i++) {
+            const k = sessionStorage.key(i);
+            if (k && k.startsWith('jupsoft_cache_')) {
+              toRemove.push(k);
+            }
+          }
+          toRemove.forEach((k) => sessionStorage.removeItem(k));
+        } catch {}
+      }
       return;
     }
+
     for (const key of this.cache.keys()) {
       if (key.includes(endpointPattern)) {
         this.cache.delete(key);
       }
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        const toRemove: string[] = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const k = sessionStorage.key(i);
+          if (k && k.startsWith('jupsoft_cache_') && k.includes(endpointPattern)) {
+            toRemove.push(k);
+          }
+        }
+        toRemove.forEach((k) => sessionStorage.removeItem(k));
+      } catch {}
     }
   }
 
@@ -149,12 +220,12 @@ class ApiClient {
    * Determine TTL based on resource volatility
    */
   private getTtlForEndpoint(endpoint: string): number {
-    if (endpoint.startsWith('/admin/websites')) return 30_000; // 30s: tenants rarely change
-    if (endpoint.startsWith('/admin/auth/me')) return 30_000;   // 30s: user profile
-    if (endpoint.startsWith('/admin/categories') || endpoint.startsWith('/admin/tags')) return 15_000; // 15s
-    if (endpoint.startsWith('/admin/blogs')) return 6_000;      // 6s: blog list & counters
-    if (endpoint.startsWith('/v1/health')) return 10_000;       // 10s: health check
-    return 5_000; // 5s default
+    if (endpoint.startsWith('/admin/websites')) return 60_000; // 60s: tenants rarely change
+    if (endpoint.startsWith('/admin/auth/me')) return 60_000;   // 60s: user profile
+    if (endpoint.startsWith('/admin/categories') || endpoint.startsWith('/admin/tags')) return 30_000; // 30s
+    if (endpoint.startsWith('/admin/blogs')) return 20_000;      // 20s: prevents re-fetch across rapid multi-page sweep
+    if (endpoint.startsWith('/v1/health')) return 15_000;       // 15s: health check
+    return 10_000; // 10s default
   }
 
   setTokens(accessToken: string | null, refreshToken?: string | null) {
@@ -332,16 +403,16 @@ class ApiClient {
       return result;
     }
 
-    // 2. GET Request: Check memory cache first
+    // 2. GET Request: Check memory + persistent sessionStorage cache
     const cacheKey = endpoint;
     if (!bypassCache) {
-      const cached = this.cache.get(cacheKey);
-      if (cached && Date.now() < cached.expiresAt) {
-        return cached.data as T;
+      const cached = this.getCacheItem<T>(cacheKey);
+      if (cached !== null) {
+        return cached;
       }
     }
 
-    // 3. GET Request: Deduplicate in-flight requests (prevent 10x concurrent calls)
+    // 3. GET Request: Deduplicate in-flight requests (prevent concurrent calls)
     const inFlightPromise = this.inFlight.get(cacheKey);
     if (inFlightPromise && !bypassCache) {
       return inFlightPromise as Promise<T>;
@@ -352,10 +423,7 @@ class ApiClient {
       .then((data) => {
         if (!bypassCache && data !== undefined) {
           const ttl = this.getTtlForEndpoint(endpoint);
-          this.cache.set(cacheKey, {
-            data,
-            expiresAt: Date.now() + ttl,
-          });
+          this.setCacheItem(cacheKey, data, ttl);
         }
         return data;
       })

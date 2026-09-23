@@ -296,11 +296,17 @@ export const useBlogStore = create<BlogState>()(
 
       loadInitialData: async () => {
         try {
+          const siteId = get().activeWebsiteId;
+          const targetSite = siteId === 'all' ? undefined : siteId;
+
           // Initialize core shell data in parallel: websites, user profile, and active blogs
           const [websitesRes, profileRes, blogsRes] = await Promise.allSettled([
             apiClient.getWebsites(),
             apiClient.getProfile(),
-            apiClient.getBlogs({ limit: 100 }),
+            apiClient.getBlogs({
+              websiteId: targetSite,
+              limit: 100,
+            }),
           ]);
 
           const updates: Partial<BlogState> = {};
