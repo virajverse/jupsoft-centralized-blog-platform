@@ -688,6 +688,11 @@ export class BlogsService {
     const previousStatus = blog.status;
     const newStatus = dto.status;
 
+    // Idempotency: if blog is already in target status, return cleanly without duplicate workflow & audit logs
+    if (previousStatus === newStatus) {
+      return this.findOne(blog.id);
+    }
+
     // RBAC validation: only Super Admin, Website Admin, or Publisher can directly publish
     const canPublish =
       user.roles.includes('Super Admin') ||

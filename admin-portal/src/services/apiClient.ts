@@ -121,6 +121,7 @@ class ApiClient {
   // In-flight deduplication & multi-tier cache (In-memory + sessionStorage for multi-page sweeps)
   private cache = new Map<string, CacheEntry<unknown>>();
   private inFlight = new Map<string, Promise<unknown>>();
+  private inFlightMutations = new Map<string, Promise<unknown>>();
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -396,15 +397,41 @@ class ApiClient {
     const isGet = method === 'GET';
     const bypassCache = Boolean(options.forceRefresh || options.cache === 'no-store');
 
-    // 1. Mutating requests (POST, PUT, DELETE, PATCH): Clear cache and execute immediately
+    // 0. Canonical query parameter normalization (sort query keys so identical requests produce matching cache keys)
+    const [path, queryString] = endpoint.split('?');
+    let normalizedEndpoint = path;
+    if (queryString) {
+      const searchParams = new URLSearchParams(queryString);
+      searchParams.sort();
+      normalizedEndpoint = `${path}?${searchParams.toString()}`;
+    }
+
+    // 1. Mutating requests (POST, PUT, DELETE, PATCH): In-flight deduplication & automatic cache clearing
     if (!isGet) {
-      const result = await this.executeFetch<T>(endpoint, options);
-      this.clearCache();
-      return result;
+      const bodyKey = typeof options.body === 'string' ? options.body : '';
+      const mutationKey = `${method}:${normalizedEndpoint}:${bodyKey}`;
+
+      // In-flight deduplication: if exact mutation is already executing, reuse promise to prevent duplicate fire
+      const existingMutation = this.inFlightMutations.get(mutationKey);
+      if (existingMutation) {
+        return existingMutation as Promise<T>;
+      }
+
+      const mutationPromise = this.executeFetch<T>(normalizedEndpoint, options)
+        .then((result) => {
+          this.clearCache();
+          return result;
+        })
+        .finally(() => {
+          this.inFlightMutations.delete(mutationKey);
+        });
+
+      this.inFlightMutations.set(mutationKey, mutationPromise);
+      return mutationPromise;
     }
 
     // 2. GET Request: Check memory + persistent sessionStorage cache
-    const cacheKey = endpoint;
+    const cacheKey = normalizedEndpoint;
     if (!bypassCache) {
       const cached = this.getCacheItem<T>(cacheKey);
       if (cached !== null) {
@@ -419,10 +446,10 @@ class ApiClient {
     }
 
     // 4. Fire request and store in-flight Promise
-    const fetchPromise = this.executeFetch<T>(endpoint, options)
+    const fetchPromise = this.executeFetch<T>(normalizedEndpoint, options)
       .then((data) => {
         if (!bypassCache && data !== undefined) {
-          const ttl = this.getTtlForEndpoint(endpoint);
+          const ttl = this.getTtlForEndpoint(normalizedEndpoint);
           this.setCacheItem(cacheKey, data, ttl);
         }
         return data;

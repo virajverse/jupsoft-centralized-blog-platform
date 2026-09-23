@@ -1333,109 +1333,113 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
   // Save handler with TRD 301 Permanent Redirect Guard
   const handleSave = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+
     // 1. Validation: ensure primary title is provided
     const currentTrans = translations[currentLang];
     const enTrans = translations.en;
     const effectiveTitle = currentTrans?.title?.trim() || enTrans?.title?.trim();
     if (!effectiveTitle) {
+      setIsSaving(false);
       showNotification('Please enter an article title before saving.', 'warning');
       return;
     }
 
-    const targetSiteId = selectedWebsiteId || resolveEffectiveWebsiteId(websites, activeWebsiteId, currentUser);
-    const baseBlog = initialBlogRef.current || existingBlog;
-    const isCurrentlyPublished = baseBlog?.status === 'Published' || status === 'Published';
-    const id = baseBlog?.id || `blog-${Date.now()}`;
+    try {
+      const targetSiteId = selectedWebsiteId || resolveEffectiveWebsiteId(websites, activeWebsiteId, currentUser);
+      const baseBlog = initialBlogRef.current || existingBlog;
+      const isCurrentlyPublished = baseBlog?.status === 'Published' || status === 'Published';
+      const id = baseBlog?.id || `blog-${Date.now()}`;
 
-    // Ensure active editor HTML is synced into the active language translation
-    const currentEditorHtml = editor ? editor.getHTML() : undefined;
-    const cleanedTranslations = { ...translations };
-    if (currentEditorHtml !== undefined) {
-      cleanedTranslations[currentLang] = {
-        ...(cleanedTranslations[currentLang] || defaultTrans(currentLang)),
-        content: preserveEmptyParagraphs(currentEditorHtml),
-      };
-    }
-
-    // Normalize empty paragraphs across all authored translations
-    for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
-      if (cleanedTranslations[l]?.content) {
-        cleanedTranslations[l] = {
-          ...cleanedTranslations[l],
-          content: preserveEmptyParagraphs(cleanedTranslations[l].content),
+      // Ensure active editor HTML is synced into the active language translation
+      const currentEditorHtml = editor ? editor.getHTML() : undefined;
+      const cleanedTranslations = { ...translations };
+      if (currentEditorHtml !== undefined) {
+        cleanedTranslations[currentLang] = {
+          ...(cleanedTranslations[currentLang] || defaultTrans(currentLang)),
+          content: preserveEmptyParagraphs(currentEditorHtml),
         };
       }
-    }
 
-    // Ensure all authored translations have a valid slug
-    for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
-      if (cleanedTranslations[l]?.title && !cleanedTranslations[l]?.slug) {
-        cleanedTranslations[l] = {
-          ...cleanedTranslations[l],
-          slug: slugify(cleanedTranslations[l].title),
-        };
-      }
-    }
-
-    // TRD Section 7: If published slug changed in ANY language, auto-record 301 permanent redirect
-    if (isCurrentlyPublished && baseBlog?.translations) {
+      // Normalize empty paragraphs across all authored translations
       for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
-        const origSlug = baseBlog.translations[l]?.slug?.trim()?.replace(/^\/+|\/+$/g, '');
-        const nextSlug = cleanedTranslations[l]?.slug?.trim()?.replace(/^\/+|\/+$/g, '');
-        if (origSlug && nextSlug && origSlug !== nextSlug) {
-          try {
-            await addRedirect({
-              id: `red-${Date.now()}-${l}`,
-              websiteId: targetSiteId,
-              fromSlug: origSlug,
-              toSlug: nextSlug,
-              statusCode: 301,
-              hitCount: 0,
-              createdAt: new Date().toISOString(),
-            });
-            showNotification(`301 Permanent Redirect created: /blog/${origSlug} → /blog/${nextSlug}`, 'success');
-          } catch (e) {
-            console.warn('Auto redirect creation error:', e);
+        if (cleanedTranslations[l]?.content) {
+          cleanedTranslations[l] = {
+            ...cleanedTranslations[l],
+            content: preserveEmptyParagraphs(cleanedTranslations[l].content),
+          };
+        }
+      }
+
+      // Ensure all authored translations have a valid slug
+      for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
+        if (cleanedTranslations[l]?.title && !cleanedTranslations[l]?.slug) {
+          cleanedTranslations[l] = {
+            ...cleanedTranslations[l],
+            slug: slugify(cleanedTranslations[l].title),
+          };
+        }
+      }
+
+      // TRD Section 7: If published slug changed in ANY language, auto-record 301 permanent redirect
+      if (isCurrentlyPublished && baseBlog?.translations) {
+        for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
+          const origSlug = baseBlog.translations[l]?.slug?.trim()?.replace(/^\/+|\/+$/g, '');
+          const nextSlug = cleanedTranslations[l]?.slug?.trim()?.replace(/^\/+|\/+$/g, '');
+          if (origSlug && nextSlug && origSlug !== nextSlug) {
+            try {
+              await addRedirect({
+                id: `red-${Date.now()}-${l}`,
+                websiteId: targetSiteId,
+                fromSlug: origSlug,
+                toSlug: nextSlug,
+                statusCode: 301,
+                hitCount: 0,
+                createdAt: new Date().toISOString(),
+              });
+              showNotification(`301 Permanent Redirect created: /blog/${origSlug} → /blog/${nextSlug}`, 'success');
+            } catch (e) {
+              console.warn('Auto redirect creation error:', e);
+            }
           }
         }
       }
-    }
 
-    const newBlog: Blog = {
-      id,
-      websiteId: targetSiteId,
-      authorId: authorMode === 'user' ? selectedAuthorId : 'usr-custom',
-      authorName: authorName.trim() || cleanCurrentName,
-      authorAvatar: authorAvatar || '/uploads/avatars/avatar-default.webp',
-      featuredImage,
-      featuredImageAlt,
-      status,
-      publishDate: status === 'Published' && !baseBlog?.publishDate ? new Date().toISOString() : baseBlog?.publishDate,
-      scheduledAt: scheduledAt || undefined,
-      publishedBy: status === 'Published' ? (currentUser?.name || `User (${activeRole})`) : baseBlog?.publishedBy,
-      viewCount: baseBlog?.viewCount || 0,
-      readTimeMinutes: Math.max(2, Math.round((editor?.getText().split(/\s+/).length || 200) / 180)),
-      categoryIds: selectedCategories,
-      tagIds: selectedTags,
-      translations: cleanedTranslations,
-      workflowLogs: baseBlog?.workflowLogs || [
-        {
-          id: `wl-${Date.now()}`,
-          blogId: id,
-          fromStatus: 'Draft',
-          toStatus: status,
-          changedBy: currentUser?.name || 'Current User',
-          role: activeRole,
-          notes: 'Blog created and saved in admin workspace.',
-          timestamp: new Date().toISOString(),
-        },
-      ],
-      createdAt: baseBlog?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+      const newBlog: Blog = {
+        id,
+        websiteId: targetSiteId,
+        authorId: currentUser?.id || 'usr-1',
+        authorName: (authorName?.trim() || currentUser?.name || 'Editorial Team').replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim(),
+        authorAvatar: authorAvatar || '/uploads/avatars/avatar-default.webp',
+        featuredImage,
+        featuredImageAlt,
+        status,
+        publishDate: isCurrentlyPublished ? (baseBlog?.publishDate || new Date().toISOString()) : undefined,
+        scheduledAt: scheduledAt || undefined,
+        publishedBy: isCurrentlyPublished ? (baseBlog?.publishedBy || currentUser?.name || 'Super Admin') : undefined,
+        viewCount: baseBlog?.viewCount || 0,
+        readTimeMinutes: Math.max(2, Math.round((editor?.getText().split(/\s+/).length || 200) / 180)),
+        categoryIds: selectedCategories,
+        tagIds: selectedTags,
+        translations: cleanedTranslations,
+        workflowLogs: [
+          ...(baseBlog?.workflowLogs || []),
+          {
+            id: `log-${Date.now()}`,
+            blogId: id,
+            fromStatus: baseBlog?.status || 'Draft',
+            toStatus: status,
+            changedBy: currentUser?.name || 'Editorial Team',
+            role: activeRole,
+            notes: status === 'Published' ? 'Published live from Studio' : 'Saved draft updates from Studio',
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        createdAt: baseBlog?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
-    setIsSaving(true);
-    try {
       await saveBlog(newBlog);
       initialBlogRef.current = newBlog;
       setHasUnsavedChanges(false);

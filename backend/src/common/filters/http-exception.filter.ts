@@ -41,6 +41,55 @@ export class HttpExceptionFilter implements ExceptionFilter {
       return;
     }
 
+    // 1b. Prisma Client Known Request Errors -> Map DB constraint errors to standard HTTP status codes
+    if (exception && typeof exception === 'object' && 'code' in exception) {
+      const prismaError = exception as { code: string; meta?: Record<string, unknown>; message?: string };
+
+      // P2002: Unique constraint violation (e.g. duplicate slug, name, or email)
+      if (prismaError.code === 'P2002') {
+        const target = Array.isArray(prismaError.meta?.target)
+          ? prismaError.meta.target.join(', ')
+          : String(prismaError.meta?.target || 'field');
+        const conflictMsg = `Duplicate entry: a resource with this ${target} already exists.`;
+        this.logger.warn(`Prisma unique constraint conflict (409) on ${request.method} ${request.originalUrl}: ${conflictMsg}`);
+        response.status(HttpStatus.CONFLICT).json({
+          statusCode: HttpStatus.CONFLICT,
+          error: 'Conflict',
+          message: conflictMsg,
+          path: request.originalUrl,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      // P2025: Record to update/delete not found
+      if (prismaError.code === 'P2025') {
+        const notFoundMsg = 'The requested resource was not found or has already been deleted.';
+        this.logger.warn(`Prisma record not found (404) on ${request.method} ${request.originalUrl}: ${notFoundMsg}`);
+        response.status(HttpStatus.NOT_FOUND).json({
+          statusCode: HttpStatus.NOT_FOUND,
+          error: 'Not Found',
+          message: notFoundMsg,
+          path: request.originalUrl,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      // P2003: Foreign key constraint failed
+      if (prismaError.code === 'P2003') {
+        const conflictMsg = 'Operation cannot be completed due to related database records.';
+        response.status(HttpStatus.CONFLICT).json({
+          statusCode: HttpStatus.CONFLICT,
+          error: 'Conflict',
+          message: conflictMsg,
+          path: request.originalUrl,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+    }
+
     // 2. Unexpected exception → full detail to logs only.
     const message = exception instanceof Error ? exception.message : String(exception);
     const stack = exception instanceof Error ? exception.stack : undefined;

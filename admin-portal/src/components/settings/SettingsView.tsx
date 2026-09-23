@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { RedirectsView } from '../redirects/RedirectsView';
 import { DeleteConfirmModal } from '../common/DeleteConfirmModal';
+import { apiClient, WebhookDeliveryLogItem } from '../../services/apiClient';
 
 export const SettingsView: React.FC = () => {
   const searchParams = useSearchParams();
@@ -181,6 +182,57 @@ export const SettingsView: React.FC = () => {
       showNotification(err instanceof Error ? err.message : 'Failed to update webhook URL', 'warning');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const [isTestingPing, setIsTestingPing] = useState(false);
+  const [pingResult, setPingResult] = useState<{ success: boolean; message: string; statusCode?: number; latencyMs?: number } | null>(null);
+  const [webhookLogs, setWebhookLogs] = useState<WebhookDeliveryLogItem[]>([]);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+
+  const loadWebhookLogs = React.useCallback(async () => {
+    if (!activeSite) return;
+    setIsLoadingLogs(true);
+    try {
+      const res = await apiClient.getWebhookLogs(activeSite.id, 10);
+      setWebhookLogs(res?.data || []);
+    } catch {
+      // fallback
+    } finally {
+      setIsLoadingLogs(false);
+    }
+  }, [activeSite]);
+
+  useEffect(() => {
+    if (activeTab === 'webhook' && activeSite) {
+      loadWebhookLogs();
+    }
+  }, [activeTab, activeSite, loadWebhookLogs]);
+
+  const handleTestPing = async () => {
+    if (!activeSite || isTestingPing) return;
+    setIsTestingPing(true);
+    setPingResult(null);
+    try {
+      const res = await apiClient.testWebhookPing(activeSite.id, editWebhookUrl.trim() || undefined);
+      setPingResult({
+        success: res.success,
+        message: res.message || (res.success ? 'Ping delivered successfully!' : 'Ping delivery failed'),
+        statusCode: res.statusCode,
+        latencyMs: res.latencyMs,
+      });
+      if (res.success) {
+        showNotification(`Webhook ping succeeded (${res.statusCode || 200}) in ${res.latencyMs || 0}ms`, 'success');
+      } else {
+        showNotification(res.message || `Webhook ping failed (${res.statusCode || 'error'})`, 'warning');
+      }
+      loadWebhookLogs();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to send test ping';
+      setPingResult({ success: false, message: msg });
+      showNotification(msg, 'warning');
+    } finally {
+      setIsTestingPing(false);
     }
   };
 
@@ -838,6 +890,16 @@ export const SettingsView: React.FC = () => {
                   />
                   <button
                     type="button"
+                    disabled={isTestingPing}
+                    onClick={handleTestPing}
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-semibold text-xs transition-colors shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
+                    title="Send a real HMAC-signed test ping to verify endpoint reachability"
+                  >
+                    {isTestingPing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-amber-500" />}
+                    <span>{isTestingPing ? 'Testing...' : 'Test Ping'}</span>
+                  </button>
+                  <button
+                    type="button"
                     disabled={isSaving}
                     onClick={handleSaveWebhook}
                     className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
@@ -846,6 +908,23 @@ export const SettingsView: React.FC = () => {
                     <span>{isSaving ? 'Saving...' : 'Save Webhook URL'}</span>
                   </button>
                 </div>
+
+                {pingResult && (
+                  <div className={`mt-2 p-3 rounded-lg border text-xs flex items-center justify-between gap-2 ${
+                    pingResult.success
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+                      : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      {pingResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> : <XCircle className="w-4 h-4 text-rose-500 shrink-0" />}
+                      <span>{pingResult.message}</span>
+                    </div>
+                    {pingResult.latencyMs !== undefined && (
+                      <span className="font-mono text-[11px] opacity-75 shrink-0">{pingResult.latencyMs}ms</span>
+                    )}
+                  </div>
+                )}
+
                 <p className="text-[11px] text-slate-500 mt-1">
                   Target Next.js or edge URL to receive cache busting pings (e.g. <code className="text-red-600 dark:text-red-400 font-mono">https://yourdomain.com/api/revalidate</code>).
                 </p>
@@ -872,6 +951,70 @@ export const SettingsView: React.FC = () => {
                 </span>
               </div>
             </div>
+          </div>
+
+          {/* Recent Webhook Delivery Logs Card */}
+          <div className="bg-white dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 rounded-lg p-5 space-y-3 shadow-xs">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <History className="w-3.5 h-3.5 text-slate-500" />
+                <span>Recent Webhook Delivery Logs</span>
+              </h4>
+              <button
+                type="button"
+                onClick={loadWebhookLogs}
+                disabled={isLoadingLogs}
+                className="text-[11px] text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer"
+              >
+                <RefreshCw className={`w-3 h-3 ${isLoadingLogs ? 'animate-spin' : ''}`} />
+                <span>Refresh Logs</span>
+              </button>
+            </div>
+
+            {isLoadingLogs ? (
+              <div className="py-6 text-center text-xs text-slate-400">Loading delivery logs...</div>
+            ) : webhookLogs.length === 0 ? (
+              <div className="py-6 text-center text-xs text-slate-400">
+                No webhook deliveries recorded yet. Click &ldquo;Test Ping&rdquo; above to verify live endpoint connectivity.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse font-sans">
+                  <thead>
+                    <tr className="border-b border-slate-100 dark:border-slate-800 text-[11px] text-slate-400">
+                      <th className="py-2 px-2 font-medium">Status</th>
+                      <th className="py-2 px-2 font-medium">Event</th>
+                      <th className="py-2 px-2 font-medium">Target URL</th>
+                      <th className="py-2 px-2 font-medium text-right">Time</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono text-[11px]">
+                    {webhookLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                        <td className="py-2 px-2">
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            log.statusCode && log.statusCode >= 200 && log.statusCode < 300
+                              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                              : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'
+                          }`}>
+                            {log.statusCode || 'ERR'}
+                          </span>
+                        </td>
+                        <td className="py-2 px-2 font-sans font-medium text-slate-800 dark:text-slate-200">
+                          {log.event}
+                        </td>
+                        <td className="py-2 px-2 text-slate-500 dark:text-slate-400 max-w-xs truncate" title={log.targetUrl}>
+                          {log.targetUrl}
+                        </td>
+                        <td className="py-2 px-2 text-right text-slate-400 font-sans">
+                          {new Date(log.timestamp).toLocaleTimeString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
