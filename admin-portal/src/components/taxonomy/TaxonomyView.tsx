@@ -73,7 +73,8 @@ export const TaxonomyView: React.FC = () => {
       queueMicrotask(() => setActiveWebsite(siteParam));
     }
     if (targetSiteId) {
-      const hasCached = (categories[targetSiteId]?.length || 0) > 0 || (tags[targetSiteId]?.length || 0) > 0;
+      const storeState = useBlogStore.getState();
+      const hasCached = (storeState.categories[targetSiteId]?.length || 0) > 0 || (storeState.tags[targetSiteId]?.length || 0) > 0;
       if (!hasCached) {
         queueMicrotask(() => {
           if (active) setIsLoadingTaxonomy(true);
@@ -87,7 +88,7 @@ export const TaxonomyView: React.FC = () => {
       });
     }
     return () => { active = false; };
-  }, [siteParam, activeWebsiteId, websites, setActiveWebsite, fetchCategories, fetchTags, targetSiteId, categories, tags]);
+  }, [siteParam, activeWebsiteId, websites, setActiveWebsite, fetchCategories, fetchTags, targetSiteId]);
 
   const handleTabChange = (tab: 'all' | 'categories' | 'tags') => {
     setParam('tab', tab === 'all' ? null : tab);

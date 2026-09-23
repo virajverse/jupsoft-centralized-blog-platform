@@ -408,13 +408,17 @@ class ApiClient {
 
     // 1. Mutating requests (POST, PUT, DELETE, PATCH): In-flight deduplication & automatic cache clearing
     if (!isGet) {
+      const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
       const bodyKey = typeof options.body === 'string' ? options.body : '';
-      const mutationKey = `${method}:${normalizedEndpoint}:${bodyKey}`;
+      const shouldDedupe = !isFormData;
+      const mutationKey = shouldDedupe ? `${method}:${normalizedEndpoint}:${bodyKey}` : null;
 
       // In-flight deduplication: if exact mutation is already executing, reuse promise to prevent duplicate fire
-      const existingMutation = this.inFlightMutations.get(mutationKey);
-      if (existingMutation) {
-        return existingMutation as Promise<T>;
+      if (mutationKey) {
+        const existingMutation = this.inFlightMutations.get(mutationKey);
+        if (existingMutation) {
+          return existingMutation as Promise<T>;
+        }
       }
 
       const mutationPromise = this.executeFetch<T>(normalizedEndpoint, options)
@@ -423,10 +427,14 @@ class ApiClient {
           return result;
         })
         .finally(() => {
-          this.inFlightMutations.delete(mutationKey);
+          if (mutationKey) {
+            this.inFlightMutations.delete(mutationKey);
+          }
         });
 
-      this.inFlightMutations.set(mutationKey, mutationPromise);
+      if (mutationKey) {
+        this.inFlightMutations.set(mutationKey, mutationPromise);
+      }
       return mutationPromise;
     }
 

@@ -190,24 +190,25 @@ export const SettingsView: React.FC = () => {
   const [webhookLogs, setWebhookLogs] = useState<WebhookDeliveryLogItem[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
 
+  const activeSiteId = activeSite?.id;
   const loadWebhookLogs = React.useCallback(async () => {
-    if (!activeSite) return;
+    if (!activeSiteId) return;
     setIsLoadingLogs(true);
     try {
-      const res = await apiClient.getWebhookLogs(activeSite.id, 10);
+      const res = await apiClient.getWebhookLogs(activeSiteId, 10);
       setWebhookLogs(res?.data || []);
     } catch {
       // fallback
     } finally {
       setIsLoadingLogs(false);
     }
-  }, [activeSite]);
+  }, [activeSiteId]);
 
   useEffect(() => {
-    if (activeTab === 'webhook' && activeSite) {
+    if (activeTab === 'webhook' && activeSiteId) {
       loadWebhookLogs();
     }
-  }, [activeTab, activeSite, loadWebhookLogs]);
+  }, [activeTab, activeSiteId, loadWebhookLogs]);
 
   const handleTestPing = async () => {
     if (!activeSite || isTestingPing) return;
