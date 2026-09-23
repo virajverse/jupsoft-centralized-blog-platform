@@ -421,34 +421,40 @@ export class BlogsService {
             const cleanTo = updatedTrans.slug.trim().replace(/^\/+|\/+$/g, '');
 
             if (cleanFrom && cleanTo && cleanFrom !== cleanTo) {
-              // Automatic 301 Permanent Redirect Guard!
-              await tx.redirect.upsert({
-                where: {
-                  websiteId_fromSlug: {
+              // Safety: Do NOT create redirect if cleanFrom is still actively used by another translation in this blog
+              const stillInUse = dto.translations.some(
+                (other) => other.lang !== updatedTrans.lang && other.slug && other.slug.trim().replace(/^\/+|\/+$/g, '') === cleanFrom
+              );
+              if (!stillInUse) {
+                // Automatic 301 Permanent Redirect Guard!
+                await tx.redirect.upsert({
+                  where: {
+                    websiteId_fromSlug: {
+                      websiteId: existing.websiteId,
+                      fromSlug: cleanFrom,
+                    },
+                  },
+                  update: { toSlug: cleanTo, statusCode: 301 },
+                  create: {
                     websiteId: existing.websiteId,
                     fromSlug: cleanFrom,
+                    toSlug: cleanTo,
+                    statusCode: 301,
                   },
-                },
-                update: { toSlug: cleanTo, statusCode: 301 },
-                create: {
-                  websiteId: existing.websiteId,
-                  fromSlug: cleanFrom,
-                  toSlug: cleanTo,
-                  statusCode: 301,
-                },
-              });
+                });
 
-              // Log redirect rule in audit log
-              await tx.systemAuditLog.create({
-                data: {
-                  userName: user.name,
-                  role: user.roles[0] || 'Editor',
-                  websiteId: existing.websiteId,
-                  event: 'redirect.created',
-                  ipAddress: ipAddress || '',
-                  details: `Auto 301 redirect: /${cleanFrom} → /${cleanTo}`,
-                },
-              });
+                // Log redirect rule in audit log
+                await tx.systemAuditLog.create({
+                  data: {
+                    userName: user.name,
+                    role: user.roles[0] || 'Editor',
+                    websiteId: existing.websiteId,
+                    event: 'redirect.created',
+                    ipAddress: ipAddress || '',
+                    details: `Auto 301 redirect: /${cleanFrom} → /${cleanTo}`,
+                  },
+                });
+              }
             }
           }
         }

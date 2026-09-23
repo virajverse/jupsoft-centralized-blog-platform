@@ -141,7 +141,7 @@ export class PublicV1Controller {
   ) {
     const websiteId = req.tenant.id;
     const bypassCache = this.applyCacheHeaders(res, req, fresh);
-    return this.publicV1Service.getBlogBySlug(slug, websiteId, lang || 'en', bypassCache);
+    return this.publicV1Service.getBlogBySlug(slug, websiteId, lang || 'en', bypassCache, !!lang);
   }
 
   @Get('categories')

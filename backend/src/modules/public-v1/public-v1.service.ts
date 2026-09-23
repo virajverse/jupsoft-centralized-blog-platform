@@ -258,6 +258,7 @@ export class PublicV1Service {
       ...(redirect ? { redirect } : {}),
       data: {
         id: b.id,
+        lang: translation.lang,
         slug: translation.slug,
         title: translation.title,
         content: translation.content,
@@ -312,9 +313,9 @@ export class PublicV1Service {
   }
 
   // ─── TRD §13: key format blog:{website}:{slug}:{lang} (generation-prefixed)
-  async getBlogBySlug(slug: string, websiteId: string, lang = 'en', bypassCache = false) {
+  async getBlogBySlug(slug: string, websiteId: string, lang = 'en', bypassCache = false, isExplicitLang = false) {
     // P1: generation-prefixed key → O(1) invalidation, no SCAN
-    const cacheKey = await this.redis.nsKey('blog', `${websiteId}:${slug}:${lang}`);
+    const cacheKey = await this.redis.nsKey('blog', `${websiteId}:${slug}:${isExplicitLang ? lang : 'auto'}`);
     if (!bypassCache) {
       const cached = await this.redis.get<unknown>(cacheKey);
       if (cached === NOT_FOUND_MARKER) {
@@ -324,10 +325,17 @@ export class PublicV1Service {
     }
 
     // P1: request coalescing — N concurrent misses share ONE DB resolution
-    return this.coalesce(cacheKey, () => this.loadBlogBySlug(slug, websiteId, lang, cacheKey, bypassCache));
+    return this.coalesce(cacheKey, () => this.loadBlogBySlug(slug, websiteId, lang, cacheKey, bypassCache, isExplicitLang));
   }
 
-  private async loadBlogBySlug(slug: string, websiteId: string, lang: string, cacheKey: string, bypassCache = false) {
+  private async loadBlogBySlug(
+    slug: string,
+    websiteId: string,
+    lang: string,
+    cacheKey: string,
+    bypassCache = false,
+    isExplicitLang = false,
+  ) {
     // Re-check: a concurrent request may have populated the cache while we queued
     if (!bypassCache) {
       const cached = await this.redis.get<unknown>(cacheKey);
@@ -364,7 +372,10 @@ export class PublicV1Service {
       },
       include: {
         blog: {
-          include: blogIncludes,
+          include: {
+            ...blogIncludes,
+            translations: true,
+          },
         },
       },
     });
@@ -390,10 +401,19 @@ export class PublicV1Service {
       });
 
       if (matchAny) {
-        const resolved =
-          matchAny.blog.translations.find((t) => t.lang === lang) ||
-          matchAny.blog.translations.find((t) => t.lang === 'en') ||
-          matchAny;
+        let resolved: any = matchAny;
+        // If caller explicitly requested another language via ?lang=..., switch to it if present
+        if (isExplicitLang && lang && lang !== matchAny.lang) {
+          const explicitMatch = matchAny.blog.translations.find((t: any) => t.lang === lang);
+          if (explicitMatch) {
+            const fullMatch = await this.prisma.blogTranslation.findFirst({
+              where: { blogId: matchAny.blog.id, lang },
+            });
+            if (fullMatch) {
+              resolved = fullMatch;
+            }
+          }
+        }
 
         translation = {
           ...resolved,
