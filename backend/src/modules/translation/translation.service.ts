@@ -7,7 +7,7 @@ export class TranslationService {
 
   /**
    * Helper function: Run translation promises in controlled batches
-   * This speeds up processing 5x without crashing the free MyMemory API
+   * Run in batches of 8 for fast completion without exceeding API concurrency limits
    */
   private async runInBatches<T>(items: any[], batchSize: number, fn: (item: any) => Promise<T>): Promise<T[]> {
     const results: T[] = [];
@@ -21,18 +21,18 @@ export class TranslationService {
 
   /**
    * Translate a single text string using MyMemory Translation API.
-   * Handles character limit chunking (<= 400 chars per request).
+   * Handles character limit chunking (<= 380 chars per request).
    */
   async translateSingle(text: string, from: string, to: string): Promise<string> {
     const trimmed = (text || '').trim();
     if (!trimmed) return text;
     if (from.toLowerCase() === to.toLowerCase()) return text;
 
-    // If text exceeds 400 chars, split into sentence-based chunks
-    if (trimmed.length > 400) {
+    // If text exceeds 380 chars, split into sentence-based chunks
+    if (trimmed.length > 380) {
       const sentences = trimmed.split(/(?<=[.!?\n।])\s+/).filter(Boolean);
-      // Run sentence translations in parallel batches
-      const translatedSentences = await this.runInBatches(sentences, 5, (sentence) =>
+      // Run sentence translations in parallel batches of 8
+      const translatedSentences = await this.runInBatches(sentences, 8, (sentence) =>
         this.queryMyMemory(sentence, from, to)
       );
       return translatedSentences.join(' ');
@@ -41,13 +41,14 @@ export class TranslationService {
     return this.queryMyMemory(trimmed, from, to);
   }
 
-  private async queryMyMemory(query: string, from: string, to: string): Promise<string> {
+  private async queryMyMemory(query: string, from: string, to: string, retryCount = 1): Promise<string> {
     try {
       const pair = `${from.toLowerCase()}|${to.toLowerCase()}`;
-      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(query)}&langpair=${pair}`;
+      const contactEmail = process.env.TRANSLATION_CONTACT_EMAIL || 'support@jupsoft.com';
+      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(query)}&langpair=${pair}&de=${encodeURIComponent(contactEmail)}`;
       
       const res = await fetch(url, {
-        signal: AbortSignal.timeout(6000), // 6 seconds limit per request
+        signal: AbortSignal.timeout(10000), // 10 seconds limit per request
         headers: {
           'User-Agent': 'Jupsoft-CMS-Translator/1.0',
           'Accept': 'application/json',
@@ -55,19 +56,93 @@ export class TranslationService {
       });
 
       if (!res.ok) {
+        if (retryCount > 0) {
+          await new Promise((r) => setTimeout(r, 600));
+          return this.queryMyMemory(query, from, to, retryCount - 1);
+        }
         this.logger.warn(`Translation HTTP error ${res.status} for pair ${pair}`);
         return query;
       }
 
       const data = await res.json();
       const translated = data?.responseData?.translatedText;
-      if (translated && typeof translated === 'string') {
+      if (
+        translated &&
+        typeof translated === 'string' &&
+        !translated.includes('MYMEMORY WARNING') &&
+        !translated.includes('QUERY LENGTH LIMIT EXCEEDED')
+      ) {
         return translated;
       }
     } catch (err: any) {
-      this.logger.error(`Translation network failed for "${query.substring(0, 30)}...": ${err.message}`);
+      if (retryCount > 0) {
+        await new Promise((r) => setTimeout(r, 600));
+        return this.queryMyMemory(query, from, to, retryCount - 1);
+      }
+      this.logger.warn(`Translation network failed for "${query.substring(0, 30)}...": ${err.message}`);
     }
     return query;
+  }
+
+  /**
+   * Split HTML into semantic blocks (paragraphs, headings, lists)
+   * under 380 characters to preserve HTML structure and sentence context.
+   */
+  private chunkHtml(html: string, maxLen = 380): Array<{ isTranslatable: boolean; text: string }> {
+    const parts = html.split(/(<\/(?:p|h[1-6]|li|blockquote|div|tr|table|ul|ol)>)/gi).filter(Boolean);
+    const elements: string[] = [];
+    for (let i = 0; i < parts.length; i += 2) {
+      elements.push(parts[i] + (parts[i + 1] || ''));
+    }
+
+    const chunks: Array<{ isTranslatable: boolean; text: string }> = [];
+    let current = '';
+
+    for (const el of elements) {
+      const textContent = el.replace(/<[^>]+>/g, '').trim();
+      // Void tags / images / dividers have no translatable text
+      if (!textContent) {
+        if (current) {
+          chunks.push({ isTranslatable: true, text: current });
+          current = '';
+        }
+        chunks.push({ isTranslatable: false, text: el });
+        continue;
+      }
+
+      if (el.length > maxLen) {
+        if (current) {
+          chunks.push({ isTranslatable: true, text: current });
+          current = '';
+        }
+        // Split large element preserving sentences
+        const tokens = el.split(/(?<=[.!?।\n])\s+/).filter(Boolean);
+        let subCurrent = '';
+        for (const t of tokens) {
+          if ((subCurrent + t).length <= maxLen) {
+            subCurrent += t + ' ';
+          } else {
+            if (subCurrent) chunks.push({ isTranslatable: true, text: subCurrent.trim() });
+            if (t.length > maxLen) {
+              for (let k = 0; k < t.length; k += maxLen) {
+                chunks.push({ isTranslatable: true, text: t.slice(k, k + maxLen) });
+              }
+              subCurrent = '';
+            } else {
+              subCurrent = t + ' ';
+            }
+          }
+        }
+        if (subCurrent) chunks.push({ isTranslatable: true, text: subCurrent.trim() });
+      } else if ((current + el).length <= maxLen) {
+        current += el;
+      } else {
+        if (current) chunks.push({ isTranslatable: true, text: current });
+        current = el;
+      }
+    }
+    if (current) chunks.push({ isTranslatable: true, text: current });
+    return chunks;
   }
 
   /**
@@ -77,18 +152,14 @@ export class TranslationService {
     if (!html || !html.trim()) return '';
     if (from.toLowerCase() === to.toLowerCase()) return html;
 
-    const tokens = html.split(/(<[^>]+>)/g);
-    
-    // Process all HTML tokens in batches of 5 concurrently!
-    const results = await this.runInBatches(tokens, 5, async (tok) => {
-      if (tok.startsWith('<') && tok.endsWith('>')) {
-        // Retain HTML tag as-is
-        return tok;
-      } else if (tok.trim().length > 0) {
-        return await this.translateSingle(tok, from, to);
-      } else {
-        return tok;
+    const chunks = this.chunkHtml(html, 380);
+
+    // Process all HTML chunks in batches of 6 concurrently
+    const results = await this.runInBatches(chunks, 6, async (chunk) => {
+      if (!chunk.isTranslatable) {
+        return chunk.text;
       }
+      return await this.translateSingle(chunk.text, from, to);
     });
 
     return results.join('');
@@ -135,3 +206,4 @@ export class TranslationService {
     return result;
   }
 }
+
