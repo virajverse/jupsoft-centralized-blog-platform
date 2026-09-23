@@ -14,6 +14,7 @@ import {
   ShieldCheck, 
   ArrowRight
 } from 'lucide-react';
+import { DeleteConfirmModal } from '../common/DeleteConfirmModal';
 
 export interface RedirectsViewProps {
   embedded?: boolean;
@@ -64,6 +65,24 @@ export const RedirectsView: React.FC<RedirectsViewProps> = ({ embedded = false }
   const [targetSiteId, setTargetSiteId] = useState<string>(effectiveSiteId === 'all' ? websites[0]?.id : effectiveSiteId);
   const [fromSlug, setFromSlug] = useState('');
   const [toSlug, setToSlug] = useState('');
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    redirectId?: string;
+    fromSlug?: string;
+  }>({ isOpen: false });
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleConfirmDeleteRedirect = async () => {
+    if (!deleteModal.redirectId) return;
+    setIsDeleting(true);
+    try {
+      await deleteRedirect(deleteModal.redirectId);
+      showNotification('Redirect rule deleted', 'info');
+      setDeleteModal({ isOpen: false });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const filteredRedirects = redirects.filter((r) => {
     const matchesSite = isAllSites || r.websiteId === effectiveSiteId;
@@ -249,10 +268,11 @@ export const RedirectsView: React.FC<RedirectsViewProps> = ({ embedded = false }
                       <td className="py-3 px-4 text-right">
                         <button
                           onClick={() => {
-                            if (confirm(`Delete redirect from /${r.fromSlug}?`)) {
-                              deleteRedirect(r.id);
-                              showNotification('Redirect rule deleted', 'info');
-                            }
+                            setDeleteModal({
+                              isOpen: true,
+                              redirectId: r.id,
+                              fromSlug: r.fromSlug,
+                            });
                           }}
                           className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer border border-rose-200 dark:border-rose-800/60"
                         >
@@ -366,6 +386,19 @@ export const RedirectsView: React.FC<RedirectsViewProps> = ({ embedded = false }
           </div>
         </div>
       )}
+
+      {/* Custom Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={deleteModal.isOpen}
+        title="Delete URL Redirect"
+        itemName={deleteModal.fromSlug ? `/${deleteModal.fromSlug}` : undefined}
+        itemType="redirect"
+        message="Are you sure you want to delete this redirect route? Incoming traffic to this URL will no longer be forwarded to the canonical target."
+        confirmText="Delete Redirect"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDeleteRedirect}
+        onClose={() => setDeleteModal({ isOpen: false })}
+      />
     </div>
   );
 };

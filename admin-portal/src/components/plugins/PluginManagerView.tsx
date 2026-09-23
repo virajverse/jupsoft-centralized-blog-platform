@@ -26,6 +26,7 @@ import {
   RotateCcw,
   AlertCircle
 } from 'lucide-react';
+import { DeleteConfirmModal } from '../common/DeleteConfirmModal';
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard,
@@ -77,6 +78,19 @@ export const PluginManagerView: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingModule, setEditingModule] = useState<PlatformModuleConfig | null>(null);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [pluginToDelete, setPluginToDelete] = useState<{ id: string; name: string } | null>(null);
+
+  const handleConfirmReset = () => {
+    resetModulesToDefault();
+    setIsResetModalOpen(false);
+  };
+
+  const handleConfirmUninstallPlugin = () => {
+    if (!pluginToDelete) return;
+    deleteCustomPlugin(pluginToDelete.id);
+    setPluginToDelete(null);
+  };
 
   // New Plugin Form State
   const [newPlugin, setNewPlugin] = useState({
@@ -192,11 +206,7 @@ export const PluginManagerView: React.FC = () => {
         <div className="flex items-center gap-2.5 shrink-0">
           <button
             type="button"
-            onClick={() => {
-              if (window.confirm('Reset all modules, permissions, and custom plugins to system defaults?')) {
-                resetModulesToDefault();
-              }
-            }}
+            onClick={() => setIsResetModalOpen(true)}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors border border-slate-200 dark:border-slate-700 cursor-pointer"
             title="Restore system default modules"
           >
@@ -445,11 +455,7 @@ export const PluginManagerView: React.FC = () => {
                 {mod.isCustomPlugin && (
                   <button
                     type="button"
-                    onClick={() => {
-                      if (window.confirm(`Are you sure you want to uninstall custom plugin "${mod.name}"?`)) {
-                        deleteCustomPlugin(mod.id);
-                      }
-                    }}
+                    onClick={() => setPluginToDelete({ id: mod.id, name: mod.name })}
                     className="flex items-center gap-1 px-2 py-1 text-rose-600 hover:text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md transition-colors font-medium cursor-pointer"
                     title="Uninstall custom plugin"
                   >
@@ -839,6 +845,30 @@ export const PluginManagerView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Reset System Modules Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={isResetModalOpen}
+        title="Reset Platform Modules"
+        itemName="System Module Configurations"
+        itemType="configuration"
+        message="Are you sure you want to reset all modules, permissions, and custom plugins to system defaults? Any registered custom plugins will be removed."
+        confirmText="Reset to Defaults"
+        onConfirm={handleConfirmReset}
+        onClose={() => setIsResetModalOpen(false)}
+      />
+
+      {/* Uninstall Custom Plugin Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={Boolean(pluginToDelete)}
+        title="Uninstall Custom Plugin"
+        itemName={pluginToDelete?.name}
+        itemType="plugin"
+        message="Are you sure you want to uninstall this custom plugin? Its navigation entry and permissions will be permanently removed."
+        confirmText="Uninstall Plugin"
+        onConfirm={handleConfirmUninstallPlugin}
+        onClose={() => setPluginToDelete(null)}
+      />
     </div>
   );
 };

@@ -17,6 +17,7 @@ import {
 import { MediaItem } from '../../types';
 import { apiClient } from '../../services/apiClient';
 import { resolveMediaUrl, extractS3Key } from '../../utils/mediaUtils';
+import { DeleteConfirmModal } from '../common/DeleteConfirmModal';
 
 export const MediaLibraryView: React.FC = () => {
   const searchParams = useSearchParams();
@@ -60,6 +61,11 @@ export const MediaLibraryView: React.FC = () => {
   const isAllSites = effectiveSiteId === 'all';
   const [isLoadingMedia, setIsLoadingMedia] = useState(true);
   const [deletingMediaId, setDeletingMediaId] = useState<string | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    mediaId?: string;
+    mediaName?: string;
+  }>({ isOpen: false });
 
   useEffect(() => {
     let active = true;
@@ -91,11 +97,21 @@ export const MediaLibraryView: React.FC = () => {
     }
   };
 
-  const handleDeleteMedia = async (id: string) => {
+  const handleDeleteMedia = (id: string, name?: string) => {
     if (deletingMediaId) return;
-    setDeletingMediaId(id);
+    setDeleteModal({
+      isOpen: true,
+      mediaId: id,
+      mediaName: name || 'Selected asset',
+    });
+  };
+
+  const handleConfirmDeleteMedia = async () => {
+    if (!deleteModal.mediaId) return;
+    setDeletingMediaId(deleteModal.mediaId);
     try {
-      await deleteMediaItem(id);
+      await deleteMediaItem(deleteModal.mediaId);
+      setDeleteModal({ isOpen: false });
     } finally {
       setDeletingMediaId(null);
     }
@@ -389,7 +405,7 @@ export const MediaLibraryView: React.FC = () => {
                       </button>
                       <button
                         disabled={deletingMediaId === item.id}
-                        onClick={() => handleDeleteMedia(item.id)}
+                        onClick={() => handleDeleteMedia(item.id, item.fileName || item.altText)}
                         className="p-1 rounded-md text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer disabled:opacity-50"
                         title="Delete image"
                       >
@@ -477,6 +493,19 @@ export const MediaLibraryView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Custom Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={deleteModal.isOpen}
+        title="Delete Media Asset"
+        itemName={deleteModal.mediaName}
+        itemType="image"
+        message="Are you sure you want to permanently delete this media file? Any articles linking directly to this image CDN path may show broken images."
+        confirmText="Delete Asset"
+        isLoading={Boolean(deletingMediaId)}
+        onConfirm={handleConfirmDeleteMedia}
+        onClose={() => setDeleteModal({ isOpen: false })}
+      />
     </div>
   );
 };

@@ -7,6 +7,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../hooks/useQueryState';
 import { UserAccount, UserRole, Website } from '../../types';
 import { getAllowedInviteRoles, canManageUsers, isGlobalScopeRole, cleanAvatarUrl, getDefaultRoleModules, AppModule } from '../../utils/permissions';
+import { DeleteConfirmModal } from '../common/DeleteConfirmModal';
 import { 
   Users, 
   ShieldCheck, 
@@ -215,6 +216,11 @@ export const UserManagementView: React.FC = () => {
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [isSubmittingInvite, setIsSubmittingInvite] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    userId?: string;
+    userName?: string;
+  }>({ isOpen: false });
 
   React.useEffect(() => {
     let active = true;
@@ -230,12 +236,21 @@ export const UserManagementView: React.FC = () => {
     return () => { active = false; };
   }, [fetchUsers, fetchBlogs]);
 
-  const handleDeleteUser = async (id: string, name: string) => {
+  const handleDeleteUser = (id: string, name: string) => {
     if (deletingUserId) return;
-    if (!confirm(`Remove access for ${name}?`)) return;
-    setDeletingUserId(id);
+    setDeleteModal({
+      isOpen: true,
+      userId: id,
+      userName: name,
+    });
+  };
+
+  const handleConfirmDeleteUser = async () => {
+    if (!deleteModal.userId) return;
+    setDeletingUserId(deleteModal.userId);
     try {
-      await deleteUser(id);
+      await deleteUser(deleteModal.userId);
+      setDeleteModal({ isOpen: false });
     } finally {
       setDeletingUserId(null);
     }
@@ -2312,6 +2327,19 @@ _Please log in and update your password on your first sign-in._`;
           </div>
         </div>
       )}
+
+      {/* Custom Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={deleteModal.isOpen}
+        title="Revoke Member Access"
+        itemName={deleteModal.userName}
+        itemType="user"
+        message="Are you sure you want to revoke access for this user? They will lose all permissions and access to their assigned websites."
+        confirmText="Revoke Access"
+        isLoading={Boolean(deletingUserId)}
+        onConfirm={handleConfirmDeleteUser}
+        onClose={() => setDeleteModal({ isOpen: false })}
+      />
     </div>
   );
 };

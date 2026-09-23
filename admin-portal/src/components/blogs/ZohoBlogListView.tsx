@@ -19,6 +19,7 @@ import { Blog, Website, UserRole, LanguageCode } from '../../types';
 import { canCreateBlog, canDeleteBlog } from '../../utils/permissions';
 import { useBlogStore } from '../../store/useBlogStore';
 import { apiClient } from '../../services/apiClient';
+import { DeleteConfirmModal } from '../common/DeleteConfirmModal';
 
 interface ZohoBlogListViewProps {
   blogs: Blog[];
@@ -69,7 +70,37 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    blogId?: string;
+    blogTitle?: string;
+    isBulk?: boolean;
+    count?: number;
+  }>({ isOpen: false });
   const siteQuery = `?site=${activeWebsiteId}`;
+
+  const handleConfirmDelete = async () => {
+    if (deleteModal.isBulk) {
+      setIsDeletingBulk(true);
+      try {
+        for (const id of selectedIds) {
+          await deleteBlog(id);
+        }
+        setSelectedIds([]);
+        setDeleteModal({ isOpen: false });
+      } finally {
+        setIsDeletingBulk(false);
+      }
+    } else if (deleteModal.blogId) {
+      setDeletingId(deleteModal.blogId);
+      try {
+        await deleteBlog(deleteModal.blogId);
+        setDeleteModal({ isOpen: false });
+      } finally {
+        setDeletingId(null);
+      }
+    }
+  };
 
   // Pagination state (0-delay performance)
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -202,18 +233,12 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
               <button
                 type="button"
                 disabled={isDeletingBulk}
-                onClick={async () => {
-                  if (confirm(`Delete ${selectedIds.length} selected blogs?`)) {
-                    setIsDeletingBulk(true);
-                    try {
-                      for (const id of selectedIds) {
-                        await deleteBlog(id);
-                      }
-                      setSelectedIds([]);
-                    } finally {
-                      setIsDeletingBulk(false);
-                    }
-                  }
+                onClick={() => {
+                  setDeleteModal({
+                    isOpen: true,
+                    isBulk: true,
+                    count: selectedIds.length,
+                  });
                 }}
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold transition-colors cursor-pointer disabled:opacity-50"
               >
@@ -469,16 +494,18 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
                                 {canDeleteBlog(activeRole) && (
                                   <button
                                     type="button"
-                                    onClick={async () => {
+                                    onClick={() => {
                                       setOpenDropdownId(null);
-                                      if (confirm('Are you sure you want to delete this blog?')) {
-                                        setDeletingId(blog.id);
-                                        try {
-                                          await deleteBlog(blog.id);
-                                        } finally {
-                                          setDeletingId(null);
-                                        }
-                                      }
+                                      const title =
+                                        blog.translations?.['en']?.title ||
+                                        (blog.translations && Object.values(blog.translations)[0]?.title) ||
+                                        'Untitled Blog';
+                                      setDeleteModal({
+                                        isOpen: true,
+                                        blogId: blog.id,
+                                        blogTitle: title,
+                                        isBulk: false,
+                                      });
                                     }}
                                     disabled={deletingId === blog.id}
                                     className="w-full text-left px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer disabled:opacity-50"
@@ -550,6 +577,23 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Custom Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={deleteModal.isOpen}
+        title={deleteModal.isBulk ? 'Bulk Delete Articles' : 'Delete Blog Article'}
+        itemName={deleteModal.isBulk ? `${deleteModal.count} selected articles` : deleteModal.blogTitle}
+        itemType="blog"
+        message={
+          deleteModal.isBulk
+            ? `Are you sure you want to permanently delete these ${deleteModal.count} blogs? This will remove all associated translations, revisions, and CDN caches.`
+            : 'Are you sure you want to permanently delete this blog? This will remove all translations, revisions, and CDN caches.'
+        }
+        confirmText={deleteModal.isBulk ? `Delete ${deleteModal.count} Articles` : 'Delete Article'}
+        isLoading={isDeletingBulk || Boolean(deletingId)}
+        onConfirm={handleConfirmDelete}
+        onClose={() => setDeleteModal({ isOpen: false })}
+      />
     </div>
   );
 };

@@ -27,6 +27,7 @@ import {
   ArrowRightLeft
 } from 'lucide-react';
 import { RedirectsView } from '../redirects/RedirectsView';
+import { DeleteConfirmModal } from '../common/DeleteConfirmModal';
 
 export const SettingsView: React.FC = () => {
   const searchParams = useSearchParams();
@@ -185,6 +186,13 @@ export const SettingsView: React.FC = () => {
 
   const [showApiKey, setShowApiKey] = useState(false);
   const [isRegeneratingKey, setIsRegeneratingKey] = useState(false);
+  const [regenerateKeyModal, setRegenerateKeyModal] = useState(false);
+  const [deleteWebsiteModal, setDeleteWebsiteModal] = useState<{
+    isOpen: boolean;
+    websiteId?: string;
+    websiteName?: string;
+  }>({ isOpen: false });
+  const [isDeletingWebsite, setIsDeletingWebsite] = useState(false);
 
   const copyApiKey = () => {
     if (!activeSite) return;
@@ -193,17 +201,17 @@ export const SettingsView: React.FC = () => {
     setTimeout(() => setCopiedKey(false), 2000);
   };
 
-  const handleRegenerateApiKey = async () => {
+  const handleRegenerateApiKey = () => {
     if (!activeSite) return;
     if (!isSuperAdmin) {
       showNotification('Only Super Admin can rotate tenant secret API keys', 'warning');
       return;
     }
-    const confirmed = window.confirm(
-      `⚠️ Warning: Regenerating the API key for "${activeSite.name}" will immediately invalidate the existing key.\n\nAny client website using this key will need to update its .env.local to continue fetching blogs.\n\nDo you want to proceed?`
-    );
-    if (!confirmed) return;
+    setRegenerateKeyModal(true);
+  };
 
+  const handleConfirmRegenerateApiKey = async () => {
+    if (!activeSite) return;
     setIsRegeneratingKey(true);
     try {
       const cleanSlug = activeSite.id.replace(/^site-/, '');
@@ -212,6 +220,7 @@ export const SettingsView: React.FC = () => {
       await updateWebsite(activeSite.id, { apiKey: newKey });
       showNotification(`New API key generated successfully for ${activeSite.name}!`, 'success');
       setShowApiKey(true);
+      setRegenerateKeyModal(false);
     } catch (err: unknown) {
       showNotification(err instanceof Error ? err.message : 'Failed to rotate API key', 'warning');
     } finally {
@@ -227,20 +236,30 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  const handleDeleteWebsite = async (id: string, name: string) => {
+  const handleDeleteWebsite = (id: string, name: string) => {
     if (!isSuperAdmin) {
       showNotification('Only Super Admin can delete website tenants', 'warning');
       return;
     }
-    const confirmed = window.confirm(
-      `Are you sure you want to permanently delete the website "${name}"?\n\nWARNING: This will cascade and delete all associated blogs, categories, tags, media assets, and redirects for this tenant. This action cannot be undone.`
-    );
-    if (!confirmed) return;
+    setDeleteWebsiteModal({
+      isOpen: true,
+      websiteId: id,
+      websiteName: name,
+    });
+  };
 
-    await deleteWebsite(id);
-    if (targetSiteId === id) {
-      const remaining = websites.filter((w) => w.id !== id);
-      setParam('tenant', remaining[0]?.id || null);
+  const handleConfirmDeleteWebsite = async () => {
+    if (!deleteWebsiteModal.websiteId) return;
+    setIsDeletingWebsite(true);
+    try {
+      await deleteWebsite(deleteWebsiteModal.websiteId);
+      if (targetSiteId === deleteWebsiteModal.websiteId) {
+        const remaining = websites.filter((w) => w.id !== deleteWebsiteModal.websiteId);
+        setParam('tenant', remaining[0]?.id || null);
+      }
+      setDeleteWebsiteModal({ isOpen: false });
+    } finally {
+      setIsDeletingWebsite(false);
     }
   };
 
@@ -1088,6 +1107,32 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Delete Website Tenant Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={deleteWebsiteModal.isOpen}
+        title="Delete Website Tenant"
+        itemName={deleteWebsiteModal.websiteName}
+        itemType="website"
+        message="WARNING: This will cascade and delete all associated blogs, categories, tags, media assets, and redirects for this tenant. This action cannot be undone."
+        confirmText="Delete Website Tenant"
+        isLoading={isDeletingWebsite}
+        onConfirm={handleConfirmDeleteWebsite}
+        onClose={() => setDeleteWebsiteModal({ isOpen: false })}
+      />
+
+      {/* Rotate Secret API Key Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={regenerateKeyModal}
+        title="Rotate Secret API Key"
+        itemName={activeSite?.name}
+        itemType="API key"
+        message="Regenerating the API key will immediately invalidate the existing key. Any client website using this key will need to update its .env.local to continue fetching blogs."
+        confirmText="Rotate API Key"
+        isLoading={isRegeneratingKey}
+        onConfirm={handleConfirmRegenerateApiKey}
+        onClose={() => setRegenerateKeyModal(false)}
+      />
     </div>
   );
 };
