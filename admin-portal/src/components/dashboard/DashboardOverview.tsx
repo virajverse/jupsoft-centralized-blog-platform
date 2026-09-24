@@ -1,10 +1,10 @@
-'use client';
+﻿'use client';
 
 import React, { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useShallow } from 'zustand/react/shallow';
-import { ZohoDashboardView } from './ZohoDashboardView';
+import { JupsoftDashboardView } from './JupsoftDashboardView';
 
 export const DashboardOverview: React.FC = () => {
   const searchParams = useSearchParams();
@@ -86,7 +86,7 @@ export const DashboardOverview: React.FC = () => {
   }, [displayedBlogs]);
 
   return (
-    <ZohoDashboardView
+    <JupsoftDashboardView
       blogs={blogs}
       displayedBlogs={displayedBlogs}
       publishedBlogs={publishedBlogs}

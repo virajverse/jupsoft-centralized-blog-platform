@@ -1,26 +1,26 @@
-'use client';
+﻿'use client';
 
 import React, { Suspense } from 'react';
-import { ZohoSidebar } from './ZohoSidebar';
-import { ZohoNavbar } from './ZohoNavbar';
+import { JupsoftSidebar } from './JupsoftSidebar';
+import { JupsoftNavbar } from './JupsoftNavbar';
 import { TopProgressBar } from '../TopProgressBar';
 
-export const ZohoDashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const JupsoftDashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <div className="h-screen w-screen overflow-hidden flex bg-[#f1f5f9] dark:bg-[#060a12] font-sans antialiased text-slate-800 dark:text-slate-200">
       {/* 0ms Instant Top Route Progress Bar */}
       <TopProgressBar />
 
-      {/* Zoho Signature Two-Tier Sidebar (Tier 1 Rail + Tier 2 Context Drawer) */}
+      {/* Jupsoft Signature Two-Tier Sidebar (Tier 1 Rail + Tier 2 Context Drawer) */}
       <Suspense fallback={<div className="w-16 h-full bg-[#0d1527]" />}>
-        <ZohoSidebar />
+        <JupsoftSidebar />
       </Suspense>
 
       {/* Main Content Workspace */}
       <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
-        {/* Zoho 50px Compact Top Navbar */}
+        {/* Jupsoft 50px Compact Top Navbar */}
         <Suspense fallback={<div className="h-[50px] bg-white dark:bg-[#0a0f1d] border-b border-slate-200 dark:border-slate-800" />}>
-          <ZohoNavbar />
+          <JupsoftNavbar />
         </Suspense>
 
         {/* Dynamic Route View */}

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { ZohoDashboardLayout } from './zoho/ZohoDashboardLayout';
+import { JupsoftDashboardLayout } from './jupsoft/JupsoftDashboardLayout';
 
 const AdminGuideModal = dynamic(
   () => import('../guide/AdminGuideModal').then((m) => m.AdminGuideModal),
@@ -47,7 +47,7 @@ export const DashboardLayoutSwitcher: React.FC<{ children: React.ReactNode }> = 
   return (
     <>
       <AdminGuideModal />
-      <ZohoDashboardLayout>{children}</ZohoDashboardLayout>
+      <JupsoftDashboardLayout>{children}</JupsoftDashboardLayout>
     </>
   );
 };

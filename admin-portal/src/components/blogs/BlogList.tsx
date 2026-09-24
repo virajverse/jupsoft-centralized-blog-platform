@@ -1,11 +1,11 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../hooks/useQueryState';
-import { ZohoBlogListView } from './ZohoBlogListView';
+import { JupsoftBlogListView } from './JupsoftBlogListView';
 
 export const BlogList: React.FC = () => {
   const searchParams = useSearchParams();
@@ -114,7 +114,7 @@ export const BlogList: React.FC = () => {
   }, [baseBlogs, selectedStatus, queryParam]);
 
   return (
-    <ZohoBlogListView
+    <JupsoftBlogListView
       blogs={blogs}
       baseBlogs={baseBlogs}
       filteredBlogs={filteredBlogs}

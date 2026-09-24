@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -21,7 +21,7 @@ import {
   X
 } from 'lucide-react';
 
-export const ZohoSidebar: React.FC = () => {
+export const JupsoftSidebar: React.FC = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
@@ -249,7 +249,7 @@ export const ZohoSidebar: React.FC = () => {
                       : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
                   }`}
                 >
-                  {/* Zoho signature active red rail bar */}
+                  {/* Jupsoft signature active red rail bar */}
                   {isActive && (
                     <span className="absolute left-0 top-1 bottom-1 w-1 bg-red-500 rounded-r-sm" />
                   )}

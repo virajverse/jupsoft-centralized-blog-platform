@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React from 'react';
 import Link from 'next/link';
@@ -21,7 +21,7 @@ import { apiClient } from '../../services/apiClient';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useQueryState } from '../../hooks/useQueryState';
 
-interface ZohoDashboardViewProps {
+interface JupsoftDashboardViewProps {
   blogs: Blog[];
   displayedBlogs: Blog[];
   publishedBlogs: Blog[];
@@ -40,7 +40,7 @@ interface ZohoDashboardViewProps {
 
 const ALL_LANGUAGES: LanguageCode[] = ['en', 'hi', 'fr', 'ar'];
 
-export const ZohoDashboardView: React.FC<ZohoDashboardViewProps> = ({
+export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
   blogs,
   displayedBlogs,
   publishedBlogs,
@@ -163,7 +163,7 @@ export const ZohoDashboardView: React.FC<ZohoDashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Zoho Signature Compact Metrics Grid (4 in a row, ~64px height) */}
+      {/* Jupsoft Signature Compact Metrics Grid (4 in a row, ~64px height) */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
         {/* Metric 1: Total Blogs */}
         <Link

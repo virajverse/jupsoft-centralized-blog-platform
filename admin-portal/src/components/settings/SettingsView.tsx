@@ -484,7 +484,7 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* Section Tabs - Zoho Enterprise Styling */}
+      {/* Section Tabs - Enterprise Styling */}
       <div className="flex items-center gap-1 bg-white dark:bg-[#0c1322] p-1 rounded-lg border border-slate-200 dark:border-slate-800 shadow-2xs overflow-x-auto scrollbar-none w-full sm:w-fit max-w-full">
         {isSuperAdmin && (
           <button

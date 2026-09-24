@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState } from 'react';
 import Link from 'next/link';
@@ -21,7 +21,7 @@ import { useBlogStore } from '../../store/useBlogStore';
 import { apiClient } from '../../services/apiClient';
 import { DeleteConfirmModal } from '../common/DeleteConfirmModal';
 
-interface ZohoBlogListViewProps {
+interface JupsoftBlogListViewProps {
   blogs: Blog[];
   baseBlogs: Blog[];
   filteredBlogs: Blog[];
@@ -45,7 +45,7 @@ interface ZohoBlogListViewProps {
 
 const ALL_LANGUAGES: LanguageCode[] = ['en', 'hi', 'fr', 'ar'];
 
-export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
+export const JupsoftBlogListView: React.FC<JupsoftBlogListViewProps> = ({
   baseBlogs,
   filteredBlogs,
   activeWebsiteId,

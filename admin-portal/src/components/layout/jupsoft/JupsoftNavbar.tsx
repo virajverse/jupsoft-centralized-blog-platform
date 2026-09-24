@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { isGlobalScopeRole, canCreateBlog, cleanAvatarUrl, canAccessModule } from '../../../utils/permissions';
 
-export const ZohoNavbar: React.FC = () => {
+export const JupsoftNavbar: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -181,7 +181,7 @@ export const ZohoNavbar: React.FC = () => {
         </div>
       </div>
 
-      {/* Center: Zoho Signature Omnibox Search (hidden on /blogs to prevent dual search bar collision) */}
+      {/* Center: Jupsoft Signature Omnibox Search (hidden on /blogs to prevent dual search bar collision) */}
       {pathname !== '/blogs' && (
         <div className="hidden md:flex items-center flex-1 max-w-sm mx-4 relative">
           <div className="w-full relative flex items-center">
