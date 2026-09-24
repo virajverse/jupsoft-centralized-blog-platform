@@ -325,6 +325,15 @@ export class UsersService {
       }
     }
 
+    // 🛡️ PERMANENT BLOG PRESERVATION: When an author is deleted, their blogs MUST NOT be deleted.
+    // Reassign authorId to master superadmin while retaining authorName and authorAvatar intact!
+    await this.prisma.blog.updateMany({
+      where: { authorId: userId },
+      data: {
+        authorId: 'usr-superadmin',
+      },
+    });
+
     await this.prisma.user.delete({ where: { id: userId } });
 
     await this.prisma.systemAuditLog.create({

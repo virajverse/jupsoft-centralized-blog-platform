@@ -76,7 +76,7 @@ model UserRoleAssignment {
 model Blog {
   id                   String                 @id @default(uuid())
   websiteId            String
-  authorId             String
+  authorId             String?
   authorName           String
   authorAvatar         String                 @default("")
   featuredImage        String                 @default("")
@@ -93,7 +93,7 @@ model Blog {
   updatedAt            DateTime               @updatedAt
 
   website              Website                @relation(fields: [websiteId], references: [id], onDelete: Cascade)
-  author               User                   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author               User?                  @relation(fields: [authorId], references: [id], onDelete: SetNull)
   translations         BlogTranslation[]
   revisions            BlogRevision[]
   workflowLogs         WorkflowLog[]
