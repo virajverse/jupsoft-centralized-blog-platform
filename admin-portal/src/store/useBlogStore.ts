@@ -774,6 +774,24 @@ export const useBlogStore = create<BlogState>()(
       },
 
       updateUser: async (id, updates) => {
+        const target = get().users.find((u) => u.id === id);
+        const isSuperAdmin =
+          id === 'usr-superadmin' ||
+          target?.email === 'superadmin@jupsoft.com' ||
+          target?.roles?.includes('Super Admin') ||
+          target?.roleAssignments?.['all'] === 'Super Admin' ||
+          Object.values(target?.roleAssignments || {}).includes('Super Admin');
+
+        if (isSuperAdmin && updates.status && updates.status !== 'active') {
+          set({
+            notification: {
+              message: 'Super Admin master account cannot be suspended or deactivated.',
+              type: 'warning',
+            },
+          });
+          return;
+        }
+
         if (updates.managedRoles && typeof window !== 'undefined') {
           try {
             const stored = JSON.parse(localStorage.getItem('jupsoft_user_managed_roles') || '{}');
@@ -820,15 +838,37 @@ export const useBlogStore = create<BlogState>()(
       },
 
       deleteUser: async (id) => {
+        const target = get().users.find((u) => u.id === id);
+        const isSuperAdmin =
+          id === 'usr-superadmin' ||
+          target?.email === 'superadmin@jupsoft.com' ||
+          target?.roles?.includes('Super Admin') ||
+          target?.roleAssignments?.['all'] === 'Super Admin' ||
+          Object.values(target?.roleAssignments || {}).includes('Super Admin');
+
+        if (isSuperAdmin) {
+          set({
+            notification: {
+              message: 'Super Admin accounts are permanently protected and cannot be deleted or revoked.',
+              type: 'warning',
+            },
+          });
+          return;
+        }
+
         try {
           await apiClient.deleteUser(id);
-        } catch (err) {
+          set((state) => ({
+            users: state.users.filter((u) => u.id !== id),
+            notification: { message: 'User removed from system', type: 'info' },
+          }));
+        } catch (err: unknown) {
           console.warn('API deleteUser failed:', err);
+          const msg = err instanceof Error ? err.message : 'Failed to delete user';
+          set({
+            notification: { message: msg, type: 'warning' },
+          });
         }
-        set((state) => ({
-          users: state.users.filter((u) => u.id !== id),
-          notification: { message: 'User removed from system', type: 'info' },
-        }));
       },
 
       addRedirect: async (redirect) => {

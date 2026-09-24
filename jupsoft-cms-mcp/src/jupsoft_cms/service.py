@@ -436,12 +436,18 @@ class JupsoftCMSService:
         return self._post("/admin/users/invite", {"name": name, "email": email, "role": role, "websiteId": website_id})
 
     def update_user_role(self, user_id: str, role: str, website_id: str) -> Dict[str, Any]:
+        if user_id in ("usr-superadmin", "superadmin@jupsoft.com") and role != "Super Admin":
+            return {"success": False, "status": 403, "error": "Super Admin master role cannot be revoked, modified, or downgraded."}
         return self._put(f"/admin/users/{user_id}/role", {"role": role, "websiteId": website_id})
 
     def update_user_status(self, user_id: str, status: str) -> Dict[str, Any]:
+        if user_id in ("usr-superadmin", "superadmin@jupsoft.com") and status != "active":
+            return {"success": False, "status": 403, "error": "Super Admin status cannot be altered. The master administrator must remain active."}
         return self._put(f"/admin/users/{user_id}/status", {"status": status})
 
     def delete_user(self, user_id: str) -> Dict[str, Any]:
+        if user_id in ("usr-superadmin", "superadmin@jupsoft.com"):
+            return {"success": False, "status": 403, "error": "Super Admin accounts are permanently protected and cannot be deleted or revoked."}
         return self._delete(f"/admin/users/{user_id}")
 
     # ------------------------------------------------------------------

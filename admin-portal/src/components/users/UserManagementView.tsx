@@ -238,6 +238,19 @@ export const UserManagementView: React.FC = () => {
 
   const handleDeleteUser = (id: string, name: string) => {
     if (deletingUserId) return;
+    const targetUser = users.find((u) => u.id === id);
+    const isProtected =
+      id === 'usr-superadmin' ||
+      targetUser?.email === 'superadmin@jupsoft.com' ||
+      targetUser?.roles?.includes('Super Admin') ||
+      targetUser?.roleAssignments?.['all'] === 'Super Admin' ||
+      Object.values(targetUser?.roleAssignments || {}).includes('Super Admin');
+
+    if (isProtected) {
+      alert('Super Admin accounts are permanently protected and cannot be deleted or revoked.');
+      return;
+    }
+
     setDeleteModal({
       isOpen: true,
       userId: id,
@@ -398,6 +411,23 @@ _Please log in and update your password on your first sign-in._`;
   const handleSaveUserEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser || isSavingUserEdit) return;
+
+    const isTargetSuperAdmin =
+      editingUser.id === 'usr-superadmin' ||
+      editingUser.email === 'superadmin@jupsoft.com' ||
+      editingUser.roles?.includes('Super Admin') ||
+      editingUser.roleAssignments?.['all'] === 'Super Admin' ||
+      Object.values(editingUser.roleAssignments || {}).includes('Super Admin');
+
+    if (isTargetSuperAdmin && editStatus === 'suspended') {
+      showNotification('Super Admin account status cannot be altered or suspended.', 'warning');
+      return;
+    }
+
+    if (isTargetSuperAdmin && editRole !== 'Super Admin' && (editWebsiteId === 'all' || !editWebsiteId)) {
+      showNotification('Super Admin master role cannot be revoked or downgraded.', 'warning');
+      return;
+    }
 
     setIsSavingUserEdit(true);
     try {
@@ -1161,7 +1191,12 @@ _Please log in and update your password on your first sign-in._`;
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             {(() => {
-                              const targetIsSuperAdmin = Object.values(u.roleAssignments || {}).includes('Super Admin');
+                              const targetIsSuperAdmin =
+                                u.id === 'usr-superadmin' ||
+                                u.email === 'superadmin@jupsoft.com' ||
+                                u.roles?.includes('Super Admin') ||
+                                u.roleAssignments?.['all'] === 'Super Admin' ||
+                                Object.values(u.roleAssignments || {}).includes('Super Admin');
                               const canManageThisUser = canManageUsers(activeRole) && (isSuperAdmin || !targetIsSuperAdmin);
 
                               if (!canManageThisUser) {
@@ -1196,14 +1231,23 @@ _Please log in and update your password on your first sign-in._`;
                                     <Edit3 className="w-3.5 h-3.5" />
                                   </button>
 
-                                  <button
-                                    disabled={deletingUserId === u.id}
-                                    onClick={() => handleDeleteUser(u.id, u.name)}
-                                    title="Revoke Member"
-                                    className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer border border-rose-200 dark:border-rose-800/60 disabled:opacity-50"
-                                  >
-                                    <Trash2 className={`w-3.5 h-3.5 ${deletingUserId === u.id ? 'animate-spin' : ''}`} />
-                                  </button>
+                                  {targetIsSuperAdmin ? (
+                                    <span
+                                      title="Protected Master Super Admin (Cannot be deleted or revoked)"
+                                      className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 inline-flex items-center justify-center cursor-default"
+                                    >
+                                      <ShieldCheck className="w-3.5 h-3.5" />
+                                    </span>
+                                  ) : (
+                                    <button
+                                      disabled={deletingUserId === u.id}
+                                      onClick={() => handleDeleteUser(u.id, u.name)}
+                                      title="Revoke Member"
+                                      className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer border border-rose-200 dark:border-rose-800/60 disabled:opacity-50"
+                                    >
+                                      <Trash2 className={`w-3.5 h-3.5 ${deletingUserId === u.id ? 'animate-spin' : ''}`} />
+                                    </button>
+                                  )}
                                 </>
                               );
                             })()}
@@ -2118,8 +2162,24 @@ _Please log in and update your password on your first sign-in._`;
                   </button>
                   <button
                     type="button"
+                    disabled={
+                      editingUser.id === 'usr-superadmin' ||
+                      editingUser.email === 'superadmin@jupsoft.com' ||
+                      editingUser.roles?.includes('Super Admin') ||
+                      editingUser.roleAssignments?.['all'] === 'Super Admin' ||
+                      Object.values(editingUser.roleAssignments || {}).includes('Super Admin')
+                    }
                     onClick={() => setEditStatus('suspended')}
-                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-xs font-semibold cursor-pointer transition-colors ${
+                    title={
+                      editingUser.id === 'usr-superadmin' ||
+                      editingUser.email === 'superadmin@jupsoft.com' ||
+                      editingUser.roles?.includes('Super Admin') ||
+                      editingUser.roleAssignments?.['all'] === 'Super Admin' ||
+                      Object.values(editingUser.roleAssignments || {}).includes('Super Admin')
+                        ? 'Super Admin accounts cannot be suspended'
+                        : 'Suspend Account'
+                    }
+                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-xs font-semibold cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                       editStatus === 'suspended'
                         ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800'
                         : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
@@ -2135,20 +2195,42 @@ _Please log in and update your password on your first sign-in._`;
             {/* Sticky Fixed Footer */}
             <div className="flex items-center justify-between gap-2.5 px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/90 shrink-0 backdrop-blur-xs">
               <div>
-                {canManageUsers(activeRole) && (!Object.values(editingUser.roleAssignments || {}).includes('Super Admin') || isSuperAdmin) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const u = editingUser;
-                      setEditingUser(null);
-                      handleDeleteUser(u.id, u.name);
-                    }}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 border border-rose-200 dark:border-rose-900/60 font-semibold text-xs transition-colors cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Delete User</span>
-                  </button>
-                )}
+                {(() => {
+                  const isEditingSuperAdmin =
+                    editingUser.id === 'usr-superadmin' ||
+                    editingUser.email === 'superadmin@jupsoft.com' ||
+                    editingUser.roles?.includes('Super Admin') ||
+                    editingUser.roleAssignments?.['all'] === 'Super Admin' ||
+                    Object.values(editingUser.roleAssignments || {}).includes('Super Admin');
+
+                  if (isEditingSuperAdmin) {
+                    return (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 font-semibold text-xs">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>Protected Master Account</span>
+                      </span>
+                    );
+                  }
+
+                  if (canManageUsers(activeRole)) {
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const u = editingUser;
+                          setEditingUser(null);
+                          handleDeleteUser(u.id, u.name);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 border border-rose-200 dark:border-rose-900/60 font-semibold text-xs transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete User</span>
+                      </button>
+                    );
+                  }
+
+                  return null;
+                })()}
               </div>
 
               <div className="flex items-center gap-2.5">

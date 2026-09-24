@@ -175,9 +175,22 @@ export class UsersService {
       }
     }
 
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { roleAssignments: true },
+    });
     if (!user) {
       throw new NotFoundException(`User "${userId}" not found`);
+    }
+
+    // 🛡️ CRITICAL SECURITY GUARD: Super Admin master role cannot be revoked or downgraded
+    const isTargetSuperAdmin =
+      userId === 'usr-superadmin' ||
+      user.email === 'superadmin@jupsoft.com' ||
+      user.roleAssignments?.some((ra) => ra.role === 'Super Admin' && ra.isGlobal);
+
+    if (isTargetSuperAdmin && dto.role !== 'Super Admin') {
+      throw new ForbiddenException('Super Admin master role cannot be revoked, modified, or downgraded.');
     }
 
     const isGlobal = dto.websiteId === 'all' || !dto.websiteId;
@@ -222,9 +235,21 @@ export class UsersService {
   }
 
   async toggleStatus(userId: string, status: string, updater: any, ipAddress: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { roleAssignments: true },
+    });
     if (!user) {
       throw new NotFoundException(`User "${userId}" not found`);
+    }
+
+    // 🛡️ CRITICAL SECURITY GUARD: Super Admin account cannot be deactivated or suspended
+    if (
+      user.id === 'usr-superadmin' ||
+      user.email === 'superadmin@jupsoft.com' ||
+      user.roleAssignments?.some((ra) => ra.role === 'Super Admin' && ra.isGlobal)
+    ) {
+      throw new ForbiddenException('Super Admin status cannot be altered. The master administrator must remain active.');
     }
 
     const updated = await this.prisma.user.update({
@@ -248,9 +273,24 @@ export class UsersService {
   }
 
   async delete(userId: string, deleter: any, ipAddress: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { roleAssignments: true },
+    });
     if (!user) {
       throw new NotFoundException(`User "${userId}" not found`);
+    }
+
+    // 🛡️ CRITICAL SECURITY GUARD: Super Admin accounts CANNOT be deleted
+    const isTargetSuperAdmin =
+      user.id === 'usr-superadmin' ||
+      user.email === 'superadmin@jupsoft.com' ||
+      user.roleAssignments?.some((ra) => ra.role === 'Super Admin' && ra.isGlobal);
+
+    if (isTargetSuperAdmin) {
+      throw new ForbiddenException(
+        'Super Admin accounts are permanently protected and cannot be deleted or revoked.',
+      );
     }
 
     await this.prisma.user.delete({ where: { id: userId } });
