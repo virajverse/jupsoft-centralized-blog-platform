@@ -1435,8 +1435,9 @@ document.getElementById('hidden6246157000002137002Frame').addEventListener('load
                 }
                 var dateEl = document.getElementById('postDate');
                 var dateItem = document.getElementById('postDateItem');
-                if (dateEl && cached.publishedAt) {
-                  dateEl.innerText = DigifyCMS.formatDate(cached.publishedAt);
+                var postDateVal = cached.publishedAt || cached.publishDate;
+                if (dateEl && postDateVal) {
+                  dateEl.innerText = DigifyCMS.formatDate(postDateVal);
                   if (dateItem) dateItem.style.display = '';
                 }
                 var timeEl = document.getElementById('postReadTime');
@@ -1614,8 +1615,9 @@ document.getElementById('hidden6246157000002137002Frame').addEventListener('load
 
             var dateEl = document.getElementById('postDate');
             var dateItem = document.getElementById('postDateItem');
-            if (dateEl && blog.publishedAt) {
-              dateEl.innerText = DigifyCMS.formatDate(blog.publishedAt);
+            var postDateVal = blog.publishedAt || blog.publishDate;
+            if (dateEl && postDateVal) {
+              dateEl.innerText = DigifyCMS.formatDate(postDateVal);
               if (dateItem) dateItem.style.display = '';
             }
 
@@ -1834,7 +1836,7 @@ document.getElementById('hidden6246157000002137002Frame').addEventListener('load
                       var itemSlug = encodeURIComponent(item.slug || '');
                       var itemCat = DigifyCMS.escapeHtml(DigifyCMS.getCategoryName(item));
                       var itemImg = DigifyCMS.escapeHtml(item.featuredImage || '/images/blog1.jpg');
-                      var itemDate = DigifyCMS.escapeHtml(DigifyCMS.formatDate(item.publishedAt));
+                      var itemDate = DigifyCMS.escapeHtml(DigifyCMS.formatDate(item.publishedAt || item.publishDate));
                       var itemTitle = DigifyCMS.escapeHtml(item.title || 'Related article');
                       var itemTime = DigifyCMS.escapeHtml(item.readTimeMinutes ? item.readTimeMinutes + ' min' : '');
                       var itemAuthor = item.authorName ? DigifyCMS.escapeHtml(item.authorName) : '';

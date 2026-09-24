@@ -1464,7 +1464,7 @@ document.getElementById('hidden6246157000002137002Frame').addEventListener('load
             const category = DigifyCMS.escapeHtml(DigifyCMS.getCategoryName(blog));
             const image = DigifyCMS.escapeHtml(blog.featuredImage || '/images/blog1.jpg');
             const imageAlt = DigifyCMS.escapeHtml(blog.featuredImageAlt || blog.title || 'Featured Story');
-            const date = DigifyCMS.escapeHtml(DigifyCMS.formatDate(blog.publishedAt));
+            const date = DigifyCMS.escapeHtml(DigifyCMS.formatDate(blog.publishedAt || blog.publishDate));
             const readTime = DigifyCMS.escapeHtml(blog.readTimeMinutes ? blog.readTimeMinutes + ' min read' : '');
             const author = blog.authorName ? DigifyCMS.escapeHtml(blog.authorName) : '';
 
@@ -1505,7 +1505,7 @@ document.getElementById('hidden6246157000002137002Frame').addEventListener('load
             const categoryKey = DigifyCMS.getCategoryKey(category);
             const image = DigifyCMS.escapeHtml(blog.featuredImage || '/images/blog1.jpg');
             const imageAlt = DigifyCMS.escapeHtml(blog.featuredImageAlt || blog.title || '');
-            const date = DigifyCMS.escapeHtml(DigifyCMS.formatDate(blog.publishedAt));
+            const date = DigifyCMS.escapeHtml(DigifyCMS.formatDate(blog.publishedAt || blog.publishDate));
             const readTime = DigifyCMS.escapeHtml(blog.readTimeMinutes ? blog.readTimeMinutes + ' min' : '');
             const author = blog.authorName ? DigifyCMS.escapeHtml(blog.authorName) : '';
             const excerpt = blog.excerpt ? DigifyCMS.escapeHtml(blog.excerpt) : '';

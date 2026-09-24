@@ -341,6 +341,20 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   const [scheduledAt, setScheduledAt] = useState(existingBlog?.scheduledAt || '');
   const [publishDate, setPublishDate] = useState<string>(existingBlog?.publishDate || '');
 
+  const formattedPublishDate = useMemo(() => {
+    if (!publishDate) return { inputVal: '', displayVal: '' };
+    try {
+      const d = new Date(publishDate);
+      if (isNaN(d.getTime())) return { inputVal: '', displayVal: '' };
+      return {
+        inputVal: d.toISOString().slice(0, 10),
+        displayVal: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      };
+    } catch {
+      return { inputVal: '', displayVal: '' };
+    }
+  }, [publishDate]);
+
   // Author & Byline state
   const cleanCurrentName = (currentUser?.name || 'Aarav Sharma').replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim();
   const [authorMode, setAuthorMode] = useState<'user' | 'custom'>(() => {
@@ -2806,7 +2820,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   </div>
                   <input
                     type="date"
-                    value={publishDate ? new Date(publishDate).toISOString().slice(0, 10) : ''}
+                    value={formattedPublishDate.inputVal}
                     onClick={(e) => {
                       try {
                         (e.target as HTMLInputElement).showPicker?.();
@@ -2825,9 +2839,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     }}
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-400 cursor-pointer"
                   />
-                  {publishDate ? (
+                  {formattedPublishDate.displayVal ? (
                     <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                      ✓ Displays as: {new Date(publishDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      ✓ Displays as: {formattedPublishDate.displayVal}
                     </p>
                   ) : (
                     <p className="text-[10px] text-slate-400 dark:text-slate-500">Pick any date. Calendar auto-closes on selection.</p>
