@@ -224,6 +224,11 @@ export class UpdateBlogDto {
   @IsOptional()
   publishDate?: string;
 
+  @ApiProperty({ example: '2026-09-25T10:00:00Z', required: false })
+  @IsDateString()
+  @IsOptional()
+  scheduledAt?: string;
+
   @ApiProperty({ required: false })
   @IsInt()
   @IsOptional()
@@ -279,4 +284,9 @@ export class TransitionBlogStatusDto {
   @IsString()
   @IsOptional()
   scheduledAt?: string;
+
+  @ApiProperty({ example: '2026-03-24T00:00:00.000Z', required: false, description: 'Custom/backdated publish timestamp' })
+  @IsDateString()
+  @IsOptional()
+  publishDate?: string;
 }

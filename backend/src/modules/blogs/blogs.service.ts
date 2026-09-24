@@ -483,6 +483,9 @@ export class BlogsService {
       if (dto.publishDate !== undefined) {
         blogUpdateData.publishDate = dto.publishDate ? new Date(dto.publishDate) : null;
       }
+      if (dto.scheduledAt !== undefined) {
+        blogUpdateData.scheduledAt = dto.scheduledAt ? new Date(dto.scheduledAt) : null;
+      }
       if (dto.status) {
         blogUpdateData.status = dto.status;
         if (dto.status === 'Published' && !existing.publishDate && !blogUpdateData.publishDate) {
@@ -706,7 +709,7 @@ export class BlogsService {
         where: { id },
         data: {
           status: newStatus,
-          publishDate: isPublishing && !blog.publishDate ? new Date() : blog.publishDate,
+          publishDate: dto.publishDate ? new Date(dto.publishDate) : (isPublishing && !blog.publishDate ? new Date() : blog.publishDate),
           publishedBy: isPublishing ? user.name : blog.publishedBy,
           scheduledAt: isScheduling && dto.scheduledAt ? new Date(dto.scheduledAt) : (isPublishing ? null : blog.scheduledAt),
         },

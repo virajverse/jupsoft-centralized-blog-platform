@@ -606,6 +606,8 @@ class ApiClient {
     if (blog.authorId) payload.authorId = blog.authorId;
     if (blog.authorName) payload.authorName = blog.authorName;
     if (blog.authorAvatar !== undefined && blog.authorAvatar !== null) payload.authorAvatar = blog.authorAvatar;
+    if (blog.publishDate !== undefined && blog.publishDate !== null && blog.publishDate !== '') payload.publishDate = blog.publishDate;
+    if (blog.scheduledAt !== undefined && blog.scheduledAt !== null && blog.scheduledAt !== '') payload.scheduledAt = blog.scheduledAt;
 
     return payload;
   }

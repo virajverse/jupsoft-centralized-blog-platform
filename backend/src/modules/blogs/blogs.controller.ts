@@ -111,11 +111,11 @@ export class BlogsController {
   @ApiOperation({ summary: 'Publish article live and dispatch ISR revalidation webhook' })
   async publish(
     @Param('id') id: string,
-    @Body() body: { notes?: string },
+    @Body() body: { notes?: string; publishDate?: string },
     @CurrentUser() user: AuthenticatedUser,
     @Ip() ip: string,
   ) {
-    return this.blogsService.transitionStatus(id, { status: 'Published', notes: body.notes }, user, ip);
+    return this.blogsService.transitionStatus(id, { status: 'Published', notes: body.notes, publishDate: body.publishDate }, user, ip);
   }
 
   @Post(':id/schedule')
