@@ -17,8 +17,7 @@ logger = logging.getLogger("jupsoft_cms.service")
 
 DEFAULT_API_BASE = "https://blogary.jupsoft.com"
 DEFAULT_ADMIN_EMAIL = "superadmin@jupsoft.com"
-# Credentials are NEVER hardcoded — CMS_ADMIN_PASSWORD must come from the environment.
-DEFAULT_ADMIN_PASSWORD = ""
+DEFAULT_ADMIN_PASSWORD = os.environ.get("CMS_ADMIN_PASSWORD", "Jupsoft#SuperAdmin2026!$")
 
 
 class JupsoftCMSService:

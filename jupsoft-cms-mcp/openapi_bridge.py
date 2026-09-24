@@ -31,19 +31,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 
-# Import FastMCP instances from both modules
 from jupsoft_cms.server import mcp as cms_mcp
-from infinity_scraper.server import mcp as inf_mcp
+try:
+    from infinity_scraper.server import mcp as inf_mcp
+except Exception:
+    inf_mcp = None
 from mcp.server.fastmcp import FastMCP
 
 # -----------------------------------------------------------------------------
 # 2. Build Unified FastMCP (for MCP SSE / JSON-RPC Clients)
 # -----------------------------------------------------------------------------
 unified_mcp = FastMCP(
-    "Jupsoft-Infinity-Unified",
+    "Jupsoft-CMS-Admin",
     instructions=(
-        "Unified Super Suite: 52 Jupsoft Centralized CMS Multi-Tenant Admin Tools "
-        "and 25 Infinity Scrape / Web Intelligence / OSINT Tools."
+        "Jupsoft Centralized CMS Multi-Tenant Super Admin Suite: 52 FastMCP Tools."
     ),
     host="0.0.0.0",
     port=7367,
@@ -56,12 +57,13 @@ for t in cms_mcp._tool_manager.list_tools():
     except Exception:
         pass
 
-# Register Infinity Scraper tools
-for t in inf_mcp._tool_manager.list_tools():
-    try:
-        unified_mcp.add_tool(t.fn, name=t.name, description=t.description)
-    except Exception:
-        pass
+# Register Infinity Scraper tools (if available)
+if inf_mcp is not None:
+    for t in inf_mcp._tool_manager.list_tools():
+        try:
+            unified_mcp.add_tool(t.fn, name=t.name, description=t.description)
+        except Exception:
+            pass
 
 # -----------------------------------------------------------------------------
 # 3. Build FastAPI App with OpenAPI 3.1.0 Support
@@ -145,9 +147,10 @@ def register_endpoint(tool, category_tag: str):
 for t in cms_mcp._tool_manager.list_tools():
     register_endpoint(t, "Jupsoft CMS [52 Tools]")
 
-# Register all Infinity Scraper Tools
-for t in inf_mcp._tool_manager.list_tools():
-    register_endpoint(t, "Infinity Scrape [25 Tools]")
+# Register all Infinity Scraper Tools (if available)
+if inf_mcp is not None:
+    for t in inf_mcp._tool_manager.list_tools():
+        register_endpoint(t, "Infinity Scrape [25 Tools]")
 
 
 # -----------------------------------------------------------------------------
@@ -156,7 +159,7 @@ for t in inf_mcp._tool_manager.list_tools():
 @app.get("/")
 def root():
     cms_tools = [t.name for t in cms_mcp._tool_manager.list_tools()]
-    inf_tools = [t.name for t in inf_mcp._tool_manager.list_tools()]
+    inf_tools = [t.name for t in inf_mcp._tool_manager.list_tools()] if inf_mcp is not None else []
     return {
         "status": "online",
         "service": "Jupsoft CMS & Infinity Scrape Unified Server",

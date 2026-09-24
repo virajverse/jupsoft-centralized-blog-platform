@@ -21,6 +21,7 @@ jupsoft-centralized-blog-platform/
 ├── ⚙️  backend/             ➔ NestJS 11 (Modular REST API, JWT RBAC, Prisma, Redis Caching)
 ├── 🌍 digifynext/          ➔ DigifyNext static website (blog.html, blogdetail.html, CMS client)
 ├── 📚 docs/                ➔ Full TRD Delivery Documentation & Architecture Diagrams
+│   └── 📘 CROSS-SITE-BLOG-MIGRATION-PLAYBOOK.md ➔ Cross-site migration SOP (By Viraj)
 ├── 🐳 infra/               ➔ Production AWS ECS Task Definitions & Docker Compose scripts
 ├── 📄 CONTEXT.md           ➔ Complete Developer Onboarding, Architecture & Fresh PC Setup Guide
 ├── 📄 NEW-WEBSITE-INTEGRATION-GUIDE.md ➔ Multi-framework tenant onboarding guide

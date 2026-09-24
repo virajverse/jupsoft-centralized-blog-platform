@@ -26,10 +26,17 @@
     "db:sync:push": "node scripts/sync-databases.js --push",
     "db:sync:status": "node scripts/sync-databases.js --status"
   },
-  "keywords": ["cms", "blog", "multi-tenant", "nestjs", "nextjs"],
+  "keywords": [
+    "cms",
+    "blog",
+    "multi-tenant",
+    "nestjs",
+    "nextjs"
+  ],
   "author": "Jupsoft Technologies",
   "license": "UNLICENSED",
   "devDependencies": {
+    "cheerio": "^1.2.0",
     "puppeteer-core": "^25.11.0"
   },
   "pnpm": {
@@ -43,4 +50,3 @@
     ]
   }
 }
-
