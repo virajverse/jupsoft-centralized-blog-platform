@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Ip, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
-import { InviteUserDto, UpdateUserRoleDto } from './dto/user.dto';
+import { InviteUserDto, UpdateUserRoleDto, UpdateUserModulesDto } from './dto/user.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -37,6 +37,19 @@ export class UsersController {
     @Ip() ip: string,
   ) {
     return this.usersService.updateRole(id, dto, user, ip);
+  }
+
+  @Put(':id/modules')
+  @Roles('Super Admin', 'Website Admin')
+  @ApiOperation({ summary: 'Update granular modular permissions for user' })
+  async updateModules(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserModulesDto,
+    @CurrentUser() user: any,
+    @Ip() ip: string,
+  ) {
+    const modules = dto.modules || dto.customModules || [];
+    return this.usersService.updateModules(id, modules, user, ip);
   }
 
   @Put(':id/status')

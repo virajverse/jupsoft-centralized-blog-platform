@@ -748,8 +748,12 @@ class ApiClient {
     return this.request('/admin/users');
   }
 
-  async inviteUser(user: { email: string; name: string; websiteId: string; role: string; password?: string }): Promise<UserAccount> {
+  async inviteUser(user: { email: string; name: string; websiteId: string; role: string; password?: string; customModules?: string[] }): Promise<UserAccount> {
     return this.request('/admin/users/invite', { method: 'POST', body: JSON.stringify(user) });
+  }
+
+  async updateUserModules(id: string, modules: string[]): Promise<UserAccount> {
+    return this.request(`/admin/users/${id}/modules`, { method: 'PUT', body: JSON.stringify({ modules }) });
   }
 
   async updateUserRole(id: string, role: string, websiteId: string): Promise<UserAccount> {

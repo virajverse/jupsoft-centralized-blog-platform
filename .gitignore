@@ -65,3 +65,6 @@ scratch/
 # Archived source files (never uploaded to VPS/Netlify)
 _source_files/
 _archive/
+
+# Editor/Agent Local Configs
+.opencode/

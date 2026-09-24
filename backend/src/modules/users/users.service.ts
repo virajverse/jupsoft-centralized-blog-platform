@@ -47,6 +47,7 @@ export class UsersService {
       avatar: u.avatar,
       status: u.status,
       lastLoginIp: u.lastLoginIp,
+      customModules: u.customModules || [],
       roleAssignments: u.roleAssignments.reduce((acc, curr) => {
         const key = curr.isGlobal || !curr.websiteId ? 'all' : curr.websiteId;
         acc[key] = curr.role;
@@ -110,6 +111,7 @@ export class UsersService {
         passwordHash: defaultPasswordHash,
         avatar: '',
         status: 'active',
+        customModules: dto.customModules || [],
         roleAssignments: {
           create: {
             websiteId: targetWebsiteId,
@@ -142,6 +144,7 @@ export class UsersService {
       email: user.email,
       avatar: user.avatar,
       status: user.status,
+      customModules: user.customModules || [],
       tempPassword: rawPassword,
       roleAssignments: user.roleAssignments.reduce((acc, curr) => {
         const key = curr.isGlobal || !curr.websiteId ? 'all' : curr.websiteId;
@@ -317,6 +320,48 @@ export class UsersService {
       email: user.email,
       tempPassword: rawPassword,
       message: 'Temporary password generated successfully',
+    };
+  }
+
+  async updateModules(userId: string, modules: string[], updater: any, ipAddress: string) {
+    const isSuperAdmin = updater?.roles?.includes('Super Admin');
+    const isWebsiteAdmin = updater?.roles?.includes('Website Admin');
+    if (!isSuperAdmin && !isWebsiteAdmin) {
+      throw new ForbiddenException('Only Super Admin or Website Admin can customize modular permissions');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException(`User with ID "${userId}" not found`);
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        customModules: modules,
+      },
+    });
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: updater?.name || 'Admin',
+        role: updater?.roles?.[0] || 'Super Admin',
+        websiteId: 'system',
+        event: 'user.permissions_updated',
+        ipAddress: ipAddress || '',
+        details: `Updated custom modules for ${user.name} (${user.email}): [${modules.join(', ')}].`,
+      },
+    });
+
+    await this.invalidateUserCache();
+    await this.redis.del(`auth:profile:${userId}`);
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      email: updated.email,
+      customModules: updated.customModules,
+      message: 'Modular permissions successfully updated in database',
     };
   }
 

@@ -25,6 +25,10 @@ export class InviteUserDto {
   @IsOptional()
   @IsString()
   password?: string;
+
+  @ApiProperty({ example: ['blogs', 'workflow', 'media'], required: false })
+  @IsOptional()
+  customModules?: string[];
 }
 
 export class UpdateUserRoleDto {
@@ -37,4 +41,14 @@ export class UpdateUserRoleDto {
   @IsString()
   @IsNotEmpty()
   role: string;
+}
+
+export class UpdateUserModulesDto {
+  @ApiProperty({ example: ['blogs', 'workflow', 'media', 'taxonomy'], required: false })
+  @IsOptional()
+  modules?: string[];
+
+  @ApiProperty({ example: ['blogs', 'workflow', 'media', 'taxonomy'], required: false })
+  @IsOptional()
+  customModules?: string[];
 }

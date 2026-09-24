@@ -406,10 +406,12 @@ _Please log in and update your password on your first sign-in._`;
         [editWebsiteId]: editRole,
       };
 
+      const finalModules = Array.from(new Set(['dashboard' as AppModule, ...editCustomModules]));
+
       await updateUser(editingUser.id, {
         roleAssignments: updatedRoles,
         managedRoles: editRole === 'Role Admin' ? (editManagedRoles.length > 0 ? editManagedRoles : (['Editor', 'Content Writer'] as UserRole[])) : undefined,
-        customModules: editCustomModules,
+        customModules: finalModules,
         status: editStatus,
       });
 
@@ -442,6 +444,8 @@ _Please log in and update your password on your first sign-in._`;
       ? (inviteManagedRoles.length > 0 ? inviteManagedRoles : (['Editor', 'Content Writer'] as UserRole[]))
       : undefined;
 
+    const finalInviteModules = Array.from(new Set(['dashboard' as AppModule, ...inviteCustomModules]));
+
     const newUser: UserAccount = {
       id: `usr-${Date.now()}`,
       name: inviteName.trim(),
@@ -451,7 +455,7 @@ _Please log in and update your password on your first sign-in._`;
         [inviteWebsiteId]: inviteRole,
       },
       managedRoles: assignedManagedRoles,
-      customModules: inviteCustomModules,
+      customModules: finalInviteModules,
       tempPassword: assignedTempPassword,
       status: 'active',
       lastLoginIp: '',
@@ -1056,7 +1060,9 @@ _Please log in and update your password on your first sign-in._`;
                               const siteName = siteId === 'all' ? 'All Sites' : (site?.name || siteId);
                               const isRoleAdmin = role === 'Role Admin';
                               const defaultMods = getDefaultRoleModules(role);
-                              const customUnlocked = u.customModules?.filter((m) => !defaultMods.includes(m)) || [];
+                              const hasCustomConfig = u.customModules && u.customModules.length > 0;
+                              const customUnlocked = hasCustomConfig ? u.customModules!.filter((m) => !defaultMods.includes(m)) : [];
+                              const customLocked = hasCustomConfig ? defaultMods.filter((m) => m !== 'dashboard' && !u.customModules!.includes(m)) : [];
                               return (
                                 <div key={siteId} className="flex flex-col items-start gap-0.5">
                                   <span
@@ -1074,6 +1080,12 @@ _Please log in and update your password on your first sign-in._`;
                                     <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-indigo-600 dark:text-indigo-400 pl-0.5" title={`Unlocked: ${customUnlocked.join(', ')}`}>
                                       <Unlock className="w-2.5 h-2.5" />
                                       <span>+{customUnlocked.length} unlocked ({customUnlocked.join(', ')})</span>
+                                    </span>
+                                  )}
+                                  {customLocked.length > 0 && (
+                                    <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-amber-600 dark:text-amber-400 pl-0.5" title={`Locked: ${customLocked.join(', ')}`}>
+                                      <Lock className="w-2.5 h-2.5" />
+                                      <span>-{customLocked.length} locked ({customLocked.join(', ')})</span>
                                     </span>
                                   )}
                                 </div>
@@ -1604,13 +1616,17 @@ _Please log in and update your password on your first sign-in._`;
                           <div className="mt-1 flex items-center gap-1 text-[9px] font-semibold">
                             {isCurrentlyAllowed ? (
                               isCustomUnlocked ? (
-                                <span className="text-indigo-600 dark:text-indigo-400">✨ Custom Unlocked</span>
+                                <span className="text-indigo-600 dark:text-indigo-400 group-hover:text-red-500 transition-colors">
+                                  ✨ Custom Unlocked <span className="text-[8px] opacity-80">(Click to turn OFF)</span>
+                                </span>
                               ) : (
-                                <span className="text-emerald-600 dark:text-emerald-400">Role Default</span>
+                                <span className="text-emerald-600 dark:text-emerald-400 group-hover:text-red-500 transition-colors">
+                                  Role Default <span className="text-[8px] opacity-80">(Click to turn OFF)</span>
+                                </span>
                               )
                             ) : (
-                              <span className="text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                                Click to unlock
+                              <span className="text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                                🔒 Locked <span className="text-[8px] font-bold underline">(Click to turn ON)</span>
                               </span>
                             )}
                           </div>
@@ -1976,13 +1992,17 @@ _Please log in and update your password on your first sign-in._`;
                           <div className="mt-1 flex items-center gap-1 text-[9px] font-semibold">
                             {isCurrentlyAllowed ? (
                               isCustomUnlocked ? (
-                                <span className="text-indigo-600 dark:text-indigo-400">✨ Custom Unlocked</span>
+                                <span className="text-indigo-600 dark:text-indigo-400 group-hover:text-red-500 transition-colors">
+                                  ✨ Custom Unlocked <span className="text-[8px] opacity-80">(Click to turn OFF)</span>
+                                </span>
                               ) : (
-                                <span className="text-emerald-600 dark:text-emerald-400">Role Default</span>
+                                <span className="text-emerald-600 dark:text-emerald-400 group-hover:text-red-500 transition-colors">
+                                  Role Default <span className="text-[8px] opacity-80">(Click to turn OFF)</span>
+                                </span>
                               )
                             ) : (
-                              <span className="text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                                Click to unlock
+                              <span className="text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                                🔒 Locked <span className="text-[8px] font-bold underline">(Click to turn ON)</span>
                               </span>
                             )}
                           </div>

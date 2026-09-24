@@ -43,6 +43,7 @@ model User {
   lastLoginIp          String                 @default("")
   loginAttempts        Int                    @default(0)
   lockoutUntil         DateTime?
+  customModules        String[]               @default([])
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
 

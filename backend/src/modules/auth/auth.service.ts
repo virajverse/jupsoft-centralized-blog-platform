@@ -143,6 +143,7 @@ export class AuthService {
         avatar: user.avatar,
         status: user.status,
         roles,
+        customModules: user.customModules || [],
         roleAssignments: user.roleAssignments.reduce((acc, curr) => {
           const key = curr.isGlobal || !curr.websiteId ? 'all' : curr.websiteId;
           acc[key] = curr.role;
@@ -257,6 +258,7 @@ export class AuthService {
         avatar: true,
         status: true,
         lastLoginIp: true,
+        customModules: true,
         roleAssignments: {
           select: {
             isGlobal: true,
@@ -278,6 +280,7 @@ export class AuthService {
       avatar: user.avatar,
       status: user.status,
       lastLoginIp: user.lastLoginIp,
+      customModules: user.customModules || [],
       roleAssignments: user.roleAssignments.reduce((acc, curr) => {
         const key = curr.isGlobal || !curr.websiteId ? 'all' : curr.websiteId;
         acc[key] = curr.role;

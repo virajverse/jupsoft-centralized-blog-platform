@@ -93,10 +93,13 @@ export function canAccessModule(
   if (!role) return false;
   if (role === 'Super Admin') return true;
   if (module === 'dashboard') return true;
-  // If this module was custom unlocked for this user, always grant access!
-  if (customModules && Array.isArray(customModules) && customModules.includes(module)) {
-    return true;
+
+  // If custom module permissions are configured for this user, they strictly dictate access (both ON and OFF)
+  if (customModules && Array.isArray(customModules) && customModules.length > 0) {
+    return customModules.includes(module);
   }
+
+  // Fallback to role defaults if no custom modules are specified
   const allowed = ROLE_MODULE_PERMISSIONS[role as UserRole];
   return allowed ? allowed.includes(module) : false;
 }
