@@ -300,7 +300,7 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
                   <th className="py-1.5 px-2.5">Status</th>
                   <th className="py-1.5 px-2.5">Author</th>
                   <th className="py-1.5 px-2.5">Languages</th>
-                  <th className="py-1.5 px-2.5">Updated</th>
+                  <th className="py-1.5 px-2.5">Date</th>
                   <th className="py-1.5 px-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -424,9 +424,71 @@ export const ZohoBlogListView: React.FC<ZohoBlogListViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Updated Date */}
-                      <td className="py-1.5 px-2.5 whitespace-nowrap text-[10px] text-slate-400 font-mono">
-                        {new Date(blog.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      {/* Date (Shows Published date for published blogs, with clear status label) */}
+                      <td className="py-1.5 px-2.5 whitespace-nowrap text-[10px] font-mono">
+                        {(() => {
+                          const pubDateStr = blog.publishDate;
+                          const isPublished = blog.status === 'Published';
+                          const isScheduled = blog.status === 'Scheduled';
+
+                          if (isPublished && pubDateStr) {
+                            try {
+                              const d = new Date(pubDateStr);
+                              if (!isNaN(d.getTime())) {
+                                const isDiffYear = d.getFullYear() !== new Date().getFullYear();
+                                const formatted = d.toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  ...(isDiffYear ? { year: 'numeric' } : {}),
+                                });
+                                return (
+                                  <div className="flex flex-col" title={`Published: ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}>
+                                    <span className="font-semibold text-slate-800 dark:text-slate-200">{formatted}</span>
+                                    <span className="text-[9px] font-sans text-emerald-600 dark:text-emerald-400 font-medium">Published</span>
+                                  </div>
+                                );
+                              }
+                            } catch {}
+                          }
+
+                          if (isScheduled && blog.scheduledAt) {
+                            try {
+                              const d = new Date(blog.scheduledAt);
+                              if (!isNaN(d.getTime())) {
+                                return (
+                                  <div className="flex flex-col" title={`Scheduled for: ${d.toLocaleString()}`}>
+                                    <span className="font-semibold text-purple-600 dark:text-purple-400">
+                                      {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </span>
+                                    <span className="text-[9px] font-sans text-purple-500">Scheduled</span>
+                                  </div>
+                                );
+                              }
+                            } catch {}
+                          }
+
+                          // Fallback to publishDate if set, or updatedAt
+                          const fallbackDate = pubDateStr || blog.updatedAt;
+                          try {
+                            const d = fallbackDate ? new Date(fallbackDate) : new Date();
+                            const isDiffYear = d.getFullYear() !== new Date().getFullYear();
+                            const formatted = d.toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              ...(isDiffYear ? { year: 'numeric' } : {}),
+                            });
+                            return (
+                              <div className="flex flex-col" title={`Last updated: ${d.toLocaleString()}`}>
+                                <span className="text-slate-500 dark:text-slate-400">{formatted}</span>
+                                <span className="text-[9px] font-sans text-slate-400">
+                                  {pubDateStr ? 'Publish Date' : 'Updated'}
+                                </span>
+                              </div>
+                            );
+                          } catch {
+                            return <span className="text-slate-400">-</span>;
+                          }
+                        })()}
                       </td>
 
                       {/* Quick Action Icons (24px buttons) */}
