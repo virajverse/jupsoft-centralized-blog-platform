@@ -2798,19 +2798,40 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                       <button
                         type="button"
                         onClick={() => setPublishDate('')}
-                        className="text-[10px] text-blue-500 hover:underline font-normal normal-case"
+                        className="text-[10px] text-blue-500 hover:underline font-normal normal-case cursor-pointer"
                       >
                         Reset to Auto
                       </button>
                     )}
                   </div>
                   <input
-                    type="datetime-local"
-                    value={publishDate ? new Date(new Date(publishDate).getTime() - new Date(publishDate).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
-                    onChange={(e) => setPublishDate(e.target.value ? new Date(e.target.value).toISOString() : '')}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-400"
+                    type="date"
+                    value={publishDate ? new Date(publishDate).toISOString().slice(0, 10) : ''}
+                    onClick={(e) => {
+                      try {
+                        (e.target as HTMLInputElement).showPicker?.();
+                      } catch {}
+                    }}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val) {
+                        const [y, m, d] = val.split('-').map(Number);
+                        const dateObj = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+                        setPublishDate(dateObj.toISOString());
+                      } else {
+                        setPublishDate('');
+                      }
+                      e.target.blur();
+                    }}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-400 cursor-pointer"
                   />
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500">Custom / backdated date displayed on the website.</p>
+                  {publishDate ? (
+                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                      ✓ Displays as: {new Date(publishDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500">Pick any date. Calendar auto-closes on selection.</p>
+                  )}
                 </div>
               </div>
             )}
