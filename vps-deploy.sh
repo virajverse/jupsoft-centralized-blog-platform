@@ -37,7 +37,11 @@ if command -v redis-cli &> /dev/null; then
 fi
 
 rm -rf admin-portal/.next admin-portal/.turbo backend/dist
-echo -e "${GREEN}✓ Next.js build cache & backend dist purged.${NC}"
+rm -rf /root/.npm/_cacache /root/.npm/_logs /root/.npm/_npx 2>/dev/null || true
+journalctl --vacuum-time=1d 2>/dev/null || true
+apt-get clean 2>/dev/null || true
+pnpm store prune 2>/dev/null || true
+echo -e "${GREEN}✓ Next.js build cache & backend dist purged, disk space freed.${NC}"
 
 # 3. Pull Latest Code from Git
 echo -e "\n${YELLOW}▶ [2/6] Pulling latest updates from Git...${NC}"
@@ -45,14 +49,13 @@ git fetch origin main || true
 git pull origin main || true
 echo -e "${GREEN}✓ Codebase synced to latest commit.${NC}"
 
-# 4. Install Dependencies & Generate Prisma Client
-echo -e "\n${YELLOW}▶ [3/6] Installing dependencies and generating Prisma client...${NC}"
+# 4. Install Dependencies & Generate Prisma Client (No network download for prisma)
+echo -e "\n${YELLOW}▶ [3/6] Generating Prisma client locally (zero seeding)...${NC}"
 export NODE_OPTIONS="--max-old-space-size=1024"
-pnpm install
 cd backend
-npx prisma generate
+./node_modules/.bin/prisma generate
 cd ..
-echo -e "${GREEN}✓ Dependencies & Prisma client ready.${NC}"
+echo -e "${GREEN}✓ Prisma client generated from local binary.${NC}"
 
 # 5. Build Backend & Admin Portal
 echo -e "\n${YELLOW}▶ [4/6] Compiling production builds...${NC}"

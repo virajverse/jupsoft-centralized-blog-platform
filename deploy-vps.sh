@@ -33,18 +33,27 @@ else
   echo "   ⚠️ redis-cli not installed, skipping."
 fi
 
-# 4. Clean old build artifacts & free RAM before compiling
-echo "🗑️ [4/5] Freeing RAM and cleaning old build caches..."
-rm -rf admin-portal/.next backend/dist
+# 4. Clean old build artifacts, system journals & caches to prevent ENOSPC disk full
+echo "🗑️ [4/5] Freeing disk space & RAM before compiling..."
+rm -rf admin-portal/.next admin-portal/.turbo backend/dist
+rm -rf /root/.npm/_cacache /root/.npm/_logs /root/.npm/_npx 2>/dev/null || true
+journalctl --vacuum-time=1d 2>/dev/null || true
+apt-get clean 2>/dev/null || true
+pnpm store prune 2>/dev/null || true
+
 if command -v pm2 &> /dev/null; then
   echo "   🛑 Temporarily stopping PM2 to free ~500MB RAM for compiler..."
   pm2 stop all || true
 fi
 
-# 5. Build Backend & Admin Portal (strictly tuned for 1GB RAM) & restart PM2
-echo "🏗️ [5/5] Compiling production builds (1GB RAM tuned)..."
+# 5. Generate Prisma client & build production bundles (NO db push, ZERO seeding)
+echo "🏗️ [5/5] Generating Prisma client & compiling builds (1GB RAM tuned)..."
 export NEXT_TELEMETRY_DISABLED=1
 export NODE_OPTIONS="--max-old-space-size=768"
+
+echo "   ⚡ Generating Prisma client from local binary (no network download)..."
+(cd backend && ./node_modules/.bin/prisma generate)
+
 pnpm --filter ./backend build
 pnpm --filter admin-portal build
 
