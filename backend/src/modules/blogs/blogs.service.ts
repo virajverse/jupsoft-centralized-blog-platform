@@ -304,7 +304,7 @@ export class BlogsService {
           featuredImage: dto.featuredImage?.trim() || '/uploads/blogs/default-blog-cover.webp',
           featuredImageAlt: dto.featuredImageAlt || '',
           status: initialStatus,
-          publishDate: isPublishing ? new Date() : undefined,
+          publishDate: dto.publishDate ? new Date(dto.publishDate) : (isPublishing ? new Date() : undefined),
           publishedBy: isPublishing ? user.name : undefined,
           readTimeMinutes: dto.readTimeMinutes || 3,
           categoryIds: dto.categoryIds || [],
@@ -480,9 +480,12 @@ export class BlogsService {
       if (dto.websiteId) {
         blogUpdateData.websiteId = dto.websiteId;
       }
+      if (dto.publishDate !== undefined) {
+        blogUpdateData.publishDate = dto.publishDate ? new Date(dto.publishDate) : null;
+      }
       if (dto.status) {
         blogUpdateData.status = dto.status;
-        if (dto.status === 'Published' && !existing.publishDate) {
+        if (dto.status === 'Published' && !existing.publishDate && !blogUpdateData.publishDate) {
           blogUpdateData.publishDate = new Date();
           blogUpdateData.publishedBy = user.name;
         }

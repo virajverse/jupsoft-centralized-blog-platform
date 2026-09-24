@@ -13,6 +13,7 @@ import {
   Min,
   ArrayMinSize,
   ValidateIf,
+  IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -163,6 +164,11 @@ export class CreateBlogDto {
   @IsIn(BLOG_STATUSES)
   status?: string;
 
+  @ApiProperty({ example: '2026-03-24T00:00:00.000Z', required: false })
+  @IsDateString()
+  @IsOptional()
+  publishDate?: string;
+
   @ApiProperty({ example: 'usr-123', required: false })
   @IsString()
   @IsOptional()
@@ -212,6 +218,11 @@ export class UpdateBlogDto {
   @IsOptional()
   @IsIn(BLOG_STATUSES)
   status?: string;
+
+  @ApiProperty({ example: '2026-03-24T00:00:00.000Z', required: false })
+  @IsDateString()
+  @IsOptional()
+  publishDate?: string;
 
   @ApiProperty({ required: false })
   @IsInt()

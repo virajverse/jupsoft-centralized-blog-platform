@@ -339,6 +339,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   const [selectedCategories, setSelectedCategories] = useState<string[]>(existingBlog?.categoryIds || []);
   const [selectedTags, setSelectedTags] = useState<string[]>(existingBlog?.tagIds || []);
   const [scheduledAt, setScheduledAt] = useState(existingBlog?.scheduledAt || '');
+  const [publishDate, setPublishDate] = useState<string>(existingBlog?.publishDate || '');
 
   // Author & Byline state
   const cleanCurrentName = (currentUser?.name || 'Aarav Sharma').replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim();
@@ -815,6 +816,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         if (Array.isArray(fullBlog.categoryIds)) setSelectedCategories(fullBlog.categoryIds);
         if (Array.isArray(fullBlog.tagIds)) setSelectedTags(fullBlog.tagIds);
         if (fullBlog.scheduledAt) setScheduledAt(fullBlog.scheduledAt);
+        if (fullBlog.publishDate) setPublishDate(fullBlog.publishDate);
         if (fullBlog.websiteId) setSelectedWebsiteId(fullBlog.websiteId);
         if (fullBlog.authorId) {
           setSelectedAuthorId(fullBlog.authorId);
@@ -1031,7 +1033,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         featuredImage,
         featuredImageAlt,
         status: safeStatus, 
-        publishDate: baseBlog?.publishDate, // No new publish date
+        publishDate: publishDate || baseBlog?.publishDate,
         scheduledAt: scheduledAt || undefined,
         publishedBy: baseBlog?.publishedBy,
         viewCount: baseBlog?.viewCount || 0,
@@ -1415,7 +1417,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         featuredImage,
         featuredImageAlt,
         status,
-        publishDate: isCurrentlyPublished ? (baseBlog?.publishDate || new Date().toISOString()) : undefined,
+        publishDate: isCurrentlyPublished ? (publishDate || baseBlog?.publishDate || new Date().toISOString()) : (publishDate || undefined),
         scheduledAt: scheduledAt || undefined,
         publishedBy: isCurrentlyPublished ? (baseBlog?.publishedBy || currentUser?.name || 'Super Admin') : undefined,
         viewCount: baseBlog?.viewCount || 0,
@@ -2784,6 +2786,31 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     onChange={(e) => setScheduledAt(e.target.value)}
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-400"
                   />
+                </div>
+
+                {/* Custom Publication Date */}
+                <div className="space-y-1 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                      <Calendar className="w-3 h-3 text-slate-400" /> Publication Date
+                    </label>
+                    {publishDate && (
+                      <button
+                        type="button"
+                        onClick={() => setPublishDate('')}
+                        className="text-[10px] text-blue-500 hover:underline font-normal normal-case"
+                      >
+                        Reset to Auto
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="datetime-local"
+                    value={publishDate ? new Date(new Date(publishDate).getTime() - new Date(publishDate).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                    onChange={(e) => setPublishDate(e.target.value ? new Date(e.target.value).toISOString() : '')}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-400"
+                  />
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500">Custom / backdated date displayed on the website.</p>
                 </div>
               </div>
             )}
