@@ -112,7 +112,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         await this.user.create({
           data: {
             id: 'usr-superadmin',
-            name: 'Aarav Sharma (Super Admin)',
+            name: 'Sachin Sharma (Super Admin)',
             email: 'admin@jupsoft.com',
             passwordHash,
             avatar: '/uploads/avatars/avatar-1.webp',

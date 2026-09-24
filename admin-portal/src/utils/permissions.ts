@@ -142,6 +142,87 @@ export function canManageUsers(role: UserRole | string | undefined): boolean {
   return role === 'Super Admin' || role === 'Website Admin' || role === 'Role Admin';
 }
 
+export function canDeleteUsers(role: UserRole | string | undefined): boolean {
+  return role === 'Super Admin' || role === 'Website Admin';
+}
+
+export const ROLE_HIERARCHY: Record<UserRole, number> = {
+  'Super Admin': 100,
+  'Website Admin': 80,
+  'Role Admin': 60,
+  'Editor': 40,
+  'Publisher': 30,
+  'SEO Manager': 30,
+  'Content Writer': 20,
+};
+
+export function getRoleLevel(role?: UserRole | string | null): number {
+  if (!role) return 0;
+  return ROLE_HIERARCHY[role as UserRole] || 10;
+}
+
+export function getHighestUserRoleLevel(roles: (UserRole | string)[]): number {
+  if (!roles || roles.length === 0) return 0;
+  return Math.max(...roles.map((r) => getRoleLevel(r)));
+}
+
+/**
+ * Checks if the current user can manage (edit, change status, share credentials) a target user.
+ * Rule: A user can only manage users strictly BELOW them in hierarchy.
+ * - Target of equal or higher rank is strictly READ-ONLY.
+ * - Super Admin master account cannot be managed by anyone below Super Admin.
+ */
+export function canManageTargetUser(
+  actorRole: UserRole | string | undefined,
+  targetRoles: (UserRole | string)[],
+  isTargetSuperAdminAccount: boolean
+): boolean {
+  if (!actorRole) return false;
+  if (!canManageUsers(actorRole)) return false;
+
+  // Super Admin can manage anyone
+  if (actorRole === 'Super Admin') return true;
+
+  // No one below Super Admin can manage a Super Admin
+  if (isTargetSuperAdminAccount) return false;
+
+  const actorLevel = getRoleLevel(actorRole);
+  const targetLevel = getHighestUserRoleLevel(targetRoles);
+
+  // Must be strictly below actor in authority
+  return actorLevel > targetLevel;
+}
+
+/**
+ * Checks if the current user can delete a target user.
+ * Rule:
+ * 1. ONLY Super Admin and Website Admin have delete privileges. (Role Admin and below cannot delete).
+ * 2. They can ONLY delete users strictly BELOW them.
+ * 3. Super Admin account is permanently protected and can never be deleted.
+ * 4. Website Admin cannot delete another Website Admin or Super Admin.
+ */
+export function canDeleteTargetUser(
+  actorRole: UserRole | string | undefined,
+  targetRoles: (UserRole | string)[],
+  isTargetSuperAdminAccount: boolean,
+  isSelf: boolean
+): boolean {
+  if (!canDeleteUsers(actorRole)) return false;
+  if (isTargetSuperAdminAccount) return false;
+  if (isSelf) return false;
+
+  // Super Admin can delete anyone except Super Admin
+  if (actorRole === 'Super Admin') return true;
+
+  // Website Admin can only delete users strictly below Website Admin
+  if (actorRole === 'Website Admin') {
+    const targetLevel = getHighestUserRoleLevel(targetRoles);
+    return targetLevel < getRoleLevel('Website Admin');
+  }
+
+  return false;
+}
+
 export function canManageWebsites(role: UserRole | string | undefined): boolean {
   return role === 'Super Admin';
 }

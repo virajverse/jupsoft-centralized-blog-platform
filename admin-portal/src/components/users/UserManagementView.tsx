@@ -6,7 +6,7 @@ import { useBlogStore } from '../../store/useBlogStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../hooks/useQueryState';
 import { UserAccount, UserRole, Website } from '../../types';
-import { getAllowedInviteRoles, canManageUsers, isGlobalScopeRole, cleanAvatarUrl, getDefaultRoleModules, AppModule } from '../../utils/permissions';
+import { getAllowedInviteRoles, canManageUsers, canDeleteUsers, canManageTargetUser, canDeleteTargetUser, isGlobalScopeRole, cleanAvatarUrl, getDefaultRoleModules, AppModule } from '../../utils/permissions';
 import { DeleteConfirmModal } from '../common/DeleteConfirmModal';
 import { 
   Users, 
@@ -238,6 +238,18 @@ export const UserManagementView: React.FC = () => {
 
   const handleDeleteUser = (id: string, name: string) => {
     if (deletingUserId) return;
+
+    // Only Super Admin and Website Admin can delete
+    if (activeRole !== 'Super Admin' && activeRole !== 'Website Admin') {
+      showNotification('Permission denied: Only Super Admin and Website Admin can delete user accounts.', 'warning');
+      return;
+    }
+
+    if (id === currentUser?.id) {
+      showNotification('You cannot delete your own account.', 'warning');
+      return;
+    }
+
     const targetUser = users.find((u) => u.id === id);
     const isProtected =
       id === 'usr-superadmin' ||
@@ -247,7 +259,17 @@ export const UserManagementView: React.FC = () => {
       Object.values(targetUser?.roleAssignments || {}).includes('Super Admin');
 
     if (isProtected) {
-      alert('Super Admin accounts are permanently protected and cannot be deleted or revoked.');
+      showNotification('Super Admin accounts are permanently protected and cannot be deleted or revoked.', 'warning');
+      return;
+    }
+
+    const targetRoles = [
+      ...(targetUser?.roles || []),
+      ...Object.values(targetUser?.roleAssignments || {}),
+    ];
+    const canDelete = canDeleteTargetUser(activeRole, targetRoles, isProtected, id === currentUser?.id);
+    if (!canDelete) {
+      showNotification('Permission denied: You can only delete accounts of subordinate rank strictly below your level.', 'warning');
       return;
     }
 
@@ -1133,8 +1155,18 @@ _Please log in and update your password on your first sign-in._`;
 
                         <td className="py-3 px-4">
                           {(() => {
-                            const targetIsSuperAdmin = Object.values(u.roleAssignments || {}).includes('Super Admin');
-                            const canManageThisUser = canManageUsers(activeRole) && (isSuperAdmin || !targetIsSuperAdmin);
+                            const targetIsSuperAdmin =
+                              u.id === 'usr-superadmin' ||
+                              u.email === 'superadmin@jupsoft.com' ||
+                              u.roles?.includes('Super Admin') ||
+                              u.roleAssignments?.['all'] === 'Super Admin' ||
+                              Object.values(u.roleAssignments || {}).includes('Super Admin');
+
+                            const targetRoles = [
+                              ...(u.roles || []),
+                              ...Object.values(u.roleAssignments || {}),
+                            ];
+                            const canManageThisUser = canManageTargetUser(activeRole, targetRoles, targetIsSuperAdmin);
 
                             if (canManageThisUser) {
                               return (
@@ -1197,13 +1229,22 @@ _Please log in and update your password on your first sign-in._`;
                                 u.roles?.includes('Super Admin') ||
                                 u.roleAssignments?.['all'] === 'Super Admin' ||
                                 Object.values(u.roleAssignments || {}).includes('Super Admin');
-                              const canManageThisUser = canManageUsers(activeRole) && (isSuperAdmin || !targetIsSuperAdmin);
+
+                              const targetRoles = [
+                                ...(u.roles || []),
+                                ...Object.values(u.roleAssignments || {}),
+                              ];
+
+                              const canManageThisUser = canManageTargetUser(activeRole, targetRoles, targetIsSuperAdmin);
 
                               if (!canManageThisUser) {
                                 return (
-                                  <span className="text-[11px] text-slate-400 italic">Protected</span>
+                                  <span className="text-[11px] text-slate-400 italic">Read-Only</span>
                                 );
                               }
+
+                              const isSelf = u.id === currentUser?.id;
+                              const canDeleteThisUser = canDeleteTargetUser(activeRole, targetRoles, targetIsSuperAdmin, isSelf);
 
                               return (
                                 <>
@@ -1238,7 +1279,7 @@ _Please log in and update your password on your first sign-in._`;
                                     >
                                       <ShieldCheck className="w-3.5 h-3.5" />
                                     </span>
-                                  ) : (
+                                  ) : canDeleteThisUser ? (
                                     <button
                                       disabled={deletingUserId === u.id}
                                       onClick={() => handleDeleteUser(u.id, u.name)}
@@ -1247,7 +1288,7 @@ _Please log in and update your password on your first sign-in._`;
                                     >
                                       <Trash2 className={`w-3.5 h-3.5 ${deletingUserId === u.id ? 'animate-spin' : ''}`} />
                                     </button>
-                                  )}
+                                  ) : null}
                                 </>
                               );
                             })()}
@@ -2212,7 +2253,14 @@ _Please log in and update your password on your first sign-in._`;
                     );
                   }
 
-                  if (canManageUsers(activeRole)) {
+                  const targetRoles = [
+                    ...(editingUser.roles || []),
+                    ...Object.values(editingUser.roleAssignments || {}),
+                  ];
+                  const isSelf = editingUser.id === currentUser?.id;
+                  const canDelete = canDeleteTargetUser(activeRole, targetRoles, isEditingSuperAdmin, isSelf);
+
+                  if (canDelete) {
                     return (
                       <button
                         type="button"
@@ -2229,7 +2277,12 @@ _Please log in and update your password on your first sign-in._`;
                     );
                   }
 
-                  return null;
+                  return (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 text-xs">
+                      <Lock className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Deletion Restricted (Read-Only)</span>
+                    </span>
+                  );
                 })()}
               </div>
 

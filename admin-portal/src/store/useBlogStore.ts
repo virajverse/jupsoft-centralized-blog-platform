@@ -838,6 +838,17 @@ export const useBlogStore = create<BlogState>()(
       },
 
       deleteUser: async (id) => {
+        const activeRole = get().activeRole;
+        if (activeRole !== 'Super Admin' && activeRole !== 'Website Admin') {
+          set({
+            notification: {
+              message: 'Permission denied: Only Super Admin and Website Admin can delete user accounts. Your account is in read-only mode for user deletion.',
+              type: 'warning',
+            },
+          });
+          return;
+        }
+
         const target = get().users.find((u) => u.id === id);
         const isSuperAdmin =
           id === 'usr-superadmin' ||
@@ -854,6 +865,22 @@ export const useBlogStore = create<BlogState>()(
             },
           });
           return;
+        }
+
+        if (activeRole === 'Website Admin') {
+          const targetRoles = [
+            ...(target?.roles || []),
+            ...Object.values(target?.roleAssignments || {}),
+          ];
+          if (targetRoles.includes('Website Admin') || targetRoles.includes('Super Admin')) {
+            set({
+              notification: {
+                message: 'Website Admins can only delete subordinate accounts (e.g. Role Admin, Editor, Content Writer).',
+                type: 'warning',
+              },
+            });
+            return;
+          }
         }
 
         try {

@@ -293,6 +293,38 @@ export class UsersService {
       );
     }
 
+    // 🛡️ HIERARCHY RULE: Only Super Admin and Website Admin can delete
+    const isDeleterSuperAdmin = deleter?.roles?.includes('Super Admin');
+    const isDeleterWebsiteAdmin = deleter?.roles?.includes('Website Admin');
+
+    if (!isDeleterSuperAdmin && !isDeleterWebsiteAdmin) {
+      throw new ForbiddenException(
+        'Permission denied: Only Super Admin and Website Admin can delete team accounts. Your role is read-only for account deletion.',
+      );
+    }
+
+    if (deleter?.id === userId) {
+      throw new ForbiddenException('You cannot delete your own account.');
+    }
+
+    // Website Admin can ONLY delete subordinate accounts strictly below them
+    if (isDeleterWebsiteAdmin && !isDeleterSuperAdmin) {
+      const targetRoles = user.roleAssignments.map((ra) => ra.role);
+      if (targetRoles.includes('Super Admin') || targetRoles.includes('Website Admin')) {
+        throw new ForbiddenException(
+          'Website Admins can only delete subordinate accounts (e.g. Role Admin, Editor, Content Writer). You cannot delete other Website Admins or Super Admins.',
+        );
+      }
+
+      // Check tenant boundary
+      const deleterSites = deleter?.roleAssignments?.map((ra: any) => ra.websiteId) || [];
+      const userSites = user.roleAssignments.map((ra) => ra.websiteId).filter(Boolean);
+      const sharesSite = userSites.some((s) => deleterSites.includes(s) || deleterSites.includes('all'));
+      if (!sharesSite && userSites.length > 0) {
+        throw new ForbiddenException('You can only delete accounts assigned to your managed website.');
+      }
+    }
+
     await this.prisma.user.delete({ where: { id: userId } });
 
     await this.prisma.systemAuditLog.create({
