@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Ip } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { BlogsService } from './blogs.service';
-import { CreateBlogDto, UpdateBlogDto } from './dto/create-blog.dto';
+import { CreateBlogDto, UpdateBlogDto, TransitionBlogStatusDto } from './dto/create-blog.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -37,29 +37,17 @@ export class BlogsController {
         status,
         search,
         authorId,
-        page: page ? Math.max(1, Number(page) || 1) : 1,
-        // P0 Fix (C8): clamp limit — previously ?limit=1000000 ran unbounded findMany
-        limit: Math.max(1, Math.min(Number(limit) || 20, 100)),
+        page: page ? Number(page) : 1,
+        limit: limit ? Number(limit) : 20,
       },
       user,
     );
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get full details of a specific blog for editing' })
-  async findOne(@Param('id') id: string, @CurrentUser() user?: AuthenticatedUser) {
+  @ApiOperation({ summary: 'Get full blog detail by ID' })
+  async findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.blogsService.findOne(id, user);
-  }
-
-  @Post(':id/duplicate')
-  @Roles('Super Admin', 'Website Admin', 'Role Admin', 'Editor', 'Content Writer')
-  @ApiOperation({ summary: 'Duplicate an existing blog (creates a draft copy)' })
-  async duplicateBlog(
-    @Param('id') id: string,
-    @Ip() ipAddress: string,
-    @CurrentUser() user?: AuthenticatedUser,
-  ) {
-    return this.blogsService.duplicateBlog(id, user, ipAddress);
   }
 
   @Post()
@@ -111,11 +99,11 @@ export class BlogsController {
   @ApiOperation({ summary: 'Publish article live and dispatch ISR revalidation webhook' })
   async publish(
     @Param('id') id: string,
-    @Body() body: { notes?: string; publishDate?: string },
+    @Body() body: { notes?: string },
     @CurrentUser() user: AuthenticatedUser,
     @Ip() ip: string,
   ) {
-    return this.blogsService.transitionStatus(id, { status: 'Published', notes: body.notes, publishDate: body.publishDate }, user, ip);
+    return this.blogsService.transitionStatus(id, { status: 'Published', notes: body.notes }, user, ip);
   }
 
   @Post(':id/schedule')

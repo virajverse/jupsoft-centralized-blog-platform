@@ -6,15 +6,19 @@ import {
   ArrowRight, 
   Globe, 
   CheckCircle2, 
+  Layers, 
   Bold, 
   Italic, 
   Link as LinkIcon, 
   Image as ImageIcon, 
+  Search, 
   Activity, 
   Zap, 
   ShieldCheck,
   Database,
-  Cpu
+  Cpu,
+  Medal,
+  Star
 } from 'lucide-react';
 
 export const LandingHero: React.FC = () => {
@@ -22,6 +26,8 @@ export const LandingHero: React.FC = () => {
   const [editorText, setEditorText] = useState(
     "Architecture Blueprint 2026: Multi-Tenant Headless Content Hubs powering Next.js consumer frontends from a centralized NestJS 11 API engine."
   );
+  const [avgSeoScore, setAvgSeoScore] = useState(85);
+
   return (
     <section className="relative pt-12 pb-20 md:pt-20 md:pb-28 overflow-hidden">
       {/* Micro Grid Background */}

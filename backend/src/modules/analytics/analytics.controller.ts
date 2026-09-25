@@ -15,15 +15,12 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle } from '@nestjs/throttler';
 import { AnalyticsService } from './analytics.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { ApiKeyGuard } from '../../common/guards/api-key.guard';
-import { ApiKeyThrottlerGuard } from '../../common/guards/api-key-throttler.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../../common/interfaces/auth-user.interface';
 import { Request } from 'express';
-import * as crypto from 'crypto';
 
 import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
 
@@ -36,13 +33,9 @@ class TrackDto {
   @IsNotEmpty()
   websiteId: string;
 
-  // P0 Fix (C7): sessionId is now optional — legacy SDK builds post
-  // { websiteId, slug, blogId } only. The controller generates a fallback
-  // so old deployed clients stop receiving 400s (their views were silently
-  // dropped by .catch()).
-  @IsOptional()
   @IsString()
-  sessionId?: string;
+  @IsNotEmpty()
+  sessionId: string;
 
   @IsString()
   @IsOptional()
@@ -64,13 +57,8 @@ class TrackDto {
 // ─── Public Track Endpoint ────────────────────────────────────────────────────
 
 @ApiTags('Public / Analytics')
-// P0 Fix (C3): NO MORE @SkipThrottle() — that allowed unlimited anonymous
-// INSERTs into the analytics table (biggest DoS vector in the system).
-// Instead: per-API-key throttling (mirrors /v1/* public routes) + ApiKeyGuard
-// so only tenants with a valid key can write events.
+@SkipThrottle() // TRD §14: tracking must never be blocked by rate limiting
 @Controller('v1/track')
-@UseGuards(ApiKeyThrottlerGuard, ApiKeyGuard)
-@Throttle({ 'public-api': { limit: 120, ttl: 60000 } })
 export class PublicAnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
@@ -83,12 +71,8 @@ export class PublicAnalyticsController {
       || req.socket.remoteAddress
       || '';
 
-    // P0 Fix (C7): fallback sessionId for legacy clients that don't send one
-    const sessionId = dto.sessionId?.trim() || `anon-${crypto.randomUUID()}`;
-
-    // TRD §14: Non-blocking — don't await, return 204 immediately.
-    // Events are buffered in-memory and flushed in batches (see AnalyticsService).
-    this.analyticsService.track({ ...dto, sessionId, ipAddress }).catch(() => {});
+    // TRD §14: Non-blocking — don't await, return 204 immediately
+    this.analyticsService.track({ ...dto, ipAddress }).catch(() => {});
     return;
   }
 }

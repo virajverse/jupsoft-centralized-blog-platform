@@ -57,6 +57,7 @@ describe('WebhookDispatcherService', () => {
     mockPrisma.website.findUnique.mockResolvedValue(website);
     mockPrisma.webhookDeliveryLog.create.mockResolvedValue({});
 
+    let capturedHeaders: any = null;
     const mockFetch = jest.fn().mockImplementation(async () => {
       return { status: 200, ok: true, text: () => Promise.resolve('ok') };
     });

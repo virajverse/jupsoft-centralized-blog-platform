@@ -1,7 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import * as crypto from 'crypto';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
@@ -21,26 +20,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     await this.$disconnect();
   }
 
-  /**
-   * Bootstrap secrets: never hardcode credentials.
-   * Priority: explicit env var → secure random value (printed ONCE for the operator).
-   */
-  private resolveSeedSecret(envKey: string, buildValue: () => string): { value: string; generated: boolean } {
-    const fromEnv = process.env[envKey]?.trim();
-    if (fromEnv) return { value: fromEnv, generated: false };
-    return { value: buildValue(), generated: true };
-  }
-
   private async ensureInitialSeed() {
     try {
       const siteCount = await this.website.count();
       if (siteCount === 0) {
         this.logger.log('🌱 Database has 0 websites. Initializing default production websites...');
-
-        const cloudKey = this.resolveSeedSecret('SEED_API_KEY_SITE_CLOUD', () => `jup_live_sec_cloud_${crypto.randomBytes(16).toString('hex')}`);
-        const growthKey = this.resolveSeedSecret('SEED_API_KEY_SITE_GROWTH', () => `jup_live_sec_growth_${crypto.randomBytes(16).toString('hex')}`);
-        const edtechKey = this.resolveSeedSecret('SEED_API_KEY_SITE_EDTECH', () => `jup_live_sec_edtech_${crypto.randomBytes(16).toString('hex')}`);
-
         await this.website.createMany({
           data: [
             {
@@ -49,7 +33,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
               domain: 'cloud.jupsoft.com',
               logoUrl: '/uploads/logos/jupsoft-cloud-logo.webp',
               description: 'Enterprise Cloud ERP, Distributed Systems & AI Infrastructure.',
-              apiKey: cloudKey.value,
+              apiKey: 'jup_live_sec_cloud_9934afbc82a104',
               s3Prefix: 'blogs/cloud/',
               status: 'active',
               defaultLanguage: 'en',
@@ -62,7 +46,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
               domain: 'digifynext.com',
               logoUrl: '/uploads/logos/digifynext-growth-logo.webp',
               description: 'Performance SEO, Conversion Funnels & Growth Marketing Analytics.',
-              apiKey: growthKey.value,
+              apiKey: 'digi_live_sec_growth_8821ecde71a209',
               s3Prefix: 'blogs/growth/',
               status: 'active',
               defaultLanguage: 'en',
@@ -75,7 +59,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
               domain: 'schoolerp.in',
               logoUrl: '/uploads/logos/school-erp-logo.webp',
               description: 'Comprehensive K-12 Administration, Student Records & LMS.',
-              apiKey: edtechKey.value,
+              apiKey: 'erp_live_sec_edtech_7710bba190c301',
               s3Prefix: 'blogs/edtech/',
               status: 'active',
               defaultLanguage: 'en',
@@ -85,34 +69,16 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
           ],
         });
         this.logger.log('✅ Initialized 3 baseline production websites');
-
-        const generatedKeys = [
-          ['site-cloud', 'SEED_API_KEY_SITE_CLOUD', cloudKey],
-          ['site-growth', 'SEED_API_KEY_SITE_GROWTH', growthKey],
-          ['site-edtech', 'SEED_API_KEY_SITE_EDTECH', edtechKey],
-        ].filter(([, , k]: any) => k.generated);
-        if (generatedKeys.length > 0) {
-          this.logger.warn(
-            `🔑 Generated tenant API keys (shown ONCE — copy them now, or set the SEED_API_KEY_* env vars before first boot): ` +
-              generatedKeys.map(([id, envKey, k]: any) => `${id}=${k.value} (${envKey})`).join(' | '),
-          );
-        }
       }
 
       const userCount = await this.user.count();
       if (userCount === 0) {
         this.logger.log('🌱 Database has 0 users. Initializing default SuperAdmin in PostgreSQL...');
-
-        const adminSecret = this.resolveSeedSecret('SEED_SUPERADMIN_PASSWORD', () => {
-          const raw = crypto.randomBytes(18).toString('base64url');
-          return `Jup-${raw}!`;
-        });
-
-        const passwordHash = await bcrypt.hash(adminSecret.value, 12);
+        const passwordHash = await bcrypt.hash('Jupsoft#SuperAdmin2026!$', 10);
         await this.user.create({
           data: {
             id: 'usr-superadmin',
-            name: 'Sachin Sharma (Super Admin)',
+            name: 'Aarav Sharma (Super Admin)',
             email: 'admin@jupsoft.com',
             passwordHash,
             avatar: '/uploads/avatars/avatar-1.webp',
@@ -129,11 +95,6 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
           },
         });
         this.logger.log('✅ Default SuperAdmin created: admin@jupsoft.com');
-        if (adminSecret.generated) {
-          this.logger.warn(
-            `🔑 Generated Super Admin password for admin@jupsoft.com (shown ONCE — change after first login, or set SEED_SUPERADMIN_PASSWORD before first boot): ${adminSecret.value}`,
-          );
-        }
       }
     } catch (seedErr) {
       this.logger.warn(`Initial baseline check skipped: ${(seedErr as Error).message}`);

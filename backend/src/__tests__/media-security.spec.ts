@@ -24,13 +24,7 @@ const mockConfig = {
     return map[k];
   }),
 };
-const mockRedis = {
-  get: jest.fn(() => null),
-  set: jest.fn(),
-  delPattern: jest.fn(),
-  nsKey: jest.fn(async (ns: string, suffix: string) => `${ns}:g0:${suffix}`),
-  invalidateNamespace: jest.fn(),
-};
+const mockRedis = { get: jest.fn(() => null), set: jest.fn(), delPattern: jest.fn() };
 
 const makeUser = (roles: string[] = ['Editor'], websiteId: string = 'site-1') => ({
   id: 'user-1',

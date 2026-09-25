@@ -19,6 +19,7 @@ import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { PublicV1Service } from './public-v1.service';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
 import { ApiKeyThrottlerGuard } from '../../common/guards/api-key-throttler.guard';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 @ApiTags('Public Consumer API (v1)')
 @Controller('v1')
@@ -27,7 +28,10 @@ import { ApiKeyThrottlerGuard } from '../../common/guards/api-key-throttler.guar
 @UseGuards(ApiKeyThrottlerGuard)
 @Throttle({ 'public-api': { limit: 120, ttl: 60000 } })
 export class PublicV1Controller {
-  constructor(private readonly publicV1Service: PublicV1Service) {}
+  constructor(
+    private readonly publicV1Service: PublicV1Service,
+    private readonly analyticsService: AnalyticsService,
+  ) {}
 
   private applyCacheHeaders(res: any, req: any, fresh?: string): boolean {
     const isBypass =
@@ -186,7 +190,24 @@ export class PublicV1Controller {
   ) {
     const websiteId = req.tenant.id;
     const bypassCache = this.applyCacheHeaders(res, req, fresh);
-    return this.publicV1Service.getBlogBySlug(slug, websiteId, lang || 'en', bypassCache, !!lang);
+    const result = await this.publicV1Service.getBlogBySlug(slug, websiteId, lang || 'en', bypassCache, !!lang);
+
+    // ── Auto Server-Side View Tracking (TRD §14) ───────────────────────
+    // Fire-and-forget: never blocks the blog response. IP dedup handled inside AnalyticsService.
+    if (result && (result as any).data?.id) {
+      const blogId = (result as any).data.id;
+      const ipAddress =
+        (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+        req.socket?.remoteAddress ||
+        '';
+      // Unique session per IP+day (no cookies needed, privacy-safe)
+      const sessionId = `auto_${blogId}_${ipAddress}`;
+      this.analyticsService
+        .track({ blogId, websiteId, sessionId, ipAddress, event: 'page_view' })
+        .catch(() => {});
+    }
+
+    return result;
   }
 
   @Get('categories')

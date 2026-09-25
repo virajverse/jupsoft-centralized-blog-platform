@@ -67,9 +67,7 @@ async function run() {
   // 4. forbidNonWhitelisted: true
   console.log('\n📦 [4/15] Testing Global ValidationPipe forbidNonWhitelisted: true...');
   const mainContent = fs.readFileSync(path.join(backendDir, 'src/main.ts'), 'utf8');
-  // Deliberate product decision (see comment in main.ts): forbidNonWhitelisted stays FALSE so
-  // unknown fields are stripped instead of returning 400 when the frontend is ahead of the backend.
-  assert(mainContent.includes('forbidNonWhitelisted: false'), 'main.ts keeps forbidNonWhitelisted: false (strip, not reject — deliberate)');
+  assert(mainContent.includes('forbidNonWhitelisted: true'), 'main.ts has forbidNonWhitelisted: true');
 
   // 5. Category & Tag Filter in public-v1
   console.log('\n📦 [5/15] Testing Category & Tag Query Wireup in public-v1...');
@@ -88,14 +86,8 @@ async function run() {
   // 7. Join Tables Sync
   console.log('\n📦 [7/15] Testing Join Tables Sync in Blogs Service...');
   const blogsService = fs.readFileSync(path.join(backendDir, 'src/modules/blogs/blogs.service.ts'), 'utf8');
-  assert(
-    blogsService.includes('prisma.blogCategory.createMany') || blogsService.includes('tx.blogCategory.createMany'),
-    'blogs.service syncs blogCategory join table',
-  );
-  assert(
-    blogsService.includes('prisma.blogTag.createMany') || blogsService.includes('tx.blogTag.createMany'),
-    'blogs.service syncs blogTag join table',
-  );
+  assert(blogsService.includes('prisma.blogCategory.createMany'), 'blogs.service syncs blogCategory join table');
+  assert(blogsService.includes('prisma.blogTag.createMany'), 'blogs.service syncs blogTag join table');
 
   // 8. Composable RBAC Permissions
   console.log('\n📦 [8/15] Testing Composable RBAC Permissions System...');
@@ -118,7 +110,7 @@ async function run() {
   const editor = fs.readFileSync(path.join(adminPortalDir, 'src/components/editor/BlogEditor.tsx'), 'utf8');
   assert(editor.includes('Image.configure'), 'BlogEditor includes Image extension');
   assert(editor.includes('TiptapLink.configure'), 'BlogEditor includes TiptapLink extension');
-  assert(editor.includes('setImage({ src:'), 'BlogEditor uses setImage command');
+  assert(editor.includes('setImage({ src: item.cdnUrl'), 'BlogEditor uses setImage command');
 
   // 11. Webhook Retry Cron Service
   console.log('\n📦 [11/15] Testing Webhook Retry Service...');
@@ -128,12 +120,7 @@ async function run() {
 
   // 12. AI Auto-Translate Scaffold Warning
   console.log('\n📦 [12/15] Testing AI Auto-Translate Disclaimer...');
-  // AI translate is now a real integration (handleAiTranslate → /ai/translate backend route);
-  // the old "Translation Scaffold" disclaimer is obsolete. Accept either state.
-  assert(
-    editor.includes('handleAiTranslate') || editor.includes('Translation Scaffold'),
-    'BlogEditor has AI translate handler (or scaffold disclaimer)',
-  );
+  assert(editor.includes('Translation Scaffold'), 'BlogEditor warns user that AI translate is scaffolding');
 
   // 13. UserRoleAssignment isGlobal & Nullable websiteId
   console.log('\n📦 [13/15] Testing UserRoleAssignment isGlobal & Nullable FK...');

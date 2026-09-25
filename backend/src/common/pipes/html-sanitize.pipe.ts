@@ -27,28 +27,10 @@ const ALLOWED_TAGS = [
 
 const ALLOWED_ATTRIBUTES: SanitizeHtml.IOptions['allowedAttributes'] = {
   a: ['href', 'title', 'target', 'rel'],
-  img: ['src', 'alt', 'title', 'width', 'height', 'loading', 'data-rotate', 'data-align', 'data-width'],
+  img: ['src', 'alt', 'title', 'width', 'height', 'loading'],
   td: ['colspan', 'rowspan'],
   th: ['colspan', 'rowspan', 'scope'],
-  '*': ['class', 'id', 'style'],
-};
-
-const ALLOWED_STYLES: SanitizeHtml.IOptions['allowedStyles'] = {
-  '*': {
-    'text-align': [/.*/],
-    'color': [/.*/],
-    'background-color': [/.*/],
-  },
-  img: {
-    'transform': [/.*/],
-    'transform-origin': [/.*/],
-    'width': [/.*/],
-    'max-width': [/.*/],
-    'height': [/.*/],
-    'margin-left': [/.*/],
-    'margin-right': [/.*/],
-    'display': [/.*/],
-  },
+  '*': ['class', 'id'],
 };
 
 export function sanitizeContent(html: string): string {
@@ -56,7 +38,6 @@ export function sanitizeContent(html: string): string {
   const sanitized = sanitizeHtml(html, {
     allowedTags: ALLOWED_TAGS,
     allowedAttributes: ALLOWED_ATTRIBUTES,
-    allowedStyles: ALLOWED_STYLES,
     allowedSchemes: ['http', 'https', 'mailto'], // TRD §15: block javascript: URIs
   });
   // Preserve empty paragraphs authored in WYSIWYG editor.
@@ -67,6 +48,7 @@ export function sanitizeContent(html: string): string {
 
 @Injectable()
 export class HtmlSanitizePipe implements PipeTransform {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   transform(value: unknown, _metadata: ArgumentMetadata) {
     if (typeof value === 'string') {
       return sanitizeContent(value);

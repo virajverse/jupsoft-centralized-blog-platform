@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WebhookDispatcherService } from '../webhooks/webhook-dispatcher.service';
 import { CreateBlogDto, UpdateBlogDto, TransitionBlogStatusDto } from './dto/create-blog.dto';
@@ -79,34 +79,40 @@ export class BlogsService {
     const cached = await this.redis.get<any>(cacheKey);
     if (cached) return cached;
 
-    // Query blogs with lean projection (stripping heavy SEO & omitting workflow sub-queries in list view)
-    const blogs = await this.prisma.blog.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy: { updatedAt: 'desc' },
-      include: {
-        website: { select: { id: true, name: true, domain: true } },
-        translations: {
-          select: {
-            id: true,
-            lang: true,
-            title: true,
-            slug: true,
-            excerpt: true,
+    const [total, blogs] = await Promise.all([
+      this.prisma.blog.count({ where }),
+      this.prisma.blog.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          website: { select: { id: true, name: true, domain: true } },
+          translations: {
+            select: {
+              id: true,
+              lang: true,
+              title: true,
+              slug: true,
+              excerpt: true,
+              metaTitle: true,
+              metaDescription: true,
+              metaKeywords: true,
+              canonicalUrl: true,
+              focusKeyword: true,
+              robots: true,
+              ogTitle: true,
+              ogDescription: true,
+              ogImage: true,
+              twitterTitle: true,
+              twitterDescription: true,
+              twitterImage: true,
+            },
           },
+          workflowLogs: { orderBy: { timestamp: 'desc' }, take: 5 },
         },
-      },
-    });
-
-    // Zero-Round-Trip Count Optimization:
-    // If page 1 and returned blogs < limit, total count is known without an extra DB round-trip!
-    let total: number;
-    if (page === 1 && blogs.length < limit) {
-      total = blogs.length;
-    } else {
-      total = await this.prisma.blog.count({ where });
-    }
+      }),
+    ]);
 
     // Format response matching frontend Blog interface
     const formatted = blogs.map((b) => ({
@@ -132,23 +138,32 @@ export class BlogsService {
           excerpt: t.excerpt,
           content: '', // Omitted in list view for 0-delay performance; loaded in detail view
           seo: {
-            metaTitle: '',
-            metaDescription: '',
-            metaKeywords: '',
-            canonicalUrl: '',
-            focusKeyword: '',
-            robots: '',
-            ogTitle: '',
-            ogDescription: '',
-            ogImage: '',
-            twitterTitle: '',
-            twitterDescription: '',
-            twitterImage: '',
+            metaTitle: t.metaTitle,
+            metaDescription: t.metaDescription,
+            metaKeywords: t.metaKeywords,
+            canonicalUrl: t.canonicalUrl,
+            focusKeyword: t.focusKeyword,
+            robots: t.robots,
+            ogTitle: t.ogTitle,
+            ogDescription: t.ogDescription,
+            ogImage: t.ogImage,
+            twitterTitle: t.twitterTitle,
+            twitterDescription: t.twitterDescription,
+            twitterImage: t.twitterImage,
           },
         };
         return acc;
       }, {} as any),
-      workflowLogs: [],
+      workflowLogs: b.workflowLogs.map((l) => ({
+        id: l.id,
+        blogId: l.blogId,
+        fromStatus: l.fromStatus,
+        toStatus: l.toStatus,
+        changedBy: l.changedBy,
+        role: l.role,
+        notes: l.notes,
+        timestamp: l.timestamp.toISOString(),
+      })),
       createdAt: b.createdAt.toISOString(),
       updatedAt: b.updatedAt.toISOString(),
     }));
@@ -207,7 +222,6 @@ export class BlogsService {
       include: {
         website: true,
         translations: true,
-        revisions: true,
         workflowLogs: { orderBy: { timestamp: 'desc' } },
       },
     });
@@ -219,8 +233,6 @@ export class BlogsService {
     if (caller) {
       this.assertBlogOwnership({ id, websiteId: blog.websiteId }, caller);
     }
-
-    const revisionsMap = new Map((blog.revisions || []).map(r => [r.lang, r]));
 
     const result = {
       id: blog.id,
@@ -239,15 +251,14 @@ export class BlogsService {
       categoryIds: blog.categoryIds,
       tagIds: blog.tagIds,
       translations: (blog.translations || []).reduce((acc, t) => {
-        const rev = revisionsMap.get(t.lang);
         acc[t.lang] = {
-          title: rev?.title || t.title,
-          slug: rev?.slug || t.slug,
-          excerpt: rev?.excerpt ?? t.excerpt,
-          content: rev?.content ?? t.content,
+          title: t.title,
+          slug: t.slug,
+          excerpt: t.excerpt,
+          content: t.content,
           seo: {
-            metaTitle: rev?.metaTitle || t.metaTitle,
-            metaDescription: rev?.metaDescription || t.metaDescription,
+            metaTitle: t.metaTitle,
+            metaDescription: t.metaDescription,
             metaKeywords: t.metaKeywords,
             canonicalUrl: t.canonicalUrl,
             focusKeyword: t.focusKeyword,
@@ -304,7 +315,7 @@ export class BlogsService {
           featuredImage: dto.featuredImage?.trim() || '/uploads/blogs/default-blog-cover.webp',
           featuredImageAlt: dto.featuredImageAlt || '',
           status: initialStatus,
-          publishDate: dto.publishDate ? new Date(dto.publishDate) : (isPublishing ? new Date() : undefined),
+          publishDate: isPublishing ? new Date() : undefined,
           publishedBy: isPublishing ? user.name : undefined,
           readTimeMinutes: dto.readTimeMinutes || 3,
           categoryIds: dto.categoryIds || [],
@@ -421,40 +432,34 @@ export class BlogsService {
             const cleanTo = updatedTrans.slug.trim().replace(/^\/+|\/+$/g, '');
 
             if (cleanFrom && cleanTo && cleanFrom !== cleanTo) {
-              // Safety: Do NOT create redirect if cleanFrom is still actively used by another translation in this blog
-              const stillInUse = dto.translations.some(
-                (other) => other.lang !== updatedTrans.lang && other.slug && other.slug.trim().replace(/^\/+|\/+$/g, '') === cleanFrom
-              );
-              if (!stillInUse) {
-                // Automatic 301 Permanent Redirect Guard!
-                await tx.redirect.upsert({
-                  where: {
-                    websiteId_fromSlug: {
-                      websiteId: existing.websiteId,
-                      fromSlug: cleanFrom,
-                    },
-                  },
-                  update: { toSlug: cleanTo, statusCode: 301 },
-                  create: {
+              // Automatic 301 Permanent Redirect Guard!
+              await tx.redirect.upsert({
+                where: {
+                  websiteId_fromSlug: {
                     websiteId: existing.websiteId,
                     fromSlug: cleanFrom,
-                    toSlug: cleanTo,
-                    statusCode: 301,
                   },
-                });
+                },
+                update: { toSlug: cleanTo, statusCode: 301 },
+                create: {
+                  websiteId: existing.websiteId,
+                  fromSlug: cleanFrom,
+                  toSlug: cleanTo,
+                  statusCode: 301,
+                },
+              });
 
-                // Log redirect rule in audit log
-                await tx.systemAuditLog.create({
-                  data: {
-                    userName: user.name,
-                    role: user.roles[0] || 'Editor',
-                    websiteId: existing.websiteId,
-                    event: 'redirect.created',
-                    ipAddress: ipAddress || '',
-                    details: `Auto 301 redirect: /${cleanFrom} → /${cleanTo}`,
-                  },
-                });
-              }
+              // Log redirect rule in audit log
+              await tx.systemAuditLog.create({
+                data: {
+                  userName: user.name,
+                  role: user.roles[0] || 'Editor',
+                  websiteId: existing.websiteId,
+                  event: 'redirect.created',
+                  ipAddress: ipAddress || '',
+                  details: `Auto 301 redirect: /${cleanFrom} → /${cleanTo}`,
+                },
+              });
             }
           }
         }
@@ -480,15 +485,9 @@ export class BlogsService {
       if (dto.websiteId) {
         blogUpdateData.websiteId = dto.websiteId;
       }
-      if (dto.publishDate !== undefined) {
-        blogUpdateData.publishDate = dto.publishDate ? new Date(dto.publishDate) : null;
-      }
-      if (dto.scheduledAt !== undefined) {
-        blogUpdateData.scheduledAt = dto.scheduledAt ? new Date(dto.scheduledAt) : null;
-      }
       if (dto.status) {
         blogUpdateData.status = dto.status;
-        if (dto.status === 'Published' && !existing.publishDate && !blogUpdateData.publishDate) {
+        if (dto.status === 'Published' && !existing.publishDate) {
           blogUpdateData.publishDate = new Date();
           blogUpdateData.publishedBy = user.name;
         }
@@ -536,101 +535,61 @@ export class BlogsService {
         for (const t of dto.translations) {
           const oldTrans = existing.translations.find((ot) => ot.lang === t.lang);
           // Only preserve old content if translation content was omitted (undefined)
-          const effectiveContent = t.content !== undefined ? sanitizeContent(t.content) : (oldTrans?.content || '');
+          let effectiveContent = t.content !== undefined ? sanitizeContent(t.content) : (oldTrans?.content || '');
 
-          if (dto.isAutoSave && existing.status === 'Published' && tx.blogRevision) {
-            // Draft over Published: Save to BlogRevision
-            await tx.blogRevision.upsert({
-              where: {
-                blogId_lang: { blogId: id, lang: t.lang },
-              },
-              update: {
-                title: t.title,
-                slug: t.slug,
-                excerpt: t.excerpt,
-                content: effectiveContent,
-                metaTitle: t.metaTitle,
-                metaDescription: t.metaDescription,
-                createdBy: user.name,
-              },
-              create: {
-                blogId: id,
-                lang: t.lang,
-                title: t.title,
-                slug: t.slug,
-                excerpt: t.excerpt || '',
-                content: effectiveContent,
-                metaTitle: t.metaTitle || t.title,
-                metaDescription: t.metaDescription || '',
-                createdBy: user.name,
-              },
-            });
-          } else {
-            // Standard save/publish: Overwrite live BlogTranslation and delete any pending Draft Revisions
-            if (tx.blogRevision) {
-              await tx.blogRevision.deleteMany({
-                where: { blogId: id, lang: t.lang },
-              });
-            }
-
-            await tx.blogTranslation.upsert({
-              where: {
-                blogId_lang: { blogId: id, lang: t.lang },
-              },
-              update: {
-                title: t.title,
-                slug: t.slug,
-                excerpt: t.excerpt,
-                content: effectiveContent, // TRD §15: XSS + Wipeout protected
-                metaTitle: t.metaTitle,
-                metaDescription: t.metaDescription,
-                metaKeywords: t.metaKeywords,
-                canonicalUrl: t.canonicalUrl,
-                focusKeyword: t.focusKeyword,
-                robots: t.robots,
-                ogTitle: t.ogTitle,
-                ogDescription: t.ogDescription,
-                ogImage: t.ogImage,
-                twitterTitle: t.twitterTitle,
-                twitterDescription: t.twitterDescription,
-                twitterImage: t.twitterImage,
-              },
-              create: {
-                blogId: id,
-                lang: t.lang,
-                title: t.title,
-                slug: t.slug,
-                excerpt: t.excerpt || '',
-                content: effectiveContent, // TRD §15: XSS
-                metaTitle: t.metaTitle || t.title,
-                metaDescription: t.metaDescription || '',
-                metaKeywords: t.metaKeywords || '',
-                canonicalUrl: t.canonicalUrl || '',
-                focusKeyword: t.focusKeyword || '',
-                robots: t.robots || 'index, follow',
-                ogTitle: t.ogTitle || t.title,
-                ogDescription: t.ogDescription || '',
-                ogImage: t.ogImage || '',
-                twitterTitle: t.twitterTitle || t.title,
-                twitterDescription: t.twitterDescription || '',
-                twitterImage: t.twitterImage || '',
-              },
-            });
-          }
+          await tx.blogTranslation.upsert({
+            where: {
+              blogId_lang: { blogId: id, lang: t.lang },
+            },
+            update: {
+              title: t.title,
+              slug: t.slug,
+              excerpt: t.excerpt,
+              content: effectiveContent, // TRD §15: XSS + Wipeout protected
+              metaTitle: t.metaTitle,
+              metaDescription: t.metaDescription,
+              metaKeywords: t.metaKeywords,
+              canonicalUrl: t.canonicalUrl,
+              focusKeyword: t.focusKeyword,
+              robots: t.robots,
+              ogTitle: t.ogTitle,
+              ogDescription: t.ogDescription,
+              ogImage: t.ogImage,
+              twitterTitle: t.twitterTitle,
+              twitterDescription: t.twitterDescription,
+              twitterImage: t.twitterImage,
+            },
+            create: {
+              blogId: id,
+              lang: t.lang,
+              title: t.title,
+              slug: t.slug,
+              excerpt: t.excerpt || '',
+              content: sanitizeContent(t.content || ''), // TRD §15: XSS
+              metaTitle: t.metaTitle || t.title,
+              metaDescription: t.metaDescription || '',
+              metaKeywords: t.metaKeywords || '',
+              canonicalUrl: t.canonicalUrl || '',
+              focusKeyword: t.focusKeyword || '',
+              robots: t.robots || 'index, follow',
+              ogTitle: t.ogTitle || t.title,
+              ogDescription: t.ogDescription || '',
+              ogImage: t.ogImage || '',
+              twitterTitle: t.twitterTitle || t.title,
+              twitterDescription: t.twitterDescription || '',
+              twitterImage: t.twitterImage || '',
+            },
+          });
         }
       }
     });
 
-    // TRD §13: Invalidate Redis cache on update so consuming sites and admin get fresh content
-    await this.redis.del(`admin:blogs:detail:${id}`);
-    await this.redis.del(`admin:blog:${id}`);
-    await this.redis.delPattern('admin:blogs:detail:*');
-    await this.redis.delPattern('admin:blog:*');
+    // TRD §13: Invalidate Redis cache on update so consuming sites get fresh content
+    const updated = await this.findOne(id);
     await this.invalidateCache(existing.websiteId, existing.translations);
     if (dto.translations && dto.translations.length > 0) {
       await this.invalidateCache(existing.websiteId, dto.translations);
     }
-    const updated = await this.findOne(id);
 
     // TRD §13: On-Demand Webhook ISR Revalidation Trigger on update
     if (existing.status === 'Published' || dto.status === 'Published') {
@@ -655,16 +614,12 @@ export class BlogsService {
 
   // ─── Helper: invalidate all Redis cache keys for this blog (TRD §13)
   private async invalidateCache(websiteId: string, translations: Array<{ slug: string }>): Promise<void> {
-    void translations;
-    await this.redis.invalidateNamespace('blog');
-    await this.redis.invalidateNamespace('blogs');
-    await this.redis.invalidateNamespace('search');
-    await this.redis.delPattern('admin:blogs:detail:*');
-    await this.redis.delPattern('admin:blog:*');
+    for (const tr of translations) {
+      await this.redis.delPattern(`blog:${websiteId}:${tr.slug}:*`);
+    }
+    await this.redis.delPattern(`blogs:${websiteId}:*`);
+    await this.redis.delPattern(`search:${websiteId}:*`);
     await this.redis.delPattern('admin:blogs:*');
-    await this.redis.delPattern(`blog:*:${websiteId}:*`);
-    await this.redis.delPattern(`blogs:*:${websiteId}:*`);
-    await this.redis.delPattern(`search:*:${websiteId}:*`);
     await this.redis.del(`redirects:${websiteId}`);
     await this.redis.delPattern('admin:redirects:*');
   }
@@ -685,11 +640,6 @@ export class BlogsService {
     const previousStatus = blog.status;
     const newStatus = dto.status;
 
-    // Idempotency: if blog is already in target status, return cleanly without duplicate workflow & audit logs
-    if (previousStatus === newStatus) {
-      return this.findOne(blog.id);
-    }
-
     // RBAC validation: only Super Admin, Website Admin, or Publisher can directly publish
     const canPublish =
       user.roles.includes('Super Admin') ||
@@ -709,7 +659,7 @@ export class BlogsService {
         where: { id },
         data: {
           status: newStatus,
-          publishDate: dto.publishDate ? new Date(dto.publishDate) : (isPublishing && !blog.publishDate ? new Date() : blog.publishDate),
+          publishDate: isPublishing && !blog.publishDate ? new Date() : blog.publishDate,
           publishedBy: isPublishing ? user.name : blog.publishedBy,
           scheduledAt: isScheduling && dto.scheduledAt ? new Date(dto.scheduledAt) : (isPublishing ? null : blog.scheduledAt),
         },
@@ -805,107 +755,6 @@ export class BlogsService {
     return this.findOne(id);
   }
 
-  async duplicateBlog(id: string, user?: AuthenticatedUser, ipAddress?: string) {
-    const existing = await this.prisma.blog.findUnique({
-      where: { id },
-      include: { translations: true, website: true, blogCategories: true, blogTags: true },
-    });
-
-    if (!existing) {
-      throw new NotFoundException(`Blog with ID "${id}" not found`);
-    }
-
-    if (user) {
-      this.assertBlogOwnership({ id, websiteId: existing.websiteId }, user);
-    }
-
-    const newBlogId = `blog-${Date.now()}`;
-    const cleanUserName = user?.name?.trim() || 'System';
-
-    return this.prisma.$transaction(async (tx) => {
-      // Create new blog with 'Draft' status
-      const createdBlog = await tx.blog.create({
-        data: {
-          id: newBlogId,
-          websiteId: existing.websiteId, // Defaults to same website; user can change it later
-          authorId: existing.authorId,
-          authorName: existing.authorName,
-          authorAvatar: existing.authorAvatar,
-          featuredImage: existing.featuredImage,
-          featuredImageAlt: existing.featuredImageAlt,
-          status: 'Draft',
-          readTimeMinutes: existing.readTimeMinutes,
-          translations: {
-            create: existing.translations.map((t) => ({
-              lang: t.lang,
-              title: `${t.title} (Copy)`,
-              slug: `${t.slug}-copy-${Date.now().toString().slice(-4)}`, // Ensure unique slug
-              excerpt: t.excerpt,
-              content: t.content,
-              metaTitle: t.metaTitle,
-              metaDescription: t.metaDescription,
-              metaKeywords: t.metaKeywords,
-              canonicalUrl: t.canonicalUrl,
-              focusKeyword: t.focusKeyword,
-              robots: t.robots,
-              ogTitle: t.ogTitle,
-              ogDescription: t.ogDescription,
-              ogImage: t.ogImage,
-              twitterTitle: t.twitterTitle,
-              twitterDescription: t.twitterDescription,
-              twitterImage: t.twitterImage,
-            })),
-          },
-        },
-      });
-
-      // Copy categories
-      if (existing.blogCategories.length > 0) {
-        await tx.blogCategory.createMany({
-          data: existing.blogCategories.map(bc => ({ blogId: newBlogId, categoryId: bc.categoryId })),
-        });
-      }
-
-      // Copy tags
-      if (existing.blogTags.length > 0) {
-        await tx.blogTag.createMany({
-          data: existing.blogTags.map(bt => ({ blogId: newBlogId, tagId: bt.tagId })),
-        });
-      }
-
-      // Workflow Log for Creation
-      await tx.workflowLog.create({
-        data: {
-          blogId: newBlogId,
-          fromStatus: 'Draft',
-          toStatus: 'Draft',
-          changedBy: cleanUserName,
-          role: user?.roles?.[0] || 'User',
-          notes: `Blog duplicated from ${existing.id}`,
-        },
-      });
-
-      // Audit Log
-      await tx.systemAuditLog.create({
-        data: {
-          userName: cleanUserName,
-          role: user?.roles?.[0] || 'User',
-          websiteId: existing.websiteId,
-          event: 'blog.duplicated',
-          ipAddress: ipAddress || '',
-          details: `Duplicated blog "${existing.translations[0]?.title}" -> "${newBlogId}"`,
-        },
-      });
-
-      return createdBlog;
-    });
-
-    // Invalidate admin list caches so new duplicate appears immediately in all list queries
-    await this.redis.delPattern('admin:blogs:*');
-
-    return this.findOne(newBlogId);
-  }
-
   async delete(id: string, user: AuthenticatedUser, ipAddress: string) {
     const blog = await this.prisma.blog.findUnique({
       where: { id },
@@ -925,6 +774,7 @@ export class BlogsService {
 
     // TRD §13: Invalidate all cache keys for this blog and lists
     await this.invalidateCache(blog.websiteId, blog.translations);
+    await this.redis.delPattern(`blogs:${blog.websiteId}:*`);
 
     // Dispatch revalidation webhook if article was published
     if (blog.status === 'Published') {

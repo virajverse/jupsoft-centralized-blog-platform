@@ -4,7 +4,6 @@ Publish 4 DigifyNext blogs to Jupsoft CMS via unified MCP server (port 7367).
 Uses correct snake_case field names per the OpenAPI schema.
 """
 import json
-import os
 import re
 import sys
 from pathlib import Path
@@ -14,11 +13,8 @@ import http.cookiejar
 
 
 MCP_BASE = "http://127.0.0.1:7367"
-CMS_EMAIL = os.environ.get("CMS_EMAIL", "superadmin@jupsoft.com")
-CMS_PASSWORD = os.environ.get("CMS_PASSWORD", "")
-if not CMS_PASSWORD:
-    sys.exit("CMS_PASSWORD environment variable is required — credentials are no longer hardcoded.")
-
+CMS_EMAIL = "superadmin@jupsoft.com"
+CMS_PASSWORD = "Jupsoft#SuperAdmin2026!$"
 TARGET_WEBSITE_ID = "site-growth"
 
 BLOGS_DIR = Path(r"D:\Company work\jupsoft-centralized-blog-platform\blogs\digifynext")

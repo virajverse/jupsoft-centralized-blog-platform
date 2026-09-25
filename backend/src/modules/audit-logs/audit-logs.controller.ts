@@ -31,9 +31,8 @@ export class AuditLogsController {
       {
         websiteId,
         event,
-        page: page ? Math.max(1, Number(page) || 1) : undefined,
-        // P0 Fix (C8): clamp limit — previously ?limit=1000000 ran unbounded findMany
-        limit: Math.max(1, Math.min(Number(limit) || 50, 200)),
+        page: page ? Number(page) : undefined,
+        limit: limit ? Number(limit) : 50,
       },
       user,
     );

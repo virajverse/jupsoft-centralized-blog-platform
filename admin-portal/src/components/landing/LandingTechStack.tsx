@@ -1,6 +1,8 @@
 'use client';
 
 import React from 'react';
+import { Cpu, Server, Database, Zap, Code, ShieldCheck, Box } from 'lucide-react';
+
 export const LandingTechStack: React.FC = () => {
   const stack = [
     { name: 'Next.js 16.3.5', role: 'Admin Studio & SSR/ISR', category: 'Frontend' },

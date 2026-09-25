@@ -17,7 +17,7 @@ logger = logging.getLogger("jupsoft_cms.service")
 
 DEFAULT_API_BASE = "https://blogary.jupsoft.com"
 DEFAULT_ADMIN_EMAIL = "superadmin@jupsoft.com"
-DEFAULT_ADMIN_PASSWORD = os.environ.get("CMS_ADMIN_PASSWORD", "Jupsoft#SuperAdmin2026!$")
+DEFAULT_ADMIN_PASSWORD = "Jupsoft#SuperAdmin2026!$"
 
 
 class JupsoftCMSService:
@@ -25,11 +25,6 @@ class JupsoftCMSService:
         self.api_base = os.environ.get("CMS_API_BASE", DEFAULT_API_BASE).rstrip("/")
         self.admin_email = os.environ.get("CMS_ADMIN_EMAIL", DEFAULT_ADMIN_EMAIL)
         self.admin_password = os.environ.get("CMS_ADMIN_PASSWORD", DEFAULT_ADMIN_PASSWORD)
-        if not self.admin_password:
-            raise RuntimeError(
-                "CMS_ADMIN_PASSWORD environment variable is not set — refusing to run with "
-                "default/hardcoded credentials."
-            )
         self._token: Optional[str] = None
         self._refresh_token: Optional[str] = None
         self._token_expires_at: float = 0.0
@@ -436,18 +431,12 @@ class JupsoftCMSService:
         return self._post("/admin/users/invite", {"name": name, "email": email, "role": role, "websiteId": website_id})
 
     def update_user_role(self, user_id: str, role: str, website_id: str) -> Dict[str, Any]:
-        if user_id in ("usr-superadmin", "superadmin@jupsoft.com") and role != "Super Admin":
-            return {"success": False, "status": 403, "error": "Super Admin master role cannot be revoked, modified, or downgraded."}
         return self._put(f"/admin/users/{user_id}/role", {"role": role, "websiteId": website_id})
 
     def update_user_status(self, user_id: str, status: str) -> Dict[str, Any]:
-        if user_id in ("usr-superadmin", "superadmin@jupsoft.com") and status != "active":
-            return {"success": False, "status": 403, "error": "Super Admin status cannot be altered. The master administrator must remain active."}
         return self._put(f"/admin/users/{user_id}/status", {"status": status})
 
     def delete_user(self, user_id: str) -> Dict[str, Any]:
-        if user_id in ("usr-superadmin", "superadmin@jupsoft.com"):
-            return {"success": False, "status": 403, "error": "Super Admin accounts are permanently protected and cannot be deleted or revoked."}
         return self._delete(f"/admin/users/{user_id}")
 
     # ------------------------------------------------------------------

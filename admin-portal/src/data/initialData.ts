@@ -47,7 +47,7 @@ export const INITIAL_WEBSITES: Website[] = [
     domain: 'cloud.jupsoft.com',
     logoUrl: '/uploads/logos/jupsoft-cloud-logo.webp',
     description: 'Enterprise Cloud ERP, Distributed Systems & AI Infrastructure.',
-    apiKey: '', // Never ship live tenant API keys in the browser bundle — fetched from the API.
+    apiKey: 'jup_live_sec_cloud_9934afbc82a104',
     s3Prefix: 'blogs/cloud/',
     status: 'active',
     defaultLanguage: 'en',
@@ -61,7 +61,7 @@ export const INITIAL_WEBSITES: Website[] = [
     domain: 'digifynext.com',
     logoUrl: '/uploads/logos/digifynext-growth-logo.webp',
     description: 'B2B Growth, Technical SEO Architecture & Precision PPC.',
-    apiKey: '', // Never ship live tenant API keys in the browser bundle — fetched from the API.
+    apiKey: 'digi_live_sec_growth_8821ecde71a209',
     s3Prefix: 'blogs/growth/',
     status: 'active',
     defaultLanguage: 'en',
@@ -75,7 +75,7 @@ export const INITIAL_WEBSITES: Website[] = [
     domain: 'schoolerp.in',
     logoUrl: '/uploads/logos/school-erp-logo.webp',
     description: 'Comprehensive K-12 Administration, Student Records & LMS.',
-    apiKey: '', // Never ship live tenant API keys in the browser bundle — fetched from the API.
+    apiKey: 'erp_live_sec_edtech_7710bba190c301',
     s3Prefix: 'blogs/edtech/',
     status: 'active',
     defaultLanguage: 'en',

@@ -6,7 +6,8 @@ import { useBlogStore } from '../../store/useBlogStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../hooks/useQueryState';
 import { Website, LanguageCode } from '../../types';
-import {
+import { apiClient } from '../../services/apiClient';
+import { 
   Globe, 
   Copy, 
   Check, 
@@ -21,16 +22,15 @@ import {
   Search,
   Eye,
   EyeOff,
+  ExternalLink,
+  Send,
   AlertCircle,
   Trash2,
   Settings,
   ArrowRightLeft,
-  ChevronLeft,
-  ChevronRight
+  KeyRound
 } from 'lucide-react';
 import { RedirectsView } from '../redirects/RedirectsView';
-import { DeleteConfirmModal } from '../common/DeleteConfirmModal';
-import { apiClient, WebhookDeliveryLogItem } from '../../services/apiClient';
 
 export const SettingsView: React.FC = () => {
   const searchParams = useSearchParams();
@@ -187,67 +187,8 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  const [isTestingPing, setIsTestingPing] = useState(false);
-  const [pingResult, setPingResult] = useState<{ success: boolean; message: string; statusCode?: number; latencyMs?: number } | null>(null);
-  const [webhookLogs, setWebhookLogs] = useState<WebhookDeliveryLogItem[]>([]);
-  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
-
-  const activeSiteId = activeSite?.id;
-  const loadWebhookLogs = React.useCallback(async () => {
-    if (!activeSiteId) return;
-    setIsLoadingLogs(true);
-    try {
-      const res = await apiClient.getWebhookLogs(activeSiteId, 10);
-      setWebhookLogs(res?.data || []);
-    } catch {
-      // fallback
-    } finally {
-      setIsLoadingLogs(false);
-    }
-  }, [activeSiteId]);
-
-  useEffect(() => {
-    if (activeTab === 'webhook' && activeSiteId) {
-      loadWebhookLogs();
-    }
-  }, [activeTab, activeSiteId, loadWebhookLogs]);
-
-  const handleTestPing = async () => {
-    if (!activeSite || isTestingPing) return;
-    setIsTestingPing(true);
-    setPingResult(null);
-    try {
-      const res = await apiClient.testWebhookPing(activeSite.id, editWebhookUrl.trim() || undefined);
-      setPingResult({
-        success: res.success,
-        message: res.message || (res.success ? 'Ping delivered successfully!' : 'Ping delivery failed'),
-        statusCode: res.statusCode,
-        latencyMs: res.latencyMs,
-      });
-      if (res.success) {
-        showNotification(`Webhook ping succeeded (${res.statusCode || 200}) in ${res.latencyMs || 0}ms`, 'success');
-      } else {
-        showNotification(res.message || `Webhook ping failed (${res.statusCode || 'error'})`, 'warning');
-      }
-      loadWebhookLogs();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to send test ping';
-      setPingResult({ success: false, message: msg });
-      showNotification(msg, 'warning');
-    } finally {
-      setIsTestingPing(false);
-    }
-  };
-
   const [showApiKey, setShowApiKey] = useState(false);
   const [isRegeneratingKey, setIsRegeneratingKey] = useState(false);
-  const [regenerateKeyModal, setRegenerateKeyModal] = useState(false);
-  const [deleteWebsiteModal, setDeleteWebsiteModal] = useState<{
-    isOpen: boolean;
-    websiteId?: string;
-    websiteName?: string;
-  }>({ isOpen: false });
-  const [isDeletingWebsite, setIsDeletingWebsite] = useState(false);
 
   const copyApiKey = () => {
     if (!activeSite) return;
@@ -256,17 +197,17 @@ export const SettingsView: React.FC = () => {
     setTimeout(() => setCopiedKey(false), 2000);
   };
 
-  const handleRegenerateApiKey = () => {
+  const handleRegenerateApiKey = async () => {
     if (!activeSite) return;
     if (!isSuperAdmin) {
       showNotification('Only Super Admin can rotate tenant secret API keys', 'warning');
       return;
     }
-    setRegenerateKeyModal(true);
-  };
+    const confirmed = window.confirm(
+      `⚠️ Warning: Regenerating the API key for "${activeSite.name}" will immediately invalidate the existing key.\n\nAny client website using this key will need to update its .env.local to continue fetching blogs.\n\nDo you want to proceed?`
+    );
+    if (!confirmed) return;
 
-  const handleConfirmRegenerateApiKey = async () => {
-    if (!activeSite) return;
     setIsRegeneratingKey(true);
     try {
       const cleanSlug = activeSite.id.replace(/^site-/, '');
@@ -275,7 +216,6 @@ export const SettingsView: React.FC = () => {
       await updateWebsite(activeSite.id, { apiKey: newKey });
       showNotification(`New API key generated successfully for ${activeSite.name}!`, 'success');
       setShowApiKey(true);
-      setRegenerateKeyModal(false);
     } catch (err: unknown) {
       showNotification(err instanceof Error ? err.message : 'Failed to rotate API key', 'warning');
     } finally {
@@ -291,30 +231,20 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  const handleDeleteWebsite = (id: string, name: string) => {
+  const handleDeleteWebsite = async (id: string, name: string) => {
     if (!isSuperAdmin) {
       showNotification('Only Super Admin can delete website tenants', 'warning');
       return;
     }
-    setDeleteWebsiteModal({
-      isOpen: true,
-      websiteId: id,
-      websiteName: name,
-    });
-  };
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete the website "${name}"?\n\nWARNING: This will cascade and delete all associated blogs, categories, tags, media assets, and redirects for this tenant. This action cannot be undone.`
+    );
+    if (!confirmed) return;
 
-  const handleConfirmDeleteWebsite = async () => {
-    if (!deleteWebsiteModal.websiteId) return;
-    setIsDeletingWebsite(true);
-    try {
-      await deleteWebsite(deleteWebsiteModal.websiteId);
-      if (targetSiteId === deleteWebsiteModal.websiteId) {
-        const remaining = websites.filter((w) => w.id !== deleteWebsiteModal.websiteId);
-        setParam('tenant', remaining[0]?.id || null);
-      }
-      setDeleteWebsiteModal({ isOpen: false });
-    } finally {
-      setIsDeletingWebsite(false);
+    await deleteWebsite(id);
+    if (targetSiteId === id) {
+      const remaining = websites.filter((w) => w.id !== id);
+      setParam('tenant', remaining[0]?.id || null);
     }
   };
 
@@ -369,9 +299,6 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  const [auditPage, setAuditPage] = useState(1);
-  const auditPageSize = 15;
-
   const filteredAuditLogs = auditLogs.filter((log) => {
     if (!auditFilter) return true;
     const q = auditFilter.toLowerCase();
@@ -382,13 +309,6 @@ export const SettingsView: React.FC = () => {
       log.websiteId.toLowerCase().includes(q)
     );
   });
-
-  const totalAuditPages = Math.max(1, Math.ceil(filteredAuditLogs.length / auditPageSize));
-  const safeAuditPage = Math.min(auditPage, totalAuditPages);
-  const paginatedAuditLogs = filteredAuditLogs.slice(
-    (safeAuditPage - 1) * auditPageSize,
-    safeAuditPage * auditPageSize
-  );
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-5 sm:space-y-6">
@@ -484,7 +404,7 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* Section Tabs - Enterprise Styling */}
+      {/* Section Tabs - Zoho Enterprise Styling */}
       <div className="flex items-center gap-1 bg-white dark:bg-[#0c1322] p-1 rounded-lg border border-slate-200 dark:border-slate-800 shadow-2xs overflow-x-auto scrollbar-none w-full sm:w-fit max-w-full">
         {isSuperAdmin && (
           <button
@@ -903,16 +823,6 @@ export const SettingsView: React.FC = () => {
                   />
                   <button
                     type="button"
-                    disabled={isTestingPing}
-                    onClick={handleTestPing}
-                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-semibold text-xs transition-colors shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
-                    title="Send a real HMAC-signed test ping to verify endpoint reachability"
-                  >
-                    {isTestingPing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-amber-500" />}
-                    <span>{isTestingPing ? 'Testing...' : 'Test Ping'}</span>
-                  </button>
-                  <button
-                    type="button"
                     disabled={isSaving}
                     onClick={handleSaveWebhook}
                     className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
@@ -921,23 +831,6 @@ export const SettingsView: React.FC = () => {
                     <span>{isSaving ? 'Saving...' : 'Save Webhook URL'}</span>
                   </button>
                 </div>
-
-                {pingResult && (
-                  <div className={`mt-2 p-3 rounded-lg border text-xs flex items-center justify-between gap-2 ${
-                    pingResult.success
-                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
-                      : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
-                  }`}>
-                    <div className="flex items-center gap-2">
-                      {pingResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> : <XCircle className="w-4 h-4 text-rose-500 shrink-0" />}
-                      <span>{pingResult.message}</span>
-                    </div>
-                    {pingResult.latencyMs !== undefined && (
-                      <span className="font-mono text-[11px] opacity-75 shrink-0">{pingResult.latencyMs}ms</span>
-                    )}
-                  </div>
-                )}
-
                 <p className="text-[11px] text-slate-500 mt-1">
                   Target Next.js or edge URL to receive cache busting pings (e.g. <code className="text-red-600 dark:text-red-400 font-mono">https://yourdomain.com/api/revalidate</code>).
                 </p>
@@ -965,70 +858,6 @@ export const SettingsView: React.FC = () => {
               </div>
             </div>
           </div>
-
-          {/* Recent Webhook Delivery Logs Card */}
-          <div className="bg-white dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 rounded-lg p-5 space-y-3 shadow-xs">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-              <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <History className="w-3.5 h-3.5 text-slate-500" />
-                <span>Recent Webhook Delivery Logs</span>
-              </h4>
-              <button
-                type="button"
-                onClick={loadWebhookLogs}
-                disabled={isLoadingLogs}
-                className="text-[11px] text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer"
-              >
-                <RefreshCw className={`w-3 h-3 ${isLoadingLogs ? 'animate-spin' : ''}`} />
-                <span>Refresh Logs</span>
-              </button>
-            </div>
-
-            {isLoadingLogs ? (
-              <div className="py-6 text-center text-xs text-slate-400">Loading delivery logs...</div>
-            ) : webhookLogs.length === 0 ? (
-              <div className="py-6 text-center text-xs text-slate-400">
-                No webhook deliveries recorded yet. Click &ldquo;Test Ping&rdquo; above to verify live endpoint connectivity.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse font-sans">
-                  <thead>
-                    <tr className="border-b border-slate-100 dark:border-slate-800 text-[11px] text-slate-400">
-                      <th className="py-2 px-2 font-medium">Status</th>
-                      <th className="py-2 px-2 font-medium">Event</th>
-                      <th className="py-2 px-2 font-medium">Target URL</th>
-                      <th className="py-2 px-2 font-medium text-right">Time</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono text-[11px]">
-                    {webhookLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
-                        <td className="py-2 px-2">
-                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                            log.statusCode && log.statusCode >= 200 && log.statusCode < 300
-                              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                              : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'
-                          }`}>
-                            {log.statusCode || 'ERR'}
-                          </span>
-                        </td>
-                        <td className="py-2 px-2 font-sans font-medium text-slate-800 dark:text-slate-200">
-                          {log.event}
-                        </td>
-                        <td className="py-2 px-2 text-slate-500 dark:text-slate-400 max-w-xs truncate" title={log.targetUrl}>
-                          {log.targetUrl}
-                        </td>
-                        <td className="py-2 px-2 text-right text-slate-400 font-sans">
-                          {new Date(log.timestamp).toLocaleTimeString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
         </div>
       )}
 
@@ -1049,10 +878,7 @@ export const SettingsView: React.FC = () => {
                 type="text"
                 placeholder="Filter logs by event or user..."
                 value={auditFilter}
-                onChange={(e) => {
-                  setAuditFilter(e.target.value);
-                  setAuditPage(1);
-                }}
+                onChange={(e) => setAuditFilter(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
               />
             </div>
@@ -1082,14 +908,14 @@ export const SettingsView: React.FC = () => {
                       <td className="py-2.5 px-4"><div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-48" /></td>
                     </tr>
                   ))
-                ) : paginatedAuditLogs.length === 0 ? (
+                ) : filteredAuditLogs.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-8 text-center text-xs text-slate-400">
                       No audit logs match current search filter.
                     </td>
                   </tr>
                 ) : (
-                  paginatedAuditLogs.map((log) => (
+                  filteredAuditLogs.map((log) => (
                     <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
                       <td className="py-2.5 px-4 font-mono text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
                         {new Date(log.timestamp).toLocaleString()}
@@ -1118,43 +944,6 @@ export const SettingsView: React.FC = () => {
               </tbody>
             </table>
           </div>
-
-          {/* Pagination Controls */}
-          {filteredAuditLogs.length > auditPageSize && (
-            <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-              <div>
-                Showing {(safeAuditPage - 1) * auditPageSize + 1} to{' '}
-                {Math.min(safeAuditPage * auditPageSize, filteredAuditLogs.length)} of{' '}
-                {filteredAuditLogs.length} logs
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setAuditPage((p) => Math.max(1, p - 1))}
-                  disabled={safeAuditPage <= 1}
-                  className="px-2.5 py-1 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                  <span>Prev</span>
-                </button>
-
-                <span className="font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-semibold text-slate-800 dark:text-slate-200">
-                  {safeAuditPage} / {totalAuditPages}
-                </span>
-
-                <button
-                  type="button"
-                  onClick={() => setAuditPage((p) => Math.min(totalAuditPages, p + 1))}
-                  disabled={safeAuditPage >= totalAuditPages}
-                  className="px-2.5 py-1 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  <span>Next</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -1303,32 +1092,6 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Delete Website Tenant Confirmation Modal */}
-      <DeleteConfirmModal
-        isOpen={deleteWebsiteModal.isOpen}
-        title="Delete Website Tenant"
-        itemName={deleteWebsiteModal.websiteName}
-        itemType="website"
-        message="WARNING: This will cascade and delete all associated blogs, categories, tags, media assets, and redirects for this tenant. This action cannot be undone."
-        confirmText="Delete Website Tenant"
-        isLoading={isDeletingWebsite}
-        onConfirm={handleConfirmDeleteWebsite}
-        onClose={() => setDeleteWebsiteModal({ isOpen: false })}
-      />
-
-      {/* Rotate Secret API Key Confirmation Modal */}
-      <DeleteConfirmModal
-        isOpen={regenerateKeyModal}
-        title="Rotate Secret API Key"
-        itemName={activeSite?.name}
-        itemType="API key"
-        message="Regenerating the API key will immediately invalidate the existing key. Any client website using this key will need to update its .env.local to continue fetching blogs."
-        confirmText="Rotate API Key"
-        isLoading={isRegeneratingKey}
-        onConfirm={handleConfirmRegenerateApiKey}
-        onClose={() => setRegenerateKeyModal(false)}
-      />
     </div>
   );
 };

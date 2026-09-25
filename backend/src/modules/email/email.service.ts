@@ -84,13 +84,9 @@ export class EmailService {
         credentials: { accessKeyId, secretAccessKey },
       });
       this.logger.log(`✉️  EmailService initialized — SES region: ${region}, from: ${this.fromAddress}`);
-    } else if ((this.config.get<string>('NODE_ENV') || 'development') === 'production') {
-      this.logger.error(
-        '❌ EmailService: SES credentials are NOT configured — ALL workflow emails will be DROPPED. Set real AWS credentials immediately.',
-      );
     } else {
       this.logger.warn(
-        '✉️  EmailService: SES credentials missing/placeholder — emails will be logged only (dev mode)',
+        '✉️  EmailService: SES credentials are mocked/missing — emails will be logged only (dev mode)',
       );
     }
   }
@@ -110,15 +106,10 @@ export class EmailService {
     const textBody = this.buildTextEmail(template, payload);
 
     if (!this.isEnabled || !this.sesClient) {
-      const summary = `To: ${payload.toEmail} | Subject: ${template.subject} | Blog: "${payload.blogTitle}"`;
-      const isProduction =
-        (this.config.get<string>('NODE_ENV') || 'development') === 'production';
-      if (isProduction) {
-        // Production must never fake a successful send — record the drop as an error.
-        this.logger.error(`❌ EMAIL DROPPED (SES not configured) — ${summary}`);
-      } else {
-        this.logger.log(`[DEV EMAIL — NOT SENT] ${summary}`);
-      }
+      // Dev mode: just log what would have been sent
+      this.logger.log(
+        `[DEV EMAIL] To: ${payload.toEmail} | Subject: ${template.subject} | Blog: "${payload.blogTitle}"`,
+      );
       return;
     }
 

@@ -51,8 +51,6 @@ describe('Pipeline: 301 Permanent Redirects & Slug Lifecycle (TRD §7)', () => {
     ping: jest.fn().mockResolvedValue(true),
     bufferViewIncrement: jest.fn().mockResolvedValue(undefined),
     drainViewCountBuffer: jest.fn().mockResolvedValue({}),
-    nsKey: jest.fn(async (ns: string, suffix: string) => `${ns}:g0:${suffix}`),
-    invalidateNamespace: jest.fn(),
   };
 
   const mockWebhook = {
@@ -162,7 +160,7 @@ describe('Pipeline: 301 Permanent Redirects & Slug Lifecycle (TRD §7)', () => {
       // Verify Redis cache for redirects and old blog was purged
       expect(mockRedis.del).toHaveBeenCalledWith('redirects:site-growth');
       expect(mockRedis.delPattern).toHaveBeenCalledWith('admin:redirects:*');
-      expect(mockRedis.invalidateNamespace).toHaveBeenCalledWith('blog');
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('blog:site-growth:original-slug:*');
     });
 
     it('should strip leading and trailing slashes when generating 301 redirects', async () => {
@@ -457,7 +455,7 @@ describe('Pipeline: 301 Permanent Redirects & Slug Lifecycle (TRD §7)', () => {
       );
 
       expect(mockRedis.del).toHaveBeenCalledWith('redirects:site-growth');
-      expect(mockRedis.invalidateNamespace).toHaveBeenCalledWith('blog');
+      expect(mockRedis.delPattern).toHaveBeenCalledWith('blog:site-growth:legacy-page:*');
       expect(result.fromSlug).toBe('legacy-page');
     });
 

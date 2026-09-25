@@ -15,7 +15,7 @@
  *   - limit: 120 requests per minute per API key
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, ExecutionContext } from '@nestjs/common';
 import { ThrottlerGuard, ThrottlerRequest } from '@nestjs/throttler';
 
 @Injectable()
@@ -45,12 +45,12 @@ export class ApiKeyThrottlerGuard extends ThrottlerGuard {
       return `apikey:${apiKey}`;
     }
 
-    // Fallback: IP-based bucketing (for unauthenticated requests / bots).
-    // P0 Fix (C2): use Express's proxy-aware req.ip (main.ts sets
-    // `trust proxy = 1`) instead of raw X-Forwarded-For. Raw XFF is
-    // client-controlled — an attacker could rotate it to mint infinite
-    // buckets and bypass the per-tenant rate limit entirely.
-    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    // Fallback: IP-based bucketing (for unauthenticated requests / bots)
+    const ip =
+      req.headers?.['x-forwarded-for']?.toString().split(',')[0].trim() ||
+      req.headers?.['x-real-ip']?.toString() ||
+      req.socket?.remoteAddress ||
+      'unknown';
 
     return `ip:${ip}`;
   }

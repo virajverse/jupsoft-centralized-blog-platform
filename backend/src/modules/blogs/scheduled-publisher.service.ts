@@ -85,10 +85,10 @@ export class ScheduledPublisherService {
           },
         });
 
-        // Invalidate Redis caches — P1: O(1) generation bumps (no SCAN)
-        await this.redis.invalidateNamespace('blog');
-        await this.redis.invalidateNamespace('blogs');
-        await this.redis.invalidateNamespace('search');
+        // Invalidate Redis caches
+        await this.redis.delPattern(`blog:${blog.websiteId}:*`);
+        await this.redis.delPattern(`blogs:${blog.websiteId}:*`);
+        await this.redis.delPattern(`search:${blog.websiteId}:*`);
         await this.redis.delPattern('admin:blogs:*');
 
         // Dispatch ISR revalidation webhook for each translation slug

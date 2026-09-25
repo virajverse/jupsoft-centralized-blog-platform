@@ -9,21 +9,6 @@ import { AppModule } from './app.module';
 import helmet from 'helmet';
 import { JsonLogger } from './common/logger/json-logger';
 import { PrismaService } from './prisma/prisma.service';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
-
-// ─── P0 Fix (C5): Process-level crash safety ────────────────────────────────
-// Without these, a single unhandled rejection/exception silently kills the
-// PM2 process mid-traffic (or worse, leaves it in an undefined state).
-process.on('unhandledRejection', (reason) => {
-  // eslint-disable-next-line no-console
-  console.error(`[FATAL] unhandledRejection: ${reason instanceof Error ? reason.stack || reason.message : String(reason)}`);
-});
-process.on('uncaughtException', (err) => {
-  // eslint-disable-next-line no-console
-  console.error(`[FATAL] uncaughtException: ${err.stack || err.message}`);
-  // Exit cleanly so PM2 (exp_backoff_restart_delay) restarts into a healthy state
-  process.exit(1);
-});
 
 async function bootstrap() {
   const nodeEnv = process.env.NODE_ENV || 'development';
@@ -39,13 +24,6 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT') || 4000;
 
-  // ─── P0 Fix (C1): Trust the reverse proxy (nginx → 127.0.0.1) ────────────
-  // Without this, req.ip = 127.0.0.1 for EVERY client behind nginx, so the
-  // global ThrottlerGuard buckets all users into ONE 300 req/min IP bucket →
-  // spontaneous mass 429s under normal traffic. With `1`, Express resolves the
-  // real client IP from X-Forwarded-For (set only by our trusted nginx hop).
-  app.set('trust proxy', 1);
-
   // 1. Static Assets — Local Media Storage (/uploads)
   const uploadsDir = join(process.cwd(), 'uploads');
   if (!fs.existsSync(uploadsDir)) {
@@ -53,12 +31,18 @@ async function bootstrap() {
   }
   app.useStaticAssets(uploadsDir, {
     prefix: '/uploads/',
-    // P2: media keys are unique per upload (timestamp+random) → safe to cache
-    // aggressively; ETag/Last-Modified still allow cheap revalidation.
-    maxAge: '7d',
-    etag: true,
   });
-  // Missing assets now return a real 404 — no fake "200 OK" placeholder images in production.
+  // Fallback for missing images in /uploads so browsers / ORB never block with 500 or JSON error
+  app.use('/uploads', (req: any, res: any, next: any) => {
+    if (req.method === 'GET' && /\.(webp|png|jpe?g|gif|svg)$/i.test(req.path)) {
+      res.setHeader('Content-Type', 'image/svg+xml');
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      return res.status(200).send(
+        `<svg width="300" height="200" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="#f1f5f9"/><text x="50%" y="50%" font-size="14" fill="#94a3b8" font-family="sans-serif" font-weight="600" text-anchor="middle" dy=".3em">Asset Not Found</text></svg>`
+      );
+    }
+    next();
+  });
   logger.log(`📁 Static assets mounted: /uploads -> ${uploadsDir}`);
 
   // 1.B Static Assets — Universal Embed Widget (/widget)
@@ -66,8 +50,6 @@ async function bootstrap() {
   if (fs.existsSync(widgetDir)) {
     app.useStaticAssets(widgetDir, {
       prefix: '/widget/',
-      maxAge: '1h',
-      etag: true,
     });
     logger.log(`📁 Universal widget mounted: /widget -> ${widgetDir}`);
   }
@@ -89,16 +71,13 @@ async function bootstrap() {
   const rawAllowedOrigins = configService.get<string>('ALLOWED_ORIGINS') || '';
   const allowAllOrigins = rawAllowedOrigins.trim() === '*' || rawAllowedOrigins.split(',').map((s) => s.trim()).includes('*');
   const staticAllowedOrigins = new Set(
-    rawAllowedOrigins
-      ? rawAllowedOrigins.split(',').map((o) => o.trim().toLowerCase().replace(/\/+$/, ''))
-      : []
+    (
+      rawAllowedOrigins ||
+      'http://localhost:3000,http://localhost:4000,http://localhost:4010,https://blogary.jupsoft.com,http://blogary.jupsoft.com,https://cms.jupsoft.com,https://api.cms.jupsoft.com,https://cloud.jupsoft.com,https://jupsoft.com,https://digifynext.com,https://schoolerp.in'
+    )
+      .split(',')
+      .map((o) => o.trim().toLowerCase().replace(/\/+$/, '')),
   );
-
-  const platformBaseUrl = configService.get<string>('PLATFORM_BASE_URL') || '';
-  let platformHost = '';
-  try {
-    if (platformBaseUrl) platformHost = new URL(platformBaseUrl).hostname.toLowerCase();
-  } catch {}
 
   // Dynamic In-Memory Cache for registered tenant domains (Zero DB query overhead)
   const prisma = app.get(PrismaService);
@@ -153,28 +132,36 @@ async function bootstrap() {
         return callback(null, false);
       }
 
-      let hostname = '';
-      try {
-        const parsed = new URL(origin);
-        hostname = parsed.hostname.toLowerCase();
-      } catch {
-        hostname = normalizedOrigin.replace(/^https?:\/\//, '');
-      }
-
-      // 3. Instant check: Explicitly configured static origins or platform base domain
+      // 3. Instant check for platform domain (*.jupsoft.com, blogary.jupsoft.com, static origins)
       if (
-        staticAllowedOrigins.has(normalizedOrigin) ||
-        (platformHost && (hostname === platformHost || hostname.endsWith(`.${platformHost}`))) ||
-        hostname.endsWith('.jupsoft.com') ||
-        hostname === 'jupsoft.com' ||
-        hostname.endsWith('.netlify.app') ||
-        hostname.endsWith('.vercel.app')
+        normalizedOrigin.includes('blogary.jupsoft.com') ||
+        normalizedOrigin.endsWith('.jupsoft.com') ||
+        normalizedOrigin === 'https://jupsoft.com' ||
+        normalizedOrigin === 'http://jupsoft.com' ||
+        staticAllowedOrigins.has(normalizedOrigin)
       ) {
         return callback(null, true);
       }
 
       // 4. Dynamic check for registered tenant websites in database (O(1) memory lookup)
       try {
+        let hostname = '';
+        try {
+          const parsed = new URL(origin);
+          hostname = parsed.hostname.toLowerCase();
+        } catch {
+          hostname = normalizedOrigin.replace(/^https?:\/\//, '');
+        }
+
+        if (
+          hostname.endsWith('.jupsoft.com') ||
+          hostname === 'jupsoft.com' ||
+          hostname.endsWith('.netlify.app') ||
+          hostname.endsWith('.vercel.app')
+        ) {
+          return callback(null, true);
+        }
+
         const tenantDomains = await getTenantDomains();
         if (tenantDomains.has(hostname) || tenantDomains.has(normalizedOrigin.replace(/^https?:\/\//, ''))) {
           return callback(null, true);
@@ -225,10 +212,6 @@ async function bootstrap() {
     }),
   );
 
-  // 3.B Global Exception Filter (P2: APP_FILTER) — consistent JSON errors,
-  // no internal details/stack leaks in production, known HttpExceptions pass through untouched.
-  app.useGlobalFilters(new HttpExceptionFilter());
-
   // 4. Swagger — FIX 14: available in all envs, gated by SWAGGER_API_KEY in production
   const swaggerApiKey = configService.get<string>('SWAGGER_API_KEY');
   const enableSwagger = nodeEnv !== 'production' || Boolean(swaggerApiKey);
@@ -269,9 +252,4 @@ async function bootstrap() {
   logger.log('Public V1 API: http://localhost:' + port + '/v1');
 }
 
-// ─── P0 Fix (C5): Never let bootstrap fail silently ────────────────────────
-bootstrap().catch((err) => {
-  // eslint-disable-next-line no-console
-  console.error(`[FATAL] Bootstrap failed: ${err?.stack || err?.message || err}`);
-  process.exit(1);
-});
+bootstrap();

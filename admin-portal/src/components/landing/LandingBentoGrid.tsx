@@ -7,7 +7,14 @@ import {
   GitMerge, 
   Image as ImageIcon, 
   CheckCircle2, 
-  RefreshCw
+  ShieldCheck, 
+  Zap, 
+  ArrowRight,
+  Database,
+  Search,
+  Lock,
+  RefreshCw,
+  Award  // Added for SEO score
 } from 'lucide-react';
 
 export const LandingBentoGrid: React.FC = () => {

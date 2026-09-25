@@ -37,8 +37,7 @@ export class WebhooksController {
     const logs = await this.prisma.webhookDeliveryLog.findMany({
       where,
       orderBy: { timestamp: 'desc' },
-      // P0 Fix (C8): clamp limit — previously ?limit=1000000 ran unbounded findMany
-      take: Math.max(1, Math.min(Number(limit) || 50, 200)),
+      take: limit ? Number(limit) : 50,
     });
 
     return {

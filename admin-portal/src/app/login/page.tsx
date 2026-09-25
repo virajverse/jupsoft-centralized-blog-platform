@@ -1,36 +1,20 @@
 'use client';
 
-import React, { Suspense, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import {
   Lock,
   Mail,
   ArrowRight,
+  Layers,
   AlertCircle,
   Eye,
   EyeOff,
 } from 'lucide-react';
 
 export default function LoginPage() {
-  // useSearchParams needs a Suspense boundary on statically prerendered routes (Next 16 docs)
-  return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen w-full flex items-center justify-center bg-slate-50 dark:bg-[#070a12]">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-        </div>
-      }
-    >
-      <LoginInner />
-    </Suspense>
-  );
-}
-
-function LoginInner() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const sessionExpired = searchParams.get('session') === 'expired';
   const login = useBlogStore((s) => s.login);
   const isAuthenticated = useBlogStore((s) => s.isAuthenticated);
   const [email, setEmail] = useState('');
@@ -38,26 +22,15 @@ function LoginInner() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [sessionExpiredHandled, setSessionExpiredHandled] = useState(false);
-
-  // Derived from the URL at render time — no setState-in-effect needed for the banner
-  const displayError =
-    sessionExpired && !sessionExpiredHandled
-      ? 'Your session has expired. Please sign in again.'
-      : errorMsg;
-
-  // Only logout ONCE on initial mount if session was expired, NOT on subsequent re-renders after user clicks login!
-  const hasLoggedOutOnExpiredRef = React.useRef(false);
 
   React.useEffect(() => {
-    if (sessionExpired && !hasLoggedOutOnExpiredRef.current) {
-      hasLoggedOutOnExpiredRef.current = true;
-      useBlogStore.getState().logout();
-      return;
-    }
+    if (typeof window === 'undefined') return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const isSessionExpired = urlParams.get('session') === 'expired';
 
-    // If user arrived with session=expired and hasn't logged in yet, do not attempt auto-redirect
-    if (sessionExpired && !sessionExpiredHandled) {
+    if (isSessionExpired) {
+      useBlogStore.getState().logout();
+      setErrorMsg('Your session has expired. Please sign in again.');
       return;
     }
 
@@ -66,7 +39,7 @@ function LoginInner() {
         .split('; ')
         .find((c) => c.startsWith('jupsoft_auth_token='))
         ?.split('=')[1];
-      return cookieToken || (typeof localStorage !== 'undefined' ? localStorage.getItem('jupsoft_auth_token') : null);
+      return cookieToken || localStorage.getItem('jupsoft_auth_token');
     };
 
     const token = getActiveToken();
@@ -82,10 +55,10 @@ function LoginInner() {
       if (!document.cookie.includes('jupsoft_auth_token=')) {
         document.cookie = `jupsoft_auth_token=${token}; path=/; max-age=86400; SameSite=Lax`;
       }
-      const redirect = searchParams.get('redirect') || '/dashboard';
-      window.location.href = redirect;
+      const redirect = urlParams.get('redirect') || '/dashboard';
+      router.replace(redirect);
     }
-  }, [isAuthenticated, searchParams, sessionExpired, sessionExpiredHandled]);
+  }, [isAuthenticated, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,15 +69,13 @@ function LoginInner() {
 
     setLoading(true);
     setErrorMsg(null);
-    setSessionExpiredHandled(true);
 
     try {
       const res = await login(email.trim(), password);
       if (res.success) {
         const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
         const redirect = urlParams?.get('redirect') || '/dashboard';
-        // Clean full navigation ensures cookies and storage hydrate immediately into the protected layout
-        window.location.href = redirect;
+        router.push(redirect);
       } else {
         setErrorMsg(res.message || 'Authentication failed. Please check your credentials.');
       }
@@ -145,10 +116,10 @@ function LoginInner() {
 
         {/* Login Card */}
         <div className="bg-white dark:bg-[#0d121f] rounded-2xl border border-slate-200/90 dark:border-slate-800/80 shadow-sm p-6 sm:p-8 space-y-5">
-          {displayError && (
+          {errorMsg && (
             <div className="flex items-center gap-2.5 p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs animate-in fade-in">
               <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{displayError}</span>
+              <span>{errorMsg}</span>
             </div>
           )}
 

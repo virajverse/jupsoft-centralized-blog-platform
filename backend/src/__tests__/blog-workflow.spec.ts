@@ -28,15 +28,7 @@ const mockPrisma = {
 };
 
 const mockWebhook = { dispatchWebhook: jest.fn().mockResolvedValue(undefined) };
-const mockRedis = {
-  get: jest.fn(() => null),
-  set: jest.fn(),
-  del: jest.fn(),
-  delPattern: jest.fn(),
-  nsKey: jest.fn(async (ns: string, suffix: string) => `${ns}:g0:${suffix}`),
-  invalidateNamespace: jest.fn(),
-  acquireLock: jest.fn().mockResolvedValue(true),
-};
+const mockRedis = { get: jest.fn(() => null), set: jest.fn(), del: jest.fn(), delPattern: jest.fn() };
 const mockEmail = { sendWorkflowNotification: jest.fn() };
 const mockSupabase = {
   syncBlog: jest.fn().mockResolvedValue(undefined),
@@ -237,7 +229,7 @@ describe('BlogsService - Workflow Transitions', () => {
     const publisher = makeUser(['Publisher']);
     await service.transitionStatus('blog-uuid-1', { status: 'Published' }, publisher, '127.0.0.1');
 
-    expect(mockRedis.invalidateNamespace).toHaveBeenCalledWith('blog');
+    expect(mockRedis.delPattern).toHaveBeenCalledWith(expect.stringContaining('blog:site-1:'));
   });
 });
 

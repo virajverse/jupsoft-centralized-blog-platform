@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ShieldCheck, ArrowRight, ExternalLink } from 'lucide-react';
+import { ShieldCheck, ArrowRight, ExternalLink, Heart } from 'lucide-react';
 
 export const LandingFooter: React.FC = () => {
   return (

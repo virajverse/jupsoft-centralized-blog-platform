@@ -3,6 +3,7 @@
 import React from 'react';
 
 export default function GlobalRootError({
+  error,
   reset,
 }: {
   error: Error & { digest?: string };

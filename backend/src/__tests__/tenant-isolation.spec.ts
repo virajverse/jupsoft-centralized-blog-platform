@@ -6,7 +6,7 @@
  */
 import { BlogsService } from '../modules/blogs/blogs.service';
 import { MediaService } from '../modules/media/media.service';
-import { ForbiddenException } from '@nestjs/common';
+import { NotFoundException, ForbiddenException } from '@nestjs/common';
 
 // ─── 1. BlogsService Tenant Isolation ──────────────────────────────────────
 
@@ -32,15 +32,7 @@ const mockPrisma = {
   $executeRawUnsafe: jest.fn(),
 };
 
-const mockRedis = {
-  get: jest.fn(() => null),
-  set: jest.fn(),
-  del: jest.fn(),
-  delPattern: jest.fn(),
-  nsKey: jest.fn(async (ns: string, suffix: string) => `${ns}:g0:${suffix}`),
-  invalidateNamespace: jest.fn(),
-  acquireLock: jest.fn().mockResolvedValue(true),
-};
+const mockRedis = { get: jest.fn(() => null), set: jest.fn(), del: jest.fn(), delPattern: jest.fn() };
 const mockWebhook = { dispatchWebhook: jest.fn().mockResolvedValue(undefined) };
 const mockEmail = { sendWorkflowNotification: jest.fn() };
 const mockSupabase = {
@@ -284,7 +276,7 @@ describe('Tenant Isolation — Public API ?websiteId parameter manipulation', ()
       getCategories: jest.fn().mockResolvedValue({ success: true, data: [] }),
       getTags: jest.fn().mockResolvedValue({ success: true, data: [] }),
     };
-    const controller = new PublicV1Controller(mockPublicService as any);
+    const controller = new PublicV1Controller(mockPublicService as any, { track: jest.fn() } as any);
 
     const req = { tenant: { id: 'site-tenant-a', name: 'Site A' } };
 
@@ -301,7 +293,7 @@ describe('Tenant Isolation — Public API ?websiteId parameter manipulation', ()
       getCategories: jest.fn().mockResolvedValue({ success: true, data: [] }),
       getTags: jest.fn().mockResolvedValue({ success: true, data: [] }),
     };
-    const controller = new PublicV1Controller(mockPublicService as any);
+    const controller = new PublicV1Controller(mockPublicService as any, { track: jest.fn() } as any);
 
     const req = { tenant: { id: 'site-tenant-a', name: 'Site A' } };
 

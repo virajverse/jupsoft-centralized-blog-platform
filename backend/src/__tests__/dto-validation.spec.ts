@@ -4,7 +4,7 @@
  */
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
-import { CreateBlogDto, TransitionBlogStatusDto } from '../modules/blogs/dto/create-blog.dto';
+import { CreateBlogDto, UpdateBlogDto, BlogTranslationInputDto, TransitionBlogStatusDto } from '../modules/blogs/dto/create-blog.dto';
 
 function collectConstraints(errors: any[]): string[] {
   const result: string[] = [];

@@ -6,7 +6,8 @@ import {
   PenTool, 
   CheckSquare, 
   Send, 
-  Search
+  Search, 
+  UserCheck 
 } from 'lucide-react';
 
 export const LandingRbac: React.FC = () => {

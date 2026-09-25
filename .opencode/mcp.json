@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "jupsoft-infinity-unified": {
+      "command": "d:\\Company work\\.venv\\Scripts\\python.exe",
+      "args": [
+        "d:\\Company work\\jupsoft-centralized-blog-platform\\jupsoft-cms-mcp\\unified_stdio.py"
+      ],
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": "d:\\Company work\\jupsoft-centralized-blog-platform\\jupsoft-cms-mcp\\src;d:\\Company work\\jupsoft-centralized-blog-platform\\jupsoft-cms-mcp",
+        "CMS_API_BASE": "https://blogary.jupsoft.com",
+        "CMS_ADMIN_EMAIL": "superadmin@jupsoft.com",
+        "CMS_ADMIN_PASSWORD": ""
+      }
+    }
+  }
+}

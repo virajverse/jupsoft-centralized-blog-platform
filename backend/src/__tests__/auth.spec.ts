@@ -3,6 +3,8 @@
  * Tests: login, invalid credentials, brute-force, JWT tamper, refresh rotation, logout
  */
 import { AuthService } from '../modules/auth/auth.service';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 
 const mockPrisma = {
@@ -28,8 +30,6 @@ const mockConfig = { get: jest.fn((key: string) => {
 const mockRedis = {
   get: jest.fn(() => null),
   set: jest.fn(),
-  nsKey: jest.fn(async (ns: string, suffix: string) => `${ns}:g0:${suffix}`),
-  invalidateNamespace: jest.fn(),
 };
 
 const makeUser = (overrides: any = {}) => ({

@@ -57,20 +57,15 @@
     "access": "public"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
     "@types/node": "^22.20.3",
     "@types/react": "^19.3.0",
-    "eslint": "^10.11.0",
     "next": "^16.3.5",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.70.0"
+    "typescript": "^5.9.3"
   },
   "scripts": {
     "build": "tsc",
-    "lint": "eslint src",
-    "lint:fix": "eslint src --fix",
     "prepare": "npm run build",
     "prepublishOnly": "npm run build"
   },

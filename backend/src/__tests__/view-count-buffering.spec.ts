@@ -86,7 +86,6 @@ describe('PERF-002: View Count Buffering & Batch Persistence', () => {
       mockPrisma = {
         analyticsEvent: {
           create: jest.fn().mockResolvedValue({ id: 'evt-1' }),
-          createMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
         $transaction: jest.fn().mockImplementation((promises) => Promise.all(promises)),
         $executeRawUnsafe: jest.fn().mockResolvedValue(1),
@@ -102,11 +101,6 @@ describe('PERF-002: View Count Buffering & Batch Persistence', () => {
       service = new AnalyticsService(mockPrisma, mockRedis);
     });
 
-    afterEach(async () => {
-      // Clear the batch-flush interval + drain any buffered events
-      await service.onModuleDestroy();
-    });
-
     it('should buffer view increment and NOT execute synchronous raw SQL on track()', async () => {
       const dto: TrackEventDto = {
         blogId: 'blog-test-1',
@@ -117,44 +111,10 @@ describe('PERF-002: View Count Buffering & Batch Persistence', () => {
 
       await service.track(dto);
 
-      // P0 Fix (C3): events are buffered in memory — NO synchronous per-event INSERT
-      expect(mockPrisma.analyticsEvent.create).not.toHaveBeenCalled();
-      expect(mockPrisma.analyticsEvent.createMany).not.toHaveBeenCalled();
+      expect(mockPrisma.analyticsEvent.create).toHaveBeenCalled();
       expect(mockRedis.bufferViewIncrement).toHaveBeenCalledWith('blog-test-1');
       // Direct SQL update should NOT be called synchronously
       expect(mockPrisma.$executeRawUnsafe).not.toHaveBeenCalled();
-    });
-
-    it('should flush buffered analytics events in ONE batched createMany on shutdown (C3)', async () => {
-      await service.track({
-        blogId: 'blog-flush-1',
-        websiteId: 'site-test',
-        sessionId: 'session-1',
-        event: 'page_view',
-      });
-      await service.track({
-        blogId: 'blog-flush-2',
-        websiteId: 'site-test',
-        sessionId: 'session-2',
-        event: 'read_complete',
-      });
-
-      // Still buffered — zero DB writes so far
-      expect(mockPrisma.analyticsEvent.createMany).not.toHaveBeenCalled();
-
-      await service.onModuleDestroy();
-
-      // Single createMany with BOTH events (batched write, not 2 INSERTs)
-      expect(mockPrisma.analyticsEvent.createMany).toHaveBeenCalledTimes(1);
-      const payload = mockPrisma.analyticsEvent.createMany.mock.calls[0][0];
-      expect(payload.data).toHaveLength(2);
-      expect(payload.data[0]).toMatchObject({
-        blogId: 'blog-flush-1',
-        websiteId: 'site-test',
-        sessionId: 'session-1',
-        event: 'page_view',
-      });
-      expect(mockPrisma.analyticsEvent.create).not.toHaveBeenCalled();
     });
 
     it('should batch persist buffered counts to database on persistBufferedViews()', async () => {

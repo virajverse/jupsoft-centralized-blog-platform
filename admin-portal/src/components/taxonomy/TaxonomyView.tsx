@@ -12,7 +12,7 @@ import {
   Trash2,
   RefreshCw
 } from 'lucide-react';
-import { DeleteConfirmModal } from '../common/DeleteConfirmModal';
+import { Category, Tag } from '../../types';
 
 export const TaxonomyView: React.FC = () => {
   const searchParams = useSearchParams();
@@ -73,13 +73,9 @@ export const TaxonomyView: React.FC = () => {
       queueMicrotask(() => setActiveWebsite(siteParam));
     }
     if (targetSiteId) {
-      const storeState = useBlogStore.getState();
-      const hasCached = (storeState.categories[targetSiteId]?.length || 0) > 0 || (storeState.tags[targetSiteId]?.length || 0) > 0;
-      if (!hasCached) {
-        queueMicrotask(() => {
-          if (active) setIsLoadingTaxonomy(true);
-        });
-      }
+      queueMicrotask(() => {
+        if (active) setIsLoadingTaxonomy(true);
+      });
       Promise.all([
         fetchCategories(targetSiteId),
         fetchTags(targetSiteId)
@@ -107,12 +103,6 @@ export const TaxonomyView: React.FC = () => {
   const [isSubmittingTag, setIsSubmittingTag] = useState(false);
   const [deletingCatId, setDeletingCatId] = useState<string | null>(null);
   const [deletingTagId, setDeletingTagId] = useState<string | null>(null);
-  const [deleteModal, setDeleteModal] = useState<{
-    isOpen: boolean;
-    type: 'category' | 'tag';
-    id: string;
-    name: string;
-  } | null>(null);
 
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,14 +126,17 @@ export const TaxonomyView: React.FC = () => {
     }
   };
 
-  const handleDeleteCategory = (catId: string, catName: string) => {
+  const handleDeleteCategory = async (catId: string, catName: string) => {
     if (deletingCatId) return;
-    setDeleteModal({
-      isOpen: true,
-      type: 'category',
-      id: catId,
-      name: catName,
-    });
+    if (!window.confirm(`Are you sure you want to delete category "${catName}"? This change will be saved to the database.`)) {
+      return;
+    }
+    setDeletingCatId(catId);
+    try {
+      await deleteCategory(catId, targetSiteId);
+    } finally {
+      setDeletingCatId(null);
+    }
   };
 
   const handleCreateTag = async (e: React.FormEvent) => {
@@ -162,34 +155,16 @@ export const TaxonomyView: React.FC = () => {
     }
   };
 
-  const handleDeleteTag = (tagId: string, tagName: string) => {
+  const handleDeleteTag = async (tagId: string, tagName: string) => {
     if (deletingTagId) return;
-    setDeleteModal({
-      isOpen: true,
-      type: 'tag',
-      id: tagId,
-      name: tagName,
-    });
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!deleteModal) return;
-    if (deleteModal.type === 'category') {
-      setDeletingCatId(deleteModal.id);
-      try {
-        await deleteCategory(deleteModal.id, targetSiteId);
-        setDeleteModal(null);
-      } finally {
-        setDeletingCatId(null);
-      }
-    } else {
-      setDeletingTagId(deleteModal.id);
-      try {
-        await deleteTag(deleteModal.id, targetSiteId);
-        setDeleteModal(null);
-      } finally {
-        setDeletingTagId(null);
-      }
+    if (!window.confirm(`Are you sure you want to delete tag "#${tagName}"? This change will be saved to the database.`)) {
+      return;
+    }
+    setDeletingTagId(tagId);
+    try {
+      await deleteTag(tagId, targetSiteId);
+    } finally {
+      setDeletingTagId(null);
     }
   };
 
@@ -443,23 +418,6 @@ export const TaxonomyView: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* Custom Delete Confirmation Modal */}
-      <DeleteConfirmModal
-        isOpen={Boolean(deleteModal)}
-        title={deleteModal?.type === 'category' ? 'Delete Category' : 'Delete Tag'}
-        itemName={deleteModal?.name ? (deleteModal.type === 'tag' ? `#${deleteModal.name}` : deleteModal.name) : undefined}
-        itemType={deleteModal?.type || 'item'}
-        message={
-          deleteModal?.type === 'category'
-            ? 'Are you sure you want to delete this category? Blogs currently assigned to this category will become unassigned.'
-            : 'Are you sure you want to delete this tag? It will be removed from all associated articles.'
-        }
-        confirmText={deleteModal?.type === 'category' ? 'Delete Category' : 'Delete Tag'}
-        isLoading={Boolean(deletingCatId || deletingTagId)}
-        onConfirm={handleConfirmDelete}
-        onClose={() => setDeleteModal(null)}
-      />
     </div>
   );
 };
