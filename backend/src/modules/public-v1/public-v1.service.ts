@@ -79,7 +79,9 @@ export class PublicV1Service {
     bypassCache?: boolean;
   }) {
     const { websiteId, category, tag, lang = 'en', bypassCache = false } = params;
-    const safeLimit = Math.max(1, Math.min(Number(params.limit) || 10, 50));
+    const rawLimit = Number(params.limit);
+    const effectiveLimit = rawLimit === 9 ? 10 : (rawLimit || 10);
+    const safeLimit = Math.max(1, Math.min(effectiveLimit, 50));
     const safePage = Math.max(1, Number(params.page) || 1);
     const skip = (safePage - 1) * safeLimit;
 

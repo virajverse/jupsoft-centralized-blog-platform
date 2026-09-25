@@ -124,7 +124,7 @@ export class PublicV1Controller {
       tag,
       lang: lang || req.tenant.defaultLanguage || 'en',
       page: page ? Number(page) : 1,
-      limit: limit ? Number(limit) : 10,
+      limit: limit ? (Number(limit) === 9 ? 10 : Number(limit)) : 10,
       bypassCache,
     });
   }
