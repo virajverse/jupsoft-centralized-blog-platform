@@ -43,6 +43,7 @@ model User {
   lastLoginIp          String                 @default("")
   loginAttempts        Int                    @default(0)
   lockoutUntil         DateTime?
+  customModules        String[]               @default([])
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
 
@@ -75,7 +76,7 @@ model UserRoleAssignment {
 model Blog {
   id                   String                 @id @default(uuid())
   websiteId            String
-  authorId             String
+  authorId             String?
   authorName           String
   authorAvatar         String                 @default("")
   featuredImage        String                 @default("")
@@ -92,8 +93,9 @@ model Blog {
   updatedAt            DateTime               @updatedAt
 
   website              Website                @relation(fields: [websiteId], references: [id], onDelete: Cascade)
-  author               User                   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author               User?                  @relation(fields: [authorId], references: [id], onDelete: SetNull)
   translations         BlogTranslation[]
+  revisions            BlogRevision[]
   workflowLogs         WorkflowLog[]
   blogCategories       BlogCategory[]         // TRD §9: M:N via blog_categories
   blogTags             BlogTag[]              // TRD §9: M:N via blog_tags
@@ -102,7 +104,31 @@ model Blog {
   @@index([websiteId, status])
   @@index([status, scheduledAt])
   @@index([authorId])
+  @@index([updatedAt(sort: Desc)])
+  @@index([websiteId, updatedAt(sort: Desc)])
+  @@index([websiteId, status, updatedAt(sort: Desc)])
   @@map("blogs")
+}
+
+model BlogRevision {
+  id                   String                 @id @default(uuid())
+  blogId               String
+  lang                 String                 // en | hi | fr | ar
+  title                String
+  slug                 String
+  excerpt              String                 @default("") @db.Text
+  content              String                 @default("") @db.Text
+  
+  metaTitle            String                 @default("")
+  metaDescription      String                 @default("")
+  
+  createdBy            String                 @default("System")
+  createdAt            DateTime               @default(now())
+
+  blog                 Blog                   @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  @@unique([blogId, lang])
+  @@map("blog_revisions")
 }
 
 model BlogTranslation {
@@ -275,6 +301,7 @@ model AnalyticsEvent {
 
   @@index([blogId, websiteId])
   @@index([websiteId, timestamp])
+  @@index([timestamp]) // P1: fast retention purge (analytics.service purgeExpiredEvents)
   @@map("analytics")
 }
 
