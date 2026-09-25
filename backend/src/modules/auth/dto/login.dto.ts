@@ -38,3 +38,11 @@ export class LogoutDto {
   @IsNotEmpty()
   refreshToken: string;
 }
+
+export class GoogleLoginDto {
+  @ApiProperty({ description: 'Google ID token (credential) from Google Identity Services' })
+  @IsString()
+  @IsNotEmpty()
+  credential: string;
+}
+

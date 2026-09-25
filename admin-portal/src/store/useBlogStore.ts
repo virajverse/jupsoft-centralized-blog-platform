@@ -62,6 +62,7 @@ interface BlogState {
   fetchAuditLogs: (websiteId?: string) => Promise<void>;
   loadInitialData: () => Promise<void>;
   login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
+  loginWithGoogle: (credential: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
@@ -416,6 +417,69 @@ export const useBlogStore = create<BlogState>()(
         } catch (err: unknown) {
           const errMsg = err instanceof Error ? err.message : String(err);
           return { success: false, message: errMsg || 'Invalid email or password' };
+        }
+      },
+
+      loginWithGoogle: async (credential: string) => {
+        try {
+          const data = await apiClient.googleLogin(credential);
+          if (data.accessToken && data.user) {
+            const user = data.user as UserAccount;
+            const isSuper =
+              user.role === 'Super Admin' ||
+              (Array.isArray(user.roles) && user.roles.includes('Super Admin')) ||
+              Object.values(user.roleAssignments || {}).some(
+                (r) => typeof r === 'string' && r.toLowerCase().includes('super')
+              ) ||
+              user.roleAssignments?.['all'] !== undefined;
+            const assignedWebsites = Object.keys(user.roleAssignments || {}).filter((k) => k !== 'all');
+
+            let liveWebsites = get().websites;
+            try {
+              const fetchedWebsites = await apiClient.getWebsites();
+              if (Array.isArray(fetchedWebsites) && fetchedWebsites.length > 0) {
+                const map = new Map<string, Website>();
+                fetchedWebsites.forEach((w) => map.set(w.id, w));
+                liveWebsites = Array.from(map.values());
+              }
+            } catch (wErr) {
+              console.warn('Failed to pre-fetch websites during Google login:', wErr);
+            }
+
+            let websiteId = get().activeWebsiteId;
+            if (!isSuper) {
+              if (websiteId === 'all' || !assignedWebsites.includes(websiteId)) {
+                websiteId = resolveEffectiveWebsiteId(liveWebsites, null, user);
+              }
+            }
+
+            const localUser = get().users.find((u) => u.id === user.id || u.email === user.email);
+            const assignedRole = (
+              (isSuper ? 'Super Admin' : undefined) ||
+              user.roleAssignments?.[websiteId] ||
+              user.roleAssignments?.['all'] ||
+              Object.values(user.roleAssignments || {})[0] ||
+              user.role ||
+              'Content Writer'
+            ) as UserRole;
+
+            set({
+              isAuthenticated: true,
+              websites: liveWebsites,
+              currentUser: {
+                ...user,
+                customModules: user.customModules || localUser?.customModules || [],
+                avatar: cleanAvatarUrl(user.avatar) || '/uploads/avatars/avatar-default.webp',
+              },
+              activeWebsiteId: websiteId,
+              activeRole: assignedRole,
+            });
+            return { success: true };
+          }
+          return { success: false, message: 'Google login failed — no token received' };
+        } catch (err: unknown) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          return { success: false, message: errMsg || 'Google sign-in failed' };
         }
       },
 

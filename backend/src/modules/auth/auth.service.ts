@@ -3,11 +3,12 @@ import {
   UnauthorizedException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
-import { LoginDto, RefreshTokenDto, ChangePasswordDto, LogoutDto } from './dto/login.dto';
+import { LoginDto, RefreshTokenDto, ChangePasswordDto, LogoutDto, GoogleLoginDto } from './dto/login.dto';
 import { RedisProvider } from '../../common/providers/redis.provider';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
@@ -21,6 +22,8 @@ const REVOKED_TOKEN_PREFIX = 'auth:revoked_rt:';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
@@ -141,6 +144,119 @@ export class AuthService {
         name: user.name,
         email: user.email,
         avatar: user.avatar,
+        status: user.status,
+        roles,
+        customModules: user.customModules || [],
+        roleAssignments: user.roleAssignments.reduce((acc, curr) => {
+          const key = curr.isGlobal || !curr.websiteId ? 'all' : curr.websiteId;
+          acc[key] = curr.role;
+          return acc;
+        }, {} as Record<string, string>),
+      },
+    };
+  }
+
+  // ─── Google OAuth Sign-In (Strict Whitelist: existing users only) ───────────
+  async googleLogin(dto: GoogleLoginDto, ipAddress: string) {
+    if (!dto.credential) {
+      throw new BadRequestException('Google credential token is required');
+    }
+
+    // 1. Verify token with Google's OAuth2 verification endpoint
+    let googleUser: any;
+    try {
+      const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(dto.credential)}`);
+      if (!res.ok) {
+        const errData: any = await res.json().catch(() => ({}));
+        throw new UnauthorizedException(errData.error_description || 'Invalid Google credential token');
+      }
+      googleUser = await res.json();
+    } catch (err: any) {
+      if (err instanceof UnauthorizedException) throw err;
+      throw new UnauthorizedException(`Failed to verify Google token: ${err.message}`);
+    }
+
+    const email = (googleUser.email || '').toLowerCase().trim();
+    const isEmailVerified = googleUser.email_verified === 'true' || googleUser.email_verified === true;
+
+    if (!email || !isEmailVerified) {
+      throw new UnauthorizedException('Google account email is not verified by Google');
+    }
+
+    // Verify Google Client ID (aud) if configured in backend environment
+    const configuredClientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
+    if (configuredClientId && googleUser.aud && googleUser.aud !== configuredClientId) {
+      this.logger.warn(`Google token audience mismatch: expected ${configuredClientId}, got ${googleUser.aud}`);
+      throw new UnauthorizedException('Google client ID mismatch');
+    }
+
+    // 2. STRICT WHITELIST: User MUST already exist in database
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      include: {
+        roleAssignments: {
+          include: { website: true },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new ForbiddenException(
+        `Access denied: No registered account found for "${email}". Only pre-registered team members can sign in with Google.`,
+      );
+    }
+
+    if (user.status !== 'active') {
+      throw new UnauthorizedException('This account has been suspended. Please contact your Super Admin.');
+    }
+
+    // 3. Success: Reset lockout, update IP, sync avatar if empty
+    const updateData: any = {
+      lastLoginIp: ipAddress || '',
+      loginAttempts: 0,
+      lockoutUntil: null,
+    };
+    if (!user.avatar && googleUser.picture) {
+      updateData.avatar = googleUser.picture;
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: updateData,
+    });
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: user.name,
+        role: user.roleAssignments[0]?.role || 'Staff Writer',
+        websiteId: 'system',
+        event: 'user.login.google',
+        ipAddress: ipAddress || '',
+        details: `User ${user.name} (${user.email}) signed in via Google OAuth from ${ipAddress || 'unknown'}.`,
+      },
+    });
+
+    const roles = user.roleAssignments.map((r) => r.role);
+    const payload = { sub: user.id, email: user.email, roles };
+
+    const accessToken = this.jwtService.sign(payload, {
+      secret: this.jwtSecret,
+      expiresIn: this.jwtExpiration as any,
+    });
+
+    const refreshToken = this.jwtService.sign(payload, {
+      secret: this.jwtRefreshSecret,
+      expiresIn: this.jwtRefreshExpiration as any,
+    });
+
+    return {
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar || googleUser.picture || '',
         status: user.status,
         roles,
         customModules: user.customModules || [],

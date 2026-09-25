@@ -1,7 +1,7 @@
 import { Controller, Post, Body, Get, Put, UseGuards, Ip } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { LoginDto, RefreshTokenDto, ChangePasswordDto, LogoutDto } from './dto/login.dto';
+import { LoginDto, RefreshTokenDto, ChangePasswordDto, LogoutDto, GoogleLoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -17,6 +17,15 @@ export class AuthController {
   @ApiResponse({ status: 403, description: 'Account locked (too many attempts)' })
   async login(@Body() dto: LoginDto, @Ip() ip: string) {
     return this.authService.login(dto, ip);
+  }
+
+  @Post('google')
+  @ApiOperation({ summary: 'Authenticate via Google OAuth — only permits pre-registered active users' })
+  @ApiResponse({ status: 200, description: 'Google authentication successful' })
+  @ApiResponse({ status: 401, description: 'Invalid Google token or unverified email' })
+  @ApiResponse({ status: 403, description: 'User not registered or account suspended' })
+  async googleLogin(@Body() dto: GoogleLoginDto, @Ip() ip: string) {
+    return this.authService.googleLogin(dto, ip);
   }
 
   @Post('refresh')

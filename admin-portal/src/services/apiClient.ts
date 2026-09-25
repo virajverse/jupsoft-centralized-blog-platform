@@ -300,6 +300,17 @@ class ApiClient {
     return data;
   }
 
+  async googleLogin(credential: string) {
+    const data = await this.request<{ accessToken: string; refreshToken: string; user: UserAccount }>(
+      '/admin/auth/google',
+      { method: 'POST', body: JSON.stringify({ credential }) },
+    );
+    if (data.accessToken) {
+      this.setTokens(data.accessToken, data.refreshToken);
+    }
+    return data;
+  }
+
   async refreshTokens(refreshToken: string) {
     const data = await this.request<{ accessToken: string; refreshToken: string }>(
       '/admin/auth/refresh',
