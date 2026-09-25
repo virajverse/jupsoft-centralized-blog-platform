@@ -219,6 +219,10 @@ export class UsersService {
       });
     }
 
+    if (dto.role === 'none' || !dto.role) {
+      return this.removeRole(userId, dto.websiteId, updater, ipAddress);
+    }
+
     await this.prisma.systemAuditLog.create({
       data: {
         userName: updater.name,
@@ -232,6 +236,55 @@ export class UsersService {
 
     await this.invalidateUserCache();
     return { success: true, message: 'Role updated successfully' };
+  }
+
+  async removeRole(userId: string, websiteId: string, remover: any, ipAddress: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { roleAssignments: true },
+    });
+    if (!user) {
+      throw new NotFoundException(`User "${userId}" not found`);
+    }
+
+    const isTargetSuperAdmin =
+      userId === 'usr-superadmin' ||
+      user.email === 'superadmin@jupsoft.com' ||
+      user.roleAssignments?.some((ra) => ra.role === 'Super Admin' && ra.isGlobal);
+
+    if (isTargetSuperAdmin) {
+      throw new ForbiddenException('Super Admin master role cannot be revoked.');
+    }
+
+    const isSuperAdmin = remover?.roles?.includes('Super Admin');
+    if (!isSuperAdmin) {
+      const removerSites = remover?.roleAssignments?.map((ra: any) => ra.websiteId) || [];
+      if (!removerSites.includes(websiteId) && !removerSites.includes('all')) {
+        throw new ForbiddenException('You can only remove roles for your assigned website');
+      }
+    }
+
+    const isGlobal = websiteId === 'all';
+    await this.prisma.userRoleAssignment.deleteMany({
+      where: {
+        userId,
+        ...(isGlobal ? { isGlobal: true } : { websiteId }),
+      },
+    });
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: remover.name,
+        role: remover.roles[0] || 'Super Admin',
+        websiteId,
+        event: 'user.role_removed',
+        ipAddress: ipAddress || '',
+        details: `Removed tenant access to ${websiteId} for ${user.name} (${user.email}).`,
+      },
+    });
+
+    await this.invalidateUserCache();
+    return { success: true, message: 'Role assignment removed successfully' };
   }
 
   async toggleStatus(userId: string, status: string, updater: any, ipAddress: string) {

@@ -595,6 +595,10 @@ class ApiClient {
     return this.request(`/admin/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role, websiteId }) });
   }
 
+  async removeUserRole(id: string, websiteId: string): Promise<{ success: boolean; message: string }> {
+    return this.request(`/admin/users/${id}/role/${websiteId}`, { method: 'DELETE' });
+  }
+
   async updateUserModules(id: string, customModules: string[]): Promise<UserAccount> {
     return this.request(`/admin/users/${id}/modules`, { method: 'PUT', body: JSON.stringify({ customModules }) });
   }

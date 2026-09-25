@@ -306,18 +306,42 @@ export const useBlogStore = create<BlogState>()(
           ]);
 
           const updates: Partial<BlogState> = {};
+          let currentWebsites = get().websites;
           if (websitesRes.status === 'fulfilled' && Array.isArray(websitesRes.value)) {
             const map = new Map<string, Website>();
             websitesRes.value.forEach((w) => map.set(w.id, w));
-            updates.websites = Array.from(map.values());
+            currentWebsites = Array.from(map.values());
+            updates.websites = currentWebsites;
           }
           if (profileRes.status === 'fulfilled' && profileRes.value) {
             const u = profileRes.value;
-            updates.currentUser = {
+            const updatedUser = {
               ...u,
               customModules: (u as any).customModules || get().currentUser?.customModules || [],
               avatar: cleanAvatarUrl(u.avatar) || '/uploads/avatars/avatar-default.webp',
             };
+            updates.currentUser = updatedUser;
+
+            // Dynamically verify active website and role for non-super admins
+            const isSuper =
+              updatedUser.role === 'Super Admin' ||
+              (Array.isArray(updatedUser.roles) && updatedUser.roles.includes('Super Admin')) ||
+              Object.values(updatedUser.roleAssignments || {}).some(
+                (r) => typeof r === 'string' && r.toLowerCase().includes('super')
+              ) ||
+              updatedUser.roleAssignments?.['all'] !== undefined;
+
+            if (!isSuper) {
+              const currentSiteId = get().activeWebsiteId;
+              const assignedSites = Object.keys(updatedUser.roleAssignments || {}).filter((k) => k !== 'all');
+              if (currentSiteId === 'all' || !assignedSites.includes(currentSiteId)) {
+                const nextSiteId = resolveEffectiveWebsiteId(currentWebsites, null, updatedUser);
+                updates.activeWebsiteId = nextSiteId;
+                updates.activeRole = (updatedUser.roleAssignments?.[nextSiteId] || Object.values(updatedUser.roleAssignments || {})[0] || 'Content Writer') as UserRole;
+              } else {
+                updates.activeRole = (updatedUser.roleAssignments?.[currentSiteId] || get().activeRole) as UserRole;
+              }
+            }
           }
           if (blogsRes.status === 'fulfilled' && blogsRes.value && Array.isArray(blogsRes.value.data)) {
             updates.blogs = blogsRes.value.data;
@@ -345,14 +369,27 @@ export const useBlogStore = create<BlogState>()(
               ) ||
               user.roleAssignments?.['all'] !== undefined;
             const assignedWebsites = Object.keys(user.roleAssignments || {}).filter((k) => k !== 'all');
-            
+
+            // Immediately load live websites from backend API to guarantee multi-tenant store is fresh
+            let liveWebsites = get().websites;
+            try {
+              const fetchedWebsites = await apiClient.getWebsites();
+              if (Array.isArray(fetchedWebsites) && fetchedWebsites.length > 0) {
+                const map = new Map<string, Website>();
+                fetchedWebsites.forEach((w) => map.set(w.id, w));
+                liveWebsites = Array.from(map.values());
+              }
+            } catch (wErr) {
+              console.warn('Failed to pre-fetch websites during login:', wErr);
+            }
+
             let websiteId = get().activeWebsiteId;
             if (!isSuper) {
               if (websiteId === 'all' || !assignedWebsites.includes(websiteId)) {
-                websiteId = resolveEffectiveWebsiteId(get().websites, null, user);
+                websiteId = resolveEffectiveWebsiteId(liveWebsites, null, user);
               }
             }
-            
+
             const localUser = get().users.find((u) => u.id === user.id || u.email === user.email);
             const assignedRole = (
               (isSuper ? 'Super Admin' : undefined) ||
@@ -364,6 +401,7 @@ export const useBlogStore = create<BlogState>()(
             ) as UserRole;
             set({
               isAuthenticated: true,
+              websites: liveWebsites,
               currentUser: {
                 ...user,
                 customModules: user.customModules || localUser?.customModules || [],
@@ -809,6 +847,22 @@ export const useBlogStore = create<BlogState>()(
             }
           }
           if (updates.roleAssignments) {
+            const existingUser = get().users.find((u) => u.id === id);
+            const oldAssignments = existingUser?.roleAssignments || {};
+            const oldSiteIds = Object.keys(oldAssignments);
+            const newSiteIds = Object.keys(updates.roleAssignments);
+
+            // 1. Remove revoked tenant scopes
+            const removedSiteIds = oldSiteIds.filter((sId) => !newSiteIds.includes(sId));
+            for (const remSiteId of removedSiteIds) {
+              try {
+                await apiClient.removeUserRole(id, remSiteId);
+              } catch (remErr) {
+                console.warn(`apiClient.removeUserRole failed for ${remSiteId}:`, remErr);
+              }
+            }
+
+            // 2. Apply current/added tenant roles
             for (const [websiteId, role] of Object.entries(updates.roleAssignments)) {
               if (websiteId && role) {
                 try {
@@ -827,6 +881,12 @@ export const useBlogStore = create<BlogState>()(
             currentUser: state.currentUser?.id === id ? { ...state.currentUser, ...updates } : state.currentUser,
             notification: { message: 'User updated successfully', type: 'success' },
           }));
+
+          // Re-fetch fresh user directory and shell profile from server to guarantee sync
+          await Promise.allSettled([
+            get().fetchUsers(),
+            get().loadInitialData(),
+          ]);
         } catch (err: unknown) {
           console.warn('API updateUser failed:', err);
           set((state) => ({

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
@@ -118,15 +118,17 @@ export const JupsoftNavbar: React.FC = () => {
     setParam('site', id);
   };
 
-  const isSuperAdmin = isGlobalScopeRole(activeRole);
+  const hasGlobalAll = Boolean(currentUser?.roleAssignments?.['all']);
+  const isSuperAdmin = isGlobalScopeRole(activeRole) || hasGlobalAll;
   const isAllSites = activeWebsiteId === 'all';
   const activeSite = websites.find((w) => w.id === activeWebsiteId);
   const displayName = isAllSites ? 'All Websites' : (activeSite?.name || 'All Websites');
 
   // Multi-tenant visible websites
+  const userAssignedWebsites = websites.filter((site) => currentUser?.roleAssignments?.[site.id]);
   const visibleWebsites = isSuperAdmin
     ? websites
-    : websites.filter((site) => currentUser?.roleAssignments?.[site.id]);
+    : (userAssignedWebsites.length > 0 ? userAssignedWebsites : (activeSite ? [activeSite] : []));
 
   useEffect(() => {
     if (notification) {

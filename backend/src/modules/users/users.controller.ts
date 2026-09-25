@@ -39,6 +39,18 @@ export class UsersController {
     return this.usersService.updateRole(id, dto, user, ip);
   }
 
+  @Delete(':id/role/:websiteId')
+  @Roles('Super Admin', 'Website Admin')
+  @ApiOperation({ summary: 'Remove user tenant role assignment' })
+  async removeRole(
+    @Param('id') id: string,
+    @Param('websiteId') websiteId: string,
+    @CurrentUser() user: any,
+    @Ip() ip: string,
+  ) {
+    return this.usersService.removeRole(id, websiteId, user, ip);
+  }
+
   @Put(':id/modules')
   @Roles('Super Admin', 'Website Admin')
   @ApiOperation({ summary: 'Update granular modular permissions for user' })

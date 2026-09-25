@@ -6,8 +6,7 @@ import { useBlogStore } from '../../store/useBlogStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../hooks/useQueryState';
 import { UserAccount, UserRole, Website } from '../../types';
-import { getAllowedInviteRoles, canManageUsers, canDeleteUsers, canManageTargetUser, canDeleteTargetUser, isGlobalScopeRole, cleanAvatarUrl, getDefaultRoleModules, AppModule } from '../../utils/permissions';
-import { DeleteConfirmModal } from '../common/DeleteConfirmModal';
+import { getAllowedInviteRoles, canManageUsers, isGlobalScopeRole, cleanAvatarUrl, canAccessModule, getDefaultRoleModules, AppModule } from '../../utils/permissions';
 import { 
   Users, 
   ShieldCheck, 
@@ -18,6 +17,7 @@ import {
   Check, 
   X, 
   Globe, 
+  Plus,
   Mail, 
   Trash2, 
   Edit3, 
@@ -188,8 +188,7 @@ export const UserManagementView: React.FC = () => {
     updateUser, 
     deleteUser, 
     resetUserPassword,
-    showNotification,
-    fetchBlogs,
+    showNotification 
   } = useBlogStore(
     useShallow((s) => ({
       users: s.users,
@@ -203,7 +202,6 @@ export const UserManagementView: React.FC = () => {
       deleteUser: s.deleteUser,
       resetUserPassword: s.resetUserPassword,
       showNotification: s.showNotification,
-      fetchBlogs: s.fetchBlogs,
     }))
   );
 
@@ -216,11 +214,6 @@ export const UserManagementView: React.FC = () => {
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [isSubmittingInvite, setIsSubmittingInvite] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
-  const [deleteModal, setDeleteModal] = useState<{
-    isOpen: boolean;
-    userId?: string;
-    userName?: string;
-  }>({ isOpen: false });
 
   React.useEffect(() => {
     let active = true;
@@ -230,62 +223,15 @@ export const UserManagementView: React.FC = () => {
     fetchUsers().finally(() => {
       if (active) setIsLoadingUsers(false);
     });
-    if (useBlogStore.getState().blogs.length === 0) {
-      fetchBlogs();
-    }
     return () => { active = false; };
-  }, [fetchUsers, fetchBlogs]);
+  }, [fetchUsers]);
 
-  const handleDeleteUser = (id: string, name: string) => {
+  const handleDeleteUser = async (id: string, name: string) => {
     if (deletingUserId) return;
-
-    // Only Super Admin and Website Admin can delete
-    if (activeRole !== 'Super Admin' && activeRole !== 'Website Admin') {
-      showNotification('Permission denied: Only Super Admin and Website Admin can delete user accounts.', 'warning');
-      return;
-    }
-
-    if (id === currentUser?.id) {
-      showNotification('You cannot delete your own account.', 'warning');
-      return;
-    }
-
-    const targetUser = users.find((u) => u.id === id);
-    const isProtected =
-      id === 'usr-superadmin' ||
-      targetUser?.email === 'superadmin@jupsoft.com' ||
-      targetUser?.roles?.includes('Super Admin') ||
-      targetUser?.roleAssignments?.['all'] === 'Super Admin' ||
-      Object.values(targetUser?.roleAssignments || {}).includes('Super Admin');
-
-    if (isProtected) {
-      showNotification('Super Admin accounts are permanently protected and cannot be deleted or revoked.', 'warning');
-      return;
-    }
-
-    const targetRoles = [
-      ...(targetUser?.roles || []),
-      ...Object.values(targetUser?.roleAssignments || {}),
-    ];
-    const canDelete = canDeleteTargetUser(activeRole, targetRoles, isProtected, id === currentUser?.id);
-    if (!canDelete) {
-      showNotification('Permission denied: You can only delete accounts of subordinate rank strictly below your level.', 'warning');
-      return;
-    }
-
-    setDeleteModal({
-      isOpen: true,
-      userId: id,
-      userName: name,
-    });
-  };
-
-  const handleConfirmDeleteUser = async () => {
-    if (!deleteModal.userId) return;
-    setDeletingUserId(deleteModal.userId);
+    if (!confirm(`Remove access for ${name}?`)) return;
+    setDeletingUserId(id);
     try {
-      await deleteUser(deleteModal.userId);
-      setDeleteModal({ isOpen: false });
+      await deleteUser(id);
     } finally {
       setDeletingUserId(null);
     }
@@ -325,7 +271,7 @@ _Please log in and update your password on your first sign-in._`;
   };
 
   // Invite Form state
-  const defaultInviteSite = activeWebsiteId !== 'all' ? activeWebsiteId : (visibleWebsites[0]?.id || websites[0]?.id || '');
+  const defaultInviteSite = activeWebsiteId !== 'all' ? activeWebsiteId : (visibleWebsites[0]?.id || websites[0]?.id || 'site-cloud');
   const [inviteName, setInviteName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteWebsiteId, setInviteWebsiteId] = useState<string>(defaultInviteSite);
@@ -350,18 +296,42 @@ _Please log in and update your password on your first sign-in._`;
     setInviteCustomModules(getDefaultRoleModules(inviteRole));
   };
 
-  // Edit User Form state
+  // Edit User Form state (Supports multi-tenant role assignment)
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
-  const [editRole, setEditRole] = useState<UserRole>('Editor');
-  const [editWebsiteId, setEditWebsiteId] = useState<string>(defaultInviteSite);
+  const [editRoleAssignments, setEditRoleAssignments] = useState<Record<string, UserRole>>({});
+  const [editAddWebsiteId, setEditAddWebsiteId] = useState<string>('');
+  const [editAddRole, setEditAddRole] = useState<UserRole>('Editor');
   const [editManagedRoles, setEditManagedRoles] = useState<UserRole[]>(['Editor', 'Content Writer']);
   const [editStatus, setEditStatus] = useState<'active' | 'suspended'>('active');
   const [editCustomModules, setEditCustomModules] = useState<AppModule[]>([]);
-  const [isSavingUserEdit, setIsSavingUserEdit] = useState(false);
 
-  const handleEditRoleChange = (newRole: UserRole) => {
-    setEditRole(newRole);
-    setEditCustomModules(getDefaultRoleModules(newRole));
+  const handleUpdateTenantRole = (siteId: string, role: UserRole) => {
+    setEditRoleAssignments((prev) => ({
+      ...prev,
+      [siteId]: role,
+    }));
+  };
+
+  const handleRemoveTenantRole = (siteId: string) => {
+    setEditRoleAssignments((prev) => {
+      const copy = { ...prev };
+      delete copy[siteId];
+      return copy;
+    });
+  };
+
+  const handleAddTenantRole = () => {
+    if (!editAddWebsiteId) return;
+    setEditRoleAssignments((prev) => ({
+      ...prev,
+      [editAddWebsiteId]: editAddRole,
+    }));
+    const remaining = visibleWebsites.filter((w) => w.id !== editAddWebsiteId && !editRoleAssignments[w.id]);
+    if (remaining.length > 0) {
+      setEditAddWebsiteId(remaining[0].id);
+    } else {
+      setEditAddWebsiteId('');
+    }
   };
 
   const toggleEditModule = (modId: AppModule) => {
@@ -371,7 +341,13 @@ _Please log in and update your password on your first sign-in._`;
   };
 
   const resetEditModulesToDefault = () => {
-    setEditCustomModules(getDefaultRoleModules(editRole));
+    const defaultMods = new Set<AppModule>();
+    const roles = Object.values(editRoleAssignments);
+    if (roles.length === 0) roles.push('Content Writer');
+    roles.forEach((r) => {
+      getDefaultRoleModules(r).forEach((m) => defaultMods.add(m));
+    });
+    setEditCustomModules(Array.from(defaultMods));
   };
 
   // Share Credentials Modal (WhatsApp / Email / Copy)
@@ -417,63 +393,47 @@ _Please log in and update your password on your first sign-in._`;
 
   const handleOpenEdit = (u: UserAccount, preselectedWebsiteId?: string) => {
     setEditingUser(u);
-    const targetSiteId = preselectedWebsiteId || (activeWebsiteId === 'all' ? (visibleWebsites[0]?.id || websites[0]?.id || '') : activeWebsiteId);
-    setEditWebsiteId(targetSiteId);
-    const assigned = (u.roleAssignments[targetSiteId] || u.roleAssignments['all'] || allowedRoles[0] || 'Content Writer') as UserRole;
-    setEditRole(assigned);
+    const initialAssignments = { ...(u.roleAssignments || {}) };
+    if (preselectedWebsiteId && !initialAssignments[preselectedWebsiteId]) {
+      initialAssignments[preselectedWebsiteId] = allowedRoles[0] || 'Content Writer';
+    }
+    setEditRoleAssignments(initialAssignments);
+
+    // Prepare candidate website for next addition
+    const unassigned = visibleWebsites.filter((w) => !initialAssignments[w.id]);
+    setEditAddWebsiteId(unassigned[0]?.id || visibleWebsites[0]?.id || '');
+    setEditAddRole(allowedRoles[0] || 'Editor');
+
+    const firstRole = Object.values(initialAssignments)[0] || allowedRoles[0] || 'Content Writer';
     setEditManagedRoles(u.managedRoles && u.managedRoles.length > 0 ? u.managedRoles : ['Editor', 'Content Writer']);
     setEditStatus(u.status);
     setEditCustomModules(
       u.customModules && u.customModules.length > 0
         ? [...u.customModules]
-        : getDefaultRoleModules(assigned)
+        : getDefaultRoleModules(firstRole)
     );
   };
 
   const handleSaveUserEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingUser || isSavingUserEdit) return;
+    if (!editingUser) return;
 
-    const isTargetSuperAdmin =
-      editingUser.id === 'usr-superadmin' ||
-      editingUser.email === 'superadmin@jupsoft.com' ||
-      editingUser.roles?.includes('Super Admin') ||
-      editingUser.roleAssignments?.['all'] === 'Super Admin' ||
-      Object.values(editingUser.roleAssignments || {}).includes('Super Admin');
-
-    if (isTargetSuperAdmin && editStatus === 'suspended') {
-      showNotification('Super Admin account status cannot be altered or suspended.', 'warning');
+    if (Object.keys(editRoleAssignments).length === 0) {
+      showNotification('User must have at least one assigned website tenant.', 'warning');
       return;
     }
 
-    if (isTargetSuperAdmin && editRole !== 'Super Admin' && (editWebsiteId === 'all' || !editWebsiteId)) {
-      showNotification('Super Admin master role cannot be revoked or downgraded.', 'warning');
-      return;
-    }
+    const hasRoleAdmin = Object.values(editRoleAssignments).includes('Role Admin');
 
-    setIsSavingUserEdit(true);
-    try {
-      const updatedRoles = {
-        ...editingUser.roleAssignments,
-        [editWebsiteId]: editRole,
-      };
+    await updateUser(editingUser.id, {
+      roleAssignments: editRoleAssignments,
+      managedRoles: hasRoleAdmin ? (editManagedRoles.length > 0 ? editManagedRoles : (['Editor', 'Content Writer'] as UserRole[])) : undefined,
+      customModules: editCustomModules,
+      status: editStatus,
+    });
 
-      const finalModules = Array.from(new Set(['dashboard' as AppModule, ...editCustomModules]));
-
-      await updateUser(editingUser.id, {
-        roleAssignments: updatedRoles,
-        managedRoles: editRole === 'Role Admin' ? (editManagedRoles.length > 0 ? editManagedRoles : (['Editor', 'Content Writer'] as UserRole[])) : undefined,
-        customModules: finalModules,
-        status: editStatus,
-      });
-
-      showNotification(`Updated role and module access for ${editingUser.name}`, 'success');
-      setEditingUser(null);
-    } catch (err: unknown) {
-      showNotification(err instanceof Error ? err.message : 'Failed to update user', 'warning');
-    } finally {
-      setIsSavingUserEdit(false);
-    }
+    showNotification(`Updated tenant role assignments and permissions for ${editingUser.name}`, 'success');
+    setEditingUser(null);
   };
 
   const handleTabChange = (tab: 'hierarchy' | 'directory' | 'matrix') => {
@@ -496,8 +456,6 @@ _Please log in and update your password on your first sign-in._`;
       ? (inviteManagedRoles.length > 0 ? inviteManagedRoles : (['Editor', 'Content Writer'] as UserRole[]))
       : undefined;
 
-    const finalInviteModules = Array.from(new Set(['dashboard' as AppModule, ...inviteCustomModules]));
-
     const newUser: UserAccount = {
       id: `usr-${Date.now()}`,
       name: inviteName.trim(),
@@ -507,7 +465,7 @@ _Please log in and update your password on your first sign-in._`;
         [inviteWebsiteId]: inviteRole,
       },
       managedRoles: assignedManagedRoles,
-      customModules: finalInviteModules,
+      customModules: inviteCustomModules,
       tempPassword: assignedTempPassword,
       status: 'active',
       lastLoginIp: '',
@@ -1112,9 +1070,7 @@ _Please log in and update your password on your first sign-in._`;
                               const siteName = siteId === 'all' ? 'All Sites' : (site?.name || siteId);
                               const isRoleAdmin = role === 'Role Admin';
                               const defaultMods = getDefaultRoleModules(role);
-                              const hasCustomConfig = u.customModules && u.customModules.length > 0;
-                              const customUnlocked = hasCustomConfig ? u.customModules!.filter((m) => !defaultMods.includes(m)) : [];
-                              const customLocked = hasCustomConfig ? defaultMods.filter((m) => m !== 'dashboard' && !u.customModules!.includes(m)) : [];
+                              const customUnlocked = u.customModules?.filter((m) => !defaultMods.includes(m)) || [];
                               return (
                                 <div key={siteId} className="flex flex-col items-start gap-0.5">
                                   <span
@@ -1134,12 +1090,6 @@ _Please log in and update your password on your first sign-in._`;
                                       <span>+{customUnlocked.length} unlocked ({customUnlocked.join(', ')})</span>
                                     </span>
                                   )}
-                                  {customLocked.length > 0 && (
-                                    <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-amber-600 dark:text-amber-400 pl-0.5" title={`Locked: ${customLocked.join(', ')}`}>
-                                      <Lock className="w-2.5 h-2.5" />
-                                      <span>-{customLocked.length} locked ({customLocked.join(', ')})</span>
-                                    </span>
-                                  )}
                                 </div>
                               );
                             })}
@@ -1155,18 +1105,8 @@ _Please log in and update your password on your first sign-in._`;
 
                         <td className="py-3 px-4">
                           {(() => {
-                            const targetIsSuperAdmin =
-                              u.id === 'usr-superadmin' ||
-                              u.email === 'superadmin@jupsoft.com' ||
-                              u.roles?.includes('Super Admin') ||
-                              u.roleAssignments?.['all'] === 'Super Admin' ||
-                              Object.values(u.roleAssignments || {}).includes('Super Admin');
-
-                            const targetRoles = [
-                              ...(u.roles || []),
-                              ...Object.values(u.roleAssignments || {}),
-                            ];
-                            const canManageThisUser = canManageTargetUser(activeRole, targetRoles, targetIsSuperAdmin);
+                            const targetIsSuperAdmin = Object.values(u.roleAssignments || {}).includes('Super Admin');
+                            const canManageThisUser = canManageUsers(activeRole) && (isSuperAdmin || !targetIsSuperAdmin);
 
                             if (canManageThisUser) {
                               return (
@@ -1223,28 +1163,14 @@ _Please log in and update your password on your first sign-in._`;
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             {(() => {
-                              const targetIsSuperAdmin =
-                                u.id === 'usr-superadmin' ||
-                                u.email === 'superadmin@jupsoft.com' ||
-                                u.roles?.includes('Super Admin') ||
-                                u.roleAssignments?.['all'] === 'Super Admin' ||
-                                Object.values(u.roleAssignments || {}).includes('Super Admin');
-
-                              const targetRoles = [
-                                ...(u.roles || []),
-                                ...Object.values(u.roleAssignments || {}),
-                              ];
-
-                              const canManageThisUser = canManageTargetUser(activeRole, targetRoles, targetIsSuperAdmin);
+                              const targetIsSuperAdmin = Object.values(u.roleAssignments || {}).includes('Super Admin');
+                              const canManageThisUser = canManageUsers(activeRole) && (isSuperAdmin || !targetIsSuperAdmin);
 
                               if (!canManageThisUser) {
                                 return (
-                                  <span className="text-[11px] text-slate-400 italic">Read-Only</span>
+                                  <span className="text-[11px] text-slate-400 italic">Protected</span>
                                 );
                               }
-
-                              const isSelf = u.id === currentUser?.id;
-                              const canDeleteThisUser = canDeleteTargetUser(activeRole, targetRoles, targetIsSuperAdmin, isSelf);
 
                               return (
                                 <>
@@ -1272,23 +1198,14 @@ _Please log in and update your password on your first sign-in._`;
                                     <Edit3 className="w-3.5 h-3.5" />
                                   </button>
 
-                                  {targetIsSuperAdmin ? (
-                                    <span
-                                      title="Protected Master Super Admin (Cannot be deleted or revoked)"
-                                      className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 inline-flex items-center justify-center cursor-default"
-                                    >
-                                      <ShieldCheck className="w-3.5 h-3.5" />
-                                    </span>
-                                  ) : canDeleteThisUser ? (
-                                    <button
-                                      disabled={deletingUserId === u.id}
-                                      onClick={() => handleDeleteUser(u.id, u.name)}
-                                      title="Revoke Member"
-                                      className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer border border-rose-200 dark:border-rose-800/60 disabled:opacity-50"
-                                    >
-                                      <Trash2 className={`w-3.5 h-3.5 ${deletingUserId === u.id ? 'animate-spin' : ''}`} />
-                                    </button>
-                                  ) : null}
+                                  <button
+                                    disabled={deletingUserId === u.id}
+                                    onClick={() => handleDeleteUser(u.id, u.name)}
+                                    title="Revoke Member"
+                                    className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer border border-rose-200 dark:border-rose-800/60 disabled:opacity-50"
+                                  >
+                                    <Trash2 className={`w-3.5 h-3.5 ${deletingUserId === u.id ? 'animate-spin' : ''}`} />
+                                  </button>
                                 </>
                               );
                             })()}
@@ -1701,17 +1618,13 @@ _Please log in and update your password on your first sign-in._`;
                           <div className="mt-1 flex items-center gap-1 text-[9px] font-semibold">
                             {isCurrentlyAllowed ? (
                               isCustomUnlocked ? (
-                                <span className="text-indigo-600 dark:text-indigo-400 group-hover:text-red-500 transition-colors">
-                                  ✨ Custom Unlocked <span className="text-[8px] opacity-80">(Click to turn OFF)</span>
-                                </span>
+                                <span className="text-indigo-600 dark:text-indigo-400">✨ Custom Unlocked</span>
                               ) : (
-                                <span className="text-emerald-600 dark:text-emerald-400 group-hover:text-red-500 transition-colors">
-                                  Role Default <span className="text-[8px] opacity-80">(Click to turn OFF)</span>
-                                </span>
+                                <span className="text-emerald-600 dark:text-emerald-400">Role Default</span>
                               )
                             ) : (
-                              <span className="text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                                🔒 Locked <span className="text-[8px] font-bold underline">(Click to turn ON)</span>
+                              <span className="text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                Click to unlock
                               </span>
                             )}
                           </div>
@@ -1937,56 +1850,139 @@ _Please log in and update your password on your first sign-in._`;
                 </span>
               </div>
 
-              {/* Tenant Scope & Assigned Role (2-column grid) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Tenant Scope
-                  </label>
-                  <select
-                    value={editWebsiteId}
-                    onChange={(e) => {
-                      const newWebId = e.target.value;
-                      setEditWebsiteId(newWebId);
-                      if (editingUser) {
-                        const newRole = (editingUser.roleAssignments[newWebId] || editingUser.roleAssignments['all'] || allowedRoles[0] || 'Content Writer') as UserRole;
-                        setEditRole(newRole);
-                        setEditCustomModules(
-                          editingUser.customModules && editingUser.customModules.length > 0
-                            ? [...editingUser.customModules]
-                            : getDefaultRoleModules(newRole)
-                        );
-                      }
-                    }}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
-                  >
-                    {isSuperAdmin && (
-                      <option value="all">All Websites (Network Wide)</option>
-                    )}
-                    {visibleWebsites.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name} ({w.domain})
-                      </option>
-                    ))}
-                  </select>
+              {/* Multi-Tenant Website Scopes & Role Assignments */}
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200/70 dark:border-slate-800">
+                  <div>
+                    <label className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
+                      <Network className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                      <span>Assigned Website Tenants &amp; Scoped Roles</span>
+                    </label>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      Control which websites this user ID has access to and their exact role per tenant.
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                    {Object.keys(editRoleAssignments).length} Assigned
+                  </span>
                 </div>
 
-                <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Assigned Role for this Scope
-                  </label>
-                  <select
-                    value={editRole}
-                    onChange={(e) => handleEditRoleChange(e.target.value as UserRole)}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
-                  >
-                    {allowedRoles.map((role) => (
-                      <option key={role} value={role}>
-                        {role}
-                      </option>
-                    ))}
-                  </select>
+                {/* List of currently assigned websites */}
+                <div className="space-y-2">
+                  {Object.entries(editRoleAssignments).length === 0 ? (
+                    <div className="p-3 text-center text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-900/40">
+                      No websites assigned yet. Please assign at least one website tenant below.
+                    </div>
+                  ) : (
+                    Object.entries(editRoleAssignments).map(([siteId, role]) => {
+                      const site = websites.find((w) => w.id === siteId);
+                      const siteName = siteId === 'all' ? 'All Websites (Network Wide)' : (site?.name || siteId);
+                      const siteDomain = siteId === 'all' ? 'Global Network Scope' : (site?.domain || '');
+
+                      return (
+                        <div
+                          key={siteId}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-2xs"
+                        >
+                          <div className="min-w-0 flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-md bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
+                              <Globe className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                                {siteName}
+                              </div>
+                              {siteDomain && (
+                                <div className="text-[10px] text-slate-400 font-mono truncate">
+                                  {siteDomain}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <select
+                              value={role}
+                              onChange={(e) => handleUpdateTenantRole(siteId, e.target.value as UserRole)}
+                              className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none"
+                            >
+                              {allowedRoles.map((r) => (
+                                <option key={r} value={r}>
+                                  {r}
+                                </option>
+                              ))}
+                            </select>
+
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTenantRole(siteId)}
+                              title="Revoke access to this website"
+                              className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
+
+                {/* Inline form to assign another website */}
+                {visibleWebsites.filter((w) => !editRoleAssignments[w.id]).length > 0 && (
+                  <div className="pt-2.5 border-t border-slate-200/70 dark:border-slate-800/80">
+                    <span className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                      + Add Website Scope to this User:
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                      <div className="sm:col-span-6">
+                        <select
+                          value={editAddWebsiteId}
+                          onChange={(e) => setEditAddWebsiteId(e.target.value)}
+                          className="w-full bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none"
+                        >
+                          <option value="" disabled>Select website tenant...</option>
+                          {isSuperAdmin && !editRoleAssignments['all'] && (
+                            <option value="all">All Websites (Network Wide)</option>
+                          )}
+                          {visibleWebsites
+                            .filter((w) => !editRoleAssignments[w.id])
+                            .map((w) => (
+                              <option key={w.id} value={w.id}>
+                                {w.name} ({w.domain})
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+
+                      <div className="sm:col-span-4">
+                        <select
+                          value={editAddRole}
+                          onChange={(e) => setEditAddRole(e.target.value as UserRole)}
+                          className="w-full bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none"
+                        >
+                          {allowedRoles.map((r) => (
+                            <option key={r} value={r}>
+                              {r}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <button
+                          type="button"
+                          onClick={handleAddTenantRole}
+                          disabled={!editAddWebsiteId}
+                          className="w-full h-full py-1.5 px-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1 shadow-2xs transition-colors cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Assign</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Plugin & Module Capabilities with Super Admin Granular Unlock */}
@@ -1995,10 +1991,10 @@ _Please log in and update your password on your first sign-in._`;
                   <div>
                     <label className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
                       <Boxes className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                      <span>Modular Permissions &amp; Feature Access for &ldquo;{editRole}&rdquo;</span>
+                      <span>Modular Permissions &amp; Feature Access</span>
                     </label>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      Super Admin can click any locked module below to unlock custom access.
+                      Super Admin can click any locked module below to unlock custom access across assigned tenants.
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -2019,7 +2015,9 @@ _Please log in and update your password on your first sign-in._`;
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                   {PLUGIN_MODULES.map((mod) => {
-                    const isRoleDefault = getDefaultRoleModules(editRole).includes(mod.id);
+                    const isRoleDefault = Object.values(editRoleAssignments).some((r) =>
+                      getDefaultRoleModules(r).includes(mod.id)
+                    );
                     const isCurrentlyAllowed = editCustomModules.includes(mod.id);
                     const isCustomUnlocked = isCurrentlyAllowed && !isRoleDefault;
                     const ModIcon = mod.icon;
@@ -2077,17 +2075,13 @@ _Please log in and update your password on your first sign-in._`;
                           <div className="mt-1 flex items-center gap-1 text-[9px] font-semibold">
                             {isCurrentlyAllowed ? (
                               isCustomUnlocked ? (
-                                <span className="text-indigo-600 dark:text-indigo-400 group-hover:text-red-500 transition-colors">
-                                  ✨ Custom Unlocked <span className="text-[8px] opacity-80">(Click to turn OFF)</span>
-                                </span>
+                                <span className="text-indigo-600 dark:text-indigo-400">✨ Custom Unlocked</span>
                               ) : (
-                                <span className="text-emerald-600 dark:text-emerald-400 group-hover:text-red-500 transition-colors">
-                                  Role Default <span className="text-[8px] opacity-80">(Click to turn OFF)</span>
-                                </span>
+                                <span className="text-emerald-600 dark:text-emerald-400">Role Default</span>
                               )
                             ) : (
-                              <span className="text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                                🔒 Locked <span className="text-[8px] font-bold underline">(Click to turn ON)</span>
+                              <span className="text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                Click to unlock
                               </span>
                             )}
                           </div>
@@ -2099,7 +2093,7 @@ _Please log in and update your password on your first sign-in._`;
               </div>
 
               {/* Role Admin Managed Roles Scope in Edit Modal */}
-              {editRole === 'Role Admin' && (
+              {Object.values(editRoleAssignments).includes('Role Admin') && (
                 <div className="p-3.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/60 space-y-2.5 animate-in fade-in duration-150">
                   <div className="flex items-center justify-between">
                     <label className="font-bold text-blue-950 dark:text-blue-200 text-xs flex items-center gap-1.5">
@@ -2203,24 +2197,8 @@ _Please log in and update your password on your first sign-in._`;
                   </button>
                   <button
                     type="button"
-                    disabled={
-                      editingUser.id === 'usr-superadmin' ||
-                      editingUser.email === 'superadmin@jupsoft.com' ||
-                      editingUser.roles?.includes('Super Admin') ||
-                      editingUser.roleAssignments?.['all'] === 'Super Admin' ||
-                      Object.values(editingUser.roleAssignments || {}).includes('Super Admin')
-                    }
                     onClick={() => setEditStatus('suspended')}
-                    title={
-                      editingUser.id === 'usr-superadmin' ||
-                      editingUser.email === 'superadmin@jupsoft.com' ||
-                      editingUser.roles?.includes('Super Admin') ||
-                      editingUser.roleAssignments?.['all'] === 'Super Admin' ||
-                      Object.values(editingUser.roleAssignments || {}).includes('Super Admin')
-                        ? 'Super Admin accounts cannot be suspended'
-                        : 'Suspend Account'
-                    }
-                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-xs font-semibold cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-xs font-semibold cursor-pointer transition-colors ${
                       editStatus === 'suspended'
                         ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800'
                         : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
@@ -2234,86 +2212,21 @@ _Please log in and update your password on your first sign-in._`;
             </form>
 
             {/* Sticky Fixed Footer */}
-            <div className="flex items-center justify-between gap-2.5 px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/90 shrink-0 backdrop-blur-xs">
-              <div>
-                {(() => {
-                  const isEditingSuperAdmin =
-                    editingUser.id === 'usr-superadmin' ||
-                    editingUser.email === 'superadmin@jupsoft.com' ||
-                    editingUser.roles?.includes('Super Admin') ||
-                    editingUser.roleAssignments?.['all'] === 'Super Admin' ||
-                    Object.values(editingUser.roleAssignments || {}).includes('Super Admin');
-
-                  if (isEditingSuperAdmin) {
-                    return (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 font-semibold text-xs">
-                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                        <span>Protected Master Account</span>
-                      </span>
-                    );
-                  }
-
-                  const targetRoles = [
-                    ...(editingUser.roles || []),
-                    ...Object.values(editingUser.roleAssignments || {}),
-                  ];
-                  const isSelf = editingUser.id === currentUser?.id;
-                  const canDelete = canDeleteTargetUser(activeRole, targetRoles, isEditingSuperAdmin, isSelf);
-
-                  if (canDelete) {
-                    return (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const u = editingUser;
-                          setEditingUser(null);
-                          handleDeleteUser(u.id, u.name);
-                        }}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 border border-rose-200 dark:border-rose-900/60 font-semibold text-xs transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Delete User</span>
-                      </button>
-                    );
-                  }
-
-                  return (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 text-xs">
-                      <Lock className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Deletion Restricted (Read-Only)</span>
-                    </span>
-                  );
-                })()}
-              </div>
-
-              <div className="flex items-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setEditingUser(null)}
-                  className="px-4 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium cursor-pointer transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  form="edit-user-form"
-                  disabled={isSavingUserEdit}
-                  className={`px-5 py-2 rounded-xl text-white font-bold text-xs shadow-xs transition-all flex items-center gap-2 ${
-                    isSavingUserEdit
-                      ? 'bg-red-400 cursor-not-allowed opacity-80'
-                      : 'bg-red-600 hover:bg-red-700 cursor-pointer'
-                  }`}
-                >
-                  {isSavingUserEdit ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Saving Changes...</span>
-                    </>
-                  ) : (
-                    <span>Save Changes</span>
-                  )}
-                </button>
-              </div>
+            <div className="flex items-center justify-end gap-2.5 px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/90 shrink-0 backdrop-blur-xs">
+              <button
+                type="button"
+                onClick={() => setEditingUser(null)}
+                className="px-4 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="edit-user-form"
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs cursor-pointer shadow-xs transition-colors"
+              >
+                Save Changes
+              </button>
             </div>
           </div>
         </div>
@@ -2501,19 +2414,6 @@ _Please log in and update your password on your first sign-in._`;
           </div>
         </div>
       )}
-
-      {/* Custom Delete Confirmation Modal */}
-      <DeleteConfirmModal
-        isOpen={deleteModal.isOpen}
-        title="Revoke Member Access"
-        itemName={deleteModal.userName}
-        itemType="user"
-        message="Are you sure you want to revoke access for this user? They will lose all permissions and access to their assigned websites."
-        confirmText="Revoke Access"
-        isLoading={Boolean(deletingUserId)}
-        onConfirm={handleConfirmDeleteUser}
-        onClose={() => setDeleteModal({ isOpen: false })}
-      />
     </div>
   );
 };

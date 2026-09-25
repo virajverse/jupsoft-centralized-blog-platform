@@ -36,19 +36,20 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
     return cookieToken || localStorage.getItem('jupsoft_auth_token');
   };
 
-  const initialDataLoadedRef = React.useRef(false);
+  const initialDataLoadedRef = React.useRef<string | null>(null);
 
   useEffect(() => {
     const token = getActiveToken();
     if (!token || token.startsWith('offline_token_')) {
+      initialDataLoadedRef.current = null;
       if (isAuthenticated || (token && token.startsWith('offline_token_'))) {
         useBlogStore.getState().logout();
       }
       const loginUrl = pathname ? `/login?redirect=${encodeURIComponent(pathname)}` : '/login';
       router.replace(loginUrl);
     } else {
-      if (!initialDataLoadedRef.current) {
-        initialDataLoadedRef.current = true;
+      if (initialDataLoadedRef.current !== token) {
+        initialDataLoadedRef.current = token;
         useBlogStore.getState().loadInitialData();
       }
     }

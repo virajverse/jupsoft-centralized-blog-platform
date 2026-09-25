@@ -17,29 +17,10 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisProvider } from '../../common/providers/redis.provider';
 
-/** P1: marker cached for recently-404ed slugs so scanners can't hammer Postgres. */
-const NOT_FOUND_MARKER = '__NOT_FOUND__';
-const NOT_FOUND_TTL_SECONDS = 30;
-
 @Injectable()
 export class PublicV1Service {
   private readonly logger = new Logger(PublicV1Service.name);
   private mediaBaseUrl: string;
-
-  // ─── P1: Request Coalescing (single-flight) ───────────────────────────────
-  // Concurrent cache-misses for the same key share ONE database resolution
-  // instead of stampeding Postgres (hot article + cold cache scenario).
-  private readonly inflight = new Map<string, Promise<unknown>>();
-
-  private coalesce<T>(key: string, factory: () => Promise<T>): Promise<T> {
-    const existing = this.inflight.get(key);
-    if (existing) return existing as Promise<T>;
-    const pending = factory().finally(() => {
-      this.inflight.delete(key);
-    });
-    this.inflight.set(key, pending);
-    return pending;
-  }
 
   constructor(
     private prisma: PrismaService,
@@ -103,11 +84,7 @@ export class PublicV1Service {
     const skip = (safePage - 1) * safeLimit;
 
     // TRD §13: Check Redis first (keyed with page, limit, lang, category, and tag)
-    // P1: generation-prefixed key → O(1) namespace invalidation
-    const cacheKey = await this.redis.nsKey(
-      'blogs',
-      `${websiteId}:${safePage}:${safeLimit}:${lang}${category ? `:cat-${category}` : ''}${tag ? `:tag-${tag}` : ''}`,
-    );
+    const cacheKey = `blogs:${websiteId}:${safePage}:${safeLimit}:${lang}${category ? `:cat-${category}` : ''}${tag ? `:tag-${tag}` : ''}`;
     if (!bypassCache) {
       const cached = await this.redis.get<unknown>(cacheKey);
       if (cached) return cached;
@@ -139,43 +116,40 @@ export class PublicV1Service {
       ];
     }
 
-    // P1: coalesce concurrent identical list misses into ONE DB query pair
-    const [total, blogs] = await this.coalesce(`q:${cacheKey}`, () =>
-      Promise.all([
-        this.prisma.blog.count({ where }),
-        this.prisma.blog.findMany({
-          where,
-          skip,
-          take: safeLimit,
-          orderBy: { publishDate: 'desc' },
-          include: {
-            translations: {
-              select: {
-                id: true,
-                lang: true,
-                slug: true,
-                title: true,
-                excerpt: true,
-                metaTitle: true,
-                metaDescription: true,
-                canonicalUrl: true,
-              },
-            },
-            website: { select: { domain: true, name: true } },
-            blogCategories: {
-              include: {
-                category: { select: { id: true, name: true, slug: true } },
-              },
-            },
-            blogTags: {
-              include: {
-                tag: { select: { id: true, name: true, slug: true } },
-              },
+    const [total, blogs] = await Promise.all([
+      this.prisma.blog.count({ where }),
+      this.prisma.blog.findMany({
+        where,
+        skip,
+        take: safeLimit,
+        orderBy: { publishDate: 'desc' },
+        include: {
+          translations: {
+            select: {
+              id: true,
+              lang: true,
+              slug: true,
+              title: true,
+              excerpt: true,
+              metaTitle: true,
+              metaDescription: true,
+              canonicalUrl: true,
             },
           },
-        }),
-      ]),
-    );
+          website: { select: { domain: true, name: true } },
+          blogCategories: {
+            include: {
+              category: { select: { id: true, name: true, slug: true } },
+            },
+          },
+          blogTags: {
+            include: {
+              tag: { select: { id: true, name: true, slug: true } },
+            },
+          },
+        },
+      }),
+    ]);
 
     const data = blogs.map((b) => {
       const tr =
@@ -194,7 +168,6 @@ export class PublicV1Service {
         authorName: this.cleanAuthorName(b.authorName),
         authorAvatar: b.authorAvatar ? this.normalizeMediaUrl(b.authorAvatar) : '',
         publishedAt: b.publishDate?.toISOString(),
-        publishDate: b.publishDate?.toISOString(),
         readTimeMinutes: b.readTimeMinutes,
         categories: cats,
         primaryCategory: cats[0]?.name || '',
@@ -215,8 +188,8 @@ export class PublicV1Service {
       data,
     };
 
-    // TRD §16: Populate cache — TTL 60s for lists
-    await this.redis.set(cacheKey, result, 60);
+    // TRD §16: Populate cache — TTL 300s for lists
+    await this.redis.set(cacheKey, result, 300);
     return result;
   }
 
@@ -259,7 +232,6 @@ export class PublicV1Service {
       ...(redirect ? { redirect } : {}),
       data: {
         id: b.id,
-        lang: translation.lang,
         slug: translation.slug,
         title: translation.title,
         content: translation.content,
@@ -269,14 +241,12 @@ export class PublicV1Service {
         authorName: this.cleanAuthorName(b.authorName),
         authorAvatar: b.authorAvatar ? this.normalizeMediaUrl(b.authorAvatar) : '',
         publishedAt: b.publishDate instanceof Date ? b.publishDate.toISOString() : b.publishDate,
-        publishDate: b.publishDate instanceof Date ? b.publishDate.toISOString() : b.publishDate,
         readTimeMinutes: b.readTimeMinutes,
         categories: cats,
         primaryCategory: cats[0]?.name || '',
         tags: tags,
         categoryIds: b.categoryIds || [],
         tagIds: b.tagIds || [],
-        translations: b.translations || [],
         // TRD §11 SEO fields
         seo: {
           metaTitle: translation.metaTitle || translation.title,
@@ -314,36 +284,12 @@ export class PublicV1Service {
     };
   }
 
-  // ─── TRD §13: key format blog:{website}:{slug}:{lang} (generation-prefixed)
-  async getBlogBySlug(slug: string, websiteId: string, lang = 'en', bypassCache = false, isExplicitLang = false) {
-    // P1: generation-prefixed key → O(1) invalidation, no SCAN
-    const cacheKey = await this.redis.nsKey('blog', `${websiteId}:${slug}:${isExplicitLang ? lang : 'auto'}`);
+  // ─── TRD §13: key format blog:{website}:{slug}:{lang}
+  async getBlogBySlug(slug: string, websiteId: string, lang = 'en', bypassCache = false, hasExplicitLang = false) {
+    // TRD §13: "checks Redis first (key: blog:{website}:{slug}:{lang})"
+    const cacheKey = `blog:${websiteId}:${slug}:${lang}`;
     if (!bypassCache) {
       const cached = await this.redis.get<unknown>(cacheKey);
-      if (cached === NOT_FOUND_MARKER) {
-        throw new NotFoundException(`No published article found for slug "${slug}"`);
-      }
-      if (cached) return cached;
-    }
-
-    // P1: request coalescing — N concurrent misses share ONE DB resolution
-    return this.coalesce(cacheKey, () => this.loadBlogBySlug(slug, websiteId, lang, cacheKey, bypassCache, isExplicitLang));
-  }
-
-  private async loadBlogBySlug(
-    slug: string,
-    websiteId: string,
-    lang: string,
-    cacheKey: string,
-    bypassCache = false,
-    isExplicitLang = false,
-  ) {
-    // Re-check: a concurrent request may have populated the cache while we queued
-    if (!bypassCache) {
-      const cached = await this.redis.get<unknown>(cacheKey);
-      if (cached === NOT_FOUND_MARKER) {
-        throw new NotFoundException(`No published article found for slug "${slug}"`);
-      }
       if (cached) return cached;
     }
 
@@ -374,10 +320,7 @@ export class PublicV1Service {
       },
       include: {
         blog: {
-          include: {
-            ...blogIncludes,
-            translations: true,
-          },
+          include: blogIncludes,
         },
       },
     });
@@ -403,19 +346,10 @@ export class PublicV1Service {
       });
 
       if (matchAny) {
-        let resolved: any = matchAny;
-        // If caller explicitly requested another language via ?lang=..., switch to it if present
-        if (isExplicitLang && lang && lang !== matchAny.lang) {
-          const explicitMatch = matchAny.blog.translations.find((t: any) => t.lang === lang);
-          if (explicitMatch) {
-            const fullMatch = await this.prisma.blogTranslation.findFirst({
-              where: { blogId: matchAny.blog.id, lang },
-            });
-            if (fullMatch) {
-              resolved = fullMatch;
-            }
-          }
-        }
+        const resolved =
+          matchAny.blog.translations.find((t) => t.lang === lang) ||
+          matchAny.blog.translations.find((t) => t.lang === 'en') ||
+          matchAny;
 
         translation = {
           ...resolved,
@@ -498,14 +432,12 @@ export class PublicV1Service {
         }
       }
 
-      // P1: negative caching — absorb scanner/bot storms for nonexistent slugs
-      await this.redis.set(cacheKey, NOT_FOUND_MARKER, NOT_FOUND_TTL_SECONDS);
       throw new NotFoundException(`No published article found for slug "${slug}"`);
     }
 
     const result = await this.formatBlogDetail(translation);
-    // TRD §16: Populate cache — TTL 300s for individual blog detail (responsive updates)
-    await this.redis.set(cacheKey, result, 300);
+    // TRD §16: Populate cache — TTL 3600s for individual blog detail
+    await this.redis.set(cacheKey, result, 3600);
     return result;
   }
 
@@ -556,12 +488,11 @@ export class PublicV1Service {
       return { success: true, query, meta: { count: 0 }, data: [] };
     }
 
-    const cacheKey = await this.redis.nsKey('search', `${websiteId}:${encodeURIComponent(query)}:${lang}:${safeLimit}`);
+    const cacheKey = `search:${websiteId}:${encodeURIComponent(query)}:${lang}:${safeLimit}`;
     const cached = await this.redis.get<unknown>(cacheKey);
     if (cached) return cached;
 
-    // Assigned on every reachable path (FTS success, ilike fallback, or rethrow)
-    let matches: any[];
+    let matches: any[] = [];
 
     try {
       // ── Primary: PostgreSQL FTS via tsvector + plainto_tsquery ──────────
@@ -651,7 +582,7 @@ export class PublicV1Service {
 
   // ─── TRD §12: GET /blogs/latest?website= (Latest published articles)
   async getLatestBlogs(websiteId: string, lang = 'en', limit = 5) {
-    const cacheKey = await this.redis.nsKey('blogs', `${websiteId}:latest:${lang}:${limit}`);
+    const cacheKey = `blogs:${websiteId}:latest:${lang}:${limit}`;
     const cached = await this.redis.get<unknown>(cacheKey);
     if (cached) return cached;
 
@@ -690,7 +621,7 @@ export class PublicV1Service {
 
   // ─── TRD §12: GET /blogs/popular?website= (Most-viewed published articles)
   async getPopularBlogs(websiteId: string, lang = 'en', limit = 5) {
-    const cacheKey = await this.redis.nsKey('blogs', `${websiteId}:popular:${lang}:${limit}`);
+    const cacheKey = `blogs:${websiteId}:popular:${lang}:${limit}`;
     const cached = await this.redis.get<unknown>(cacheKey);
     if (cached) return cached;
 
@@ -753,13 +684,12 @@ export class PublicV1Service {
   // TRD §13: "On publish/update, a webhook triggers on-demand revalidation"
   // Redis keys are also invalidated so next hit reads fresh data from Postgres.
   async invalidateBlogCache(websiteId: string, slug: string): Promise<void> {
-    // P1: O(1) generation bumps instead of SCAN-based delPattern.
-    // (Bumping the namespace also clears negative-cache markers for it.)
-    void websiteId;
-    void slug;
-    await this.redis.invalidateNamespace('blog');
-    await this.redis.invalidateNamespace('blogs');
-    await this.redis.invalidateNamespace('search');
+    // Invalidate all lang variants of this specific blog
+    await this.redis.delPattern(`blog:${websiteId}:${slug}:*`);
+    // Invalidate all paginated list caches for this website
+    await this.redis.delPattern(`blogs:${websiteId}:*`);
+    // Invalidate search cache for this website
+    await this.redis.delPattern(`search:${websiteId}:*`);
   }
 
   async invalidateTaxonomyCache(websiteId: string): Promise<void> {
