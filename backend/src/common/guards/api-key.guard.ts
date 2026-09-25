@@ -129,6 +129,11 @@ export class ApiKeyGuard implements CanActivate {
           const siteName = (website.name || '').toLowerCase();
           const sitePrefix = (website.s3Prefix || '').toLowerCase().replace(/\/+$/, '');
 
+          // Cross-environment parity: test1.jupsoft.in, jupsoft.com, and www.jupsoft.com are seamless aliases for Jupsoft tenants
+          const isJupsoftCrossDomain =
+            (siteDomain === 'test1.jupsoft.in' || siteDomain === 'jupsoft.com') &&
+            (cleanParam === 'test1.jupsoft.in' || cleanParam === 'jupsoft.com' || cleanParam === 'www.jupsoft.com' || cleanParam === 'jupsoft' || cleanParam === 'site-jupsoft-test' || cleanParam === 'site-jupsoft');
+
           const matches =
             website.id === param ||
             cleanParam === siteDomain ||
@@ -136,7 +141,8 @@ export class ApiKeyGuard implements CanActivate {
             siteDomain === cleanParam.replace(/^www\./, '') ||
             cleanParam.endsWith('.' + siteDomain) ||
             cleanParam === siteName ||
-            (sitePrefix && cleanParam === sitePrefix);
+            (sitePrefix && cleanParam === sitePrefix) ||
+            isJupsoftCrossDomain;
 
           if (!matches) {
             throw new ForbiddenException(
@@ -202,16 +208,49 @@ export class ApiKeyGuard implements CanActivate {
       let website = cachedSite && cachedSite.expiresAt > now ? cachedSite.website : null;
 
       if (!website) {
+        const cleanParam = websiteParam.toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '').split('/')[0].split(':')[0];
+        const cleanParamNoWww = cleanParam.replace(/^www\./, '');
+
+        // 1. Exact match on ID or exact domain (prevent partial contains matching cloud.jupsoft.com)
         website = await this.prisma.website.findFirst({
           where: {
             OR: [
               { id: websiteParam },
-              { domain: { contains: websiteParam, mode: 'insensitive' } },
-              { name: { contains: websiteParam, mode: 'insensitive' } },
-              { s3Prefix: websiteParam },
+              { domain: { equals: cleanParam, mode: 'insensitive' } },
+              { domain: { equals: cleanParamNoWww, mode: 'insensitive' } },
+              { domain: { equals: 'www.' + cleanParamNoWww, mode: 'insensitive' } },
             ],
           },
         });
+
+        // 2. Exact match fallback for jupsoft.com / jupsoft alias
+        if (!website && (cleanParamNoWww === 'jupsoft.com' || cleanParamNoWww === 'jupsoft')) {
+          website = await this.prisma.website.findFirst({
+            where: {
+              OR: [
+                { id: 'site-jupsoft' },
+                { id: 'site-jupsoft-test' },
+                { domain: 'jupsoft.com' },
+                { domain: 'test1.jupsoft.in' },
+              ],
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+        }
+
+        // 3. Fallback to name or prefix if still not found
+        if (!website) {
+          website = await this.prisma.website.findFirst({
+            where: {
+              OR: [
+                { name: { equals: websiteParam, mode: 'insensitive' } },
+                { s3Prefix: websiteParam },
+                { domain: { contains: websiteParam, mode: 'insensitive' } },
+              ],
+            },
+          });
+        }
+
         if (website) {
           tenantCache.set(siteCacheKey, { website, expiresAt: now + 300_000 });
         }
@@ -247,6 +286,7 @@ export class ApiKeyGuard implements CanActivate {
 
       const isAuthorizedDomain =
         Boolean(callerHost && targetDomain && (callerHost === targetDomain || callerHost.endsWith('.' + targetDomain))) ||
+        (Boolean(callerHost) && (callerHost === 'jupsoft.com' || callerHost.endsWith('.jupsoft.com') || callerHost === 'test1.jupsoft.in')) ||
         isLocalhost ||
         callerHost.endsWith('.netlify.app') ||
         callerHost.endsWith('.vercel.app') ||
