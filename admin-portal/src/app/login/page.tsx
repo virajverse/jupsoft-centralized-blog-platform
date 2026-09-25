@@ -51,6 +51,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [gisRendered, setGisRendered] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const googleBtnRef = useRef<HTMLDivElement>(null);
 
@@ -105,6 +106,7 @@ export default function LoginPage() {
           width: 320,
           logo_alignment: 'left',
         });
+        setGisRendered(true);
       }
     } catch (err) {
       console.warn('Google Identity Services initialization warning:', err);
@@ -312,20 +314,22 @@ export default function LoginPage() {
             {/* Google Sign-In Area */}
             <div className="space-y-2">
               {/* Native Google GIS Render Target */}
-              <div ref={googleBtnRef} className="w-full flex justify-center empty:hidden" />
+              <div ref={googleBtnRef} className="w-full flex justify-center empty:hidden min-h-[40px]" />
 
-              {/* Custom Google Button Fallback / Interactive Trigger */}
-              <button
-                type="button"
-                onClick={handleManualGoogleClick}
-                disabled={loading || googleLoading}
-                className="w-full flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-700 disabled:opacity-50 transition-all shadow-xs cursor-pointer"
-              >
-                <GoogleIcon />
-                <span>
-                  {googleLoading ? 'Verifying Google Account...' : 'Sign in with Google'}
-                </span>
-              </button>
+              {/* Custom Google Button Fallback / Interactive Trigger (shown if GIS is loading or not rendered) */}
+              {!gisRendered && (
+                <button
+                  type="button"
+                  onClick={handleManualGoogleClick}
+                  disabled={loading || googleLoading}
+                  className="w-full flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-700 disabled:opacity-50 transition-all shadow-xs cursor-pointer"
+                >
+                  <GoogleIcon />
+                  <span>
+                    {googleLoading ? 'Verifying Google Account...' : 'Sign in with Google'}
+                  </span>
+                </button>
+              )}
 
               <p className="text-[10px] text-center text-slate-400 dark:text-slate-500 leading-tight">
                 Google Sign-In is strictly restricted to pre-registered team members.

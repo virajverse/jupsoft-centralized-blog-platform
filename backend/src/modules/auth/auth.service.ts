@@ -162,10 +162,13 @@ export class AuthService {
       throw new BadRequestException('Google credential token is required');
     }
 
-    // 1. Verify token with Google's OAuth2 verification endpoint
+    // 1. Verify token with Google's OAuth2 verification endpoint (with 6s timeout)
     let googleUser: any;
     try {
-      const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(dto.credential)}`);
+      const res = await fetch(
+        `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(dto.credential)}`,
+        { signal: AbortSignal.timeout(6000) },
+      );
       if (!res.ok) {
         const errData: any = await res.json().catch(() => ({}));
         throw new UnauthorizedException(errData.error_description || 'Invalid Google credential token');
@@ -173,7 +176,24 @@ export class AuthService {
       googleUser = await res.json();
     } catch (err: any) {
       if (err instanceof UnauthorizedException) throw err;
+      if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
+        throw new UnauthorizedException('Google authentication verification timed out. Please try again.');
+      }
       throw new UnauthorizedException(`Failed to verify Google token: ${err.message}`);
+    }
+
+    // 2. Validate Token Issuer (iss)
+    if (
+      googleUser.iss !== 'accounts.google.com' &&
+      googleUser.iss !== 'https://accounts.google.com'
+    ) {
+      this.logger.warn(`Google token invalid issuer: ${googleUser.iss}`);
+      throw new UnauthorizedException('Invalid Google token issuer');
+    }
+
+    // 3. Validate Token Expiration (exp)
+    if (googleUser.exp && Number(googleUser.exp) < Math.floor(Date.now() / 1000)) {
+      throw new UnauthorizedException('Google token has expired');
     }
 
     const email = (googleUser.email || '').toLowerCase().trim();
@@ -183,11 +203,16 @@ export class AuthService {
       throw new UnauthorizedException('Google account email is not verified by Google');
     }
 
-    // Verify Google Client ID (aud) if configured in backend environment
+    // 4. Verify Google Client ID (aud) if configured in backend environment
     const configuredClientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
-    if (configuredClientId && googleUser.aud && googleUser.aud !== configuredClientId) {
-      this.logger.warn(`Google token audience mismatch: expected ${configuredClientId}, got ${googleUser.aud}`);
-      throw new UnauthorizedException('Google client ID mismatch');
+    if (configuredClientId) {
+      const allowedClientIds = configuredClientId.split(',').map((id) => id.trim()).filter(Boolean);
+      if (allowedClientIds.length > 0 && (!googleUser.aud || !allowedClientIds.includes(googleUser.aud))) {
+        this.logger.warn(
+          `Google token audience mismatch: expected one of [${allowedClientIds.join(', ')}], got ${googleUser.aud}`,
+        );
+        throw new UnauthorizedException('Google client ID mismatch');
+      }
     }
 
     // 2. STRICT WHITELIST: User MUST already exist in database
