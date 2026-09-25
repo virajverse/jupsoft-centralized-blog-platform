@@ -191,8 +191,7 @@ describe('Pipeline: SEO, Schema.org JSON-LD & Consumer Delivery (TRD §11, §12)
       mockPrisma.blogTranslation.findFirst.mockResolvedValueOnce(null);
       // Fallback query across all languages finds English
       mockPrisma.blogTranslation.findFirst.mockResolvedValueOnce({
-        lang: 'en',
-        slug: 'geo-search-engine-optimization-2026',
+        ...fullMockBlog.translations[0],
         blog: fullMockBlog,
       });
 
