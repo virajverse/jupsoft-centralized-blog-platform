@@ -22,9 +22,11 @@ import {
   Settings, 
   ShieldCheck, 
   Zap, 
+  ChevronRight,
   Shield,
   KeyRound,
   CheckCircle2,
+  Lock,
   Cpu
 } from 'lucide-react';
 

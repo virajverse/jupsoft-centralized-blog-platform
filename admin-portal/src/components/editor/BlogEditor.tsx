@@ -29,6 +29,9 @@ import {
   Underline as UnderlineIcon,
   Strikethrough,
   Highlighter,
+  Heading1,
+  Heading2,
+  Heading3,
   AlignLeft,
   AlignCenter,
   AlignRight,
@@ -58,20 +61,18 @@ import {
   CheckCircle2,
   AlertCircle,
   XCircle,
+  ChevronDown,
   SlidersHorizontal,
   UploadCloud,
   FileText,
-  UserCheck,
-  Smartphone,
-  Tablet,
-  Monitor
+  Languages,
+  UserCheck
 } from 'lucide-react';
 import { LanguageCode, BlogStatus, Blog, BlogTranslation, BlogSEO, MediaItem } from '../../types';
 import { createEmptySEO } from '../../data/initialData';
 import { canPublish, canApprove } from '../../utils/permissions';
 import { apiClient } from '../../services/apiClient';
 import { resolveMediaUrl, extractS3Key } from '../../utils/mediaUtils';
-import { resolveEffectiveWebsiteId } from '../../utils/tenantHelper';
 import { BlogEditorSkeleton } from './BlogEditorSkeleton';
 
 interface BlogTranslationPayload {
@@ -190,14 +191,15 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     return inStore || cachedBlogFromSession || null;
   }, [targetBlogId, blogs, cachedBlogFromSession]);
 
-  // Target website selection: scoped to existing post's site or dynamic effective site
+  // Target website selection: scoped to existing post's site or current filter or fallback to first site
   const [selectedWebsiteId, setSelectedWebsiteId] = useState<string>(() => {
     if (existingBlog?.websiteId) return existingBlog.websiteId;
-    return resolveEffectiveWebsiteId(websites, activeWebsiteId, currentUser);
+    if (activeWebsiteId && activeWebsiteId !== 'all') return activeWebsiteId;
+    return websites[0]?.id || 'site-cloud';
   });
 
   const activeSite = useMemo(
-    () => websites.find((w) => w.id === selectedWebsiteId) || websites[0] || null,
+    () => websites.find((w) => w.id === selectedWebsiteId) || websites[0] || { id: 'site-cloud', name: 'Jupsoft Cloud & ERP' },
     [websites, selectedWebsiteId]
   );
   const siteCategories = categories[selectedWebsiteId] || [];
@@ -255,50 +257,35 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     );
   }, [siteMedia, mediaSearchQuery]);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [lastSavedTime] = useState<string | null>(null);
+  const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isInternalLangSwitchRef = useRef(false);
   const [, setSelectionTick] = useState(0);
   const editorSyncedBlogIdRef = useRef<string | null>(null);
   const editorSyncedLangRef = useRef<LanguageCode | null>(null);
   const editorSyncedContentRef = useRef<string | null>(null);
-  const currentLangRef = useRef<LanguageCode>(currentLang);
-  currentLangRef.current = currentLang;
 
   const handleLanguageTabClick = (lang: LanguageCode) => {
     if (lang === currentLang) return;
     isInternalLangSwitchRef.current = true;
     if (editor) {
       const currentHtml = editor.getHTML();
-      // 1. Save current language content into state cleanly
-      setTranslations((prev) => ({
-        ...prev,
-        [currentLang]: {
-          ...(prev[currentLang] || defaultTrans(currentLang)),
-          content: currentHtml,
-        },
-        [lang]: {
-          ...(prev[lang] || defaultTrans(lang)),
-        },
-      }));
-
-      // 2. Determine target language content:
-      // If the target language has not been authored or translated, enforce clean empty state ('<p></p>')
-      // NEVER allow English content to cross-contaminate an untranslated tab!
-      const targetTrans = translations[lang];
-      const enContent = translations['en']?.content || '';
-      const isUntranslated = !targetTrans?.title || (lang !== 'en' && targetTrans.content === enContent);
-      const nextContent = (!isUntranslated && targetTrans?.content && targetTrans.content !== '<p></p>')
-        ? targetTrans.content
-        : '<p></p>';
-
-      editorSyncedLangRef.current = lang;
-      editorSyncedContentRef.current = nextContent;
-      editor.commands.setContent(nextContent);
+      setTranslations((prev) => {
+        const next = {
+          ...prev,
+          [currentLang]: {
+            ...prev[currentLang],
+            content: currentHtml,
+          },
+        };
+        const nextContent = next[lang]?.content || '<p></p>';
+        editor.commands.setContent(nextContent);
+        editorSyncedLangRef.current = lang;
+        return next;
+      });
     }
     setParam('lang', lang === 'en' ? null : lang);
   };
@@ -339,21 +326,6 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   const [selectedCategories, setSelectedCategories] = useState<string[]>(existingBlog?.categoryIds || []);
   const [selectedTags, setSelectedTags] = useState<string[]>(existingBlog?.tagIds || []);
   const [scheduledAt, setScheduledAt] = useState(existingBlog?.scheduledAt || '');
-  const [publishDate, setPublishDate] = useState<string>(existingBlog?.publishDate || '');
-
-  const formattedPublishDate = useMemo(() => {
-    if (!publishDate) return { inputVal: '', displayVal: '' };
-    try {
-      const d = new Date(publishDate);
-      if (isNaN(d.getTime())) return { inputVal: '', displayVal: '' };
-      return {
-        inputVal: d.toISOString().slice(0, 10),
-        displayVal: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      };
-    } catch {
-      return { inputVal: '', displayVal: '' };
-    }
-  }, [publishDate]);
 
   // Author & Byline state
   const cleanCurrentName = (currentUser?.name || 'Aarav Sharma').replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim();
@@ -407,18 +379,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     };
   });
 
-  const activeTrans = useMemo<BlogTranslation>(() => {
-    const t = translations[currentLang];
-    if (!t) return defaultTrans(currentLang);
-    return {
-      ...defaultTrans(currentLang),
-      ...t,
-      seo: {
-        ...createEmptySEO(),
-        ...(t.seo || {}),
-      },
-    };
-  }, [translations, currentLang, defaultTrans]);
+  const activeTrans = translations[currentLang];
 
   // Tiptap Editor instance with rich extensions & professional CMS behavior
   const editor = useEditor({
@@ -485,20 +446,11 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       setSelectionTick((t) => t + 1);
     },
     onUpdate: ({ editor }) => {
-      // Ignore onUpdate triggered when programmatically loading content for a switched language
-      if (isInternalLangSwitchRef.current) {
-        return;
-      }
-      const activeLang = currentLangRef.current;
-      // Guard against stale HTML leaking during language transition
-      if (editorSyncedLangRef.current !== activeLang) {
-        return;
-      }
       const html = editor.getHTML();
       setTranslations((prev) => ({
         ...prev,
-        [activeLang]: {
-          ...(prev[activeLang] || defaultTrans(activeLang)),
+        [currentLang]: {
+          ...prev[currentLang],
           content: html,
         },
       }));
@@ -523,9 +475,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   };
 
   // Open Premium Link Modal with active selection / URL
-  // useCallback: this feeds the keydown effect below — a new identity every
-  // render would re-register the window listener on each keystroke.
-  const handleOpenLinkModal = useCallback(() => {
+  const handleOpenLinkModal = () => {
     if (!editor) return;
     const previousUrl = editor.getAttributes('link').href || '';
     const { from, to } = editor.state.selection;
@@ -535,7 +485,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     setLinkOpenNewTab(editor.getAttributes('link').target === '_blank');
     setLinkNoFollow(editor.getAttributes('link').rel?.includes('nofollow') || false);
     setLinkModalOpen(true);
-  }, [editor]);
+  };
 
   // Save / Apply Link from modal
   const handleSaveLink = () => {
@@ -543,7 +493,6 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     if (!linkUrl.trim()) {
       editor.chain().focus().extendMarkRange('link').unsetLink().run();
       setLinkModalOpen(false);
-      setHasUnsavedChanges(true);
       return;
     }
 
@@ -560,16 +509,14 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
     const { from, to } = editor.state.selection;
     const currentSelectedText = editor.state.doc.textBetween(from, to, ' ');
-    const effectiveText = linkText.trim() || currentSelectedText.trim() || href;
 
-    // If no text is selected or the anchor text was changed, insert text with link mark
-    if (!currentSelectedText || linkText.trim() !== currentSelectedText.trim() || from === to) {
+    if (linkText && linkText !== currentSelectedText) {
       editor
         .chain()
         .focus()
         .insertContent({
           type: 'text',
-          text: effectiveText,
+          text: linkText,
           marks: [
             {
               type: 'link',
@@ -595,7 +542,6 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         .run();
     }
     setLinkModalOpen(false);
-    setHasUnsavedChanges(true);
     showNotification('Link applied successfully! 🔗', 'success');
   };
 
@@ -604,7 +550,6 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     if (!editor) return;
     editor.chain().focus().extendMarkRange('link').unsetLink().run();
     setLinkModalOpen(false);
-    setHasUnsavedChanges(true);
     showNotification('Link removed.', 'info');
   };
 
@@ -733,37 +678,6 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [editor, handleOpenLinkModal]);
 
-  // Flush uncommitted edits directly to fast sessionStorage cache on immediate page refresh
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      const realId = existingBlog?.id || targetBlogId;
-      if (!realId || typeof window === 'undefined' || !editor) return;
-      try {
-        const currentHtml = editor.getHTML();
-        const base = initialBlogRef.current || existingBlog;
-        if (!base) return;
-        const fastBlog = {
-          ...base,
-          translations: {
-            ...translations,
-            [currentLang]: {
-              ...(translations[currentLang] || defaultTrans(currentLang)),
-              content: preserveEmptyParagraphs(currentHtml),
-            },
-          },
-        };
-        sessionStorage.setItem(`jupsoft_editing_blog_${realId}`, JSON.stringify(fastBlog));
-      } catch {}
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('pagehide', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('pagehide', handleBeforeUnload);
-    };
-  }, [existingBlog, targetBlogId, editor, translations, currentLang, defaultTrans]);
-
   // Load full blog detail from backend API once on initial mount (never during typing)
   const [isLoadingFullBlog, setIsLoadingFullBlog] = useState(false);
   const loadedBlogIdRef = useRef<string | null>(null);
@@ -807,7 +721,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   ...defaultTrans(l),
                   ...normTrans[l],
                   content: normTrans[l].content || '<p></p>',
-                  seo: { ...createEmptySEO(), ...(normTrans[l].seo || {}) },
+                  seo: { ...createEmptySEO(), ...(normTrans[l].seo || {}) } as BlogSEO,
                 };
               }
             });
@@ -830,7 +744,6 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         if (Array.isArray(fullBlog.categoryIds)) setSelectedCategories(fullBlog.categoryIds);
         if (Array.isArray(fullBlog.tagIds)) setSelectedTags(fullBlog.tagIds);
         if (fullBlog.scheduledAt) setScheduledAt(fullBlog.scheduledAt);
-        if (fullBlog.publishDate) setPublishDate(fullBlog.publishDate);
         if (fullBlog.websiteId) setSelectedWebsiteId(fullBlog.websiteId);
         if (fullBlog.authorId) {
           setSelectedAuthorId(fullBlog.authorId);
@@ -860,41 +773,43 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   useEffect(() => {
     if (!editor) return;
 
-    // Case 1: Active language switched via external URL change or internal tab click
+    // Case 1: Active language switched via external URL change
     if (prevLangRef.current !== currentLang) {
       prevLangRef.current = currentLang;
-      const targetTrans = translations[currentLang];
-      const enContent = translations['en']?.content || '';
-      const isUntranslated = currentLang !== 'en' && (!targetTrans?.title || targetTrans.content === enContent);
-      const targetContent = (!isUntranslated && targetTrans?.content && targetTrans.content !== '<p></p>')
-        ? targetTrans.content
-        : '<p></p>';
-
-      editor.commands.setContent(targetContent);
-      editorSyncedLangRef.current = currentLang;
-      editorSyncedContentRef.current = targetContent;
-      isInternalLangSwitchRef.current = false;
+      if (isInternalLangSwitchRef.current) {
+        isInternalLangSwitchRef.current = false;
+      } else {
+        const langContent = translations[currentLang]?.content || '<p></p>';
+        editor.commands.setContent(langContent);
+        editorSyncedLangRef.current = currentLang;
+        editorSyncedContentRef.current = langContent;
+      }
       return;
     }
 
     // Case 2: Editing an existing blog post
     if (targetBlogId) {
-      const targetTrans = translations[currentLang];
-      const enContent = translations['en']?.content || '';
-      const isUntranslated = currentLang !== 'en' && (!targetTrans?.title || targetTrans.content === enContent);
-      const targetContent = (!isUntranslated && targetTrans?.content && targetTrans.content !== '<p></p>')
-        ? targetTrans.content
-        : '<p></p>';
+      const targetContent = translations[currentLang]?.content;
+      const hasRealContent = Boolean(
+        targetContent &&
+        targetContent !== '<p></p>'
+      );
 
-      const hasRealContent = Boolean(targetContent && targetContent !== '<p></p>');
       const isSynced = editorSyncedBlogIdRef.current === targetBlogId && editorSyncedLangRef.current === currentLang;
 
       // Sync if not yet synced, or if real content arrived from API but editor hasn't synced it yet
       if (!isSynced || (hasRealContent && editorSyncedContentRef.current !== targetContent)) {
-        editor.commands.setContent(targetContent);
-        editorSyncedBlogIdRef.current = targetBlogId;
-        editorSyncedLangRef.current = currentLang;
-        editorSyncedContentRef.current = targetContent;
+        if (hasRealContent) {
+          editor.commands.setContent(targetContent);
+          editorSyncedBlogIdRef.current = targetBlogId;
+          editorSyncedLangRef.current = currentLang;
+          editorSyncedContentRef.current = targetContent;
+        } else if (!isSynced && targetContent !== undefined && !isLoadingFullBlog) {
+          editor.commands.setContent(targetContent);
+          editorSyncedBlogIdRef.current = targetBlogId;
+          editorSyncedLangRef.current = currentLang;
+          editorSyncedContentRef.current = targetContent;
+        }
       }
       return;
     }
@@ -915,16 +830,13 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     field: K,
     value: BlogTranslation[K]
   ) => {
-    setTranslations((prev) => {
-      const cur = prev[currentLang] || defaultTrans(currentLang);
-      return {
-        ...prev,
-        [currentLang]: {
-          ...cur,
-          [field]: value,
-        },
-      };
-    });
+    setTranslations((prev) => ({
+      ...prev,
+      [currentLang]: {
+        ...prev[currentLang],
+        [field]: value,
+      },
+    }));
     setHasUnsavedChanges(true);
   };
 
@@ -932,19 +844,16 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     field: K,
     value: BlogSEO[K]
   ) => {
-    setTranslations((prev) => {
-      const cur = prev[currentLang] || defaultTrans(currentLang);
-      return {
-        ...prev,
-        [currentLang]: {
-          ...cur,
-          seo: {
-            ...(cur.seo || createEmptySEO()),
-            [field]: value,
-          },
+    setTranslations((prev) => ({
+      ...prev,
+      [currentLang]: {
+        ...prev[currentLang],
+        seo: {
+          ...prev[currentLang].seo,
+          [field]: value,
         },
-      };
-    });
+      },
+    }));
     setHasUnsavedChanges(true);
   };
 
@@ -960,11 +869,11 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   // Handle title change & auto-generate slug atomically
   const handleTitleChange = (newTitle: string) => {
     setTranslations((prev) => {
-      const current = prev[currentLang] || defaultTrans(currentLang);
+      const current = prev[currentLang];
       const shouldAutoSlug = !current.slug || current.slug === slugify(current.title || '');
       const newSlug = shouldAutoSlug ? slugify(newTitle) : current.slug;
 
-      const updatedSeo = { ...(current.seo || createEmptySEO()) };
+      const updatedSeo = { ...current.seo };
       if (!updatedSeo.metaTitle || updatedSeo.metaTitle === current.title) {
         updatedSeo.metaTitle = newTitle;
       }
@@ -1005,74 +914,8 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
 
-    // 🚀 EMERGENCY AUTO-SAVE (2.5s Debounce)
-    autoSaveTimerRef.current = setTimeout(async () => {
-      const baseBlog = initialBlogRef.current || existingBlog;
-      
-      // CRITICAL RULE: NEVER Auto-Publish a draft.
-      // If UI says 'Published' but DB is not, force it to 'Draft'. Only manual save can publish.
-      const safeStatus = (status === 'Published' && baseBlog?.status !== 'Published') ? 'Draft' : status;
-
-      const currentEditorHtml = editor ? editor.getHTML() : undefined;
-      const cleanedTranslations = { ...translations };
-      
-      // Auto-save guard: Only update currentLang content if editor is truly synced to currentLang
-      if (
-        currentEditorHtml !== undefined &&
-        cleanedTranslations[currentLang] &&
-        editorSyncedLangRef.current === currentLang &&
-        !isInternalLangSwitchRef.current
-      ) {
-        cleanedTranslations[currentLang] = {
-          ...cleanedTranslations[currentLang],
-          content: preserveEmptyParagraphs(currentEditorHtml),
-        };
-      }
-
-      for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
-        if (cleanedTranslations[l]?.content) {
-          cleanedTranslations[l].content = preserveEmptyParagraphs(cleanedTranslations[l].content);
-        }
-        if (cleanedTranslations[l]?.title && !cleanedTranslations[l]?.slug) {
-          cleanedTranslations[l].slug = slugify(cleanedTranslations[l].title);
-        }
-      }
-
-      const autoSavedBlog: any = {
-        id: realId,
-        websiteId: selectedWebsiteId || resolveEffectiveWebsiteId(websites, activeWebsiteId, currentUser),
-        authorId: authorMode === 'user' ? selectedAuthorId : 'usr-custom',
-        authorName: authorName.trim() || cleanCurrentName,
-        authorAvatar: authorAvatar || '/uploads/avatars/avatar-default.webp',
-        featuredImage,
-        featuredImageAlt,
-        status: safeStatus, 
-        publishDate: publishDate || baseBlog?.publishDate,
-        scheduledAt: scheduledAt || undefined,
-        publishedBy: baseBlog?.publishedBy,
-        viewCount: baseBlog?.viewCount || 0,
-        readTimeMinutes: Math.max(2, Math.round((editor?.getText().split(/\\s+/).length || 200) / 180)),
-        categoryIds: selectedCategories,
-        tagIds: selectedTags,
-        translations: cleanedTranslations,
-        workflowLogs: baseBlog?.workflowLogs || [],
-        createdAt: baseBlog?.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        isAutoSave: true, // 🚀 Backend ko batayega ki ye revision hai
-      };
-
-      try {
-        await saveBlog(autoSavedBlog); // Silent background save
-        initialBlogRef.current = autoSavedBlog;
-        try {
-          sessionStorage.setItem(`jupsoft_editing_blog_${realId}`, JSON.stringify(autoSavedBlog));
-        } catch {}
-        setHasUnsavedChanges(false);
-        // NO notification & NO router.push()! User stays right where they are.
-      } catch (err) {
-        console.warn('Auto-save failed silently:', err);
-      }
-    }, 1000);
+    // Auto-save disabled intentionally — manual Save only.
+    // autoSaveTimerRef.current = setTimeout(async () => { ... }, 2500);
 
     const autoSaveTimer = autoSaveTimerRef.current;
     return () => {
@@ -1107,57 +950,46 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
   const handleAiTranslate = async () => {
     const enSource = translations['en'];
-    const enTitle = enSource?.title?.trim();
-    const enContent = (currentLang === 'en' ? (editor?.getHTML() || enSource?.content) : enSource?.content)?.trim();
-
-    if (!enTitle && !enContent) {
+    if (!enSource?.title && !enSource?.content) {
       showNotification('Please enter an English title or content first to translate from.', 'warning');
       return;
     }
-
     setIsTranslating(true);
     try {
+      const sourceContent = currentLang === 'en' ? (editor?.getHTML() || enSource.content) : enSource.content;
       const res = await apiClient.translateText({
         from: 'en',
         to: currentLang,
-        title: enTitle,
-        excerpt: enSource?.excerpt,
-        content: enContent,
+        title: enSource.title,
+        excerpt: enSource.excerpt,
+        content: sourceContent,
       });
 
-      const translatedTitle = res.title || enTitle || '';
-      const translatedExcerpt = res.excerpt || enSource?.excerpt || '';
-      const translatedContent = res.content || enContent || '<p></p>';
+      const translatedTitle = res.title || enSource.title;
+      const translatedExcerpt = res.excerpt || enSource.excerpt;
+      const translatedContent = res.content || sourceContent;
       const newSlug = slugify(translatedTitle) || `post-${Date.now()}`;
 
-      const siteDomain = activeSite?.domain || (typeof window !== 'undefined' ? window.location.host : 'localhost');
-
-      setTranslations((prev) => {
-        const cur = prev[currentLang] || defaultTrans(currentLang);
-        return {
-          ...prev,
-          [currentLang]: {
-            ...cur,
-            title: translatedTitle,
-            slug: newSlug,
-            excerpt: translatedExcerpt,
-            content: translatedContent,
-            seo: {
-              ...(cur.seo || createEmptySEO()),
-              metaTitle: translatedTitle,
-              metaDescription: translatedExcerpt,
-              canonicalUrl: `https://${siteDomain}/blog/${newSlug}`,
-            },
+      setTranslations((prev) => ({
+        ...prev,
+        [currentLang]: {
+          ...prev[currentLang],
+          title: translatedTitle,
+          slug: newSlug,
+          excerpt: translatedExcerpt,
+          content: translatedContent,
+          seo: {
+            ...prev[currentLang].seo,
+            metaTitle: translatedTitle,
+            metaDescription: translatedExcerpt,
+            canonicalUrl: `https://${activeSite.domain}/blog/${newSlug}`,
           },
-        };
-      });
+        },
+      }));
 
       if (editor && translatedContent) {
-        editorSyncedLangRef.current = currentLang;
-        editorSyncedContentRef.current = translatedContent;
         editor.commands.setContent(translatedContent);
       }
-      setHasUnsavedChanges(true);
       showNotification(`AI Translation complete for ${currentLang.toUpperCase()}! ✨`, 'success');
     } catch (err: unknown) {
       console.error('AI translation failed:', err);
@@ -1258,7 +1090,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
     setUploadingImage(true);
     const cleanName = file.name.replace(/\.[^/.]+$/, '') + '.webp';
-    const uploadSiteId = selectedWebsiteId || resolveEffectiveWebsiteId(websites, activeWebsiteId, currentUser);
+    const uploadSiteId = selectedWebsiteId || activeWebsiteId || 'site-cloud';
     const uploadSite = websites.find((w) => w.id === uploadSiteId) || websites[0];
 
     try {
@@ -1349,123 +1181,112 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
   // Save handler with TRD 301 Permanent Redirect Guard
   const handleSave = async () => {
-    if (isSaving) return;
-    setIsSaving(true);
-
     // 1. Validation: ensure primary title is provided
     const currentTrans = translations[currentLang];
     const enTrans = translations.en;
     const effectiveTitle = currentTrans?.title?.trim() || enTrans?.title?.trim();
     if (!effectiveTitle) {
-      setIsSaving(false);
       showNotification('Please enter an article title before saving.', 'warning');
       return;
     }
 
-    try {
-      const targetSiteId = selectedWebsiteId || resolveEffectiveWebsiteId(websites, activeWebsiteId, currentUser);
-      const baseBlog = initialBlogRef.current || existingBlog;
-      const isCurrentlyPublished = baseBlog?.status === 'Published' || status === 'Published';
-      const id = baseBlog?.id || `blog-${Date.now()}`;
+    const targetSiteId = selectedWebsiteId || (activeWebsiteId !== 'all' ? activeWebsiteId : 'site-cloud');
+    const baseBlog = initialBlogRef.current || existingBlog;
+    const isCurrentlyPublished = baseBlog?.status === 'Published' || status === 'Published';
+    const id = baseBlog?.id || `blog-${Date.now()}`;
 
-      // Ensure active editor HTML is synced into the active language translation
-      const currentEditorHtml = editor ? editor.getHTML() : undefined;
-      const cleanedTranslations = { ...translations };
-      if (currentEditorHtml !== undefined) {
-        cleanedTranslations[currentLang] = {
-          ...(cleanedTranslations[currentLang] || defaultTrans(currentLang)),
-          content: preserveEmptyParagraphs(currentEditorHtml),
+    // Ensure active editor HTML is synced into the active language translation
+    const currentEditorHtml = editor ? editor.getHTML() : undefined;
+    const cleanedTranslations = { ...translations };
+    if (currentEditorHtml !== undefined && cleanedTranslations[currentLang]) {
+      cleanedTranslations[currentLang] = {
+        ...cleanedTranslations[currentLang],
+        content: preserveEmptyParagraphs(currentEditorHtml),
+      };
+    }
+
+    // Normalize empty paragraphs across all authored translations
+    for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
+      if (cleanedTranslations[l]?.content) {
+        cleanedTranslations[l] = {
+          ...cleanedTranslations[l],
+          content: preserveEmptyParagraphs(cleanedTranslations[l].content),
         };
       }
+    }
 
-      // Normalize empty paragraphs across all authored translations
-      for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
-        if (cleanedTranslations[l]?.content) {
-          cleanedTranslations[l] = {
-            ...cleanedTranslations[l],
-            content: preserveEmptyParagraphs(cleanedTranslations[l].content),
-          };
-        }
+    // Ensure all authored translations have a valid slug
+    for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
+      if (cleanedTranslations[l]?.title && !cleanedTranslations[l]?.slug) {
+        cleanedTranslations[l] = {
+          ...cleanedTranslations[l],
+          slug: slugify(cleanedTranslations[l].title),
+        };
       }
+    }
 
-      // Ensure all authored translations have a valid slug
+    // TRD Section 7: If published slug changed in ANY language, auto-record 301 permanent redirect
+    if (isCurrentlyPublished && baseBlog?.translations) {
       for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
-        if (cleanedTranslations[l]?.title && !cleanedTranslations[l]?.slug) {
-          cleanedTranslations[l] = {
-            ...cleanedTranslations[l],
-            slug: slugify(cleanedTranslations[l].title),
-          };
-        }
-      }
-
-      // TRD Section 7: If published slug changed in ANY language, auto-record 301 permanent redirect
-      if (isCurrentlyPublished && baseBlog?.translations) {
-        for (const l of (['en', 'hi', 'fr', 'ar'] as LanguageCode[])) {
-          const origSlug = baseBlog.translations[l]?.slug?.trim()?.replace(/^\/+|\/+$/g, '');
-          const nextSlug = cleanedTranslations[l]?.slug?.trim()?.replace(/^\/+|\/+$/g, '');
-          if (origSlug && nextSlug && origSlug !== nextSlug) {
-            try {
-              await addRedirect({
-                id: `red-${Date.now()}-${l}`,
-                websiteId: targetSiteId,
-                fromSlug: origSlug,
-                toSlug: nextSlug,
-                statusCode: 301,
-                hitCount: 0,
-                createdAt: new Date().toISOString(),
-              });
-              showNotification(`301 Permanent Redirect created: /blog/${origSlug} → /blog/${nextSlug}`, 'success');
-            } catch (e) {
-              console.warn('Auto redirect creation error:', e);
-            }
+        const origSlug = baseBlog.translations[l]?.slug?.trim()?.replace(/^\/+|\/+$/g, '');
+        const nextSlug = cleanedTranslations[l]?.slug?.trim()?.replace(/^\/+|\/+$/g, '');
+        if (origSlug && nextSlug && origSlug !== nextSlug) {
+          try {
+            await addRedirect({
+              id: `red-${Date.now()}-${l}`,
+              websiteId: targetSiteId,
+              fromSlug: origSlug,
+              toSlug: nextSlug,
+              statusCode: 301,
+              hitCount: 0,
+              createdAt: new Date().toISOString(),
+            });
+            showNotification(`301 Permanent Redirect created: /blog/${origSlug} → /blog/${nextSlug}`, 'success');
+          } catch (e) {
+            console.warn('Auto redirect creation error:', e);
           }
         }
       }
+    }
 
-      const newBlog: Blog = {
-        id,
-        websiteId: targetSiteId,
-        authorId: currentUser?.id || 'usr-1',
-        authorName: (authorName?.trim() || currentUser?.name || 'Editorial Team').replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim(),
-        authorAvatar: authorAvatar || '/uploads/avatars/avatar-default.webp',
-        featuredImage,
-        featuredImageAlt,
-        status,
-        publishDate: isCurrentlyPublished ? (publishDate || baseBlog?.publishDate || new Date().toISOString()) : (publishDate || undefined),
-        scheduledAt: scheduledAt || undefined,
-        publishedBy: isCurrentlyPublished ? (baseBlog?.publishedBy || currentUser?.name || 'Super Admin') : undefined,
-        viewCount: baseBlog?.viewCount || 0,
-        readTimeMinutes: Math.max(2, Math.round((editor?.getText().split(/\s+/).length || 200) / 180)),
-        categoryIds: selectedCategories,
-        tagIds: selectedTags,
-        translations: cleanedTranslations,
-        workflowLogs: [
-          ...(baseBlog?.workflowLogs || []),
-          {
-            id: `log-${Date.now()}`,
-            blogId: id,
-            fromStatus: baseBlog?.status || 'Draft',
-            toStatus: status,
-            changedBy: currentUser?.name || 'Editorial Team',
-            role: activeRole,
-            notes: status === 'Published' ? 'Published live from Studio' : 'Saved draft updates from Studio',
-            timestamp: new Date().toISOString(),
-          },
-        ],
-        createdAt: baseBlog?.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+    const newBlog: Blog = {
+      id,
+      websiteId: targetSiteId,
+      authorId: authorMode === 'user' ? selectedAuthorId : 'usr-custom',
+      authorName: authorName.trim() || cleanCurrentName,
+      authorAvatar: authorAvatar || '/uploads/avatars/avatar-default.webp',
+      featuredImage,
+      featuredImageAlt,
+      status,
+      publishDate: status === 'Published' && !baseBlog?.publishDate ? new Date().toISOString() : baseBlog?.publishDate,
+      scheduledAt: scheduledAt || undefined,
+      publishedBy: status === 'Published' ? (currentUser?.name || `User (${activeRole})`) : baseBlog?.publishedBy,
+      viewCount: baseBlog?.viewCount || 0,
+      readTimeMinutes: Math.max(2, Math.round((editor?.getText().split(/\s+/).length || 200) / 180)),
+      categoryIds: selectedCategories,
+      tagIds: selectedTags,
+      translations: cleanedTranslations,
+      workflowLogs: baseBlog?.workflowLogs || [
+        {
+          id: `wl-${Date.now()}`,
+          blogId: id,
+          fromStatus: 'Draft',
+          toStatus: status,
+          changedBy: currentUser?.name || 'Current User',
+          role: activeRole,
+          notes: 'Blog created and saved in admin workspace.',
+          timestamp: new Date().toISOString(),
+        },
+      ],
+      createdAt: baseBlog?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
 
+    setIsSaving(true);
+    try {
       await saveBlog(newBlog);
       initialBlogRef.current = newBlog;
       setHasUnsavedChanges(false);
-      try {
-        if (typeof window !== 'undefined') {
-          sessionStorage.removeItem(`jupsoft_editing_blog_${id}`);
-          sessionStorage.removeItem(`editor_draft_${id}_${currentLang}`);
-        }
-      } catch {}
-      loadedBlogIdRef.current = null;
       showNotification(status === 'Published' ? 'Blog published successfully! 🎉' : 'Blog saved successfully! ✅', 'success');
       router.push(`/blogs?site=${targetSiteId}`);
     } catch (err: unknown) {
@@ -1776,10 +1597,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        editor.chain().focus().setTextAlign('left').run();
-                        setHasUnsavedChanges(true);
-                      }}
+                      onClick={() => handleSplitHardBreaksBeforeBlock(() => editor.chain().focus().setTextAlign('left').run())}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive({ textAlign: 'left' }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
@@ -1790,10 +1608,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        editor.chain().focus().setTextAlign('center').run();
-                        setHasUnsavedChanges(true);
-                      }}
+                      onClick={() => handleSplitHardBreaksBeforeBlock(() => editor.chain().focus().setTextAlign('center').run())}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive({ textAlign: 'center' }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
@@ -1804,10 +1619,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        editor.chain().focus().setTextAlign('right').run();
-                        setHasUnsavedChanges(true);
-                      }}
+                      onClick={() => handleSplitHardBreaksBeforeBlock(() => editor.chain().focus().setTextAlign('right').run())}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive({ textAlign: 'right' }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
@@ -1818,10 +1630,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        editor.chain().focus().setTextAlign('justify').run();
-                        setHasUnsavedChanges(true);
-                      }}
+                      onClick={() => handleSplitHardBreaksBeforeBlock(() => editor.chain().focus().setTextAlign('justify').run())}
                       className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         editor.isActive({ textAlign: 'justify' }) ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
@@ -2801,52 +2610,6 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-400"
                   />
                 </div>
-
-                {/* Custom Publication Date */}
-                <div className="space-y-1 pt-2 border-t border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
-                      <Calendar className="w-3 h-3 text-slate-400" /> Publication Date
-                    </label>
-                    {publishDate && (
-                      <button
-                        type="button"
-                        onClick={() => setPublishDate('')}
-                        className="text-[10px] text-blue-500 hover:underline font-normal normal-case cursor-pointer"
-                      >
-                        Reset to Auto
-                      </button>
-                    )}
-                  </div>
-                  <input
-                    type="date"
-                    value={formattedPublishDate.inputVal}
-                    onClick={(e) => {
-                      try {
-                        (e.target as HTMLInputElement).showPicker?.();
-                      } catch {}
-                    }}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val) {
-                        const [y, m, d] = val.split('-').map(Number);
-                        const dateObj = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
-                        setPublishDate(dateObj.toISOString());
-                      } else {
-                        setPublishDate('');
-                      }
-                      e.target.blur();
-                    }}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-400 cursor-pointer"
-                  />
-                  {formattedPublishDate.displayVal ? (
-                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                      ✓ Displays as: {formattedPublishDate.displayVal}
-                    </p>
-                  ) : (
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500">Pick any date. Calendar auto-closes on selection.</p>
-                  )}
-                </div>
               </div>
             )}
 
@@ -3221,7 +2984,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     </div>
                   ) : filteredSiteMedia.length === 0 ? (
                     <div className="py-8 text-center text-xs text-slate-400">
-                      No media items match &quot;{mediaSearchQuery}&quot;.
+                      No media items match "{mediaSearchQuery}".
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[380px] overflow-y-auto pr-1">
@@ -3348,39 +3111,17 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       {previewOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex flex-col items-center p-3 sm:p-6 overflow-hidden animate-in fade-in">
           {/* Top Control Bar */}
-          <div className="w-full flex items-center justify-between pb-3 text-white" style={{ maxWidth: previewMode === 'desktop' ? '56rem' : previewMode === 'tablet' ? '768px' : '375px', transition: 'max-width 0.3s ease' }}>
+          <div className="w-full max-w-4xl flex items-center justify-between pb-3 text-white">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-mono text-slate-300">
                 <Globe className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="truncate max-w-[150px] sm:max-w-xs">
-                  {activeSite.domain}/blog/{activeTrans.slug || 'untitled-slug'}
+                <span className="truncate max-w-[240px] sm:max-w-md">
+                  https://{activeSite.domain}/blog/{activeTrans.slug || 'untitled-slug'}
                 </span>
               </div>
-            </div>
-
-            {/* Device Toggles */}
-            <div className="hidden sm:flex items-center bg-slate-900 border border-slate-700 rounded-lg p-1">
-              <button
-                onClick={() => setPreviewMode('mobile')}
-                className={`p-1.5 rounded-md transition-colors ${previewMode === 'mobile' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
-                title="Mobile View"
-              >
-                <Smartphone className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setPreviewMode('tablet')}
-                className={`p-1.5 rounded-md transition-colors ${previewMode === 'tablet' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
-                title="Tablet View"
-              >
-                <Tablet className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setPreviewMode('desktop')}
-                className={`p-1.5 rounded-md transition-colors ${previewMode === 'desktop' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
-                title="Desktop View"
-              >
-                <Monitor className="w-4 h-4" />
-              </button>
+              <span className="hidden sm:inline-block text-[11px] text-slate-400">
+                {status} ({currentLang.toUpperCase()})
+              </span>
             </div>
 
             {/* Close Modal */}
@@ -3393,8 +3134,8 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           </div>
 
           {/* Clean Article Preview Container */}
-          <div className="flex-1 w-full flex justify-center overflow-hidden transition-all duration-300 ease-in-out" style={{ maxWidth: previewMode === 'desktop' ? '56rem' : previewMode === 'tablet' ? '768px' : '375px' }}>
-            <div className="w-full h-full bg-white dark:bg-[#0b0f19] rounded-xl border border-slate-700/60 shadow-2xl overflow-y-auto p-4 sm:p-10 space-y-6">
+          <div className="flex-1 w-full max-w-4xl flex justify-center overflow-hidden">
+            <div className="w-full h-full bg-white dark:bg-[#0b0f19] rounded-xl border border-slate-700/60 shadow-2xl overflow-y-auto p-6 sm:p-10 space-y-6">
               {/* Categories & Title */}
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -3443,9 +3184,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => {
-                        const rawDomain = activeSite?.domain || (typeof window !== 'undefined' ? window.location.host : 'localhost');
-                        const domain = rawDomain.replace(/^https?:\/\//, '').replace(/\/+$/, '');
-                        const url = `https://${domain}/blog/${activeTrans.slug || 'article'}`;
+                        const url = `https://${activeSite?.domain || 'company.com'}/blog/${activeTrans.slug || 'article'}`;
                         navigator.clipboard?.writeText(url);
                         showNotification(`Blog link copied to clipboard: ${url}`, 'success');
                       }}
@@ -3476,7 +3215,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
               {/* Rendered HTML Content */}
               <div
-                className="blog-preview-content prose max-w-none"
+                className="prose prose-slate dark:prose-invert max-w-none text-sm sm:text-base leading-relaxed"
                 dangerouslySetInnerHTML={{ __html: activeTrans.content }}
               />
 
@@ -3605,7 +3344,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     onChange={(e) => setLinkOpenNewTab(e.target.checked)}
                     className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700 cursor-pointer"
                   />
-                  <span className="text-slate-700 dark:text-slate-300 font-medium">Open in new tab (<code className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">target=&quot;_blank&quot;</code>)</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-medium">Open in new tab (<code className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">target="_blank"</code>)</span>
                 </label>
 
                 <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -3615,7 +3354,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     onChange={(e) => setLinkNoFollow(e.target.checked)}
                     className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700 cursor-pointer"
                   />
-                  <span className="text-slate-700 dark:text-slate-300 font-medium">SEO: Add NoFollow (<code className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">rel=&quot;nofollow&quot;</code>)</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-medium">SEO: Add NoFollow (<code className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">rel="nofollow"</code>)</span>
                 </label>
               </div>
             </div>

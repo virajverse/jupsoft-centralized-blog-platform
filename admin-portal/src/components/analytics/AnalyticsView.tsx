@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../hooks/useQueryState';
@@ -20,12 +20,16 @@ import {
   RefreshCw,
   TrendingUp,
   PieChart as PieChartIcon,
-  BarChart3
+  BarChart3,
+  Layers,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { LanguageCode, Category, BlogStatus } from '../../types';
 import { apiClient } from '../../services/apiClient';
 
 export const AnalyticsView: React.FC = () => {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { setParam } = useQueryState();
 
@@ -100,14 +104,20 @@ export const AnalyticsView: React.FC = () => {
 
   useEffect(() => {
     let active = true;
-    const siteId = isFilteredSingleSite ? effectiveSiteId : (websites[0]?.id || '');
+    const siteId = isFilteredSingleSite ? effectiveSiteId : (websites[0]?.id || 'site-cloud');
     if (!siteId) return;
     const days = rangeParam === '7d' ? 7 : rangeParam === '30d' ? 30 : rangeParam === '90d' ? 90 : 365;
 
     apiClient.getAnalyticsDashboard(siteId, days)
-      .then((res) => {
+      .then((res: any) => {
         if (active && res) {
-          setLiveData(res);
+          const totalViews = res.summary?.totalPageViews ?? res.totalViews;
+          const uniqueVisitors = res.summary?.totalUniqueVisitors ?? res.uniqueVisitors;
+          setLiveData({
+            totalViews: typeof totalViews === 'number' && totalViews > 0 ? totalViews : undefined,
+            uniqueVisitors: typeof uniqueVisitors === 'number' && uniqueVisitors > 0 ? uniqueVisitors : undefined,
+            blogs: res.blogs,
+          });
         }
       })
       .catch((err) => {
@@ -133,14 +143,22 @@ export const AnalyticsView: React.FC = () => {
 
   let totalWords = 0;
   siteBlogs.forEach((blog) => {
-    Object.values(blog.translations).forEach((trans) => {
-      if (trans?.content) {
-        const plain = trans.content.replace(/<[^>]*>/g, ' ').trim();
-        if (plain) {
-          totalWords += plain.split(/\s+/).filter(Boolean).length;
+    let blogWords = 0;
+    if (blog.translations) {
+      Object.values(blog.translations).forEach((trans) => {
+        if (trans?.content) {
+          const plain = trans.content.replace(/<[^>]*>/g, ' ').trim();
+          if (plain) {
+            blogWords += plain.split(/\s+/).filter(Boolean).length;
+          }
         }
-      }
-    });
+      });
+    }
+    // If full content is omitted from the lightweight blogs list payload, compute from readTimeMinutes (standard 210 wpm)
+    if (blogWords === 0) {
+      blogWords = Math.max(1, (blog.readTimeMinutes || 3)) * 210;
+    }
+    totalWords += blogWords;
   });
 
   const avgReadTimeMinutes = totalArticles > 0 
@@ -212,7 +230,7 @@ export const AnalyticsView: React.FC = () => {
       });
       if (closestIdx < intervals.length) {
         intervals[closestIdx].blogsCount += 1;
-        intervals[closestIdx].views += (blog.viewCount || 0);
+        intervals[closestIdx].views += Math.round((blog.viewCount || 0) * rangeMultiplier);
       }
     });
 
@@ -225,7 +243,7 @@ export const AnalyticsView: React.FC = () => {
         cumulativeViews: runningViews,
       };
     });
-  }, [siteBlogs, rangeParam]);
+  }, [siteBlogs, rangeParam, rangeMultiplier]);
 
   // Compute SVG Area Path coordinates
   const chartWidth = 700;
@@ -299,7 +317,9 @@ export const AnalyticsView: React.FC = () => {
   // ─── Author Performance Leaderboard ──────────────────────────────────────
   const authorsLeaderboard = useMemo(() => {
     const authorStatsMap: Record<string, {
+      authorId: string;
       authorName: string;
+      authorRole?: string;
       written: number;
       published: number;
       avgReadTime: number;
@@ -307,28 +327,55 @@ export const AnalyticsView: React.FC = () => {
     }> = {};
 
     siteBlogs.forEach((blog) => {
-      const name = blog.authorName || 'Staff Writer';
-      if (!authorStatsMap[name]) {
-        authorStatsMap[name] = {
-          authorName: name,
+      const authorId = blog.authorId || '';
+      const rawName = (blog.authorName || '').trim();
+      const groupKey = authorId || rawName.toLowerCase() || 'staff-writer';
+
+      let displayName = rawName || 'Staff Writer';
+      const existing = authorStatsMap[groupKey];
+      if (existing) {
+        // Prefer longer/more descriptive name (e.g. "Sachin Sharma (Super Admin)" over "Sachin Sharma")
+        if (existing.authorName.length > displayName.length) {
+          displayName = existing.authorName;
+        }
+      }
+
+      const roleBadge = displayName.toLowerCase().includes('admin') || displayName.toLowerCase().includes('super')
+        ? 'Super Admin'
+        : 'Editorial Author';
+
+      if (!authorStatsMap[groupKey]) {
+        authorStatsMap[groupKey] = {
+          authorId: authorId || groupKey,
+          authorName: displayName,
+          authorRole: roleBadge,
           written: 0,
           published: 0,
           avgReadTime: 0,
           estimatedViews: 0,
         };
+      } else {
+        authorStatsMap[groupKey].authorName = displayName;
+        authorStatsMap[groupKey].authorRole = roleBadge;
       }
-      authorStatsMap[name].written += 1;
+
+      authorStatsMap[groupKey].written += 1;
       if (blog.status === 'Published') {
-        authorStatsMap[name].published += 1;
+        authorStatsMap[groupKey].published += 1;
         const blogViews = blog.viewCount || 0;
-        authorStatsMap[name].estimatedViews += Math.round(blogViews * rangeMultiplier);
+        authorStatsMap[groupKey].estimatedViews += Math.round(blogViews * rangeMultiplier);
       }
     });
 
-    Object.keys(authorStatsMap).forEach((name) => {
-      const authorBlogs = siteBlogs.filter((b) => (b.authorName || 'Staff Writer') === name);
+    Object.keys(authorStatsMap).forEach((key) => {
+      const authorBlogs = siteBlogs.filter((b) => {
+        const aId = b.authorId || '';
+        const rName = (b.authorName || '').trim();
+        const bKey = aId || rName.toLowerCase() || 'staff-writer';
+        return bKey === key;
+      });
       const totalRead = authorBlogs.reduce((acc, b) => acc + (b.readTimeMinutes || 3), 0);
-      authorStatsMap[name].avgReadTime = authorBlogs.length > 0 ? Math.round(totalRead / authorBlogs.length) : 0;
+      authorStatsMap[key].avgReadTime = authorBlogs.length > 0 ? Math.round(totalRead / authorBlogs.length) : 0;
     });
 
     return Object.values(authorStatsMap).sort((a, b) => b.published - a.published || b.written - a.written);
@@ -436,7 +483,7 @@ export const AnalyticsView: React.FC = () => {
                   ? `${liveData.uniqueVisitors.toLocaleString()} unique`
                   : `${Math.round(totalEstimatedViews * 0.42).toLocaleString()} unique`}
               </span>
-              <span>visitors tracked</span>
+              <span>visitors tracked {rangeParam !== 'all' ? `(${baseViews.toLocaleString()} lifetime)` : ''}</span>
             </div>
           </div>
 
@@ -809,9 +856,11 @@ export const AnalyticsView: React.FC = () => {
 
           <div className="space-y-3.5">
             {topRankedBlogs.map((blog, idx) => {
-              const views = blog.viewCount || 0;
-              const barPercent = Math.max(8, Math.round((views / maxBlogViews) * 100));
-              const title = blog.translations.en?.title || Object.values(blog.translations)[0]?.title || 'Untitled Post';
+              const rawViews = blog.viewCount || 0;
+              const periodViews = rangeParam === 'all' ? rawViews : Math.round(rawViews * rangeMultiplier);
+              const maxViewVal = rangeParam === 'all' ? maxBlogViews : Math.round(maxBlogViews * rangeMultiplier);
+              const barPercent = Math.max(8, Math.round((periodViews / Math.max(maxViewVal, 1)) * 100));
+              const title = blog.translations?.en?.title || Object.values(blog.translations || {})[0]?.title || 'Untitled Post';
 
               return (
                 <div key={blog.id} className="space-y-1.5 group">
@@ -835,8 +884,10 @@ export const AnalyticsView: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0 font-mono text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                      <span>{views.toLocaleString()}</span>
-                      <span className="text-slate-400 font-normal">views</span>
+                      <span>{periodViews.toLocaleString()}</span>
+                      <span className="text-slate-400 font-normal">
+                        {rangeParam === 'all' ? 'views' : `views (${rawViews.toLocaleString()} total)`}
+                      </span>
                     </div>
                   </div>
 
@@ -1026,7 +1077,7 @@ export const AnalyticsView: React.FC = () => {
               {authorsLeaderboard.map((author, index) => {
                 const approvalRate = author.written > 0 ? Math.round((author.published / author.written) * 100) : 0;
                 return (
-                  <tr key={author.authorName} className="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
+                  <tr key={author.authorId || author.authorName} className="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
                         <span className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
@@ -1040,7 +1091,7 @@ export const AnalyticsView: React.FC = () => {
                         </span>
                         <div>
                           <div className="font-semibold text-slate-900 dark:text-white">{author.authorName}</div>
-                          <div className="text-[10px] text-slate-400">Editorial Contributor</div>
+                          <div className="text-[10px] text-slate-400">{author.authorRole || 'Editorial Contributor'}</div>
                         </div>
                       </div>
                     </td>
@@ -1067,8 +1118,14 @@ export const AnalyticsView: React.FC = () => {
                     </td>
 
                     <td className="py-3.5 px-4 text-right">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md font-semibold text-[10px] border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700">
-                        {index === 0 ? 'Top Contributor' : 'Staff Author'}
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md font-semibold text-[10px] border ${
+                        author.authorRole === 'Super Admin'
+                          ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800'
+                          : index === 0
+                          ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                      }`}>
+                        {author.authorRole === 'Super Admin' ? 'Super Admin' : index === 0 ? 'Top Contributor' : 'Staff Author'}
                       </span>
                     </td>
                   </tr>

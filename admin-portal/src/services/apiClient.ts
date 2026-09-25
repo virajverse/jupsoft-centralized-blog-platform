@@ -59,26 +59,30 @@ export interface WebhookDeliveryLogItem {
 
 export function getApiBase(): string {
   const envUrl = process.env.NEXT_PUBLIC_API_URL;
-  const backendPort = process.env.NEXT_PUBLIC_API_PORT || '4010';
-
-  // 1. In SSR / Node server context
   if (typeof window === 'undefined') {
-    return (process.env.INTERNAL_API_URL || envUrl || `http://localhost:${backendPort}`).replace(/\/+$/, '');
+    return (envUrl || 'http://localhost:4010').replace(/\/+$/, '');
   }
 
-  // 2. Explicit custom remote API URL (e.g. deployed separate API endpoint)
+  // 1. If explicit env URL is set to a remote domain or path
   if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
     return envUrl.replace(/\/+$/, '');
   }
 
-  // 3. In browser: standard ports (80 / 443) or reverse proxy setups (same origin)
-  if (!window.location.port || window.location.port === '80' || window.location.port === '443') {
-    return window.location.origin;
+  // 2. If running on production blogary domain
+  if (window.location.hostname === 'blogary.jupsoft.com') {
+    return 'https://blogary.jupsoft.com';
   }
 
-  // 4. In browser: development port (e.g. Next.js on 3000 -> backend on configured port)
-  const host = window.location.hostname || 'localhost';
-  return `${window.location.protocol}//${host}:${backendPort}`;
+  // 3. If accessed via VPS IP or custom domain (not localhost)
+  const host = window.location.hostname;
+  if (host && host !== 'localhost' && host !== '127.0.0.1') {
+    if (!window.location.port || window.location.port === '80' || window.location.port === '443') {
+      return window.location.origin;
+    }
+    return `${window.location.protocol}//${host}:4010`;
+  }
+
+  return (envUrl || 'http://localhost:4010').replace(/\/+$/, '');
 }
 
 export const API_BASE = getApiBase();
@@ -103,130 +107,17 @@ function deleteCookie(name: string) {
   document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
 }
 
-export interface ApiRequestOptions extends RequestInit {
-  forceRefresh?: boolean;
-}
-
-interface CacheEntry<T = unknown> {
-  data: T;
-  expiresAt: number;
-}
-
 class ApiClient {
   private token: string | null = null;
   private refreshTokenValue: string | null = null;
   private isRefreshing = false;
   private refreshQueue: Array<(token: string | null) => void> = [];
 
-  // In-flight deduplication & multi-tier cache (In-memory + sessionStorage for multi-page sweeps)
-  private cache = new Map<string, CacheEntry<unknown>>();
-  private inFlight = new Map<string, Promise<unknown>>();
-  private inFlightMutations = new Map<string, Promise<unknown>>();
-
   constructor() {
     if (typeof window !== 'undefined') {
       this.token = getCookie('jupsoft_auth_token');
       this.refreshTokenValue = getCookie('jupsoft_refresh_token');
     }
-  }
-
-  /**
-   * Retrieve cached response from memory or persistent sessionStorage
-   */
-  private getCacheItem<T>(key: string): T | null {
-    // 1. In-memory check (fastest)
-    const mem = this.cache.get(key);
-    if (mem && Date.now() < mem.expiresAt) {
-      return mem.data as T;
-    }
-
-    // 2. Persistent sessionStorage check (survives full page reloads & multi-page sweeps)
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = sessionStorage.getItem(`jupsoft_cache_${key}`);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed.expiresAt === 'number' && parsed.expiresAt > Date.now()) {
-            this.cache.set(key, parsed);
-            return parsed.data as T;
-          } else {
-            sessionStorage.removeItem(`jupsoft_cache_${key}`);
-          }
-        }
-      } catch {}
-    }
-
-    return null;
-  }
-
-  /**
-   * Store cached response in memory and sessionStorage
-   */
-  private setCacheItem(key: string, data: unknown, ttl: number): void {
-    const entry: CacheEntry = {
-      data,
-      expiresAt: Date.now() + ttl,
-    };
-    this.cache.set(key, entry);
-
-    if (typeof window !== 'undefined') {
-      try {
-        sessionStorage.setItem(`jupsoft_cache_${key}`, JSON.stringify(entry));
-      } catch {}
-    }
-  }
-
-  /**
-   * Clear cache (in memory and sessionStorage).
-   * Can clear all entries or only entries matching a sub-path pattern.
-   */
-  public clearCache(endpointPattern?: string): void {
-    if (!endpointPattern) {
-      this.cache.clear();
-      if (typeof window !== 'undefined') {
-        try {
-          const toRemove: string[] = [];
-          for (let i = 0; i < sessionStorage.length; i++) {
-            const k = sessionStorage.key(i);
-            if (k && k.startsWith('jupsoft_cache_')) {
-              toRemove.push(k);
-            }
-          }
-          toRemove.forEach((k) => sessionStorage.removeItem(k));
-        } catch {}
-      }
-      return;
-    }
-
-    for (const key of this.cache.keys()) {
-      if (key.includes(endpointPattern)) {
-        this.cache.delete(key);
-      }
-    }
-    if (typeof window !== 'undefined') {
-      try {
-        const toRemove: string[] = [];
-        for (let i = 0; i < sessionStorage.length; i++) {
-          const k = sessionStorage.key(i);
-          if (k && k.startsWith('jupsoft_cache_') && k.includes(endpointPattern)) {
-            toRemove.push(k);
-          }
-        }
-        toRemove.forEach((k) => sessionStorage.removeItem(k));
-      } catch {}
-    }
-  }
-
-  /**
-   * Determine TTL based on resource volatility
-   */
-  private getTtlForEndpoint(endpoint: string): number {
-    if (endpoint.startsWith('/admin/websites')) return 60_000; // 60s: tenants rarely change
-    if (endpoint.startsWith('/admin/auth/me')) return 60_000;   // 60s: user profile
-    if (endpoint.startsWith('/admin/categories') || endpoint.startsWith('/admin/tags')) return 30_000; // 30s
-    if (endpoint.startsWith('/admin/blogs')) return 20_000;      // 20s: prevents re-fetch across rapid multi-page sweep
-    if (endpoint.startsWith('/v1/health')) return 15_000;       // 15s: health check
-    return 10_000; // 10s default
   }
 
   setTokens(accessToken: string | null, refreshToken?: string | null) {
@@ -261,7 +152,6 @@ class ApiClient {
   clearTokens() {
     this.token = null;
     this.refreshTokenValue = null;
-    this.clearCache();
     deleteCookie('jupsoft_auth_token');
     deleteCookie('jupsoft_refresh_token');
     if (typeof window !== 'undefined') {
@@ -304,7 +194,7 @@ class ApiClient {
     }
   }
 
-  private async executeFetch<T>(endpoint: string, options: ApiRequestOptions = {}): Promise<T> {
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const headers = new Headers(options.headers || {});
     if (!(options.body instanceof FormData)) {
       headers.set('Content-Type', 'application/json');
@@ -352,7 +242,7 @@ class ApiClient {
         // Refresh failed — force clean logout without loop
         if (typeof window !== 'undefined') {
           try {
-            ['jupsoft_blog_store', 'jupsoft_cms_platform_store_v7', 'jupsoft_cms_platform_store_v6'].forEach((key) => {
+            ['jupsoft_cms_platform_store_v7', 'jupsoft_cms_platform_store_v6'].forEach((key) => {
               const rawStore = localStorage.getItem(key);
               if (rawStore) {
                 const parsed = JSON.parse(rawStore);
@@ -366,7 +256,6 @@ class ApiClient {
           } catch {}
 
           if (window.location.pathname !== '/login') {
-            // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intentional full reload on session expiry: wipes stale client state; this service module has no router
             window.location.href = '/login?session=expired';
           }
         }
@@ -390,84 +279,6 @@ class ApiClient {
     }
 
     return response.json();
-  }
-
-  private async request<T>(endpoint: string, options: ApiRequestOptions = {}): Promise<T> {
-    const method = (options.method || 'GET').toUpperCase();
-    const isGet = method === 'GET';
-    const bypassCache = Boolean(options.forceRefresh || options.cache === 'no-store');
-
-    // 0. Canonical query parameter normalization (sort query keys so identical requests produce matching cache keys)
-    const [path, queryString] = endpoint.split('?');
-    let normalizedEndpoint = path;
-    if (queryString) {
-      const searchParams = new URLSearchParams(queryString);
-      searchParams.sort();
-      normalizedEndpoint = `${path}?${searchParams.toString()}`;
-    }
-
-    // 1. Mutating requests (POST, PUT, DELETE, PATCH): In-flight deduplication & automatic cache clearing
-    if (!isGet) {
-      const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
-      const bodyKey = typeof options.body === 'string' ? options.body : '';
-      const shouldDedupe = !isFormData;
-      const mutationKey = shouldDedupe ? `${method}:${normalizedEndpoint}:${bodyKey}` : null;
-
-      // In-flight deduplication: if exact mutation is already executing, reuse promise to prevent duplicate fire
-      if (mutationKey) {
-        const existingMutation = this.inFlightMutations.get(mutationKey);
-        if (existingMutation) {
-          return existingMutation as Promise<T>;
-        }
-      }
-
-      const mutationPromise = this.executeFetch<T>(normalizedEndpoint, options)
-        .then((result) => {
-          this.clearCache();
-          return result;
-        })
-        .finally(() => {
-          if (mutationKey) {
-            this.inFlightMutations.delete(mutationKey);
-          }
-        });
-
-      if (mutationKey) {
-        this.inFlightMutations.set(mutationKey, mutationPromise);
-      }
-      return mutationPromise;
-    }
-
-    // 2. GET Request: Check memory + persistent sessionStorage cache
-    const cacheKey = normalizedEndpoint;
-    if (!bypassCache) {
-      const cached = this.getCacheItem<T>(cacheKey);
-      if (cached !== null) {
-        return cached;
-      }
-    }
-
-    // 3. GET Request: Deduplicate in-flight requests (prevent concurrent calls)
-    const inFlightPromise = this.inFlight.get(cacheKey);
-    if (inFlightPromise && !bypassCache) {
-      return inFlightPromise as Promise<T>;
-    }
-
-    // 4. Fire request and store in-flight Promise
-    const fetchPromise = this.executeFetch<T>(normalizedEndpoint, options)
-      .then((data) => {
-        if (!bypassCache && data !== undefined) {
-          const ttl = this.getTtlForEndpoint(normalizedEndpoint);
-          this.setCacheItem(cacheKey, data, ttl);
-        }
-        return data;
-      })
-      .finally(() => {
-        this.inFlight.delete(cacheKey);
-      });
-
-    this.inFlight.set(cacheKey, fetchPromise);
-    return fetchPromise;
   }
 
   // ─── Health ───────────────────────────────────────────────────────────────
@@ -589,7 +400,7 @@ class ApiClient {
       transArray.push(...blog.translations);
     }
 
-    const cleanWebsiteId = (blog.websiteId && blog.websiteId !== 'all') ? blog.websiteId : '';
+    const cleanWebsiteId = (blog.websiteId && blog.websiteId !== 'all') ? blog.websiteId : 'site-cloud';
 
     // Strictly whitelist only properties defined in CreateBlogDto / UpdateBlogDto
     const payload: Record<string, unknown> = {
@@ -606,8 +417,6 @@ class ApiClient {
     if (blog.authorId) payload.authorId = blog.authorId;
     if (blog.authorName) payload.authorName = blog.authorName;
     if (blog.authorAvatar !== undefined && blog.authorAvatar !== null) payload.authorAvatar = blog.authorAvatar;
-    if (blog.publishDate !== undefined && blog.publishDate !== null && blog.publishDate !== '') payload.publishDate = blog.publishDate;
-    if (blog.scheduledAt !== undefined && blog.scheduledAt !== null && blog.scheduledAt !== '') payload.scheduledAt = blog.scheduledAt;
 
     return payload;
   }
@@ -624,10 +433,6 @@ class ApiClient {
 
   async deleteBlog(id: string): Promise<{ success: boolean }> {
     return this.request(`/admin/blogs/${id}`, { method: 'DELETE' });
-  }
-
-  async duplicateBlog(id: string): Promise<Blog> {
-    return this.request(`/admin/blogs/${id}/duplicate`, { method: 'POST' });
   }
 
   async submitBlogForReview(id: string, notes?: string): Promise<Blog> {
@@ -647,6 +452,38 @@ class ApiClient {
 
   async archiveBlog(id: string): Promise<Blog> {
     return this.request(`/admin/blogs/${id}/archive`, { method: 'POST', body: JSON.stringify({}) });
+  }
+
+  async getBlog(id: string): Promise<Blog> {
+    return this.getBlogById(id);
+  }
+
+  async duplicateBlog(id: string): Promise<Blog> {
+    const original = await this.getBlogById(id);
+    const translations: Record<string, any> = {};
+    if (original.translations) {
+      Object.entries(original.translations).forEach(([lang, t]: [string, any]) => {
+        translations[lang] = {
+          title: `${t.title || 'Untitled'} (Copy)`,
+          slug: `${t.slug || 'copy'}-${Date.now().toString(36)}`,
+          content: t.content || '<p></p>',
+          excerpt: t.excerpt || '',
+          featuredImage: t.featuredImage || '',
+          authorName: t.authorName || original.authorName || '',
+          seo: t.seo || {},
+        };
+      });
+    }
+    const payload: BlogPayloadInput = {
+      websiteId: original.websiteId,
+      status: 'Draft',
+      categoryIds: original.categoryIds || [],
+      tagIds: original.tagIds || [],
+      authorName: original.authorName || 'Staff Writer',
+      translations,
+      readTimeMinutes: original.readTimeMinutes || 3,
+    };
+    return this.createBlog(payload);
   }
 
   // ─── Media Library (TRD §10) ──────────────────────────────────────────────
@@ -754,12 +591,12 @@ class ApiClient {
     return this.request('/admin/users/invite', { method: 'POST', body: JSON.stringify(user) });
   }
 
-  async updateUserModules(id: string, modules: string[]): Promise<UserAccount> {
-    return this.request(`/admin/users/${id}/modules`, { method: 'PUT', body: JSON.stringify({ modules }) });
-  }
-
   async updateUserRole(id: string, role: string, websiteId: string): Promise<UserAccount> {
     return this.request(`/admin/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role, websiteId }) });
+  }
+
+  async updateUserModules(id: string, customModules: string[]): Promise<UserAccount> {
+    return this.request(`/admin/users/${id}/modules`, { method: 'PUT', body: JSON.stringify({ customModules }) });
   }
 
   async updateUserStatus(id: string, status: string): Promise<UserAccount> {
