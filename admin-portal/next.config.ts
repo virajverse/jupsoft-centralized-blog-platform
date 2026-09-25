@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
     // We strictly typecheck locally before pushing. Skipping on EC2 prevents 1GB RAM freezing.
     ignoreBuildErrors: true,
   },
+  eslint: {
+    // Skip linting during production build on low-RAM EC2 instances
+    ignoreDuringBuilds: true,
+  },
   turbopack: {
     root: path.resolve(__dirname, '..'),
   },
