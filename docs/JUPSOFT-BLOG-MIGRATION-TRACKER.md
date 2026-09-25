@@ -6,6 +6,13 @@
 > **Last Synchronized:** 2026-09-25  
 > **Slug Matching Policy:** 100% Strict Identity Matching (Exact real slug `jupsoft.com/blog/[slug].html` $\rightarrow$ `test1.jupsoft.in/blog/[slug]`)
 
+> [!IMPORTANT]
+> **IMMUTABLE SLUG IDENTITY RULE:**  
+> When writing, copying, or migrating articles from the primary site (`jupsoft.com`) to secondary/tenant domains (e.g. `test1.jupsoft.in`):
+> - **Only the domain changes.**
+> - The relative path `/blog/` and the exact slug string must remain 100% identical.
+> - **Zero slug alteration or auto-generation allowed.** All 56 articles in this sheet have their exact canonical slug locked.
+
 ---
 
 ## 📊 Migration Progress Overview

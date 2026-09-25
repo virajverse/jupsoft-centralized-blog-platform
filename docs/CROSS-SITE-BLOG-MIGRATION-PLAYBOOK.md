@@ -244,15 +244,55 @@ export async function migrateSingleBlog({
 
 ---
 
+## 🔒 Mandatory Golden Rule: 100% Strict Slug Identity Preservation
+
+> [!CAUTION]
+> **IMMUTABLE RULE FOR ALL PRESENT & FUTURE BLOG REPLICATION:**
+> When copying, migrating, or syndicating articles from the primary corporate website (`jupsoft.com`) to any secondary website, tenant, or staging domain (e.g. `test1.jupsoft.in`):
+> 
+> 1. **SLUG MUST REMAIN 100% IDENTICAL:** Never regenerate, hash, summarize, or alter the slug string. The exact slug from the source URL must be retained in the database `translations[0].slug`.
+> 2. **ONLY THE DOMAIN CHANGES:** The URL structure must always follow `https://{target-domain}/blog/{exact-source-slug}`.
+>
+> | Attribute | Main / Source Website | Target / Tenant Website | Match Status |
+> | :--- | :--- | :--- | :---: |
+> | **Domain** | `https://jupsoft.com` | `https://test1.jupsoft.in` *(or custom tenant domain)* | Different |
+> | **Path** | `/blog/` | `/blog/` | **Identical** |
+> | **Slug** | `school-erp-software-jupsoft-vs-others` | `school-erp-software-jupsoft-vs-others` | **100% Exact Match** |
+> | **Full URL** | `https://jupsoft.com/blog/school-erp-software-jupsoft-vs-others` | `https://test1.jupsoft.in/blog/school-erp-software-jupsoft-vs-others` | Seamless |
+
+### Safe Slug Extractor Helper:
+```javascript
+/**
+ * Safely extracts the canonical slug from any source URL (removes .html, trailing slashes, and queries)
+ * Example: 'https://jupsoft.com/blog/school-erp-software-jupsoft-vs-others.html' 
+ * Output:  'school-erp-software-jupsoft-vs-others'
+ */
+function extractCanonicalSlug(sourceUrl) {
+  const urlObj = new URL(sourceUrl);
+  const cleanPath = urlObj.pathname.replace(/\.html?$/i, '').replace(/\/+$/, '');
+  const segments = cleanPath.split('/');
+  return decodeURIComponent(segments[segments.length - 1]);
+}
+```
+
+---
+
 ## 🔍 Verification & Post-Migration Health Check
 
-Always execute these 3 verification checks after migration:
+Always execute these 4 verification checks after migration:
 
-1. **Mojikake Character Check:**
+1. **Strict Slug Identity Match Check:**
+   Compare the target CMS slug with the main site slug:
+   ```javascript
+   if (migratedBlog.slug !== extractCanonicalSlug(sourceUrl)) {
+     throw new Error(`Slug mismatch! Expected: ${extractCanonicalSlug(sourceUrl)}, Got: ${migratedBlog.slug}`);
+   }
+   ```
+2. **Mojikake Character Check:**
    Query the public API and ensure string `.includes('â') === false`.
-2. **Backdate Verification:**
+3. **Backdate Verification:**
    Ensure the API returns matching `publishDate` and `publishedAt` timestamps matching the original post.
-3. **Public API Validation:**
+4. **Public API Validation:**
    ```bash
    curl -H "x-api-key: <tenant-api-key>" https://blogary.jupsoft.com/v1/blogs?lang=en
    ```
