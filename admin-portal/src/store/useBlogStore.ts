@@ -293,17 +293,10 @@ export const useBlogStore = create<BlogState>()(
 
       loadInitialData: async () => {
         try {
-          const siteId = get().activeWebsiteId;
-          const targetSite = siteId === 'all' ? undefined : siteId;
-
-          // Initialize core shell data in parallel: websites, user profile, and active blogs
-          const [websitesRes, profileRes, blogsRes] = await Promise.allSettled([
+          // Initialize core shell data in parallel: websites and user profile
+          const [websitesRes, profileRes] = await Promise.allSettled([
             apiClient.getWebsites(),
             apiClient.getProfile(),
-            apiClient.getBlogs({
-              websiteId: targetSite,
-              limit: 100,
-            }),
           ]);
 
           const updates: Partial<BlogState> = {};
@@ -344,9 +337,6 @@ export const useBlogStore = create<BlogState>()(
               }
             }
           }
-          if (blogsRes.status === 'fulfilled' && blogsRes.value && Array.isArray(blogsRes.value.data)) {
-            updates.blogs = blogsRes.value.data;
-          }
 
           if (Object.keys(updates).length > 0) {
             set(updates);
@@ -371,17 +361,21 @@ export const useBlogStore = create<BlogState>()(
               user.roleAssignments?.['all'] !== undefined;
             const assignedWebsites = Object.keys(user.roleAssignments || {}).filter((k) => k !== 'all');
 
-            // Immediately load live websites from backend API to guarantee multi-tenant store is fresh
+            // Immediately load live websites from backend API to guarantee multi-tenant store is fresh (guarded with 1500ms timeout)
             let liveWebsites = get().websites;
             try {
-              const fetchedWebsites = await apiClient.getWebsites();
+              const fetchWebsitesPromise = apiClient.getWebsites();
+              const timeoutPromise = new Promise<Website[]>((_, reject) =>
+                setTimeout(() => reject(new Error('Websites pre-fetch timeout')), 1500)
+              );
+              const fetchedWebsites = await Promise.race([fetchWebsitesPromise, timeoutPromise]);
               if (Array.isArray(fetchedWebsites) && fetchedWebsites.length > 0) {
                 const map = new Map<string, Website>();
                 fetchedWebsites.forEach((w) => map.set(w.id, w));
                 liveWebsites = Array.from(map.values());
               }
             } catch (wErr) {
-              console.warn('Failed to pre-fetch websites during login:', wErr);
+              console.warn('Failed or timed out pre-fetching websites during login:', wErr);
             }
 
             let websiteId = get().activeWebsiteId;
@@ -436,14 +430,18 @@ export const useBlogStore = create<BlogState>()(
 
             let liveWebsites = get().websites;
             try {
-              const fetchedWebsites = await apiClient.getWebsites();
+              const fetchWebsitesPromise = apiClient.getWebsites();
+              const timeoutPromise = new Promise<Website[]>((_, reject) =>
+                setTimeout(() => reject(new Error('Websites pre-fetch timeout')), 1500)
+              );
+              const fetchedWebsites = await Promise.race([fetchWebsitesPromise, timeoutPromise]);
               if (Array.isArray(fetchedWebsites) && fetchedWebsites.length > 0) {
                 const map = new Map<string, Website>();
                 fetchedWebsites.forEach((w) => map.set(w.id, w));
                 liveWebsites = Array.from(map.values());
               }
             } catch (wErr) {
-              console.warn('Failed to pre-fetch websites during Google login:', wErr);
+              console.warn('Failed or timed out pre-fetching websites during Google login:', wErr);
             }
 
             let websiteId = get().activeWebsiteId;

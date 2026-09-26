@@ -98,13 +98,14 @@ function getCookie(name: string): string | null {
 
 function setCookie(name: string, value: string, days = 7) {
   if (typeof document === 'undefined') return;
+  const maxAge = days * 86400;
   const expires = new Date(Date.now() + days * 864e5).toUTCString();
-  document.cookie = `${name}=${value}; expires=${expires}; path=/; SameSite=Lax`;
+  document.cookie = `${name}=${value}; max-age=${maxAge}; expires=${expires}; path=/; SameSite=Lax`;
 }
 
 function deleteCookie(name: string) {
   if (typeof document === 'undefined') return;
-  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0; path=/; SameSite=Lax`;
 }
 
 class ApiClient {
@@ -123,7 +124,7 @@ class ApiClient {
   setTokens(accessToken: string | null, refreshToken?: string | null) {
     this.token = accessToken;
     if (accessToken) {
-      setCookie('jupsoft_auth_token', accessToken, 1); // 1 day (access token short-lived)
+      setCookie('jupsoft_auth_token', accessToken, 7); // 7 days (aligns with session lifetime)
       if (typeof window !== 'undefined') {
         try { localStorage.setItem('jupsoft_auth_token', accessToken); } catch {}
       }

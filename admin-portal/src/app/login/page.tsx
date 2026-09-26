@@ -64,6 +64,19 @@ export default function LoginPage() {
   const googleBtnRef = useRef<HTMLDivElement>(null);
 
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
+  const isRedirectingRef = useRef(false);
+
+  const performRedirect = (targetPath?: string) => {
+    if (isRedirectingRef.current) return;
+    isRedirectingRef.current = true;
+    setLoading(true);
+
+    const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const dest = targetPath || urlParams?.get('redirect') || '/dashboard';
+
+    // Hard navigation guarantees browser network stack sends jupsoft_auth_token cookie to proxy middleware
+    window.location.href = dest;
+  };
 
   const handleGoogleCredentialResponse = async (response: { credential?: string }) => {
     if (!response || !response.credential) {
@@ -77,17 +90,15 @@ export default function LoginPage() {
     try {
       const res = await loginWithGoogle(response.credential);
       if (res.success) {
-        const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-        const redirect = urlParams?.get('redirect') || '/dashboard';
-        router.push(redirect);
+        performRedirect();
       } else {
+        setGoogleLoading(false);
         setErrorMsg(res.message || 'Google sign-in denied. Only registered accounts can access the CMS.');
       }
     } catch (err: unknown) {
+      setGoogleLoading(false);
       const msg = err instanceof Error ? err.message : 'An unexpected error occurred during Google sign-in.';
       setErrorMsg(msg);
-    } finally {
-      setGoogleLoading(false);
     }
   };
 
@@ -156,13 +167,14 @@ export default function LoginPage() {
     }
 
     if (isAuthenticated && token) {
-      if (!document.cookie.includes('jupsoft_auth_token=')) {
-        document.cookie = `jupsoft_auth_token=${token}; path=/; max-age=86400; SameSite=Lax`;
+      if (!isRedirectingRef.current) {
+        if (!document.cookie.includes('jupsoft_auth_token=')) {
+          document.cookie = `jupsoft_auth_token=${token}; path=/; max-age=604800; SameSite=Lax`;
+        }
+        performRedirect();
       }
-      const redirect = urlParams.get('redirect') || '/dashboard';
-      router.replace(redirect);
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,17 +189,15 @@ export default function LoginPage() {
     try {
       const res = await login(email.trim(), password);
       if (res.success) {
-        const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-        const redirect = urlParams?.get('redirect') || '/dashboard';
-        router.push(redirect);
+        performRedirect();
       } else {
+        setLoading(false);
         setErrorMsg(res.message || 'Authentication failed. Please check your credentials.');
       }
     } catch (err: unknown) {
+      setLoading(false);
       const msg = err instanceof Error ? err.message : 'An unexpected error occurred.';
       setErrorMsg(msg);
-    } finally {
-      setLoading(false);
     }
   };
 

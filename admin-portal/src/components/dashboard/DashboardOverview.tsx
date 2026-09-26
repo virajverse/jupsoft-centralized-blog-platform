@@ -68,11 +68,16 @@ export const DashboardOverview: React.FC = () => {
   const isAllSites = effectiveSiteId === 'all';
   const activeSite = websites.find((w) => w.id === effectiveSiteId) || userAssignedWebsites[0] || websites[0];
 
+  const lastFetchedSiteRef = React.useRef<string | null>(null);
+
   useEffect(() => {
     if (effectiveSiteId && effectiveSiteId !== activeWebsiteId) {
       setActiveWebsite(effectiveSiteId);
     }
-    fetchBlogs(effectiveSiteId);
+    if (lastFetchedSiteRef.current !== effectiveSiteId) {
+      lastFetchedSiteRef.current = effectiveSiteId;
+      fetchBlogs(effectiveSiteId);
+    }
   }, [effectiveSiteId, activeWebsiteId, setActiveWebsite, fetchBlogs]);
   
   // Isolated vs Global aggregation (Memoized)

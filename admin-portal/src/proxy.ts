@@ -18,12 +18,22 @@ const PROTECTED_PREFIXES = [
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 1. Allow root homepage and public paths
+  // 1. If user is already authenticated with valid token and tries to access /login, redirect directly to dashboard
+  if (pathname === '/login') {
+    const token = request.cookies.get('jupsoft_auth_token')?.value;
+    if (token && !token.startsWith('offline_token_')) {
+      const redirect = request.nextUrl.searchParams.get('redirect') || '/dashboard';
+      return NextResponse.redirect(new URL(redirect, request.url));
+    }
+    return NextResponse.next();
+  }
+
+  // 2. Allow root homepage and public paths
   if (pathname === '/' || PUBLIC_PATHS.some((p) => p !== '/' && pathname.startsWith(p))) {
     return NextResponse.next();
   }
 
-  // 2. Allow Next.js internals, static files, and all public images/assets
+  // 3. Allow Next.js internals, static files, and all public images/assets
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
@@ -33,16 +43,16 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 3. Check if current path requires authentication
+  // 4. Check if current path requires authentication
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
   if (!isProtected) {
     return NextResponse.next();
   }
 
-  // 4. Check for auth token in cookies
+  // 5. Check for auth token in cookies
   const token = request.cookies.get('jupsoft_auth_token')?.value;
 
-  if (!token) {
+  if (!token || token.startsWith('offline_token_')) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
