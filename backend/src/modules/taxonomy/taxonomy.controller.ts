@@ -66,11 +66,26 @@ export class TaxonomyController {
 
     const categories = await this.prisma.category.findMany({
       where,
+      include: {
+        _count: {
+          select: { blogCategories: true },
+        },
+      },
       orderBy: { name: 'asc' },
     });
 
-    await this.redis.set(cacheKey, categories, 300);
-    return categories;
+    const result = categories.map((c) => ({
+      id: c.id,
+      websiteId: c.websiteId,
+      name: c.name,
+      slug: c.slug,
+      parentId: c.parentId,
+      description: c.description,
+      count: c._count?.blogCategories ?? c.count ?? 0,
+    }));
+
+    await this.redis.set(cacheKey, result, 300);
+    return result;
   }
 
   @Post('categories')
@@ -186,11 +201,24 @@ export class TaxonomyController {
 
     const tags = await this.prisma.tag.findMany({
       where,
+      include: {
+        _count: {
+          select: { blogTags: true },
+        },
+      },
       orderBy: { name: 'asc' },
     });
 
-    await this.redis.set(cacheKey, tags, 300);
-    return tags;
+    const result = tags.map((t) => ({
+      id: t.id,
+      websiteId: t.websiteId,
+      name: t.name,
+      slug: t.slug,
+      count: t._count?.blogTags ?? t.count ?? 0,
+    }));
+
+    await this.redis.set(cacheKey, result, 300);
+    return result;
   }
 
   @Post('tags')
