@@ -194,6 +194,8 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   // Target website selection: scoped to existing post's site or current filter or fallback to first site
   const [selectedWebsiteId, setSelectedWebsiteId] = useState<string>(() => {
     if (existingBlog?.websiteId) return existingBlog.websiteId;
+    const siteQuery = searchParams.get('site');
+    if (siteQuery && siteQuery !== 'all' && websites.some((w) => w.id === siteQuery)) return siteQuery;
     if (activeWebsiteId && activeWebsiteId !== 'all') return activeWebsiteId;
     return websites[0]?.id || 'site-cloud';
   });
@@ -1296,8 +1298,12 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
     setIsSaving(true);
     try {
-      await saveBlog(newBlog);
-      initialBlogRef.current = newBlog;
+      const saved = await saveBlog(newBlog);
+      if (saved && (saved as Blog).id) {
+        initialBlogRef.current = saved as Blog;
+      } else {
+        initialBlogRef.current = newBlog;
+      }
       setHasUnsavedChanges(false);
       showNotification(status === 'Published' ? 'Blog published successfully! 🎉' : 'Blog saved successfully! ✅', 'success');
       router.push(`/blogs?site=${targetSiteId}`);

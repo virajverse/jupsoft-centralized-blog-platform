@@ -76,7 +76,7 @@ interface BlogState {
   toggleTheme: () => void;
   startCreateBlog: () => void;
   startEditBlog: (id: string) => void;
-  saveBlog: (blog: Blog) => Promise<void> | void;
+  saveBlog: (blog: Blog) => Promise<Blog | void> | void;
   transitionBlogStatus: (blogId: string, newStatus: BlogStatus, notes?: string, scheduledAt?: string) => Promise<void> | void;
   deleteBlog: (id: string) => Promise<void> | void;
   addMediaItem: (item: MediaItem) => void;
@@ -589,14 +589,15 @@ export const useBlogStore = create<BlogState>()(
           } else {
             apiResult = await apiClient.createBlog(savedBlog as unknown as BlogPayloadInput);
           }
+          let finalBlog: Blog = {
+            ...savedBlog,
+            ...apiResult,
+            id: apiResult?.id || savedBlog.id,
+            translations: savedBlog.translations || apiResult?.translations,
+          };
           set((state) => {
-            const finalBlog = {
-              ...apiResult,
-              ...savedBlog,
-              translations: savedBlog.translations || apiResult?.translations,
-            };
             const newBlogs = exists
-              ? state.blogs.map((b) => (b.id === savedBlog.id ? finalBlog : b))
+              ? state.blogs.map((b) => (b.id === savedBlog.id || b.id === finalBlog.id ? finalBlog : b))
               : [finalBlog, ...state.blogs.filter((b) => b.id !== savedBlog.id && b.id !== finalBlog.id)];
             const auditLog: SystemAuditLog = {
               id: `aud-${Date.now()}`,
@@ -606,7 +607,7 @@ export const useBlogStore = create<BlogState>()(
               websiteId: finalBlog.websiteId,
               event: exists ? 'blog.updated' : 'blog.created',
               ipAddress: '127.0.0.1',
-              details: `Saved "${finalBlog.translations.en?.title || finalBlog.id}" (${finalBlog.status}).`,
+              details: `Saved "${finalBlog.translations?.en?.title || finalBlog.id}" (${finalBlog.status}).`,
             };
             return {
               blogs: newBlogs,
@@ -615,6 +616,7 @@ export const useBlogStore = create<BlogState>()(
               notification: { message: exists ? 'Blog updated ✅' : 'Blog created ✅', type: 'success' },
             };
           });
+          return finalBlog;
         } catch (err: unknown) {
           console.error('API saveBlog failed:', err);
           throw err;
