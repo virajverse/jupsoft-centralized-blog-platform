@@ -247,7 +247,6 @@ export function getAllowedInviteRoles(
 ): UserRole[] {
   if (currentRole === 'Super Admin') {
     return [
-      'Super Admin',
       'Website Admin',
       'Role Admin',
       'Editor',

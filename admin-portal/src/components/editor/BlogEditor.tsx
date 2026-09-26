@@ -1444,7 +1444,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Settings &amp; SEO</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
+            <span className={`px-1.5 py-[1px] rounded-full text-[9px] font-bold ${
               seoResult.score >= 80 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
             }`}>
               {seoResult.score}
@@ -1738,7 +1738,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     >
                       <ImageIcon className="w-3.5 h-3.5" />
                       <span>Image</span>
-                      <span className="text-[10px] px-1 py-0.2 rounded bg-blue-200/60 dark:bg-blue-800/60 font-mono">WebP</span>
+                      <span className="text-[10px] px-1 py-[1px] rounded bg-blue-200/60 dark:bg-blue-800/60 font-mono">WebP</span>
                     </button>
                   </div>
 
@@ -2117,7 +2117,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
             >
               <CheckCircle2 className="w-3 h-3" />
               <span>SEO</span>
-              <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
+              <span className={`px-1.5 py-[1px] rounded-full text-[9px] font-bold ${
                 seoResult.score >= 80 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
               }`}>
                 {seoResult.score}
@@ -2498,7 +2498,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                           setSelectedAuthorId(uId);
                           const found = users.find((u) => u.id === uId) || (currentUser?.id === uId ? currentUser : null);
                           if (found) {
-                            setAuthorName(found.name.replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim());
+                            setAuthorName((found.name || found.email || 'Author').replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim());
                             if (found.avatar) setAuthorAvatar(found.avatar);
                           }
                         }}
@@ -2506,14 +2506,14 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                       >
                         {currentUser && (
                           <option value={currentUser.id}>
-                            {currentUser.name.replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim()} (You)
+                            {(currentUser.name || currentUser.email || 'You').replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim()} (You)
                           </option>
                         )}
                         {users
                           .filter((u) => u.id !== currentUser?.id)
                           .map((u) => (
                             <option key={u.id} value={u.id}>
-                              {u.name.replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim()} ({u.role || Object.values(u.roleAssignments || {})[0] || 'Contributor'})
+                              {(u.name || u.email || 'Author').replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim()} ({u.role || Object.values(u.roleAssignments || {})[0] || 'Contributor'})
                             </option>
                           ))}
                       </select>
@@ -2777,7 +2777,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
               >
                 <ImageIcon className="w-3.5 h-3.5" />
                 <span>Media Library</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono">
+                <span className="px-1.5 py-[1px] rounded-full text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono">
                   {mediaSiteScope === 'all' ? media.length : siteMedia.length}
                 </span>
               </button>

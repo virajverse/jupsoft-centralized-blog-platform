@@ -205,7 +205,7 @@ export const JupsoftNavbar: React.FC = () => {
                 <X className="w-3.5 h-3.5" />
               </button>
             ) : (
-              <kbd className="absolute right-2 text-[10px] font-mono px-1 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700">
+              <kbd className="absolute right-2 text-[10px] font-mono px-1 py-[1px] rounded bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700">
                 /
               </kbd>
             )}
@@ -342,7 +342,7 @@ export const JupsoftNavbar: React.FC = () => {
         >
           <Bell className="w-4 h-4" />
           {reviewCount > 0 && (
-            <span className="absolute 0.5 right-0.5 w-2 h-2 rounded-full bg-red-500" />
+            <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-red-500" />
           )}
         </button>
 
@@ -391,7 +391,7 @@ export const JupsoftNavbar: React.FC = () => {
                 <div className="text-[11px] text-slate-400 truncate">
                   {currentUser?.email || 'admin@jupsoft.com'}
                 </div>
-                <div className="mt-1 inline-block px-1.5 py-0.2 rounded text-[9px] font-bold bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400">
+                <div className="mt-1 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400">
                   {activeRole}
                 </div>
               </div>

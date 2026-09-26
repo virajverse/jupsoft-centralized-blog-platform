@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useQueryState } from '../../hooks/useQueryState';
 import { UserAccount, UserRole, Website } from '../../types';
 import { getAllowedInviteRoles, canManageUsers, isGlobalScopeRole, cleanAvatarUrl, canAccessModule, getDefaultRoleModules, AppModule } from '../../utils/permissions';
+import { DeleteConfirmModal } from '../common/DeleteConfirmModal';
 import { 
   Users, 
   ShieldCheck, 
@@ -178,6 +179,8 @@ export function isSuperAdminAccount(user?: UserAccount | null): boolean {
   return (
     user.id === 'usr-superadmin' ||
     user.email?.toLowerCase().trim() === 'superadmin@jupsoft.com' ||
+    user.name?.toLowerCase().trim().includes('sachin sharma') ||
+    user.role === 'Super Admin' ||
     Object.values(user.roleAssignments || {}).includes('Super Admin')
   );
 }
@@ -223,6 +226,15 @@ export const UserManagementView: React.FC = () => {
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [isSubmittingInvite, setIsSubmittingInvite] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [deleteModalState, setDeleteModalState] = useState<{
+    isOpen: boolean;
+    userId: string;
+    userName: string;
+  }>({
+    isOpen: false,
+    userId: '',
+    userName: '',
+  });
 
   React.useEffect(() => {
     let active = true;
@@ -235,17 +247,29 @@ export const UserManagementView: React.FC = () => {
     return () => { active = false; };
   }, [fetchUsers]);
 
-  const handleDeleteUser = async (id: string, name: string) => {
+  const handleDeleteUser = (id: string, name: string) => {
     if (deletingUserId) return;
     const target = users.find((u) => u.id === id);
     if (isSuperAdminAccount(target) || id === 'usr-superadmin' || name.toLowerCase().includes('superadmin')) {
       showNotification('Super Admin accounts are permanently protected and cannot be deleted via the portal. Deletion is strictly permitted via direct database SQL query only.', 'error');
       return;
     }
-    if (!confirm(`Remove access for ${name}?`)) return;
-    setDeletingUserId(id);
+    setDeleteModalState({
+      isOpen: true,
+      userId: id,
+      userName: name,
+    });
+  };
+
+  const handleConfirmDeleteUser = async () => {
+    if (!deleteModalState.userId || deletingUserId) return;
+    setDeletingUserId(deleteModalState.userId);
     try {
-      await deleteUser(id);
+      await deleteUser(deleteModalState.userId);
+      setDeleteModalState({ isOpen: false, userId: '', userName: '' });
+      showNotification(`Revoked access for ${deleteModalState.userName}`, 'success');
+    } catch (err: unknown) {
+      showNotification(err instanceof Error ? err.message : 'Failed to remove user', 'error');
     } finally {
       setDeletingUserId(null);
     }
@@ -265,7 +289,7 @@ export const UserManagementView: React.FC = () => {
   const getInvitationText = (user: UserAccount, site?: Website, password?: string) => {
     const websiteName = site?.name || 'Jupsoft Cloud & ERP';
     const domain = site?.domain || 'cloud.jupsoft.com';
-    const roleName = user.roleAssignments[site?.id || ''] || user.roleAssignments['all'] || 'Team Member';
+    const roleName = user.roleAssignments?.[site?.id || ''] || user.roleAssignments?.['all'] || 'Team Member';
     const managedScope = roleName === 'Role Admin' && user.managedRoles && user.managedRoles.length > 0
       ? `\n🛡️ *Managed Roles Scope:* ${user.managedRoles.join(', ')}`
       : '';
@@ -400,7 +424,9 @@ _Please log in and update your password on your first sign-in._`;
 
   const handleCopyInvite = (user: UserAccount, site?: Website, password?: string) => {
     const text = getInvitationText(user, site, password);
-    navigator.clipboard.writeText(text);
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    }
     setCopiedShare(true);
     setTimeout(() => setCopiedShare(false), 2500);
   };
@@ -545,6 +571,7 @@ _Please log in and update your password on your first sign-in._`;
 
   // Segregate Super Admins (Global Governance) - hidden from UI management views
   const superAdmins: UserAccount[] = [];
+  const nonSuperUsers = useMemo(() => users.filter((u) => !isSuperAdminAccount(u)), [users]);
 
   // Role Badge Color Mapping
   const getRoleBadge = (role: UserRole) => {
@@ -611,7 +638,7 @@ _Please log in and update your password on your first sign-in._`;
             </span>
           </div>
           <div className="text-2xl font-black text-slate-900 dark:text-white mt-2 font-mono">
-            {users.filter((u) => !isSuperAdminAccount(u)).length}
+            {nonSuperUsers.length}
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
             Active across organization
@@ -624,7 +651,7 @@ _Please log in and update your password on your first sign-in._`;
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
           </div>
           <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-2 font-mono">
-            {users.filter((u) => !isSuperAdminAccount(u) && u.status === 'active').length}
+            {nonSuperUsers.filter((u) => u.status === 'active').length}
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
             Authorized to sign in
@@ -639,7 +666,7 @@ _Please log in and update your password on your first sign-in._`;
             </span>
           </div>
           <div className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-2 font-mono">
-            {users.filter((u) => !isSuperAdminAccount(u) && Object.values(u.roleAssignments || {}).some((r) => r === 'Website Admin' || r === 'Role Admin')).length}
+            {nonSuperUsers.filter((u) => Object.values(u.roleAssignments || {}).some((r) => r === 'Website Admin' || r === 'Role Admin')).length}
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
             Delegated Tenant Admins
@@ -674,7 +701,7 @@ _Please log in and update your password on your first sign-in._`;
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>Member Directory ({users.length})</span>
+            <span>Member Directory ({filteredUsers.length !== nonSuperUsers.length ? `${filteredUsers.length} of ${nonSuperUsers.length}` : nonSuperUsers.length})</span>
           </button>
 
           <button
@@ -713,7 +740,7 @@ _Please log in and update your password on your first sign-in._`;
                 className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all cursor-pointer w-full sm:w-auto"
               >
                 <option value="all">All Roles</option>
-                {ALL_ROLES.map((r) => (
+                {ALL_ROLES.filter((r) => r !== 'Super Admin').map((r) => (
                   <option key={r} value={r}>
                     {r}
                   </option>
@@ -744,8 +771,18 @@ _Please log in and update your password on your first sign-in._`;
               placeholder="Search by name or email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                title="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -756,7 +793,7 @@ _Please log in and update your password on your first sign-in._`;
       {activeTab === 'hierarchy' && (
         <div className="space-y-6">
           {/* Super Administrators */}
-          {isSuperAdmin && (
+          {isSuperAdmin && superAdmins.length > 0 && (
             <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2.5">
@@ -815,14 +852,15 @@ _Please log in and update your password on your first sign-in._`;
               {visibleWebsites.map((site) => {
                 // Find the Website Admin for this site
                 const websiteAdmin = users.find((u) => 
-                  u.roleAssignments[site.id] === 'Website Admin'
+                  u.roleAssignments?.[site.id] === 'Website Admin'
                 );
 
                 // Find all team members assigned under this site (excluding Super Admins & the Website Admin)
                 const teamMembers = users.filter((u) => 
-                  u.roleAssignments[site.id] && 
-                  u.roleAssignments[site.id] !== 'Website Admin' &&
-                  !Object.values(u.roleAssignments).includes('Super Admin')
+                  !isSuperAdminAccount(u) &&
+                  u.roleAssignments?.[site.id] && 
+                  u.roleAssignments?.[site.id] !== 'Website Admin' &&
+                  !Object.values(u.roleAssignments || {}).includes('Super Admin')
                 );
 
                 return (
@@ -903,7 +941,7 @@ _Please log in and update your password on your first sign-in._`;
                       ) : (
                         <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                           {teamMembers.map((member) => {
-                            const memberRole = member.roleAssignments[site.id];
+                            const memberRole = member.roleAssignments?.[site.id] || 'Member';
                             return (
                               <div
                                 key={member.id}
@@ -1061,9 +1099,9 @@ _Please log in and update your password on your first sign-in._`;
                   </tr>
                 ) : (
                   filteredUsers.map((u) => {
-                    const assignedTenants = Object.entries(u.roleAssignments);
-                    const isGlobalSuper = Object.values(u.roleAssignments).includes('Super Admin');
-                    const isAnyWebsiteAdmin = Object.values(u.roleAssignments).includes('Website Admin');
+                    const assignedTenants = Object.entries(u.roleAssignments || {});
+                    const isGlobalSuper = Object.values(u.roleAssignments || {}).includes('Super Admin');
+                    const isAnyWebsiteAdmin = Object.values(u.roleAssignments || {}).includes('Website Admin');
 
                     // Determine delegation line
                     let delegationText = 'Super Admin (Global)';
@@ -1072,7 +1110,7 @@ _Please log in and update your password on your first sign-in._`;
                         delegationText = 'Website Admin (Tenant Lead)';
                       } else {
                         const siteId = assignedTenants[0]?.[0];
-                        const siteLead = users.find(lead => lead.roleAssignments[siteId] === 'Website Admin');
+                        const siteLead = siteId ? users.find(lead => lead.roleAssignments?.[siteId] === 'Website Admin') : null;
                         delegationText = siteLead ? `Managed by ${siteLead.name}` : 'Direct Contributor';
                       }
                     }
@@ -1234,7 +1272,7 @@ _Please log in and update your password on your first sign-in._`;
                                 <>
                                   <button
                                     onClick={() => {
-                                      const primarySiteId = Object.keys(u.roleAssignments)[0];
+                                      const primarySiteId = Object.keys(u.roleAssignments || {})[0];
                                       const site = websites.find((w) => w.id === primarySiteId) || websites[0];
                                       setShareModalData({
                                         user: u,
@@ -1366,7 +1404,7 @@ _Please log in and update your password on your first sign-in._`;
 
             {/* Lead Administrator Card */}
             {(() => {
-              const leadAdmin = users.find((u) => u.roleAssignments[inspectingWebsite.id] === 'Website Admin');
+              const leadAdmin = users.find((u) => u.roleAssignments?.[inspectingWebsite.id] === 'Website Admin');
               return (
                 <div className="p-4 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-800/60 flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -1413,13 +1451,13 @@ _Please log in and update your password on your first sign-in._`;
               </div>
 
               <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-800/80 max-h-60 overflow-y-auto">
-                {users.filter(u => u.roleAssignments[inspectingWebsite.id] && u.roleAssignments[inspectingWebsite.id] !== 'Website Admin').length === 0 ? (
+                {users.filter(u => !isSuperAdminAccount(u) && u.roleAssignments?.[inspectingWebsite.id] && u.roleAssignments?.[inspectingWebsite.id] !== 'Website Admin').length === 0 ? (
                   <div className="py-8 text-center text-xs text-slate-400">
                     No members assigned to this website yet.
                   </div>
                 ) : (
                   users
-                    .filter(u => u.roleAssignments[inspectingWebsite.id] && u.roleAssignments[inspectingWebsite.id] !== 'Website Admin')
+                    .filter(u => !isSuperAdminAccount(u) && u.roleAssignments?.[inspectingWebsite.id] && u.roleAssignments?.[inspectingWebsite.id] !== 'Website Admin')
                     .map(member => (
                       <div key={member.id} className="p-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors text-xs">
                         <div className="flex items-center gap-3">
@@ -1432,10 +1470,10 @@ _Please log in and update your password on your first sign-in._`;
 
                         <div className="flex items-center gap-2">
                           <div className="text-right">
-                            <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-md border ${getRoleBadge(member.roleAssignments[inspectingWebsite.id])}`}>
-                              {member.roleAssignments[inspectingWebsite.id]}
+                            <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-md border ${getRoleBadge(member.roleAssignments?.[inspectingWebsite.id] || 'Editor')}`}>
+                              {member.roleAssignments?.[inspectingWebsite.id] || 'Member'}
                             </span>
-                            {member.roleAssignments[inspectingWebsite.id] === 'Role Admin' && member.managedRoles && member.managedRoles.length > 0 && (
+                            {member.roleAssignments?.[inspectingWebsite.id] === 'Role Admin' && member.managedRoles && member.managedRoles.length > 0 && (
                               <div className="text-[9px] text-blue-600 dark:text-blue-400 font-medium mt-0.5">
                                 Manages: {member.managedRoles.join(', ')}
                               </div>
@@ -2386,7 +2424,9 @@ _Please log in and update your password on your first sign-in._`;
                       type="button"
                       onClick={() => {
                         const pwd = shareModalData.tempPassword || shareModalData.user.tempPassword || '';
-                        navigator.clipboard.writeText(pwd);
+                        if (navigator.clipboard?.writeText) {
+                          navigator.clipboard.writeText(pwd).catch(() => {});
+                        }
                         showNotification('Password copied to clipboard', 'info');
                       }}
                       className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
@@ -2481,6 +2521,19 @@ _Please log in and update your password on your first sign-in._`;
           </div>
         </div>
       )}
+
+      {/* Delete User Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={deleteModalState.isOpen}
+        title="Revoke Member Access"
+        itemName={deleteModalState.userName}
+        itemType="user account"
+        message={`Are you sure you want to revoke access for ${deleteModalState.userName}? Their tenant role assignments will be removed and they will no longer be able to log in.`}
+        confirmText="Revoke Access"
+        isLoading={Boolean(deletingUserId)}
+        onConfirm={handleConfirmDeleteUser}
+        onClose={() => setDeleteModalState({ isOpen: false, userId: '', userName: '' })}
+      />
     </div>
   );
 };

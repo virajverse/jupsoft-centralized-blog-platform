@@ -930,7 +930,7 @@ export const AnalyticsView: React.FC = () => {
                   <div className="flex justify-between text-slate-700 dark:text-slate-300 font-medium">
                     <span className="flex items-center gap-1.5">
                       <span className="font-bold text-slate-900 dark:text-white">{lang.label}</span>
-                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 font-mono text-slate-500">
+                      <span className="text-[10px] px-1.5 py-[1px] rounded bg-slate-100 dark:bg-slate-800 font-mono text-slate-500">
                         {lang.code.toUpperCase()}
                       </span>
                     </span>

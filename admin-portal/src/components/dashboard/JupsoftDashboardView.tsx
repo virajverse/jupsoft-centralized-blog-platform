@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React from 'react';
 import Link from 'next/link';
@@ -264,7 +264,7 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
               <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider text-[11px]">
                 Recent Editorial Stream
               </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold">
+              <span className="text-[10px] font-mono px-1.5 py-[1px] rounded bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold">
                 {recentBlogs.length} items
               </span>
             </div>
@@ -334,7 +334,7 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                       {/* Tenant (If All Sites) */}
                       {isAllSites && (
                         <td className="py-1.5 px-2.5 whitespace-nowrap">
-                          <span className="text-[10px] font-medium px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60">
+                          <span className="text-[10px] font-medium px-1.5 py-[1px] rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60">
                             {tenant?.name?.replace(/Jupsoft | Platform/g, '') || 'Custom'}
                           </span>
                         </td>
@@ -342,7 +342,7 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
 
                       {/* Status Pill */}
                       <td className="py-1.5 px-2.5 whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-[1px] rounded ${
                           blog.status === 'Published'
                             ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
                             : blog.status === 'Under Review'
@@ -371,7 +371,7 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                           {availableLangs.map((lang) => (
                             <span
                               key={lang}
-                              className="text-[9px] font-mono font-bold px-1 py-0.1 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 uppercase"
+                              className="text-[9px] font-mono font-bold px-1 py-[1px] rounded bg-slate-100 dark:bg-slate-800 text-slate-500 uppercase"
                             >
                               {lang}
                             </span>

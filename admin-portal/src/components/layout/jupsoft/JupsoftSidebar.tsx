@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -335,7 +335,7 @@ export const JupsoftSidebar: React.FC = () => {
                 }`}
               >
                 <span>All Blogs</span>
-                <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                <span className="text-[10px] font-mono font-bold px-1.5 py-[1px] rounded bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                   {displayedBlogs.length}
                 </span>
               </Link>

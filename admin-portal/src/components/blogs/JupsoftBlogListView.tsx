@@ -1,6 +1,6 @@
-﻿'use client';
+'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Plus,
@@ -70,6 +70,26 @@ export const JupsoftBlogListView: React.FC<JupsoftBlogListViewProps> = ({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+
+  // Auto-dismiss row 3-dots action menu on click outside or Escape key
+  useEffect(() => {
+    if (!openDropdownId) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-dropdown-container]')) {
+        setOpenDropdownId(null);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenDropdownId(null);
+    };
+    window.addEventListener('click', handleClickOutside);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('click', handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [openDropdownId]);
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
     blogId?: string;
@@ -161,7 +181,7 @@ export const JupsoftBlogListView: React.FC<JupsoftBlogListViewProps> = ({
                 }`}
               >
                 <span>{s.label}</span>
-                <span className={`text-[9px] px-1 py-0.1 rounded font-mono ${
+                <span className={`text-[9px] px-1 py-[1px] rounded font-mono ${
                   isActive ? 'bg-white/20 text-white' : 'bg-slate-200/70 dark:bg-slate-800 text-slate-500'
                 }`}>
                   {s.count}
@@ -366,7 +386,7 @@ export const JupsoftBlogListView: React.FC<JupsoftBlogListViewProps> = ({
                                 const cat = (categories[blog.websiteId] || []).find((c) => c.id === catId);
                                 if (!cat) return null;
                                 return (
-                                  <span key={cat.id} className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-sans font-medium">
+                                  <span key={cat.id} className="text-[9px] px-1.5 py-[1px] rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-sans font-medium">
                                     {cat.name}
                                   </span>
                                 );
@@ -379,7 +399,7 @@ export const JupsoftBlogListView: React.FC<JupsoftBlogListViewProps> = ({
                       {/* Website Tenant (If All Sites) */}
                       {isAllSites && (
                         <td className="py-1.5 px-2.5 whitespace-nowrap">
-                          <span className="text-[10px] font-medium px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60">
+                          <span className="text-[10px] font-medium px-1.5 py-[1px] rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60">
                             {tenant?.name?.replace(/Jupsoft | Platform/g, '') || 'Custom'}
                           </span>
                         </td>
@@ -387,7 +407,7 @@ export const JupsoftBlogListView: React.FC<JupsoftBlogListViewProps> = ({
 
                       {/* Status */}
                       <td className="py-1.5 px-2.5 whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-[1px] rounded ${
                           blog.status === 'Published'
                             ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
                             : blog.status === 'Under Review'
@@ -416,7 +436,7 @@ export const JupsoftBlogListView: React.FC<JupsoftBlogListViewProps> = ({
                           {availableLangs.map((lang) => (
                             <span
                               key={lang}
-                              className="text-[9px] font-mono font-bold px-1 py-0.1 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 uppercase"
+                              className="text-[9px] font-mono font-bold px-1 py-[1px] rounded bg-slate-100 dark:bg-slate-800 text-slate-500 uppercase"
                             >
                               {lang}
                             </span>
@@ -509,10 +529,13 @@ export const JupsoftBlogListView: React.FC<JupsoftBlogListViewProps> = ({
                           </Link>
 
                           {/* 3-Dots Menu */}
-                          <div className="relative">
+                          <div className="relative" data-dropdown-container>
                             <button
                               type="button"
-                              onClick={() => setOpenDropdownId(openDropdownId === blog.id ? null : blog.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenDropdownId(openDropdownId === blog.id ? null : blog.id);
+                              }}
                               className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                             >
                               <MoreVertical className="w-3.5 h-3.5" />
