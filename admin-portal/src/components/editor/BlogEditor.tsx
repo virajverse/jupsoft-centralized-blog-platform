@@ -946,6 +946,18 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     saveBlog,
   ]);
 
+  // Enterprise Hardening: Prevent accidental data loss on tab close, back button, or refresh
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges && !isSaving) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges, isSaving]);
+
   const [isTranslating, setIsTranslating] = useState(false);
 
   const handleAiTranslate = async () => {

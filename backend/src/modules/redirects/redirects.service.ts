@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisProvider } from '../../common/providers/redis.provider';
 import { CreateRedirectDto } from './dto/redirect.dto';
@@ -35,6 +35,21 @@ export class RedirectsService {
   async create(dto: CreateRedirectDto, user: any, ipAddress?: string) {
     const cleanFrom = dto.fromSlug.trim().replace(/^\/+|\/+$/g, '');
     const cleanTo = dto.toSlug.trim().replace(/^\/+|\/+$/g, '');
+
+    if (cleanFrom.toLowerCase() === cleanTo.toLowerCase()) {
+      throw new BadRequestException('A redirect cannot point to itself (self-referential loop).');
+    }
+
+    const circular = await this.prisma.redirect.findFirst({
+      where: {
+        websiteId: dto.websiteId,
+        fromSlug: cleanTo,
+        toSlug: cleanFrom,
+      },
+    });
+    if (circular) {
+      throw new BadRequestException(`Circular redirect loop detected: "${cleanTo}" already redirects back to "${cleanFrom}".`);
+    }
 
     const redirect = await this.prisma.redirect.upsert({
       where: {

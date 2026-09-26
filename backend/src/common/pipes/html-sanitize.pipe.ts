@@ -27,10 +27,31 @@ const ALLOWED_TAGS = [
 
 const ALLOWED_ATTRIBUTES: SanitizeHtml.IOptions['allowedAttributes'] = {
   a: ['href', 'title', 'target', 'rel'],
-  img: ['src', 'alt', 'title', 'width', 'height', 'loading'],
+  img: ['src', 'alt', 'title', 'width', 'height', 'loading', 'data-rotate', 'data-align', 'data-caption'],
   td: ['colspan', 'rowspan'],
   th: ['colspan', 'rowspan', 'scope'],
-  '*': ['class', 'id'],
+  '*': ['class', 'id', 'style'],
+};
+
+const ALLOWED_STYLES: SanitizeHtml.IOptions['allowedStyles'] = {
+  '*': {
+    'color': [/^(#[0-9a-f]{3,8}|rgb\([^)]+\)|rgba\([^)]+\)|[a-z]+)$/i],
+    'background-color': [/^(#[0-9a-f]{3,8}|rgb\([^)]+\)|rgba\([^)]+\)|[a-z]+)$/i],
+    'text-align': [/^(left|right|center|justify)$/i],
+    'font-size': [/^\d+(\.\d+)?(px|em|rem|%|pt)$/i],
+    'font-weight': [/^(bold|normal|[1-9]00)$/i],
+    'margin': [/^.+$/],
+    'margin-left': [/^.+$/],
+    'margin-right': [/^.+$/],
+    'margin-top': [/^.+$/],
+    'margin-bottom': [/^.+$/],
+    'padding': [/^.+$/],
+    'width': [/^.+$/],
+    'height': [/^.+$/],
+    'max-width': [/^.+$/],
+    'transform': [/^.+$/],
+    'display': [/^(inline|block|inline-block|flex|grid)$/i],
+  },
 };
 
 export function sanitizeContent(html: string): string {
@@ -38,6 +59,7 @@ export function sanitizeContent(html: string): string {
   const sanitized = sanitizeHtml(html, {
     allowedTags: ALLOWED_TAGS,
     allowedAttributes: ALLOWED_ATTRIBUTES,
+    allowedStyles: ALLOWED_STYLES,
     allowedSchemes: ['http', 'https', 'mailto'], // TRD §15: block javascript: URIs
   });
   // Preserve empty paragraphs authored in WYSIWYG editor.
