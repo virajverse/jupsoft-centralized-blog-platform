@@ -562,9 +562,10 @@ export const JupsoftBlogListView: React.FC<JupsoftBlogListViewProps> = ({
                                       } else {
                                         showNotification('Blog duplicated successfully as Draft!', 'success');
                                       }
-                                    } catch (err: any) {
+                                    } catch (err: unknown) {
                                       console.error(err);
-                                      showNotification(err?.message || 'Failed to duplicate blog', 'warning');
+                                      const msg = err instanceof Error ? err.message : 'Failed to duplicate blog';
+                                      showNotification(msg, 'warning');
                                     } finally {
                                       setDuplicatingId(null);
                                     }

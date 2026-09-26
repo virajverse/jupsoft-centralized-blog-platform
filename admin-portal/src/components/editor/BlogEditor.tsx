@@ -2984,7 +2984,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     </div>
                   ) : filteredSiteMedia.length === 0 ? (
                     <div className="py-8 text-center text-xs text-slate-400">
-                      No media items match "{mediaSearchQuery}".
+                      No media items match &quot;{mediaSearchQuery}&quot;.
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[380px] overflow-y-auto pr-1">
@@ -3344,7 +3344,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     onChange={(e) => setLinkOpenNewTab(e.target.checked)}
                     className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700 cursor-pointer"
                   />
-                  <span className="text-slate-700 dark:text-slate-300 font-medium">Open in new tab (<code className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">target="_blank"</code>)</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-medium">Open in new tab (<code className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">target=&quot;_blank&quot;</code>)</span>
                 </label>
 
                 <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -3354,7 +3354,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     onChange={(e) => setLinkNoFollow(e.target.checked)}
                     className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700 cursor-pointer"
                   />
-                  <span className="text-slate-700 dark:text-slate-300 font-medium">SEO: Add NoFollow (<code className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">rel="nofollow"</code>)</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-medium">SEO: Add NoFollow (<code className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">rel=&quot;nofollow&quot;</code>)</span>
                 </label>
               </div>
             </div>

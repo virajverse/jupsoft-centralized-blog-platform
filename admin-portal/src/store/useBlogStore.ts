@@ -15,7 +15,7 @@ import {
   SystemAuditLog,
   PlatformModuleConfig
 } from '../types';
-import { apiClient } from '../services/apiClient'; // TRD §12: live API integration
+import { apiClient, BlogPayloadInput } from '../services/apiClient'; // TRD §12: live API integration
 import { cleanAvatarUrl, isGlobalScopeRole } from '../utils/permissions';
 import {
   INITIAL_WEBSITES,
@@ -195,7 +195,7 @@ export const useBlogStore = create<BlogState>()(
         try {
           const userList = await apiClient.getUsers();
           if (Array.isArray(userList)) {
-            const savedManagedRoles = (() => {
+            const savedManagedRoles: Record<string, UserRole[] | undefined> = (() => {
               if (typeof window === 'undefined') return {};
               try { return JSON.parse(localStorage.getItem('jupsoft_user_managed_roles') || '{}'); } catch { return {}; }
             })();
@@ -206,7 +206,7 @@ export const useBlogStore = create<BlogState>()(
                 return {
                   ...apiUser,
                   customModules: apiUser.customModules || existing?.customModules || [],
-                  managedRoles: savedManagedRoles[apiUser.id] || (apiUser as any).managedRoles || existing?.managedRoles,
+                  managedRoles: savedManagedRoles[apiUser.id] || apiUser.managedRoles || existing?.managedRoles,
                 };
               });
               return { users: merged };
@@ -318,7 +318,7 @@ export const useBlogStore = create<BlogState>()(
             const u = profileRes.value;
             const updatedUser = {
               ...u,
-              customModules: (u as any).customModules || get().currentUser?.customModules || [],
+              customModules: u.customModules || get().currentUser?.customModules || [],
               avatar: cleanAvatarUrl(u.avatar) || '/uploads/avatars/avatar-default.webp',
             };
             updates.currentUser = updatedUser;
@@ -576,9 +576,9 @@ export const useBlogStore = create<BlogState>()(
           const isClientTempId = !savedBlog.id || savedBlog.id.startsWith('new-') || savedBlog.id.startsWith('draft-') || savedBlog.id.startsWith('blog-');
           const exists = !isClientTempId || get().blogs.some((b) => b.id === savedBlog.id);
           if (exists) {
-            apiResult = await apiClient.updateBlog(savedBlog.id, savedBlog as any);
+            apiResult = await apiClient.updateBlog(savedBlog.id, savedBlog as unknown as BlogPayloadInput);
           } else {
-            apiResult = await apiClient.createBlog(savedBlog as any);
+            apiResult = await apiClient.createBlog(savedBlog as unknown as BlogPayloadInput);
           }
           set((state) => {
             const finalBlog = {

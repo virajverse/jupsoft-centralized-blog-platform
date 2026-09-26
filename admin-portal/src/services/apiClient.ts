@@ -11,14 +11,14 @@ import {
   UserAccount, RedirectItem, SystemAuditLog, BlogStatus, BlogSEO, BlogTranslation,
 } from '../types';
 
-type BlogTranslationPayload = Omit<Partial<BlogTranslation>, 'seo' | 'languageCode'> & {
+export type BlogTranslationPayload = Omit<Partial<BlogTranslation>, 'seo' | 'languageCode'> & {
   lang?: string;
   languageCode?: string;
   seo?: Partial<BlogSEO>;
   [key: string]: unknown;
 };
 
-type BlogPayloadInput = Omit<Partial<Blog>, 'translations'> & {
+export type BlogPayloadInput = Omit<Partial<Blog>, 'translations'> & {
   translations?: Record<string, BlogTranslationPayload> | BlogTranslationPayload[];
 };
 
@@ -471,9 +471,9 @@ class ApiClient {
 
   async duplicateBlog(id: string): Promise<Blog> {
     const original = await this.getBlogById(id);
-    const translations: Record<string, any> = {};
+    const translations: Record<string, BlogTranslationPayload> = {};
     if (original.translations) {
-      Object.entries(original.translations).forEach(([lang, t]: [string, any]) => {
+      Object.entries(original.translations).forEach(([lang, t]: [string, Partial<BlogTranslation> & { featuredImage?: string; authorName?: string }]) => {
         translations[lang] = {
           title: `${t.title || 'Untitled'} (Copy)`,
           slug: `${t.slug || 'copy'}-${Date.now().toString(36)}`,

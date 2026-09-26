@@ -16,7 +16,15 @@ import {
 
 declare global {
   interface Window {
-    google?: any;
+    google?: {
+      accounts?: {
+        id?: {
+          initialize: (config: Record<string, unknown>) => void;
+          renderButton: (parent: HTMLElement, options: Record<string, unknown>) => void;
+          prompt: () => void;
+        };
+      };
+    };
   }
 }
 
@@ -57,7 +65,7 @@ export default function LoginPage() {
 
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
 
-  const handleGoogleCredentialResponse = async (response: any) => {
+  const handleGoogleCredentialResponse = async (response: { credential?: string }) => {
     if (!response || !response.credential) {
       setErrorMsg('No Google credential received.');
       return;
@@ -106,7 +114,7 @@ export default function LoginPage() {
           width: 320,
           logo_alignment: 'left',
         });
-        setGisRendered(true);
+        queueMicrotask(() => setGisRendered(true));
       }
     } catch (err) {
       console.warn('Google Identity Services initialization warning:', err);
@@ -126,7 +134,7 @@ export default function LoginPage() {
 
     if (isSessionExpired) {
       useBlogStore.getState().logout();
-      setErrorMsg('Your session has expired. Please sign in again.');
+      queueMicrotask(() => setErrorMsg('Your session has expired. Please sign in again.'));
       return;
     }
 
