@@ -234,6 +234,7 @@ export const JupsoftSidebar: React.FC = () => {
                 <Link
                   key={item.basePath}
                   href={item.href}
+                  prefetch={false}
                   onClick={() => {
                     if (!isActive) {
                       setNavigatingTo(item.basePath);
@@ -327,6 +328,7 @@ export const JupsoftSidebar: React.FC = () => {
 
               <Link
                 href={`/blogs${siteQuery}`}
+                prefetch={false}
                 onClick={handleNavClick}
                 className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors ${
                   pathname.startsWith('/blogs') && !statusFilter
@@ -342,6 +344,7 @@ export const JupsoftSidebar: React.FC = () => {
 
               <Link
                 href={`/blogs${siteQuery}&status=Published`}
+                prefetch={false}
                 onClick={handleNavClick}
                 className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors ${
                   statusFilter === 'Published'
@@ -360,6 +363,7 @@ export const JupsoftSidebar: React.FC = () => {
 
               <Link
                 href={`/blogs${siteQuery}&status=Under%20Review`}
+                prefetch={false}
                 onClick={handleNavClick}
                 className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors ${
                   statusFilter === 'Under Review'
@@ -378,6 +382,7 @@ export const JupsoftSidebar: React.FC = () => {
 
               <Link
                 href={`/blogs${siteQuery}&status=Draft`}
+                prefetch={false}
                 onClick={handleNavClick}
                 className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors ${
                   statusFilter === 'Draft'
@@ -396,6 +401,7 @@ export const JupsoftSidebar: React.FC = () => {
 
               <Link
                 href={`/blogs${siteQuery}&status=Scheduled`}
+                prefetch={false}
                 onClick={handleNavClick}
                 className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors ${
                   statusFilter === 'Scheduled'
