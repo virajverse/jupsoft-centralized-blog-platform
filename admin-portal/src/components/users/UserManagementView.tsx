@@ -173,6 +173,15 @@ function renderUserAvatar(avatar?: string | null, name?: string, sizeClasses = '
   );
 }
 
+export function isSuperAdminAccount(user?: UserAccount | null): boolean {
+  if (!user) return false;
+  return (
+    user.id === 'usr-superadmin' ||
+    user.email?.toLowerCase().trim() === 'superadmin@jupsoft.com' ||
+    Object.values(user.roleAssignments || {}).includes('Super Admin')
+  );
+}
+
 export const UserManagementView: React.FC = () => {
   const searchParams = useSearchParams();
   const { setParam } = useQueryState();
@@ -228,6 +237,11 @@ export const UserManagementView: React.FC = () => {
 
   const handleDeleteUser = async (id: string, name: string) => {
     if (deletingUserId) return;
+    const target = users.find((u) => u.id === id);
+    if (isSuperAdminAccount(target) || id === 'usr-superadmin' || name.toLowerCase().includes('superadmin')) {
+      showNotification('Super Admin accounts are permanently protected and cannot be deleted via the portal. Deletion is strictly permitted via direct database SQL query only.', 'error');
+      return;
+    }
     if (!confirm(`Remove access for ${name}?`)) return;
     setDeletingUserId(id);
     try {
@@ -392,6 +406,10 @@ _Please log in and update your password on your first sign-in._`;
   };
 
   const handleOpenEdit = (u: UserAccount, preselectedWebsiteId?: string) => {
+    if (isSuperAdminAccount(u)) {
+      showNotification('Super Admin accounts are permanently protected and cannot be edited or modified via UI. Manage via database SQL query.', 'warning');
+      return;
+    }
     setEditingUser(u);
     const initialAssignments = { ...(u.roleAssignments || {}) };
     if (preselectedWebsiteId && !initialAssignments[preselectedWebsiteId]) {
@@ -417,6 +435,12 @@ _Please log in and update your password on your first sign-in._`;
   const handleSaveUserEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
+
+    if (isSuperAdminAccount(editingUser)) {
+      showNotification('Super Admin accounts are permanently protected and cannot be modified via UI. Manage via database SQL query.', 'warning');
+      setEditingUser(null);
+      return;
+    }
 
     if (Object.keys(editRoleAssignments).length === 0) {
       showNotification('User must have at least one assigned website tenant.', 'warning');
@@ -1105,8 +1129,8 @@ _Please log in and update your password on your first sign-in._`;
 
                         <td className="py-3 px-4">
                           {(() => {
-                            const targetIsSuperAdmin = Object.values(u.roleAssignments || {}).includes('Super Admin');
-                            const canManageThisUser = canManageUsers(activeRole) && (isSuperAdmin || !targetIsSuperAdmin);
+                            const targetIsSuperAdmin = isSuperAdminAccount(u);
+                            const canManageThisUser = canManageUsers(activeRole) && !targetIsSuperAdmin;
 
                             if (canManageThisUser) {
                               return (
@@ -1138,11 +1162,12 @@ _Please log in and update your password on your first sign-in._`;
 
                             return (
                               <span
-                                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-semibold border text-[11px] ${
+                                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-semibold border text-[11px] select-none ${
                                   u.status === 'active'
                                     ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
                                     : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400'
                                 }`}
+                                title={targetIsSuperAdmin ? 'Super Admin master account is permanently Active (Locked against UI modification)' : undefined}
                               >
                                 {u.status === 'active' ? (
                                   <>
@@ -1163,8 +1188,39 @@ _Please log in and update your password on your first sign-in._`;
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             {(() => {
-                              const targetIsSuperAdmin = Object.values(u.roleAssignments || {}).includes('Super Admin');
-                              const canManageThisUser = canManageUsers(activeRole) && (isSuperAdmin || !targetIsSuperAdmin);
+                              const targetIsSuperAdmin = isSuperAdminAccount(u);
+
+                              // 🛡️ CRITICAL SECURITY SHIELD: Super Admin cannot be deleted or modified via UI
+                              if (targetIsSuperAdmin) {
+                                const primarySiteId = Object.keys(u.roleAssignments || {})[0];
+                                const site = websites.find((w) => w.id === primarySiteId) || websites[0];
+                                return (
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button
+                                      onClick={() => {
+                                        setShareModalData({
+                                          user: u,
+                                          website: site,
+                                          tempPassword: u.tempPassword || '',
+                                        });
+                                      }}
+                                      title="Share Credentials (Email / WhatsApp)"
+                                      className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 transition-colors cursor-pointer border border-emerald-200 dark:border-emerald-800/60"
+                                    >
+                                      <Share2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <span
+                                      title="Root Super Admin is permanently protected against deletion, role alteration, and suspension. Changes can only be performed via direct SQL database query."
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-500 dark:text-slate-400 text-[10px] font-bold select-none tracking-wide"
+                                    >
+                                      <Lock className="w-3 h-3 text-amber-500 shrink-0" />
+                                      <span>SQL Only</span>
+                                    </span>
+                                  </div>
+                                );
+                              }
+
+                              const canManageThisUser = canManageUsers(activeRole);
 
                               if (!canManageThisUser) {
                                 return (
@@ -1398,16 +1454,18 @@ _Please log in and update your password on your first sign-in._`;
                               >
                                 <Share2 className="w-3.5 h-3.5" />
                               </button>
-                              <button
-                                onClick={() => {
-                                  setInspectingWebsite(null);
-                                  handleOpenEdit(member, inspectingWebsite.id);
-                                }}
-                                className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
-                                title="Edit Member Role"
-                              >
-                                <Edit3 className="w-3.5 h-3.5" />
-                              </button>
+                              {!isSuperAdminAccount(member) && (
+                                <button
+                                  onClick={() => {
+                                    setInspectingWebsite(null);
+                                    handleOpenEdit(member, inspectingWebsite.id);
+                                  }}
+                                  className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                                  title="Edit Member Role"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </>
                           )}
                         </div>
@@ -2182,32 +2240,39 @@ _Please log in and update your password on your first sign-in._`;
                 <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Account Status
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditStatus('active')}
-                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-xs font-semibold cursor-pointer transition-colors ${
-                      editStatus === 'active'
-                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
-                        : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
-                    }`}
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    <span>Active Account</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditStatus('suspended')}
-                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-xs font-semibold cursor-pointer transition-colors ${
-                      editStatus === 'suspended'
-                        ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800'
-                        : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
-                    }`}
-                  >
-                    <XCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-                    <span>Suspended</span>
-                  </button>
-                </div>
+                {isSuperAdminAccount(editingUser) ? (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 text-amber-800 dark:text-amber-300 text-xs font-semibold">
+                    <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Super Admin status is permanently Active (Locked against UI suspension or modification).</span>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditStatus('active')}
+                      className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-xs font-semibold cursor-pointer transition-colors ${
+                        editStatus === 'active'
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                          : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <span>Active Account</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditStatus('suspended')}
+                      className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-xs font-semibold cursor-pointer transition-colors ${
+                        editStatus === 'suspended'
+                          ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800'
+                          : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
+                      }`}
+                    >
+                      <XCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                      <span>Suspended</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </form>
 

@@ -186,11 +186,13 @@ export class UsersService {
     // 🛡️ CRITICAL SECURITY GUARD: Super Admin master role cannot be revoked or downgraded
     const isTargetSuperAdmin =
       userId === 'usr-superadmin' ||
-      user.email === 'superadmin@jupsoft.com' ||
-      user.roleAssignments?.some((ra) => ra.role === 'Super Admin' && ra.isGlobal);
+      user.email?.toLowerCase().trim() === 'superadmin@jupsoft.com' ||
+      user.roleAssignments?.some((ra) => ra.role === 'Super Admin');
 
     if (isTargetSuperAdmin && dto.role !== 'Super Admin') {
-      throw new ForbiddenException('Super Admin master role cannot be revoked, modified, or downgraded.');
+      throw new ForbiddenException(
+        'Super Admin master role cannot be revoked, modified, or downgraded via API. It can only be changed directly via database SQL query.',
+      );
     }
 
     const isGlobal = dto.websiteId === 'all' || !dto.websiteId;
@@ -249,11 +251,13 @@ export class UsersService {
 
     const isTargetSuperAdmin =
       userId === 'usr-superadmin' ||
-      user.email === 'superadmin@jupsoft.com' ||
-      user.roleAssignments?.some((ra) => ra.role === 'Super Admin' && ra.isGlobal);
+      user.email?.toLowerCase().trim() === 'superadmin@jupsoft.com' ||
+      user.roleAssignments?.some((ra) => ra.role === 'Super Admin');
 
     if (isTargetSuperAdmin) {
-      throw new ForbiddenException('Super Admin master role cannot be revoked.');
+      throw new ForbiddenException(
+        'Super Admin master role cannot be revoked via API. It can only be managed directly via database SQL query.',
+      );
     }
 
     const isSuperAdmin = remover?.roles?.includes('Super Admin');
@@ -297,12 +301,15 @@ export class UsersService {
     }
 
     // 🛡️ CRITICAL SECURITY GUARD: Super Admin account cannot be deactivated or suspended
-    if (
+    const isTargetSuperAdmin =
       user.id === 'usr-superadmin' ||
-      user.email === 'superadmin@jupsoft.com' ||
-      user.roleAssignments?.some((ra) => ra.role === 'Super Admin' && ra.isGlobal)
-    ) {
-      throw new ForbiddenException('Super Admin status cannot be altered. The master administrator must remain active.');
+      user.email?.toLowerCase().trim() === 'superadmin@jupsoft.com' ||
+      user.roleAssignments?.some((ra) => ra.role === 'Super Admin');
+
+    if (isTargetSuperAdmin) {
+      throw new ForbiddenException(
+        'Super Admin status cannot be altered via API. The master administrator must remain active and can only be modified directly via database SQL query.',
+      );
     }
 
     const updated = await this.prisma.user.update({
@@ -337,12 +344,12 @@ export class UsersService {
     // 🛡️ CRITICAL SECURITY GUARD: Super Admin accounts CANNOT be deleted
     const isTargetSuperAdmin =
       user.id === 'usr-superadmin' ||
-      user.email === 'superadmin@jupsoft.com' ||
-      user.roleAssignments?.some((ra) => ra.role === 'Super Admin' && ra.isGlobal);
+      user.email?.toLowerCase().trim() === 'superadmin@jupsoft.com' ||
+      user.roleAssignments?.some((ra) => ra.role === 'Super Admin');
 
     if (isTargetSuperAdmin) {
       throw new ForbiddenException(
-        'Super Admin accounts are permanently protected and cannot be deleted or revoked.',
+        'Super Admin accounts are permanently protected against API/UI deletion. Super Admin can only be deleted directly via database SQL query.',
       );
     }
 
@@ -464,9 +471,23 @@ export class UsersService {
       throw new ForbiddenException('Only Super Admin or Website Admin can customize modular permissions');
     }
 
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { roleAssignments: true },
+    });
     if (!user) {
       throw new NotFoundException(`User with ID "${userId}" not found`);
+    }
+
+    const isTargetSuperAdmin =
+      user.id === 'usr-superadmin' ||
+      user.email?.toLowerCase().trim() === 'superadmin@jupsoft.com' ||
+      user.roleAssignments?.some((ra) => ra.role === 'Super Admin');
+
+    if (isTargetSuperAdmin) {
+      throw new ForbiddenException(
+        'Super Admin permissions are permanently unlocked across all modules and cannot be restricted via API.',
+      );
     }
 
     const updated = await this.prisma.user.update({
