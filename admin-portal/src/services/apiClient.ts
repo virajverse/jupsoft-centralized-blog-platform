@@ -224,7 +224,19 @@ class ApiClient {
             const retryHeaders = new Headers(headers);
             retryHeaders.set('Authorization', `Bearer ${newToken}`);
             fetch(`${getApiBase()}${endpoint}`, { ...options, headers: retryHeaders })
-              .then((r) => r.json().then(resolve))
+              .then(async (r) => {
+                if (r.status === 204) {
+                  resolve(undefined as unknown as T);
+                  return;
+                }
+                if (!r.ok) {
+                  const errorBody = await r.json().catch(() => ({}));
+                  reject(new Error(errorBody.message || `Request failed: ${r.status}`));
+                  return;
+                }
+                const data = await r.json().catch(() => ({}));
+                resolve(data);
+              })
               .catch(reject);
           });
         });

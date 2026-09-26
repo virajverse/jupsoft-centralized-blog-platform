@@ -83,6 +83,20 @@ export const INITIAL_WEBSITES: Website[] = [
     revalidateWebhookUrl: 'https://schoolerp.in/api/revalidate',
     createdAt: new Date().toISOString(),
   },
+  {
+    id: 'site-jupsoft-test',
+    name: 'Jupsoft Test',
+    domain: 'jupsoft.com',
+    logoUrl: '/uploads/logos/jupsoft-cloud-logo.webp',
+    description: 'Jupsoft Test Content Network & Enterprise Multi-Tenant Publishing.',
+    apiKey: 'jup_sec_a5ad7c57709f48d2b75b080960dc6528',
+    s3Prefix: 'blogs/test1_jupsoft_in/',
+    status: 'active',
+    defaultLanguage: 'en',
+    supportedLanguages: ['en', 'hi', 'fr', 'ar'],
+    revalidateWebhookUrl: 'https://test1.jupsoft.in/api/revalidate',
+    createdAt: new Date().toISOString(),
+  },
 ];
 
 export const INITIAL_CATEGORIES: Record<string, Category[]> = {};

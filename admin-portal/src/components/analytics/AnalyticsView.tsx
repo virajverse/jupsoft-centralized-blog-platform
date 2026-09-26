@@ -107,12 +107,17 @@ export const AnalyticsView: React.FC = () => {
     setRefreshTrigger((c) => c + 1);
   };
 
+  const lastFetchedTargetRef = React.useRef<string | null>(null);
+
   useEffect(() => {
     if (siteParam && siteParam !== activeWebsiteId && (siteParam === 'all' || websites.some((w) => w.id === siteParam))) {
       setActiveWebsite(siteParam);
     }
-    fetchBlogs(targetSiteScope);
-    fetchCategories(targetSiteScope === 'all' ? undefined : targetSiteScope);
+    if (lastFetchedTargetRef.current !== targetSiteScope) {
+      lastFetchedTargetRef.current = targetSiteScope;
+      fetchBlogs(targetSiteScope);
+      fetchCategories(targetSiteScope === 'all' ? undefined : targetSiteScope);
+    }
   }, [targetSiteScope, siteParam, activeWebsiteId, websites, setActiveWebsite, fetchBlogs, fetchCategories]);
 
   useEffect(() => {

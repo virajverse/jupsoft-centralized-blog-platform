@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -42,13 +42,18 @@ export const BlogList: React.FC = () => {
     ? siteParam
     : activeWebsiteId;
 
+  const lastFetchedSiteRef = React.useRef<string | null>(null);
+
   useEffect(() => {
     if (siteParam && siteParam !== activeWebsiteId && (siteParam === 'all' || websites.some((w) => w.id === siteParam))) {
       setActiveWebsite(siteParam);
     }
-    fetchBlogs(effectiveSiteId);
-    if (fetchCategories) fetchCategories(effectiveSiteId === 'all' ? undefined : effectiveSiteId);
-    if (fetchTags) fetchTags(effectiveSiteId === 'all' ? undefined : effectiveSiteId);
+    if (lastFetchedSiteRef.current !== effectiveSiteId) {
+      lastFetchedSiteRef.current = effectiveSiteId;
+      fetchBlogs(effectiveSiteId);
+      if (fetchCategories) fetchCategories(effectiveSiteId === 'all' ? undefined : effectiveSiteId);
+      if (fetchTags) fetchTags(effectiveSiteId === 'all' ? undefined : effectiveSiteId);
+    }
   }, [effectiveSiteId, fetchBlogs, fetchCategories, fetchTags, siteParam, activeWebsiteId, websites, setActiveWebsite]);
 
   // Read URL query params

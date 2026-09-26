@@ -166,7 +166,7 @@ export default function LoginPage() {
       return;
     }
 
-    if (isAuthenticated && token) {
+    if (token && !token.startsWith('offline_token_')) {
       if (!isRedirectingRef.current) {
         if (!document.cookie.includes('jupsoft_auth_token=')) {
           document.cookie = `jupsoft_auth_token=${token}; path=/; max-age=604800; SameSite=Lax`;

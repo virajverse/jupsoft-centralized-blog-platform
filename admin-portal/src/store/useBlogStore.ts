@@ -315,6 +315,7 @@ export const useBlogStore = create<BlogState>()(
               avatar: cleanAvatarUrl(u.avatar) || '/uploads/avatars/avatar-default.webp',
             };
             updates.currentUser = updatedUser;
+            updates.isAuthenticated = true;
 
             // Dynamically verify active website and role for non-super admins
             const isSuper =
@@ -335,6 +336,16 @@ export const useBlogStore = create<BlogState>()(
               } else {
                 updates.activeRole = (updatedUser.roleAssignments?.[currentSiteId] || get().activeRole) as UserRole;
               }
+            }
+          } else if (profileRes.status === 'rejected') {
+            console.warn('Profile fetch rejected in loadInitialData:', profileRes.reason);
+            const errStr = String(profileRes.reason || '');
+            if (errStr.includes('401') || errStr.includes('Unauthorized') || errStr.includes('Session expired')) {
+              get().logout();
+              if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+                window.location.href = `/login?session=expired&redirect=${encodeURIComponent(window.location.pathname)}`;
+              }
+              return;
             }
           }
 
