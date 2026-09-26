@@ -523,6 +523,10 @@ _Please log in and update your password on your first sign-in._`;
   };
 
   const filteredUsers = users.filter((u) => {
+    // 🛡️ CRITICAL SECURITY & GOVERNANCE: Super Admin is root/system master and managed strictly via direct SQL queries.
+    // Completely hide Super Admin from UI team directory so delete and suspend options do not appear in the interface.
+    if (isSuperAdminAccount(u)) return false;
+
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       const matchesSearch = u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
@@ -539,10 +543,8 @@ _Please log in and update your password on your first sign-in._`;
     return true;
   });
 
-  // Segregate Super Admins (Global Governance)
-  const superAdmins = users.filter((u) => 
-    Object.values(u.roleAssignments || {}).includes('Super Admin')
-  );
+  // Segregate Super Admins (Global Governance) - hidden from UI management views
+  const superAdmins: UserAccount[] = [];
 
   // Role Badge Color Mapping
   const getRoleBadge = (role: UserRole) => {
@@ -609,7 +611,7 @@ _Please log in and update your password on your first sign-in._`;
             </span>
           </div>
           <div className="text-2xl font-black text-slate-900 dark:text-white mt-2 font-mono">
-            {users.length}
+            {users.filter((u) => !isSuperAdminAccount(u)).length}
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
             Active across organization
@@ -622,7 +624,7 @@ _Please log in and update your password on your first sign-in._`;
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
           </div>
           <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-2 font-mono">
-            {users.filter((u) => u.status === 'active').length}
+            {users.filter((u) => !isSuperAdminAccount(u) && u.status === 'active').length}
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
             Authorized to sign in
@@ -637,10 +639,10 @@ _Please log in and update your password on your first sign-in._`;
             </span>
           </div>
           <div className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-2 font-mono">
-            {users.filter((u) => Object.values(u.roleAssignments || {}).some((r) => r === 'Super Admin' || r === 'Website Admin')).length}
+            {users.filter((u) => !isSuperAdminAccount(u) && Object.values(u.roleAssignments || {}).some((r) => r === 'Website Admin' || r === 'Role Admin')).length}
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-            Global &amp; Tenant Admins
+            Delegated Tenant Admins
           </p>
         </div>
 
