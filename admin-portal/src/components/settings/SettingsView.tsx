@@ -86,7 +86,6 @@ export const SettingsView: React.FC = () => {
     return false;
   };
 
-  const canViewActiveApiKey = activeSite ? canViewApiKeyForTenant(activeSite.id) : false;
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
   useEffect(() => {
@@ -151,6 +150,7 @@ export const SettingsView: React.FC = () => {
   };
 
   const activeSite = websites.find((w) => w.id === targetSiteId) || websites[0];
+  const canViewActiveApiKey = activeSite ? canViewApiKeyForTenant(activeSite.id) : false;
 
   // Editable local states for active tenant settings with adjust-during-render pattern
   const [prevSiteId, setPrevSiteId] = useState(activeSite?.id);
