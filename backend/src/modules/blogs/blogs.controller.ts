@@ -148,8 +148,8 @@ export class BlogsController {
   }
 
   @Delete(':id')
-  @Roles('Super Admin')
-  @ApiOperation({ summary: 'Delete article permanently (Super Admin only)' })
+  @Roles('Super Admin', 'Website Admin')
+  @ApiOperation({ summary: 'Delete article permanently (Super Admin and Website Admin)' })
   async delete(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser, @Ip() ip: string) {
     return this.blogsService.delete(id, user, ip);
   }
