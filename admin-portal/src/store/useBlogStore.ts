@@ -40,7 +40,7 @@ interface BlogState {
   searchQuery: string;
   editingBlogId: string | null;
   editorLang: LanguageCode;
-  notification: { message: string; type: 'success' | 'info' | 'warning' } | null;
+  notification: { message: string; type: 'success' | 'info' | 'warning' | 'error' } | null;
   theme: 'light' | 'dark';
   sidebarOpen: boolean;
   isGuideOpen: boolean;
@@ -101,7 +101,7 @@ interface BlogState {
   deleteCustomPlugin: (id: string) => void;
   resetModulesToDefault: () => void;
   clearNotification: () => void;
-  showNotification: (message: string, type?: 'success' | 'info' | 'warning') => void;
+  showNotification: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
 }
 
 export const useBlogStore = create<BlogState>()(

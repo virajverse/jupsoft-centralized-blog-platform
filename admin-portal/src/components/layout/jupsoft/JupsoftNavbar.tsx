@@ -23,7 +23,8 @@ import {
   AlertCircle,
   Info,
   Layers,
-  HelpCircle
+  HelpCircle,
+  Tags
 } from 'lucide-react';
 import { isGlobalScopeRole, canCreateBlog, cleanAvatarUrl, canAccessModule } from '../../../utils/permissions';
 
@@ -416,6 +417,8 @@ export const JupsoftNavbar: React.FC = () => {
         <div className="fixed bottom-20 right-5 z-50 flex items-center gap-2 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-800 dark:text-slate-200 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-150">
           {notification.type === 'success' ? (
             <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+          ) : notification.type === 'error' ? (
+            <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
           ) : notification.type === 'warning' ? (
             <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
           ) : (

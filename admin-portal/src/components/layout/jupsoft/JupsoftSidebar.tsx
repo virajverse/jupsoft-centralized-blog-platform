@@ -35,7 +35,8 @@ export const JupsoftSidebar: React.FC = () => {
     sidebarOpen,
     setSidebarOpen,
     currentUser,
-    modules
+    modules,
+    setGuideOpen
   } = useBlogStore(
     useShallow((s) => ({
       blogs: s.blogs,

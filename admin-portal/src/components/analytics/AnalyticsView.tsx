@@ -127,7 +127,7 @@ export const AnalyticsView: React.FC = () => {
     const days = rangeParam === '7d' ? 7 : rangeParam === '30d' ? 30 : rangeParam === '90d' ? 90 : 365;
 
     apiClient.getAnalyticsDashboard(siteId, days)
-      .then((res: DashboardResponse) => {
+      .then((res: any) => {
         if (active && res) {
           const totalViews = res.summary?.totalPageViews ?? res.totalViews;
           const uniqueVisitors = res.summary?.totalUniqueVisitors ?? res.uniqueVisitors;
