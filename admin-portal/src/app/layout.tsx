@@ -6,11 +6,12 @@ export const metadata: Metadata = {
   description: "Enterprise multi-tenant blog authoring, live SEO auditor, and editorial workflow management portal for Jupsoft Systems",
   icons: {
     icon: [
-      { url: "/logomobileapp.png", type: "image/png" },
-      { url: "/favicon.png", type: "image/png" },
+      { url: "/logomobileapp.png?v=2", type: "image/png" },
+      { url: "/favicon.png?v=2", type: "image/png" },
+      { url: "/favicon.ico?v=2", type: "image/x-icon" },
     ],
-    shortcut: "/logomobileapp.png",
-    apple: "/logomobileapp.png",
+    shortcut: "/logomobileapp.png?v=2",
+    apple: "/logomobileapp.png?v=2",
   },
 };
 
@@ -26,6 +27,10 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
+        <link rel="icon" href="/logomobileapp.png?v=2" type="image/png" />
+        <link rel="icon" href="/favicon.png?v=2" type="image/png" />
+        <link rel="shortcut icon" href="/logomobileapp.png?v=2" />
+        <link rel="apple-touch-icon" href="/logomobileapp.png?v=2" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
