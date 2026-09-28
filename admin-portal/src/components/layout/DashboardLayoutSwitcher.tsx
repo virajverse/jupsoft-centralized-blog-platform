@@ -10,8 +10,8 @@ const AdminGuideModal = dynamic(
   { ssr: false }
 );
 
-const FloatingHelpButton = dynamic(
-  () => import('../guide/FloatingHelpButton').then((m) => m.FloatingHelpButton),
+const FloatingChatWidget = dynamic(
+  () => import('../guide/FloatingChatWidget').then((m) => m.FloatingChatWidget),
   { ssr: false }
 );
 
@@ -30,7 +30,7 @@ export const DashboardLayoutSwitcher: React.FC<{ children: React.ReactNode }> = 
     return (
       <div className="h-screen w-screen overflow-hidden bg-white dark:bg-[#070b14] font-sans antialiased text-slate-900 dark:text-slate-100">
         <AdminGuideModal />
-        <FloatingHelpButton />
+        <FloatingChatWidget />
         {children}
       </div>
     );
@@ -54,7 +54,7 @@ export const DashboardLayoutSwitcher: React.FC<{ children: React.ReactNode }> = 
   return (
     <>
       <AdminGuideModal />
-      <FloatingHelpButton />
+      <FloatingChatWidget />
       <JupsoftDashboardLayout>{children}</JupsoftDashboardLayout>
     </>
   );
