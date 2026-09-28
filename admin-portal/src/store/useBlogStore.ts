@@ -858,8 +858,9 @@ export const useBlogStore = create<BlogState>()(
 
       addUser: async (user) => {
         try {
-          const targetWebsiteId = Object.keys(user.roleAssignments)[0] || resolveEffectiveWebsiteId(get().websites, get().activeWebsiteId, get().currentUser);
-          const targetRole = Object.values(user.roleAssignments)[0] || 'Content Writer';
+          const isSuper = user.role === 'Super Admin' || Object.values(user.roleAssignments || {}).includes('Super Admin');
+          const targetWebsiteId = isSuper ? 'all' : (Object.keys(user.roleAssignments)[0] || resolveEffectiveWebsiteId(get().websites, get().activeWebsiteId, get().currentUser));
+          const targetRole = isSuper ? 'Super Admin' : (Object.values(user.roleAssignments)[0] || 'Content Writer');
           const created = await apiClient.inviteUser({
             name: user.name,
             email: user.email,
@@ -888,17 +889,14 @@ export const useBlogStore = create<BlogState>()(
 
       updateUser: async (id, updates) => {
         const target = get().users.find((u) => u.id === id);
-        const isSuperAdmin =
+        const isRootSuperAdmin =
           id === 'usr-superadmin' ||
-          target?.email === 'superadmin@jupsoft.com' ||
-          target?.roles?.includes('Super Admin') ||
-          target?.roleAssignments?.['all'] === 'Super Admin' ||
-          Object.values(target?.roleAssignments || {}).includes('Super Admin');
+          target?.email === 'superadmin@jupsoft.com';
 
-        if (isSuperAdmin && updates.status && updates.status !== 'active') {
+        if (isRootSuperAdmin && updates.status && updates.status !== 'active') {
           set({
             notification: {
-              message: 'Super Admin master account cannot be suspended or deactivated.',
+              message: 'Root Super Admin master account cannot be suspended or deactivated.',
               type: 'warning',
             },
           });

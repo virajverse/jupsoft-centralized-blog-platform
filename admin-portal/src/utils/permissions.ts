@@ -204,14 +204,14 @@ export function canManageTargetUser(
 export function canDeleteTargetUser(
   actorRole: UserRole | string | undefined,
   targetRoles: (UserRole | string)[],
-  isTargetSuperAdminAccount: boolean,
+  isTargetRootSuperAdminAccount: boolean,
   isSelf: boolean
 ): boolean {
   if (!canDeleteUsers(actorRole)) return false;
-  if (isTargetSuperAdminAccount) return false;
+  if (isTargetRootSuperAdminAccount) return false;
   if (isSelf) return false;
 
-  // Super Admin can delete anyone except Super Admin
+  // Super Admin can delete anyone except the root Super Admin master account
   if (actorRole === 'Super Admin') return true;
 
   // Website Admin can only delete users strictly below Website Admin
@@ -247,6 +247,7 @@ export function getAllowedInviteRoles(
 ): UserRole[] {
   if (currentRole === 'Super Admin') {
     return [
+      'Super Admin',
       'Website Admin',
       'Role Admin',
       'Editor',

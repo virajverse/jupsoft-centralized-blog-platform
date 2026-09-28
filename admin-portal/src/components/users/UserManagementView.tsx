@@ -174,13 +174,22 @@ function renderUserAvatar(avatar?: string | null, name?: string, sizeClasses = '
   );
 }
 
-export function isSuperAdminAccount(user?: UserAccount | null): boolean {
+export function isRootSuperAdminAccount(user?: UserAccount | null): boolean {
   if (!user) return false;
   return (
     user.id === 'usr-superadmin' ||
     user.email?.toLowerCase().trim() === 'superadmin@jupsoft.com' ||
-    user.name?.toLowerCase().trim().includes('sachin sharma') ||
+    user.name?.toLowerCase().trim().includes('sachin sharma')
+  );
+}
+
+export function isSuperAdminAccount(user?: UserAccount | null): boolean {
+  if (!user) return false;
+  return (
+    isRootSuperAdminAccount(user) ||
     user.role === 'Super Admin' ||
+    user.roles?.includes('Super Admin') ||
+    user.roleAssignments?.['all'] === 'Super Admin' ||
     Object.values(user.roleAssignments || {}).includes('Super Admin')
   );
 }
@@ -250,8 +259,16 @@ export const UserManagementView: React.FC = () => {
   const handleDeleteUser = (id: string, name: string) => {
     if (deletingUserId) return;
     const target = users.find((u) => u.id === id);
-    if (isSuperAdminAccount(target) || id === 'usr-superadmin' || name.toLowerCase().includes('superadmin')) {
-      showNotification('Super Admin accounts are permanently protected and cannot be deleted via the portal. Deletion is strictly permitted via direct database SQL query only.', 'error');
+    if (isRootSuperAdminAccount(target) || id === 'usr-superadmin') {
+      showNotification('The Root Super Admin master account is permanently protected and cannot be deleted.', 'error');
+      return;
+    }
+    if (currentUser?.id === id) {
+      showNotification('You cannot delete your own account.', 'error');
+      return;
+    }
+    if (!isSuperAdmin && isSuperAdminAccount(target)) {
+      showNotification('Only Super Admin can delete a Super Admin account.', 'error');
       return;
     }
     setDeleteModalState({
@@ -321,6 +338,9 @@ _Please log in and update your password on your first sign-in._`;
 
   const handleInviteRoleChange = (newRole: UserRole) => {
     setInviteRole(newRole);
+    if (newRole === 'Super Admin') {
+      setInviteWebsiteId('all');
+    }
     setInviteCustomModules(getDefaultRoleModules(newRole));
   };
 
@@ -432,8 +452,8 @@ _Please log in and update your password on your first sign-in._`;
   };
 
   const handleOpenEdit = (u: UserAccount, preselectedWebsiteId?: string) => {
-    if (isSuperAdminAccount(u)) {
-      showNotification('Super Admin accounts are permanently protected and cannot be edited or modified via UI. Manage via database SQL query.', 'warning');
+    if (isRootSuperAdminAccount(u) && !isSuperAdmin) {
+      showNotification('Root Super Admin account is permanently protected.', 'warning');
       return;
     }
     setEditingUser(u);
@@ -462,8 +482,8 @@ _Please log in and update your password on your first sign-in._`;
     e.preventDefault();
     if (!editingUser) return;
 
-    if (isSuperAdminAccount(editingUser)) {
-      showNotification('Super Admin accounts are permanently protected and cannot be modified via UI. Manage via database SQL query.', 'warning');
+    if (isRootSuperAdminAccount(editingUser) && !isSuperAdmin) {
+      showNotification('Root Super Admin account is permanently protected.', 'warning');
       setEditingUser(null);
       return;
     }
@@ -506,14 +526,25 @@ _Please log in and update your password on your first sign-in._`;
       ? (inviteManagedRoles.length > 0 ? inviteManagedRoles : (['Editor', 'Content Writer'] as UserRole[]))
       : undefined;
 
+    const isSuper = inviteRole === 'Super Admin';
+    const effectiveSiteId = isSuper ? 'all' : inviteWebsiteId;
+    const initialRoleAssignments: Record<string, UserRole> = {};
+    if (isSuper) {
+      initialRoleAssignments['all'] = 'Super Admin';
+      websites.forEach((w) => {
+        initialRoleAssignments[w.id] = 'Super Admin';
+      });
+    } else {
+      initialRoleAssignments[effectiveSiteId] = inviteRole;
+    }
+
     const newUser: UserAccount = {
       id: `usr-${Date.now()}`,
       name: inviteName.trim(),
       email: inviteEmail.trim().toLowerCase(),
       avatar: '/uploads/avatars/avatar-default.webp',
-      roleAssignments: {
-        [inviteWebsiteId]: inviteRole,
-      },
+      role: inviteRole,
+      roleAssignments: initialRoleAssignments,
       managedRoles: assignedManagedRoles,
       customModules: inviteCustomModules,
       tempPassword: assignedTempPassword,
@@ -528,7 +559,7 @@ _Please log in and update your password on your first sign-in._`;
       setIsInviteOpen(false);
 
       // Immediately trigger Credentials Share Modal so admin can dispatch via WhatsApp or Email
-      const targetSite = websites.find((w) => w.id === inviteWebsiteId);
+      const targetSite = websites.find((w) => w.id === inviteWebsiteId) || websites[0];
       setShareModalData({
         user: newUser,
         website: targetSite,
@@ -549,28 +580,25 @@ _Please log in and update your password on your first sign-in._`;
   };
 
   const filteredUsers = users.filter((u) => {
-    // 🛡️ CRITICAL SECURITY & GOVERNANCE: Super Admin is root/system master and managed strictly via direct SQL queries.
-    // Completely hide Super Admin from UI team directory so delete and suspend options do not appear in the interface.
-    if (isSuperAdminAccount(u)) return false;
-
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       const matchesSearch = u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
       if (!matchesSearch) return false;
     }
     if (roleFilter !== 'all') {
-      const roles = Object.values(u.roleAssignments || {});
+      const roles = [u.role, ...(u.roles || []), ...Object.values(u.roleAssignments || {})];
       if (!roles.includes(roleFilter as UserRole)) return false;
     }
     if (tenantFilter !== 'all') {
+      const isSuper = isSuperAdminAccount(u);
       const siteIds = Object.keys(u.roleAssignments || {});
-      if (!siteIds.includes('all') && !siteIds.includes(tenantFilter)) return false;
+      if (!isSuper && !siteIds.includes('all') && !siteIds.includes(tenantFilter)) return false;
     }
     return true;
   });
 
-  // Segregate Super Admins (Global Governance) - hidden from UI management views
-  const superAdmins: UserAccount[] = [];
+  // Segregate Super Admins (Global Governance)
+  const superAdmins = useMemo(() => users.filter((u) => isSuperAdminAccount(u)), [users]);
   const nonSuperUsers = useMemo(() => users.filter((u) => !isSuperAdminAccount(u)), [users]);
 
   // Role Badge Color Mapping
@@ -638,7 +666,7 @@ _Please log in and update your password on your first sign-in._`;
             </span>
           </div>
           <div className="text-2xl font-black text-slate-900 dark:text-white mt-2 font-mono">
-            {nonSuperUsers.length}
+            {users.length}
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
             Active across organization
@@ -651,7 +679,7 @@ _Please log in and update your password on your first sign-in._`;
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
           </div>
           <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-2 font-mono">
-            {nonSuperUsers.filter((u) => u.status === 'active').length}
+            {users.filter((u) => u.status === 'active').length}
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
             Authorized to sign in
@@ -666,10 +694,10 @@ _Please log in and update your password on your first sign-in._`;
             </span>
           </div>
           <div className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-2 font-mono">
-            {nonSuperUsers.filter((u) => Object.values(u.roleAssignments || {}).some((r) => r === 'Website Admin' || r === 'Role Admin')).length}
+            {users.filter((u) => isSuperAdminAccount(u) || Object.values(u.roleAssignments || {}).some((r) => r === 'Website Admin' || r === 'Role Admin')).length}
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-            Delegated Tenant Admins
+            Super &amp; Tenant Admins
           </p>
         </div>
 
@@ -701,7 +729,7 @@ _Please log in and update your password on your first sign-in._`;
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>Member Directory ({filteredUsers.length !== nonSuperUsers.length ? `${filteredUsers.length} of ${nonSuperUsers.length}` : nonSuperUsers.length})</span>
+            <span>Member Directory ({filteredUsers.length !== users.length ? `${filteredUsers.length} of ${users.length}` : users.length})</span>
           </button>
 
           <button
@@ -740,7 +768,7 @@ _Please log in and update your password on your first sign-in._`;
                 className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all cursor-pointer w-full sm:w-auto"
               >
                 <option value="all">All Roles</option>
-                {ALL_ROLES.filter((r) => r !== 'Super Admin').map((r) => (
+                {ALL_ROLES.map((r) => (
                   <option key={r} value={r}>
                     {r}
                   </option>
@@ -1170,7 +1198,8 @@ _Please log in and update your password on your first sign-in._`;
                         <td className="py-3 px-4">
                           {(() => {
                             const targetIsSuperAdmin = isSuperAdminAccount(u);
-                            const canManageThisUser = canManageUsers(activeRole) && !targetIsSuperAdmin;
+                            const targetIsRootSuperAdmin = isRootSuperAdminAccount(u);
+                            const canManageThisUser = canManageUsers(activeRole) && (!targetIsSuperAdmin || isSuperAdmin) && !targetIsRootSuperAdmin;
 
                             if (canManageThisUser) {
                               return (
@@ -1207,7 +1236,7 @@ _Please log in and update your password on your first sign-in._`;
                                     ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
                                     : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400'
                                 }`}
-                                title={targetIsSuperAdmin ? 'Super Admin master account is permanently Active (Locked against UI modification)' : undefined}
+                                title={targetIsRootSuperAdmin ? 'Root Super Admin master account is permanently Active (Protected)' : undefined}
                               >
                                 {u.status === 'active' ? (
                                   <>
@@ -1229,11 +1258,13 @@ _Please log in and update your password on your first sign-in._`;
                           <div className="flex items-center justify-end gap-1.5">
                             {(() => {
                               const targetIsSuperAdmin = isSuperAdminAccount(u);
+                              const targetIsRootSuperAdmin = isRootSuperAdminAccount(u);
+                              const isSelf = currentUser?.id === u.id;
+                              const primarySiteId = Object.keys(u.roleAssignments || {})[0];
+                              const site = websites.find((w) => w.id === primarySiteId) || websites[0];
 
-                              // 🛡️ CRITICAL SECURITY SHIELD: Super Admin cannot be deleted or modified via UI
-                              if (targetIsSuperAdmin) {
-                                const primarySiteId = Object.keys(u.roleAssignments || {})[0];
-                                const site = websites.find((w) => w.id === primarySiteId) || websites[0];
+                              // 🛡️ CRITICAL SECURITY SHIELD: Root Super Admin cannot be deleted or modified
+                              if (targetIsRootSuperAdmin) {
                                 return (
                                   <div className="flex items-center justify-end gap-1.5">
                                     <button
@@ -1250,17 +1281,17 @@ _Please log in and update your password on your first sign-in._`;
                                       <Share2 className="w-3.5 h-3.5" />
                                     </button>
                                     <span
-                                      title="Root Super Admin is permanently protected against deletion, role alteration, and suspension. Changes can only be performed via direct SQL database query."
-                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-500 dark:text-slate-400 text-[10px] font-bold select-none tracking-wide"
+                                      title="Root Super Admin is permanently protected against deletion, role alteration, and suspension."
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-900/40 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 text-[10px] font-bold select-none tracking-wide"
                                     >
-                                      <Lock className="w-3 h-3 text-amber-500 shrink-0" />
-                                      <span>SQL Only</span>
+                                      <Crown className="w-3 h-3 text-purple-600 dark:text-purple-400 shrink-0" />
+                                      <span>Root Admin</span>
                                     </span>
                                   </div>
                                 );
                               }
 
-                              const canManageThisUser = canManageUsers(activeRole);
+                              const canManageThisUser = canManageUsers(activeRole) && (!targetIsSuperAdmin || isSuperAdmin);
 
                               if (!canManageThisUser) {
                                 return (
@@ -1272,8 +1303,6 @@ _Please log in and update your password on your first sign-in._`;
                                 <>
                                   <button
                                     onClick={() => {
-                                      const primarySiteId = Object.keys(u.roleAssignments || {})[0];
-                                      const site = websites.find((w) => w.id === primarySiteId) || websites[0];
                                       setShareModalData({
                                         user: u,
                                         website: site,
@@ -1294,14 +1323,16 @@ _Please log in and update your password on your first sign-in._`;
                                     <Edit3 className="w-3.5 h-3.5" />
                                   </button>
 
-                                  <button
-                                    disabled={deletingUserId === u.id}
-                                    onClick={() => handleDeleteUser(u.id, u.name)}
-                                    title="Revoke Member"
-                                    className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer border border-rose-200 dark:border-rose-800/60 disabled:opacity-50"
-                                  >
-                                    <Trash2 className={`w-3.5 h-3.5 ${deletingUserId === u.id ? 'animate-spin' : ''}`} />
-                                  </button>
+                                  {!isSelf && (
+                                    <button
+                                      disabled={deletingUserId === u.id}
+                                      onClick={() => handleDeleteUser(u.id, u.name)}
+                                      title="Revoke Member"
+                                      className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer border border-rose-200 dark:border-rose-800/60 disabled:opacity-50"
+                                    >
+                                      <Trash2 className={`w-3.5 h-3.5 ${deletingUserId === u.id ? 'animate-spin' : ''}`} />
+                                    </button>
+                                  )}
                                 </>
                               );
                             })()}
@@ -1494,7 +1525,7 @@ _Please log in and update your password on your first sign-in._`;
                               >
                                 <Share2 className="w-3.5 h-3.5" />
                               </button>
-                              {!isSuperAdminAccount(member) && (
+                              {(!isRootSuperAdminAccount(member) || isSuperAdmin) && (
                                 <button
                                   onClick={() => {
                                     setInspectingWebsite(null);
@@ -1595,12 +1626,13 @@ _Please log in and update your password on your first sign-in._`;
                     Tenant Assignment Scope
                   </label>
                   <select
-                    value={inviteWebsiteId}
+                    value={inviteRole === 'Super Admin' ? 'all' : inviteWebsiteId}
+                    disabled={inviteRole === 'Super Admin'}
                     onChange={(e) => setInviteWebsiteId(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     {isSuperAdmin && (
-                      <option value="all">All Websites (Network Wide)</option>
+                      <option value="all">All Websites (Network Wide / Global)</option>
                     )}
                     {visibleWebsites.map((w) => (
                       <option key={w.id} value={w.id}>
@@ -2280,10 +2312,10 @@ _Please log in and update your password on your first sign-in._`;
                 <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Account Status
                 </label>
-                {isSuperAdminAccount(editingUser) ? (
-                  <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 text-amber-800 dark:text-amber-300 text-xs font-semibold">
-                    <Lock className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span>Super Admin status is permanently Active (Locked against UI suspension or modification).</span>
+                {isRootSuperAdminAccount(editingUser) ? (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/80 text-purple-800 dark:text-purple-300 text-xs font-semibold">
+                    <Crown className="w-4 h-4 text-purple-600 shrink-0" />
+                    <span>Root Super Admin status is permanently Active (Protected against suspension).</span>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">

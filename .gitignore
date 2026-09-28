@@ -63,3 +63,8 @@ _archive/
 # Test artifacts
 test_*.png
 test_*.jpg
+
+# OAuth Secrets
+client_secret*.json
+docs/*.json
+
