@@ -12,25 +12,53 @@ export class WebsitesService {
     private redis: RedisProvider,
   ) {}
 
-  async findAll() {
-    const cacheKey = 'admin:websites:all';
-    const cached = await this.redis.get<any>(cacheKey);
-    if (cached) return cached;
+  private canUserViewApiKey(user: any, websiteId?: string): boolean {
+    if (!user) return false;
 
-    const websites = await this.prisma.website.findMany({
-      orderBy: { createdAt: 'asc' },
-      include: {
-        _count: {
-          select: { blogs: true, categories: true, tags: true },
-        },
-      },
-    });
+    // Super Admin can view all API keys
+    const isSuperAdmin =
+      user.roles?.includes('Super Admin') ||
+      user.roleAssignments?.some((ra: any) => ra.role === 'Super Admin');
+    if (isSuperAdmin) return true;
 
-    await this.redis.set(cacheKey, websites, 300);
-    return websites;
+    // Website Admin can view API keys for their assigned site(s) or global
+    const isWebsiteAdmin =
+      user.roleAssignments?.some((ra: any) =>
+        (ra.isGlobal || ra.websiteId === 'all' || (websiteId && ra.websiteId === websiteId)) &&
+        ra.role === 'Website Admin',
+      ) ||
+      (user.roles?.includes('Website Admin') &&
+        (!websiteId || !user.roleAssignments || user.roleAssignments.length === 0));
+
+    return Boolean(isWebsiteAdmin);
   }
 
-  async findOne(id: string) {
+  async findAll(user?: any) {
+    const cacheKey = 'admin:websites:all';
+    let websites = await this.redis.get<any[]>(cacheKey);
+    if (!websites) {
+      websites = await this.prisma.website.findMany({
+        orderBy: { createdAt: 'asc' },
+        include: {
+          _count: {
+            select: { blogs: true, categories: true, tags: true },
+          },
+        },
+      });
+      await this.redis.set(cacheKey, websites, 300);
+    }
+
+    // Always deep clone before masking so cache in Redis is untouched
+    const result = JSON.parse(JSON.stringify(websites));
+    return result.map((w: any) => {
+      if (!this.canUserViewApiKey(user, w.id)) {
+        w.apiKey = '••••••••••••••••';
+      }
+      return w;
+    });
+  }
+
+  async findOne(id: string, user?: any) {
     const website = await this.prisma.website.findUnique({
       where: { id },
       include: {
@@ -44,7 +72,12 @@ export class WebsitesService {
       throw new NotFoundException(`Website tenant with ID "${id}" not found`);
     }
 
-    return website;
+    const result = JSON.parse(JSON.stringify(website));
+    if (user && !this.canUserViewApiKey(user, result.id)) {
+      result.apiKey = '••••••••••••••••';
+    }
+
+    return result;
   }
 
   async create(dto: CreateWebsiteDto, user?: any, ipAddress?: string) {

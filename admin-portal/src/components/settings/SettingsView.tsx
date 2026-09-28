@@ -28,7 +28,8 @@ import {
   Trash2,
   Settings,
   ArrowRightLeft,
-  KeyRound
+  KeyRound,
+  Lock
 } from 'lucide-react';
 import { RedirectsView } from '../redirects/RedirectsView';
 
@@ -50,6 +51,7 @@ export const SettingsView: React.FC = () => {
     fetchAuditLogs,
     showNotification,
     setActiveWebsite,
+    currentUser,
   } = useBlogStore(
     useShallow((s) => ({
       websites: s.websites,
@@ -65,6 +67,7 @@ export const SettingsView: React.FC = () => {
       fetchAuditLogs: s.fetchAuditLogs,
       showNotification: s.showNotification,
       setActiveWebsite: s.setActiveWebsite,
+      currentUser: s.currentUser,
     }))
   );
 
@@ -73,7 +76,17 @@ export const SettingsView: React.FC = () => {
     ? siteParam
     : activeWebsiteId;
 
-  const isSuperAdmin = activeRole === 'Super Admin';
+  const isSuperAdmin = activeRole === 'Super Admin' || currentUser?.roleAssignments?.['all'] === 'Super Admin';
+
+  const canViewApiKeyForTenant = (siteId: string) => {
+    if (isSuperAdmin) return true;
+    if (currentUser?.roleAssignments?.[siteId] === 'Website Admin') return true;
+    if (currentUser?.roleAssignments?.['all'] === 'Website Admin') return true;
+    if (activeWebsiteId === siteId && activeRole === 'Website Admin') return true;
+    return false;
+  };
+
+  const canViewActiveApiKey = activeSite ? canViewApiKeyForTenant(activeSite.id) : false;
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
   useEffect(() => {
@@ -157,6 +170,10 @@ export const SettingsView: React.FC = () => {
 
   const handleSaveProfile = async () => {
     if (!activeSite) return;
+    if (!isSuperAdmin) {
+      showNotification('Super Admin privileges required to modify website settings', 'warning');
+      return;
+    }
     setIsSaving(true);
     try {
       await updateWebsite(activeSite.id, {
@@ -174,6 +191,10 @@ export const SettingsView: React.FC = () => {
 
   const handleSaveWebhook = async () => {
     if (!activeSite) return;
+    if (!isSuperAdmin) {
+      showNotification('Super Admin privileges required to modify webhook configuration', 'warning');
+      return;
+    }
     setIsSaving(true);
     try {
       await updateWebsite(activeSite.id, {
@@ -191,7 +212,7 @@ export const SettingsView: React.FC = () => {
   const [isRegeneratingKey, setIsRegeneratingKey] = useState(false);
 
   const copyApiKey = () => {
-    if (!activeSite) return;
+    if (!activeSite || !canViewActiveApiKey) return;
     navigator.clipboard.writeText(activeSite.apiKey);
     setCopiedKey(true);
     setTimeout(() => setCopiedKey(false), 2000);
@@ -339,6 +360,26 @@ export const SettingsView: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Non-Super Admin Read-Only Notice */}
+      {!isSuperAdmin && (
+        <div className="p-3.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 flex items-center justify-between gap-3 text-xs text-amber-800 dark:text-amber-300 shadow-2xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center shrink-0 text-amber-600 dark:text-amber-400">
+              <Lock className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <span className="font-bold">Read-Only Mode: </span>
+              <span className="text-amber-700 dark:text-amber-400">
+                Tenant configuration, production domains, API keys, and webhooks are strictly locked. Only a <strong>Super Admin</strong> can save or modify these settings.
+              </span>
+            </div>
+          </div>
+          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-200/70 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 shrink-0">
+            View Only
+          </span>
+        </div>
+      )}
 
       {/* Quick Metrics Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -528,29 +569,52 @@ export const SettingsView: React.FC = () => {
                         </td>
 
                         <td className="py-3 px-4">
-                          <button
-                            onClick={() => {
-                              const nextStatus = w.status === 'active' ? 'inactive' : 'active';
-                              updateWebsite(w.id, { status: nextStatus });
-                            }}
-                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-semibold cursor-pointer border text-[11px] transition-colors ${
-                              w.status === 'active'
-                                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
-                                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
-                            }`}
-                          >
-                            {w.status === 'active' ? (
-                              <>
-                                <CheckCircle2 className="w-3 h-3" />
-                                <span>Active</span>
-                              </>
-                            ) : (
-                              <>
-                                <XCircle className="w-3 h-3" />
-                                <span>Inactive</span>
-                              </>
-                            )}
-                          </button>
+                          {isSuperAdmin ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextStatus = w.status === 'active' ? 'inactive' : 'active';
+                                updateWebsite(w.id, { status: nextStatus });
+                              }}
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-semibold cursor-pointer border text-[11px] transition-colors ${
+                                w.status === 'active'
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
+                                  : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                              }`}
+                            >
+                              {w.status === 'active' ? (
+                                <>
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>Active</span>
+                                </>
+                              ) : (
+                                <>
+                                  <XCircle className="w-3 h-3" />
+                                  <span>Inactive</span>
+                                </>
+                              )}
+                            </button>
+                          ) : (
+                            <div
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-semibold border text-[11px] select-none ${
+                                w.status === 'active'
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
+                                  : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                              }`}
+                            >
+                              {w.status === 'active' ? (
+                                <>
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>Active</span>
+                                </>
+                              ) : (
+                                <>
+                                  <XCircle className="w-3 h-3" />
+                                  <span>Inactive</span>
+                                </>
+                              )}
+                            </div>
+                          )}
                         </td>
 
                         <td className="py-3 px-4 font-mono font-semibold text-slate-800 dark:text-slate-200">
@@ -558,7 +622,14 @@ export const SettingsView: React.FC = () => {
                         </td>
 
                         <td className="py-3 px-4 font-mono text-slate-500 dark:text-slate-400 text-[11px]">
-                          {w.apiKey.slice(0, 16)}...
+                          {canViewApiKeyForTenant(w.id) ? (
+                            `${w.apiKey?.slice(0, 16) || ''}...`
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-slate-400 dark:text-slate-500 select-none">
+                              <Lock className="w-3 h-3 text-amber-500/80" />
+                              <span>••••••••••••</span>
+                            </span>
+                          )}
                         </td>
 
                         <td className="py-3 px-4 text-right whitespace-nowrap">
@@ -609,9 +680,10 @@ export const SettingsView: React.FC = () => {
                 <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">Website Name</label>
                 <input
                   type="text"
+                  disabled={!isSuperAdmin}
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-medium focus:outline-none focus:ring-1 focus:ring-slate-400"
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-medium focus:outline-none focus:ring-1 focus:ring-slate-400 disabled:opacity-70 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -619,10 +691,11 @@ export const SettingsView: React.FC = () => {
                 <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">Production Domain / Hostname</label>
                 <input
                   type="text"
+                  disabled={!isSuperAdmin}
                   value={editDomain}
                   onChange={(e) => setEditDomain(e.target.value)}
                   placeholder="e.g. localhost:5001 or cloud.jupsoft.com"
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-slate-400"
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-slate-400 disabled:opacity-70 disabled:cursor-not-allowed"
                 />
                 <p className="text-[11px] text-slate-500 mt-1">
                   Localhost during testing (e.g. <code className="text-blue-500 font-mono">localhost:5001</code>). When launching live, enter your production domain here without code changes.
@@ -641,10 +714,11 @@ export const SettingsView: React.FC = () => {
                   )}
                   <input
                     type="url"
+                    disabled={!isSuperAdmin}
                     value={editLogoUrl}
                     onChange={(e) => setEditLogoUrl(e.target.value)}
                     placeholder="https://cdn.example.com/logo.png"
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-slate-400"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-slate-400 disabled:opacity-70 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -652,18 +726,31 @@ export const SettingsView: React.FC = () => {
               <div>
                 <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">Tenant Status</label>
                 <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => updateWebsite(activeSite.id, { status: activeSite.status === 'active' ? 'inactive' : 'active' })}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border transition-colors flex items-center gap-1.5 ${
-                      activeSite.status === 'active'
-                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
-                        : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
-                    }`}
-                  >
-                    {activeSite.status === 'active' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                    <span>Status: {activeSite.status.toUpperCase()}</span>
-                  </button>
+                  {isSuperAdmin ? (
+                    <button
+                      type="button"
+                      onClick={() => updateWebsite(activeSite.id, { status: activeSite.status === 'active' ? 'inactive' : 'active' })}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border transition-colors flex items-center gap-1.5 ${
+                        activeSite.status === 'active'
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
+                          : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      {activeSite.status === 'active' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                      <span>Status: {activeSite.status.toUpperCase()}</span>
+                    </button>
+                  ) : (
+                    <div
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1.5 select-none ${
+                        activeSite.status === 'active'
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
+                          : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      {activeSite.status === 'active' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                      <span>Status: {activeSite.status.toUpperCase()}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -672,21 +759,29 @@ export const SettingsView: React.FC = () => {
                 <input
                   type="text"
                   readOnly
+                  disabled
                   value={activeSite.s3Prefix}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-500 dark:text-slate-400 font-mono focus:outline-none"
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-500 dark:text-slate-400 font-mono focus:outline-none opacity-70 cursor-not-allowed"
                 />
               </div>
 
               <div className="pt-2 flex justify-end">
-                <button
-                  type="button"
-                  disabled={isSaving}
-                  onClick={handleSaveProfile}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50"
-                >
-                  {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                  <span>{isSaving ? 'Saving to Database...' : 'Save Profile & Domain'}</span>
-                </button>
+                {isSuperAdmin ? (
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={handleSaveProfile}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                  >
+                    {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                    <span>{isSaving ? 'Saving to Database...' : 'Save Profile & Domain'}</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium bg-slate-100 dark:bg-slate-850 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <Lock className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Super Admin privileges required to modify settings</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -717,30 +812,37 @@ export const SettingsView: React.FC = () => {
                     </button>
                   )}
                 </div>
-                <div className="flex gap-2">
-                  <input
-                    type={showApiKey ? 'text' : 'password'}
-                    readOnly
-                    value={activeSite.apiKey}
-                    className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-700 dark:text-slate-300 font-mono text-xs focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center transition-colors font-medium border border-slate-200 dark:border-slate-700 cursor-pointer"
-                    title={showApiKey ? 'Hide API key' : 'Show API key'}
-                  >
-                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4 text-slate-500" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={copyApiKey}
-                    className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-colors font-medium border border-slate-200 dark:border-slate-700 cursor-pointer"
-                  >
-                    {copiedKey ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                    <span>{copiedKey ? 'Copied' : 'Copy'}</span>
-                  </button>
-                </div>
+                {canViewActiveApiKey ? (
+                  <div className="flex gap-2">
+                    <input
+                      type={showApiKey ? 'text' : 'password'}
+                      readOnly
+                      value={activeSite.apiKey}
+                      className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-700 dark:text-slate-300 font-mono text-xs focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center transition-colors font-medium border border-slate-200 dark:border-slate-700 cursor-pointer"
+                      title={showApiKey ? 'Hide API key' : 'Show API key'}
+                    >
+                      {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4 text-slate-500" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={copyApiKey}
+                      className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-colors font-medium border border-slate-200 dark:border-slate-700 cursor-pointer"
+                    >
+                      {copiedKey ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                      <span>{copiedKey ? 'Copied' : 'Copy'}</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs font-medium select-none">
+                    <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span>Protected Secret: Only Super Admin and Website Admin can view or copy API credentials.</span>
+                  </div>
+                )}
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
                   Generated automatically by platform backend &amp; stored in database. Client websites provide this key via <code className="font-mono text-indigo-600 dark:text-indigo-400">Authorization: Bearer &lt;key&gt;</code> to authenticate REST API requests.
                 </p>
@@ -816,20 +918,28 @@ export const SettingsView: React.FC = () => {
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
+                    disabled={!isSuperAdmin}
                     value={editWebhookUrl}
                     onChange={(e) => setEditWebhookUrl(e.target.value)}
                     placeholder="e.g. https://digifynext.com/api/revalidate"
-                    className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none focus:border-red-500"
+                    className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none focus:border-red-500 disabled:opacity-70 disabled:cursor-not-allowed"
                   />
-                  <button
-                    type="button"
-                    disabled={isSaving}
-                    onClick={handleSaveWebhook}
-                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
-                  >
-                    {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                    <span>{isSaving ? 'Saving...' : 'Save Webhook URL'}</span>
-                  </button>
+                  {isSuperAdmin ? (
+                    <button
+                      type="button"
+                      disabled={isSaving}
+                      onClick={handleSaveWebhook}
+                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
+                    >
+                      {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                      <span>{isSaving ? 'Saving...' : 'Save Webhook URL'}</span>
+                    </button>
+                  ) : (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs font-semibold shrink-0 border border-slate-200 dark:border-slate-700">
+                      <Lock className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Super Admin Only</span>
+                    </div>
+                  )}
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">
                   Target Next.js or edge URL to receive cache busting pings (e.g. <code className="text-red-600 dark:text-red-400 font-mono">https://yourdomain.com/api/revalidate</code>).
@@ -840,18 +950,27 @@ export const SettingsView: React.FC = () => {
               <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">Tenant Webhook HMAC Secret:</span>
-                  <button
-                    type="button"
-                    onClick={copyApiKey}
-                    className="inline-flex items-center gap-1 text-[11px] text-red-600 dark:text-red-400 font-semibold hover:underline cursor-pointer"
-                  >
-                    {copiedKey ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                    <span>{copiedKey ? 'Secret Copied!' : 'Copy Secret'}</span>
-                  </button>
+                  {canViewActiveApiKey && (
+                    <button
+                      type="button"
+                      onClick={copyApiKey}
+                      className="inline-flex items-center gap-1 text-[11px] text-red-600 dark:text-red-400 font-semibold hover:underline cursor-pointer"
+                    >
+                      {copiedKey ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedKey ? 'Secret Copied!' : 'Copy Secret'}</span>
+                    </button>
+                  )}
                 </div>
-                <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400 bg-white dark:bg-[#0c1322] px-3 py-1.5 rounded border border-slate-200 dark:border-slate-800 select-all truncate">
-                  {activeSite.apiKey}
-                </div>
+                {canViewActiveApiKey ? (
+                  <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400 bg-white dark:bg-[#0c1322] px-3 py-1.5 rounded border border-slate-200 dark:border-slate-800 select-all truncate">
+                    {activeSite.apiKey}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-400 bg-white dark:bg-[#0c1322] px-3 py-1.5 rounded border border-slate-200 dark:border-slate-800 select-none">
+                    <Lock className="w-3 h-3 text-amber-500 shrink-0" />
+                    <span>•••••••••••••••••••••••••••••••• (Super Admin / Website Admin Only)</span>
+                  </div>
+                )}
                 <span className="text-[11px] text-slate-400 block">
                   Verify incoming webhook requests on consumer server using <code className="font-mono">x-hub-signature-256</code> header.
                 </span>

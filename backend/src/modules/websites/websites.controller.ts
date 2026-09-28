@@ -16,14 +16,14 @@ export class WebsitesController {
 
   @Get()
   @ApiOperation({ summary: 'Retrieve all website tenants with article counts' })
-  async findAll() {
-    return this.websitesService.findAll();
+  async findAll(@CurrentUser() user: any) {
+    return this.websitesService.findAll(user);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Retrieve single website tenant details' })
-  async findOne(@Param('id') id: string) {
-    return this.websitesService.findOne(id);
+  async findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.websitesService.findOne(id, user);
   }
 
   @Post()
@@ -39,8 +39,8 @@ export class WebsitesController {
   }
 
   @Put(':id')
-  @Roles('Super Admin', 'Website Admin')
-  @ApiOperation({ summary: 'Update website domain, webhook URL, or active status' })
+  @Roles('Super Admin')
+  @ApiOperation({ summary: 'Update website domain, webhook URL, or active status (Super Admin strictly)' })
   async update(@Param('id') id: string, @Body() dto: UpdateWebsiteDto) {
     return this.websitesService.update(id, dto);
   }
