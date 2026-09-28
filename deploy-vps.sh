@@ -41,11 +41,14 @@ else
   echo "   ✨ Codebase is already at latest commit ($(echo "$NEW_REV" | cut -c1-7))."
 fi
 
-# 2. Check if clean build requested
+# 2. Free up disk space proactively on every run
+echo "🧹 [2/4] Pruning caches and optimizing disk space..."
+pnpm store prune 2>/dev/null || true
+rm -rf /root/.npm/_cacache /root/.npm/_logs /tmp/npm-* /tmp/v8-compile-cache* 2>/dev/null || true
+
 if [[ "$MODE" == "clean" ]]; then
-  echo "🗑️ Freeing disk space & wiping build caches (--clean)..."
+  echo "🗑️ Wiping build caches (--clean)..."
   rm -rf admin-portal/.next admin-portal/.turbo backend/dist
-  rm -rf /root/.npm/_cacache /root/.npm/_logs 2>/dev/null || true
   CHANGED_FILES="ALL"
 fi
 

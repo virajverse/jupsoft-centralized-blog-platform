@@ -33,15 +33,5 @@
   "devDependencies": {
     "cheerio": "^1.2.0",
     "puppeteer-core": "^25.11.0"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@parcel/watcher",
-      "@prisma/client",
-      "@prisma/engines",
-      "@scarf/scarf",
-      "bcrypt",
-      "prisma"
-    ]
   }
 }

@@ -1,7 +1,6 @@
 packages:
   - 'admin-portal'
   - 'backend'
-  - 'packages/*'
 allowBuilds:
   '@parcel/watcher': true
   '@prisma/client': true
