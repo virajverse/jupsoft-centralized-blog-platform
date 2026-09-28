@@ -54,6 +54,17 @@ export class AuthController {
     return this.authService.getProfile(userId);
   }
 
+  @Put('profile')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update current authenticated user profile (name, avatar)' })
+  async updateProfile(
+    @CurrentUser('id') userId: string,
+    @Body() dto: { name?: string; avatar?: string },
+  ) {
+    return this.authService.updateProfile(userId, dto);
+  }
+
   @Put('change-password')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

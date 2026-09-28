@@ -235,29 +235,36 @@ export class AuthService {
       throw new UnauthorizedException('This account has been suspended. Please contact your Super Admin.');
     }
 
-    // 3. Success: Reset lockout, update IP, sync avatar if empty
+    // 3. Success: Reset lockout, update IP, and AUTOMATICALLY sync latest Name & Avatar from Google
     const updateData: any = {
       lastLoginIp: ipAddress || '',
       loginAttempts: 0,
       lockoutUntil: null,
     };
-    if (!user.avatar && googleUser.picture) {
-      updateData.avatar = googleUser.picture;
+    if (googleUser.name && googleUser.name.trim()) {
+      updateData.name = googleUser.name.trim();
+    }
+    if (googleUser.picture && googleUser.picture.trim()) {
+      updateData.avatar = googleUser.picture.trim();
     }
 
-    await this.prisma.user.update({
+    const updatedUser = await this.prisma.user.update({
       where: { id: user.id },
       data: updateData,
+      include: { roleAssignments: true },
     });
+
+    await this.redis.del(`auth:user:${user.id}`);
+    await this.redis.del(`auth:profile:${user.id}`);
 
     await this.prisma.systemAuditLog.create({
       data: {
-        userName: user.name,
-        role: user.roleAssignments[0]?.role || 'Staff Writer',
+        userName: updatedUser.name,
+        role: updatedUser.roleAssignments[0]?.role || 'Staff Writer',
         websiteId: 'system',
         event: 'user.login.google',
         ipAddress: ipAddress || '',
-        details: `User ${user.name} (${user.email}) signed in via Google OAuth from ${ipAddress || 'unknown'}.`,
+        details: `User ${updatedUser.name} (${updatedUser.email}) signed in via Google OAuth from ${ipAddress || 'unknown'} (profile automatically synced).`,
       },
     });
 
@@ -278,10 +285,10 @@ export class AuthService {
       accessToken,
       refreshToken,
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        avatar: user.avatar || googleUser.picture || '',
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        avatar: updatedUser.avatar || '',
         status: user.status,
         roles,
         customModules: user.customModules || [],
@@ -472,6 +479,40 @@ export class AuthService {
     });
 
     return { success: true, message: 'Password changed successfully' };
+  }
+
+  async updateProfile(userId: string, dto: { name?: string; avatar?: string }) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const updateData: any = {};
+    if (dto.name && dto.name.trim()) updateData.name = dto.name.trim();
+    if (dto.avatar !== undefined) updateData.avatar = dto.avatar.trim();
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      include: { roleAssignments: true },
+    });
+
+    await this.redis.del(`auth:profile:${userId}`);
+    await this.redis.del(`auth:user:${userId}`);
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      email: updated.email,
+      avatar: updated.avatar,
+      status: updated.status,
+      customModules: updated.customModules || [],
+      roleAssignments: updated.roleAssignments.reduce((acc, curr) => {
+        const key = curr.isGlobal || !curr.websiteId ? 'all' : curr.websiteId;
+        acc[key] = curr.role;
+        return acc;
+      }, {} as Record<string, string>),
+    };
   }
 
   /**

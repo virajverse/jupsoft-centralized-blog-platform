@@ -337,6 +337,13 @@ class ApiClient {
     return this.request('/admin/auth/me');
   }
 
+  async updateProfile(data: { name?: string; avatar?: string }): Promise<UserAccount> {
+    return this.request('/admin/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
   async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean }> {
     return this.request('/admin/auth/change-password', {
       method: 'PUT',
