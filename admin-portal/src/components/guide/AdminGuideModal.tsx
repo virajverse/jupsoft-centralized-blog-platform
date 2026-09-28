@@ -133,7 +133,7 @@ export const AdminGuideModal: React.FC = () => {
   };
 
   const copyFullGuide = () => {
-    const text = `# 🏢 Jupsoft Centralized Multi-Site Content Engine — Administrator Manual
+    const text = `# Jupsoft Centralized Multi-Site Content Engine — Administrator Manual
 Super Admin Operations & Architecture Reference
 
 ## 1. Centralized Multi-Tenant Architecture Overview
@@ -142,9 +142,9 @@ The Jupsoft Centralized Content Platform consolidates editorial and publishing o
 ### Core Architectural Principles:
 - **Single Source of Truth**: All articles, media assets, categories, and user credentials reside in a central PostgreSQL database.
 - **Connected Tenant Properties**:
-  1. \`site-cloud\` ➔ Jupsoft Cloud & ERP (cloud.jupsoft.com)
-  2. \`site-growth\` ➔ DigifyNext Marketing (digifynext.com)
-  3. \`site-jupsoft-test\` ➔ Jupsoft Staging & Testing (test.jupsoft.com)
+  1. \`site-cloud\` -> Jupsoft Cloud & ERP (cloud.jupsoft.com)
+  2. \`site-growth\` -> DigifyNext Marketing (digifynext.com)
+  3. \`site-jupsoft-test\` -> Jupsoft Staging & Testing (test.jupsoft.com)
 - **Instant Edge Invalidation**: Publishing or updating articles triggers HMAC-SHA256 signed webhooks to target consumer frontends, immediately purging edge cache without rebuilding or redeploying sites.
 
 ---
@@ -172,12 +172,12 @@ The Jupsoft Centralized Content Platform consolidates editorial and publishing o
 
   const copyAnswerSteps = (q: HelpQuestion) => {
     const lines = [
-      `📌 ${q.title} (${q.titleHi})`,
+      `[Topic] ${q.title} (${q.titleHi})`,
       `Summary: ${q.summary}`,
       '',
       'Steps to follow:',
       ...q.steps.map((s) => `${s.step}. ${s.instruction}${s.detail ? ` (${s.detail})` : ''}`),
-      q.proTip ? `\n💡 Pro-Tip: ${q.proTip}` : '',
+      q.proTip ? `\n[Pro-Tip] ${q.proTip}` : '',
     ].join('\n');
     navigator.clipboard.writeText(lines);
     setCopiedStep(true);

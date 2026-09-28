@@ -424,7 +424,7 @@ export const HELP_CATEGORIES: HelpCategory[] = [
           },
           {
             step: 4,
-            instruction: 'Click "+ Add Redirect Rule" and map Old Path ➔ New Path',
+            instruction: 'Click "+ Add Redirect Rule" and map Old Path -> New Path',
           },
         ],
         actionLink: {
