@@ -5,9 +5,12 @@ export const metadata: Metadata = {
   title: "Jupsoft Blog Engine | Centralized Multi-Site CMS",
   description: "Enterprise multi-tenant blog authoring, live SEO auditor, and editorial workflow management portal for Jupsoft Systems",
   icons: {
-    icon: "/favicon.png",
-    shortcut: "/favicon.png",
-    apple: "/jupsoft-icon.png",
+    icon: [
+      { url: "/logomobileapp.png", type: "image/png" },
+      { url: "/favicon.png", type: "image/png" },
+    ],
+    shortcut: "/logomobileapp.png",
+    apple: "/logomobileapp.png",
   },
 };
 
