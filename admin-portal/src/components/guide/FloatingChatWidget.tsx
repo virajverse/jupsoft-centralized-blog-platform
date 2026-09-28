@@ -37,6 +37,196 @@ interface ChatMessage {
   category?: HelpCategory;
   question?: HelpQuestion;
   searchResults?: { category: HelpCategory; question: HelpQuestion }[];
+  actionLink?: { label: string; href: string };
+}
+
+// =========================================================================
+// OFFLINE INTENT & NLP REASONING ENGINE (0ms Latency, Zero API Dependency)
+// =========================================================================
+
+const STOP_WORDS = new Set([
+  'help', 'me', 'in', 'i', 'how', 'to', 'do', 'a', 'an', 'the', 'is', 'for', 'can', 'you',
+  'please', 'with', 'on', 'at', 'my', 'want', 'need', 'some', 'about', 'tell', 'give',
+  'show', 'what', 'where', 'when', 'which', 'who', 'why', 'are', 'was', 'were', 'am',
+  'of', 'and', 'or', 'by', 'be', 'so', 'any', 'could', 'would', 'should', 'from', 'this', 'that'
+]);
+
+const STEM_MAP: Record<string, string> = {
+  writing: 'write', wrote: 'write', writes: 'write', writer: 'write', writers: 'write',
+  blogs: 'blog', blogging: 'blog', blogger: 'blog',
+  articles: 'article',
+  posts: 'post', posted: 'post', posting: 'post',
+  creating: 'create', created: 'create', creates: 'create', creation: 'create',
+  publishing: 'publish', published: 'publish', publisher: 'publish', publishes: 'publish',
+  editing: 'edit', edited: 'edit', editor: 'edit', editors: 'edit', edits: 'edit',
+  images: 'image', photos: 'image', photo: 'image', picture: 'image', pictures: 'image',
+  admins: 'admin', administrator: 'admin', administrators: 'admin',
+  users: 'user', members: 'user', member: 'user', team: 'user',
+  roles: 'role', assigned: 'role', assign: 'role',
+  categories: 'category', tags: 'tag', tagging: 'tag',
+  redirects: 'redirect', redirected: 'redirect', redirecting: 'redirect',
+  errors: 'error', failed: 'error', failing: 'error', bug: 'error', bugs: 'error',
+  forbidden: '403', denied: '403', access: '403',
+  domains: 'domain', websites: 'website', sites: 'website', site: 'website',
+  scopes: 'scope', scoped: 'scope',
+  workflows: 'workflow', reviews: 'review', reviewing: 'review', reviewed: 'review',
+};
+
+function normalizeToken(token: string): string {
+  const clean = token.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return STEM_MAP[clean] || clean;
+}
+
+interface DomainIntent {
+  id: string;
+  categoryTitle: string;
+  categoryId: string;
+  triggerKeywords: string[];
+  actionLink?: { label: string; href: string };
+}
+
+const DOMAIN_INTENTS: DomainIntent[] = [
+  {
+    id: 'blogs-studio',
+    categoryTitle: 'Blog Writing & Content Studio',
+    categoryId: 'blogs-studio',
+    triggerKeywords: ['blog', 'write', 'article', 'post', 'draft', 'content', 'format', 'editor', 'studio', 'author', 'webp', 'schedule'],
+    actionLink: { label: 'Open Blog Studio (+ New Blog)', href: '/blogs/new' },
+  },
+  {
+    id: 'users-rbac',
+    categoryTitle: 'Super Admin & Team Access',
+    categoryId: 'users-rbac',
+    triggerKeywords: ['super', 'admin', 'user', 'role', 'invite', 'team', 'staff', 'member', 'password', 'whatsapp', 'credential', 'rbac'],
+    actionLink: { label: 'Open Team & RBAC (/users)', href: '/users' },
+  },
+  {
+    id: 'workflow-review',
+    categoryTitle: 'Editorial Workflow & Kanban',
+    categoryId: 'workflow-review',
+    triggerKeywords: ['workflow', 'kanban', 'review', 'publish', 'approve', 'reject', 'cache', 'invalidation', 'speed', 'live'],
+    actionLink: { label: 'Open Kanban Board (/workflow)', href: '/workflow' },
+  },
+  {
+    id: 'troubleshooting',
+    categoryTitle: 'Troubleshooting & 403 Errors',
+    categoryId: 'troubleshooting',
+    triggerKeywords: ['403', 'forbidden', 'denied', 'permission', 'unauthorized', 'access', 'blocked', 'missing', 'bug'],
+    actionLink: { label: 'Check User Access (/users)', href: '/users' },
+  },
+  {
+    id: 'redirects-301',
+    categoryTitle: '301 Permanent Redirects',
+    categoryId: 'redirects-301',
+    triggerKeywords: ['redirect', '301', 'url', 'slug', '404', 'broken', 'permanent', 'route'],
+    actionLink: { label: 'Manage 301 Redirects', href: '/settings?tab=redirects' },
+  },
+  {
+    id: 'taxonomy-seo',
+    categoryTitle: 'Categories, Tags & SEO',
+    categoryId: 'taxonomy-seo',
+    triggerKeywords: ['category', 'tag', 'seo', 'audit', 'score', 'keyword', 'meta', '8-point'],
+    actionLink: { label: 'Open Taxonomy Hub (/taxonomy)', href: '/taxonomy' },
+  },
+  {
+    id: 'multisite-scope',
+    categoryTitle: 'Multi-Tenant Website Scope',
+    categoryId: 'multisite-scope',
+    triggerKeywords: ['scope', 'tenant', 'website', 'domain', 'all websites', 'site-cloud', 'digifynext', 'switch'],
+  },
+  {
+    id: 'auth-security',
+    categoryTitle: 'Authentication & Security',
+    categoryId: 'auth-security',
+    triggerKeywords: ['login', 'google', 'oauth', 'sign in', 'logout', 'lockout', 'rate limit', 'brute force'],
+  },
+];
+
+function findIntelligentMatches(query: string): {
+  topQuestions: { category: HelpCategory; question: HelpQuestion }[];
+  matchedIntent: DomainIntent | null;
+  directAnswer: { category: HelpCategory; question: HelpQuestion } | null;
+} {
+  const rawWords = query.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+  const meaningfulTokens = rawWords.filter((w) => !STOP_WORDS.has(w));
+  const tokens = (meaningfulTokens.length > 0 ? meaningfulTokens : rawWords).map(normalizeToken);
+
+  // 1. Detect Domain Intent
+  let bestIntent: DomainIntent | null = null;
+  let maxIntentScore = 0;
+
+  for (const intent of DOMAIN_INTENTS) {
+    let score = 0;
+    for (const kw of intent.triggerKeywords) {
+      if (tokens.includes(kw)) score += 10;
+      if (query.toLowerCase().includes(kw)) score += 5;
+    }
+    if (score > maxIntentScore) {
+      maxIntentScore = score;
+      bestIntent = intent;
+    }
+  }
+
+  // 2. Score Every Question Across All Categories
+  const scoredItems: { category: HelpCategory; question: HelpQuestion; score: number }[] = [];
+
+  for (const cat of HELP_CATEGORIES) {
+    const isCategoryIntent = bestIntent?.categoryId === cat.id;
+
+    for (const q of cat.questions) {
+      let score = 0;
+
+      // Intent boost
+      if (isCategoryIntent) score += 20;
+
+      // Exact phrase match in title or summary
+      const qTitleLower = q.title.toLowerCase();
+      const qSummaryLower = q.summary.toLowerCase();
+      if (qTitleLower.includes(query.toLowerCase())) score += 35;
+      if (qSummaryLower.includes(query.toLowerCase())) score += 20;
+
+      // Token overlap scoring
+      for (const tok of tokens) {
+        if (tok.length < 2) continue;
+
+        // Title token match
+        if (qTitleLower.includes(tok)) score += 12;
+
+        // Tags match
+        if (q.tags.some((tag) => tag.toLowerCase().includes(tok))) score += 14;
+
+        // Summary token match
+        if (qSummaryLower.includes(tok)) score += 6;
+
+        // Category title match
+        if (cat.title.toLowerCase().includes(tok)) score += 8;
+      }
+
+      if (score > 10) {
+        scoredItems.push({ category: cat, question: q, score });
+      }
+    }
+  }
+
+  // Sort descending by score
+  scoredItems.sort((a, b) => b.score - a.score);
+
+  // 3. Direct Answer Check (if top match has very high score and dominance)
+  let directAnswer: { category: HelpCategory; question: HelpQuestion } | null = null;
+  if (scoredItems.length > 0 && scoredItems[0].score >= 45) {
+    const first = scoredItems[0];
+    const second = scoredItems[1];
+    // If it's the only strong match or at least 15 points higher than second
+    if (!second || first.score - second.score >= 15 || tokens.length <= 3) {
+      directAnswer = { category: first.category, question: first.question };
+    }
+  }
+
+  return {
+    topQuestions: scoredItems.slice(0, 4).map((item) => ({ category: item.category, question: item.question })),
+    matchedIntent: maxIntentScore >= 10 ? bestIntent : null,
+    directAnswer,
+  };
 }
 
 export const FloatingChatWidget: React.FC = () => {
@@ -118,7 +308,7 @@ export const FloatingChatWidget: React.FC = () => {
         text: `Here are the most common questions regarding ${category.title}:`,
       };
       setMessages((prev) => [...prev, botMsg]);
-    }, 250);
+    }, 200);
   };
 
   const handleSelectQuestion = (category: HelpCategory, question: HelpQuestion) => {
@@ -143,18 +333,19 @@ export const FloatingChatWidget: React.FC = () => {
         question,
       };
       setMessages((prev) => [...prev, botMsg]);
-    }, 280);
+    }, 240);
   };
 
+  // ADVANCED NATURAL LANGUAGE QUERY HANDLER (NO API REQUIRED)
   const handleSearchSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const query = inputText.trim().toLowerCase();
+    const query = inputText.trim();
     if (!query) return;
 
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       sender: 'user',
-      text: inputText.trim(),
+      text: query,
       time: getTime(),
     };
 
@@ -164,36 +355,47 @@ export const FloatingChatWidget: React.FC = () => {
 
     setTimeout(() => {
       setIsTyping(false);
-      const results: { category: HelpCategory; question: HelpQuestion }[] = [];
-      for (const cat of HELP_CATEGORIES) {
-        for (const q of cat.questions) {
-          if (
-            q.title.toLowerCase().includes(query) ||
-            q.summary.toLowerCase().includes(query) ||
-            q.tags.some((t) => t.toLowerCase().includes(query))
-          ) {
-            results.push({ category: cat, question: q });
-          }
-        }
+      const { topQuestions, matchedIntent, directAnswer } = findIntelligentMatches(query);
+
+      // If user query directly targeted a specific answer with high confidence
+      if (directAnswer && directAnswer.question.steps?.length > 0) {
+        const botMsg: ChatMessage = {
+          id: `bot-${Date.now()}`,
+          sender: 'bot',
+          time: getTime(),
+          type: 'answer',
+          category: directAnswer.category,
+          question: directAnswer.question,
+          text: `Here is the solution for "${query}":`,
+        };
+        setMessages((prev) => [...prev, botMsg]);
+        return;
       }
 
-      if (results.length > 0) {
+      // If relevant matching guides found
+      if (topQuestions.length > 0) {
+        const headerText = matchedIntent
+          ? `I can help you with ${matchedIntent.categoryTitle}! Here are the recommended guides:`
+          : `Found ${topQuestions.length} relevant guide${topQuestions.length > 1 ? 's' : ''} for "${query}":`;
+
         const botMsg: ChatMessage = {
           id: `bot-${Date.now()}`,
           sender: 'bot',
           time: getTime(),
           type: 'search-results',
-          searchResults: results.slice(0, 4),
-          text: `Found ${results.length} related solution${results.length > 1 ? 's' : ''} for "${query}":`,
+          searchResults: topQuestions,
+          actionLink: matchedIntent?.actionLink,
+          text: headerText,
         };
         setMessages((prev) => [...prev, botMsg]);
       } else {
+        // Helpful fallback with main topic selectors
         const botMsg: ChatMessage = {
           id: `bot-${Date.now()}`,
           sender: 'bot',
           time: getTime(),
           type: 'text',
-          text: `No direct match found for "${query}". You can choose from the main categories below or check the full documentation:`,
+          text: `I could not find an exact match for "${query}". You can choose from the main categories below or try searching for keywords like "write blog", "super admin", or "403 error":`,
         };
         const catMsg: ChatMessage = {
           id: `bot-cat-${Date.now()}`,
@@ -203,7 +405,7 @@ export const FloatingChatWidget: React.FC = () => {
         };
         setMessages((prev) => [...prev, botMsg, catMsg]);
       }
-    }, 250);
+    }, 220);
   };
 
   const handleActionNavigate = (href: string) => {
@@ -217,7 +419,7 @@ export const FloatingChatWidget: React.FC = () => {
       className="fixed bottom-5 right-5 z-40 select-none"
     >
       {/* ========================================================================= */}
-      {/* 1. PROFESSIONAL COMPACT CHAT WINDOW (360px wide, 510px high)             */}
+      {/* 1. PROFESSIONAL COMPACT CHAT WINDOW (340px-370px wide, 510px high)        */}
       {/* ========================================================================= */}
       {isOpen && (
         <div 
@@ -368,9 +570,9 @@ export const FloatingChatWidget: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Search Results */}
+                  {/* Intelligent Search Results Card */}
                   {msg.type === 'search-results' && msg.searchResults && (
-                    <div className="w-full space-y-1 pt-0.5">
+                    <div className="w-full space-y-1.5 pt-0.5">
                       <div className="space-y-1">
                         {msg.searchResults.map(({ category, question }) => {
                           const Icon = getCategoryIcon(category.iconName);
@@ -395,6 +597,20 @@ export const FloatingChatWidget: React.FC = () => {
                           );
                         })}
                       </div>
+
+                      {/* Direct Action Link if recognized intent */}
+                      {msg.actionLink && (
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleActionNavigate(msg.actionLink!.href)}
+                            className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                          >
+                            <span>{msg.actionLink.label}</span>
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
 
                       <button
                         type="button"
@@ -532,7 +748,7 @@ export const FloatingChatWidget: React.FC = () => {
             <div className="relative flex-1">
               <input
                 type="text"
-                placeholder="Search help topics (e.g. 403, super admin)..."
+                placeholder="Ask anything (e.g. blog writing, super admin, 403)..."
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 className="w-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg pl-3 pr-7 py-1.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-red-500"
