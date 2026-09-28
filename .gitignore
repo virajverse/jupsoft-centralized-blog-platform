@@ -52,9 +52,14 @@ __pycache__/
 # Package tarballs
 *.tgz
 
-# Scratch scripts
+# Scratch scripts & temporary archives
 scratch/
-
-# Archived source files (never uploaded to VPS/Netlify)
 _source_files/
 _archive/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Test artifacts
+test_*.png
+test_*.jpg

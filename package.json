@@ -19,12 +19,7 @@
     "db:studio": "pnpm --filter ./backend exec prisma studio",
     "test": "pnpm --filter ./backend run test",
     "test:cov": "pnpm --filter ./backend run test:cov",
-    "test:ci": "pnpm --filter ./backend run test:ci",
-    "fts:migrate": "pnpm --filter ./backend run fts:migrate",
-    "db:sync": "node scripts/sync-databases.js --pull",
-    "db:sync:pull": "node scripts/sync-databases.js --pull",
-    "db:sync:push": "node scripts/sync-databases.js --push",
-    "db:sync:status": "node scripts/sync-databases.js --status"
+    "test:ci": "pnpm --filter ./backend run test:ci"
   },
   "keywords": [
     "cms",
