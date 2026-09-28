@@ -4,6 +4,8 @@
 
 @layer base {
   :root {
+    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     --canvas-bg: #f8fafc;
     --canvas-text: #0f172a;
     --surface-bg: #ffffff;
