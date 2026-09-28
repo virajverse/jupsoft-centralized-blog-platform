@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
-
-type GuideTab = 'all' | 'architecture' | 'modules' | 'workflow' | 'seo' | 'api' | 'settings';
+import { HELP_CATEGORIES, HelpCategory, HelpQuestion } from '../../data/helpCenterData';
 import { 
   BookOpen, 
   X, 
@@ -23,19 +24,35 @@ import {
   ShieldCheck, 
   Zap, 
   ChevronRight,
+  ChevronLeft,
   Shield,
   KeyRound,
   CheckCircle2,
   Lock,
-  Cpu
+  Cpu,
+  AlertCircle,
+  HelpCircle,
+  ArrowUpRight,
+  Sparkles,
+  Compass,
+  Lightbulb,
+  ExternalLink
 } from 'lucide-react';
 
+type ModalMode = 'options' | 'manual';
+
 export const AdminGuideModal: React.FC = () => {
+  const router = useRouter();
   const isGuideOpen = useBlogStore((s) => s.isGuideOpen);
   const setGuideOpen = useBlogStore((s) => s.setGuideOpen);
-  const [activeTab, setActiveTab] = useState<GuideTab>('all');
+  const activeRole = useBlogStore((s) => s.activeRole);
+
+  const [mode, setMode] = useState<ModalMode>('options');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>(HELP_CATEGORIES[0].id);
+  const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [copied, setCopied] = useState(false);
+  const [copiedStep, setCopiedStep] = useState(false);
 
   // Close on Escape key
   useEffect(() => {
@@ -52,7 +69,68 @@ export const AdminGuideModal: React.FC = () => {
     };
   }, [isGuideOpen, setGuideOpen]);
 
-  if (!isGuideOpen) return null;
+  // Selected Category
+  const activeCategory = useMemo(() => {
+    return HELP_CATEGORIES.find((c) => c.id === selectedCategoryId) || HELP_CATEGORIES[0];
+  }, [selectedCategoryId]);
+
+  // Selected Question
+  const activeQuestion = useMemo(() => {
+    if (!selectedQuestionId) return null;
+    for (const cat of HELP_CATEGORIES) {
+      const q = cat.questions.find((item) => item.id === selectedQuestionId);
+      if (q) return q;
+    }
+    return null;
+  }, [selectedQuestionId]);
+
+  // Search Results across all categories and tags
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase().trim();
+    const results: { category: HelpCategory; question: HelpQuestion }[] = [];
+    for (const cat of HELP_CATEGORIES) {
+      for (const question of cat.questions) {
+        const matchesTitle = question.title.toLowerCase().includes(q);
+        const matchesTitleHi = question.titleHi.toLowerCase().includes(q);
+        const matchesDesc = question.shortDesc.toLowerCase().includes(q);
+        const matchesTags = question.tags.some((tag) => tag.toLowerCase().includes(q));
+        const matchesSummary = question.summary.toLowerCase().includes(q);
+        if (matchesTitle || matchesTitleHi || matchesDesc || matchesTags || matchesSummary) {
+          results.push({ category: cat, question });
+        }
+      }
+    }
+    return results;
+  }, [searchQuery]);
+
+  const handleSelectQuestion = (catId: string, qId: string) => {
+    setSelectedCategoryId(catId);
+    setSelectedQuestionId(qId);
+  };
+
+  const handleBackToCategory = () => {
+    setSelectedQuestionId(null);
+  };
+
+  const handleActionClick = (href: string) => {
+    setGuideOpen(false);
+    router.push(href);
+  };
+
+  const getCategoryIcon = (iconName: string) => {
+    switch (iconName) {
+      case 'Users': return Users;
+      case 'FileText': return FileText;
+      case 'Kanban': return Kanban;
+      case 'Globe': return Globe;
+      case 'Tag': return Tag;
+      case 'ArrowRightLeft': return ArrowRightLeft;
+      case 'Lock': return Lock;
+      case 'AlertCircle': return AlertCircle;
+      default: return HelpCircle;
+    }
+  };
 
   const copyFullGuide = () => {
     const text = `# 🏢 Jupsoft Centralized Multi-Site Content Engine — Administrator Manual
@@ -66,7 +144,7 @@ The Jupsoft Centralized Content Platform consolidates editorial and publishing o
 - **Connected Tenant Properties**:
   1. \`site-cloud\` ➔ Jupsoft Cloud & ERP (cloud.jupsoft.com)
   2. \`site-growth\` ➔ DigifyNext Marketing (digifynext.com)
-  3. \`site-edtech\` ➔ School ERP Platform (schoolerp.in)
+  3. \`site-jupsoft-test\` ➔ Jupsoft Staging & Testing (test.jupsoft.com)
 - **Instant Edge Invalidation**: Publishing or updating articles triggers HMAC-SHA256 signed webhooks to target consumer frontends, immediately purging edge cache without rebuilding or redeploying sites.
 
 ---
@@ -77,23 +155,7 @@ The Jupsoft Centralized Content Platform consolidates editorial and publishing o
 
 ---
 
-## 3. Core Operational Modules Directory
-
-1. **Dashboard (/dashboard)**: High-level KPI metrics, active publications, pending editorial reviews, and recent content stream.
-2. **Blog Studio (/blogs)**: Structured article drafting, multi-language tabs (EN, HI, FR, AR), auto-generated SEO slugs, and word count telemetry.
-3. **Editorial Workflow Kanban (/workflow)**: 6-Stage sequential pipeline: Draft ➔ Under Review ➔ Approved ➔ Published (or Scheduled / Archived).
-4. **Automated SEO Engine**: Real-time 8-point algorithmic quality audit verifying titles, meta descriptions, focus keywords, heading hierarchy, and image alt text.
-5. **Taxonomy & Tags (/taxonomy)**: Tenant-isolated category hierarchy and flat keyword tags preventing cross-domain taxonomy bleeding.
-6. **Media Asset Library (/media)**: Automated WebP conversion, dimension extraction, secure storage, and soft-delete retention.
-7. **301 SEO Redirects (/settings?tab=redirects)**: Preserves search ranking equity and eliminates 404 errors by automating permanent redirects when slugs update.
-8. **Analytics Hub (/analytics)**: Real-time reader telemetry, unique visitors, pageview velocity, and author productivity metrics.
-9. **Team Management & RBAC (/users)**: 7 granular roles (Super Admin, Website Admin, Role Admin, Editor, Content Writer, Publisher, SEO Manager).
-10. **Tenant & System Settings (/settings)**: Domain mapping, cryptographic API key rotation, webhook subscriptions, and storage prefixes.
-11. **System Audit Trail (/settings?tab=audit)**: Immutable compliance logs recording user actions, IP addresses, events, and timestamps.
-
----
-
-## 4. End-to-End Content Publishing Lifecycle
+## 3. End-to-End Content Publishing Lifecycle
 1. **Scope Selection**: Writer selects target domain from the scope selector.
 2. **Article Drafting**: Content is authored in the editor canvas with featured media and excerpts.
 3. **SEO Optimization**: Focus keyword is assigned, and the 8-point automated audit scores the article.
@@ -102,480 +164,528 @@ The Jupsoft Centralized Content Platform consolidates editorial and publishing o
 6. **Editorial Approval**: Editor reviews content on Kanban board and approves for release.
 7. **Publication & Cache Purge**: Publisher triggers release; backend updates database, clears Redis cache, and fires HMAC webhook.
 8. **Instant Edge Availability**: Consumer frontend updates within sub-300ms.
-
----
-
-## 5. Security Architecture: Database vs. Environment Secrets
-- **Database Level (Website Table)**: Tenant IDs, domain mappings, public brand names, secret API keys, and webhook endpoints.
-- **Environment Level (.env / Secrets Manager)**: JWT signing keys, PostgreSQL credentials, AWS S3 storage keys, and HMAC signing secrets.
 `;
-
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const matchesSearch = (text: string) => {
-    if (!searchQuery.trim()) return true;
-    return text.toLowerCase().includes(searchQuery.toLowerCase());
+  const copyAnswerSteps = (q: HelpQuestion) => {
+    const lines = [
+      `📌 ${q.title} (${q.titleHi})`,
+      `Summary: ${q.summary}`,
+      '',
+      'Steps to follow:',
+      ...q.steps.map((s) => `${s.step}. ${s.instruction}${s.detail ? ` (${s.detail})` : ''}`),
+      q.proTip ? `\n💡 Pro-Tip: ${q.proTip}` : '',
+    ].join('\n');
+    navigator.clipboard.writeText(lines);
+    setCopiedStep(true);
+    setTimeout(() => setCopiedStep(false), 2000);
   };
 
+  if (!isGuideOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-5 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-150">
       <div 
         onClick={(e) => e.stopPropagation()} 
-        className="relative w-full max-w-5xl h-[90vh] bg-white dark:bg-[#0d121f] rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden text-slate-800 dark:text-slate-100"
+        className="relative w-full max-w-6xl h-[92vh] max-h-[850px] bg-white dark:bg-[#0c1220] rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden text-slate-800 dark:text-slate-100"
       >
-        {/* Top Header */}
-        <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4 shrink-0 bg-slate-50/80 dark:bg-[#131b2e]">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center shadow-md shrink-0">
-              <BookOpen className="w-5 h-5" />
+        {/* ========================================================================= */}
+        {/* 1. TOP HEADER & NAVIGATION BAR                                            */}
+        {/* ========================================================================= */}
+        <div className="px-4 sm:px-6 py-3.5 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 shrink-0 bg-slate-50/90 dark:bg-[#0f172a]">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-red-600 to-rose-500 text-white flex items-center justify-center shadow-sm shrink-0">
+              <HelpCircle className="w-5 h-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
-                  Jupsoft Centralized Content Platform
+                <h2 className="text-sm sm:text-base font-bold tracking-tight text-slate-900 dark:text-white truncate">
+                  Jupsoft Help Center &amp; Support
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/60">
-                  Operations Manual
+                <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/60 shrink-0">
+                  Option-Wise Guide
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Architecture overview, module directory, and publishing workflows
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                Select an option below to get instant step-by-step guidance without AI confusion
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Mode Switcher Tabs + Close */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="bg-slate-200/80 dark:bg-slate-800/90 p-0.5 rounded-xl flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => setMode('options')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  mode === 'options'
+                    ? 'bg-white dark:bg-slate-900 text-red-600 dark:text-red-400 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Compass className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Option-Wise Help</span>
+                <span className="sm:hidden">Help</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMode('manual')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  mode === 'manual'
+                    ? 'bg-white dark:bg-slate-900 text-red-600 dark:text-red-400 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">System Manual</span>
+                <span className="sm:hidden">Docs</span>
+              </button>
+            </div>
+
             <button
-              onClick={copyFullGuide}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-colors shadow-2xs cursor-pointer"
-              title="Copy entire manual in Markdown"
-            >
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copied ? 'Copied' : 'Copy Guide'}</span>
-            </button>
-            <button
+              type="button"
               onClick={() => setGuideOpen(false)}
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-              title="Close guide (Esc)"
+              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Close (Esc)"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Subheader Filter Bar & Search */}
-        <div className="px-6 py-3 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-            {[
-              { id: 'all', label: 'All Sections' },
-              { id: 'architecture', label: 'Architecture & Scopes' },
-              { id: 'modules', label: 'Core Modules' },
-              { id: 'workflow', label: 'Publishing Lifecycle' },
-              { id: 'seo', label: 'SEO Engine' },
-              { id: 'settings', label: 'Security & Secrets' },
-              { id: 'api', label: 'Headless API & Webhooks' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as GuideTab)}
-                className={`px-3 py-1 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                  activeTab === tab.id
-                    ? 'bg-red-600 text-white shadow-xs'
-                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+        {/* ========================================================================= */}
+        {/* 2. MODE: OPTION-WISE INTERACTIVE HELP CENTER                              */}
+        {/* ========================================================================= */}
+        {mode === 'options' ? (
+          <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
+            {/* Left Sidebar: Categories Navigation Rail */}
+            <div className="w-full md:w-72 lg:w-80 border-b md:border-b-0 md:border-r border-slate-200/80 dark:border-slate-800 bg-slate-50/60 dark:bg-[#0a0f1d] flex flex-col shrink-0">
+              {/* Search Box */}
+              <div className="p-3 border-b border-slate-200/80 dark:border-slate-800/80">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search help topics (e.g. Super Admin, 403)..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      if (selectedQuestionId) setSelectedQuestionId(null);
+                    }}
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-8 pr-7 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-red-500"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
 
-          <div className="relative min-w-[220px]">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search documentation..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8.5 pr-3 py-1 text-xs rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-600"
-            />
-          </div>
-        </div>
-
-        {/* Scrollable Manual Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 text-xs leading-relaxed scrollbar-thin">
-
-          {/* Section 1: Introduction & Architecture */}
-          {(activeTab === 'all' || activeTab === 'architecture') && matchesSearch('admin panel centralized headless architecture tenants single source truth') && (
-            <div className="p-6 rounded-2xl bg-slate-50 dark:bg-[#111827]/60 border border-slate-200 dark:border-slate-800 space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-red-600 text-white font-bold text-xs">01</span>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Centralized Multi-Tenant Architecture Overview
-                </h3>
+                {/* Quick Keyword Filter Chips */}
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {['Super Admin', 'Invite', '403 Error', 'Publish', 'Featured Image', '301 Redirect'].map((kw) => (
+                    <button
+                      key={kw}
+                      type="button"
+                      onClick={() => setSearchQuery(kw)}
+                      className="text-[10px] px-2 py-0.5 rounded-md bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400 font-medium transition-colors cursor-pointer"
+                    >
+                      {kw}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <p className="text-slate-600 dark:text-slate-300">
-                The platform consolidates content operations across multiple enterprise properties (<strong>Jupsoft Cloud</strong>, <strong>DigifyNext</strong>, <strong>School ERP</strong>) into an integrated management engine.
-              </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
-                <div className="p-3.5 rounded-xl bg-white dark:bg-[#0d121f] border border-slate-200 dark:border-slate-800">
-                  <div className="font-bold text-slate-900 dark:text-slate-100 mb-1 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    <span>Single Source of Truth</span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    All articles, media assets, categories, and users are managed in one centralized database engine.
-                  </p>
+              {/* Categories List */}
+              <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Select a Help Category:
                 </div>
-                <div className="p-3.5 rounded-xl bg-white dark:bg-[#0d121f] border border-slate-200 dark:border-slate-800">
-                  <div className="font-bold text-slate-900 dark:text-slate-100 mb-1 flex items-center gap-1.5">
-                    <Globe className="w-4 h-4 text-blue-500" />
-                    <span>Connected Tenant Sites</span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Supports isolated brand domains with distinct categories, tags, and media folders.
-                  </p>
-                </div>
-                <div className="p-3.5 rounded-xl bg-white dark:bg-[#0d121f] border border-slate-200 dark:border-slate-800">
-                  <div className="font-bold text-slate-900 dark:text-slate-100 mb-1 flex items-center gap-1.5">
-                    <Zap className="w-4 h-4 text-amber-500" />
-                    <span>Instant Edge Cache Purge</span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Publishing events automatically trigger signed HMAC webhooks for sub-300ms live site updates.
-                  </p>
-                </div>
+                {HELP_CATEGORIES.map((cat) => {
+                  const Icon = getCategoryIcon(cat.iconName);
+                  const isSelected = selectedCategoryId === cat.id && !searchQuery;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategoryId(cat.id);
+                        setSelectedQuestionId(null);
+                        setSearchQuery('');
+                      }}
+                      className={`w-full flex items-start gap-2.5 p-2.5 rounded-xl text-left transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-red-50/90 dark:bg-red-950/40 border border-red-200/80 dark:border-red-900/60 shadow-2xs'
+                          : 'hover:bg-slate-100/80 dark:hover:bg-slate-800/60 border border-transparent'
+                      }`}
+                    >
+                      <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${
+                        isSelected
+                          ? 'bg-red-600 text-white'
+                          : 'bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                      }`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className={`text-xs font-bold truncate ${
+                          isSelected ? 'text-red-700 dark:text-red-400' : 'text-slate-800 dark:text-slate-200'
+                        }`}>
+                          {cat.title}
+                        </div>
+                        <div className="text-[10px] text-slate-400 truncate">
+                          {cat.titleHi}
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-200/60 dark:bg-slate-800 text-slate-500 shrink-0">
+                        {cat.questions.length}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* User Role Badge in Footer */}
+              <div className="p-3 border-t border-slate-200/80 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-900/60 flex items-center justify-between text-xs">
+                <span className="text-slate-500 text-[11px]">Logged in as:</span>
+                <span className="font-bold text-red-600 dark:text-red-400 px-2 py-0.5 rounded-md bg-red-50 dark:bg-red-950/40 text-[11px] border border-red-200/60 dark:border-red-900/40">
+                  {activeRole || 'Team Member'}
+                </span>
               </div>
             </div>
-          )}
 
-          {/* Section 2: Scope Switcher */}
-          {(activeTab === 'all' || activeTab === 'architecture') && matchesSearch('scope switcher tenant global all domains') && (
-            <div className="p-6 rounded-2xl bg-white dark:bg-[#0d121f] border border-slate-200 dark:border-slate-800 space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-red-600 text-white font-bold text-xs">02</span>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Scope Management: Global Network vs Tenant Scope
-                </h3>
-              </div>
-              <p className="text-slate-600 dark:text-slate-300">
-                The top navigation and sidebar provide a dynamic <strong>Scope Switcher</strong> to seamlessly filter administrative views:
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold mb-1">
-                    <Layers className="w-4 h-4" />
-                    <span>Global Scope (?site=all)</span>
-                  </div>
-                  <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                    Network-wide visibility: aggregated metrics, total publication counts, review queues across all domains, and cross-site telemetry.
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-bold mb-1">
-                    <Globe className="w-4 h-4" />
-                    <span>Tenant Scope (?site=site-cloud)</span>
-                  </div>
-                  <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                    Domain-specific workspace: articles, taxonomies, media assets, and 301 redirects are strictly partitioned to the selected tenant.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Section 3: Core Modules Directory */}
-          {(activeTab === 'all' || activeTab === 'modules') && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs">03</span>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Core Operational Modules Directory
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* 1. Dashboard */}
-                {matchesSearch('dashboard kpi stat cards metrics') && (
-                  <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
-                    <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
-                      <BarChart3 className="w-4 h-4 text-blue-600" />
-                      <span>1. Dashboard (/dashboard)</span>
-                    </div>
-                    <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-400 text-[11px]">
-                      <li><strong>Scorecard Metrics</strong>: Live published articles, under review queue, draft totals, and word volume.</li>
-                      <li><strong>Recent Editorial Stream</strong>: Fast-action table with instant edit shortcuts and language coverage.</li>
-                      <li><strong>Tenant Infrastructure</strong>: Connected domain statuses and quick links.</li>
-                    </ul>
-                  </div>
-                )}
-
-                {/* 2. Blog Studio */}
-                {matchesSearch('articles editor tiptap multi-language translations') && (
-                  <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
-                    <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
-                      <FileText className="w-4 h-4 text-indigo-600" />
-                      <span>2. Blog Studio &amp; Content Editor (/blogs)</span>
-                    </div>
-                    <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-400 text-[11px]">
-                      <li><strong>Structured Editor</strong>: Headings, block formatting, hyperlinks, and embedded media assets.</li>
-                      <li><strong>Multi-Language Support</strong>: Independent translation tabs for English, Hindi, Arabic, and French.</li>
-                      <li><strong>Auto-Generated Slugs</strong>: Dynamic SEO slug generation with manual override.</li>
-                    </ul>
-                  </div>
-                )}
-
-                {/* 3. Workflow Kanban */}
-                {matchesSearch('workflow kanban review approve publish scheduled') && (
-                  <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
-                    <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
-                      <Kanban className="w-4 h-4 text-purple-600" />
-                      <span>3. Editorial Workflow Kanban (/workflow)</span>
-                    </div>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                      <strong>6 Sequential Stages</strong>: Draft ➔ Under Review ➔ Approved ➔ Published (or Scheduled / Archived). Granular RBAC ensures content writers cannot release articles without editorial approval.
-                    </p>
-                  </div>
-                )}
-
-                {/* 4. Automated SEO Engine */}
-                {matchesSearch('seo engine audit score checks') && (
-                  <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
-                    <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
-                      <ShieldCheck className="w-4 h-4 text-amber-600" />
-                      <span>4. Real-Time SEO Quality Engine</span>
-                    </div>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                      <strong>8 Quality Standards</strong>: Title length, meta description character limits, focus keyword placement, minimum word depth, heading structure, image alt text, and indexability tags.
-                    </p>
-                  </div>
-                )}
-
-                {/* 5. Taxonomy */}
-                {matchesSearch('taxonomy categories tags') && (
-                  <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
-                    <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
-                      <Tag className="w-4 h-4 text-emerald-600" />
-                      <span>5. Taxonomy &amp; Tags Engine (/taxonomy)</span>
-                    </div>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                      Hierarchical Categories (Parent/Child trees) and flat Tags. Each tenant maintains isolated taxonomies to keep brand content clearly structured.
-                    </p>
-                  </div>
-                )}
-
-                {/* 6. Media Library */}
-                {matchesSearch('media library s3 webp upload') && (
-                  <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
-                    <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
-                      <ImageIcon className="w-4 h-4 text-cyan-600" />
-                      <span>6. Media Asset Library (/media)</span>
-                    </div>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                      Drag-and-drop asset management, automated WebP compression, dimension metadata extraction, and multi-tenant folder isolation.
-                    </p>
-                  </div>
-                )}
-
-                {/* 7. 301 Redirects */}
-                {matchesSearch('redirects 301 seo ranking') && (
-                  <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
-                    <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
-                      <ArrowRightLeft className="w-4 h-4 text-rose-600" />
-                      <span>7. 301 SEO Redirects (/settings?tab=redirects)</span>
-                    </div>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                      Preserves search rankings and eliminates broken links by automating permanent 301 redirect rules when article slugs change.
-                    </p>
-                  </div>
-                )}
-
-                {/* 8. Analytics */}
-                {matchesSearch('analytics telemetry views completion depth') && (
-                  <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
-                    <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
-                      <BarChart3 className="w-4 h-4 text-violet-600" />
-                      <span>8. Analytics &amp; Telemetry (/analytics)</span>
-                    </div>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                      Tracks public reader engagement, unique views, publication velocity trends, and author productivity metrics.
-                    </p>
-                  </div>
-                )}
-
-                {/* 9. Team & RBAC */}
-                {matchesSearch('team users rbac permissions') && (
-                  <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2">
-                    <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
-                      <Users className="w-4 h-4 text-orange-600" />
-                      <span>9. Team Management &amp; RBAC (/users)</span>
-                    </div>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                      Role-Based Access Control: Super Admin, Website Admin, Role Admin, Editor, Content Writer, Publisher, and SEO Manager.
-                    </p>
-                  </div>
-                )}
-
-                {/* 10. Tenant Settings */}
-                {matchesSearch('settings tenant api key rotation onboard domain') && (
-                  <div className="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 space-y-2">
-                    <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-300">
-                      <Settings className="w-4 h-4 text-amber-600" />
-                      <span>10. Tenant Configuration &amp; API Keys (/settings)</span>
-                    </div>
-                    <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-400 text-[11px]">
-                      <li><strong>Tenant Onboarding</strong>: Create new website properties with custom domains and languages.</li>
-                      <li><strong>API Key Management</strong>: Secure tenant API key generation with 1-click rotation.</li>
-                      <li><strong>Webhook Endpoints</strong>: Configure cache revalidation webhook targets per domain.</li>
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Section 4: Publishing Lifecycle */}
-          {(activeTab === 'all' || activeTab === 'workflow') && matchesSearch('publishing flow workflow steps') && (
-            <div className="p-6 rounded-2xl bg-slate-50 dark:bg-[#111827]/60 border border-slate-200 dark:border-slate-800 space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-purple-600 text-white font-bold text-xs">04</span>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Content Publishing Lifecycle
-                </h3>
-              </div>
-
-              <div className="space-y-2.5">
-                {[
-                  { step: '1', title: 'Scope Selection', desc: 'Select the target website domain from the global scope selector.' },
-                  { step: '2', title: 'Draft Authoring', desc: 'Draft article content in the editor canvas, adding excerpts and featured media.' },
-                  { step: '3', title: 'SEO Optimization', desc: 'Assign a focus keyword and run real-time checks to achieve an optimal quality score.' },
-                  { step: '4', title: 'Multi-Language Localization', desc: 'Add translations across supported locale tabs (EN, HI, FR, AR).' },
-                  { step: '5', title: 'Editorial Review Submission', desc: 'Submit the completed draft, transitioning status to "Under Review".' },
-                  { step: '6', title: 'Editorial Approval', desc: 'Reviewers inspect content on the Kanban board and mark it "Approved".' },
-                  { step: '7', title: 'Production Release Trigger', desc: 'Publisher triggers release, updating the database and publishing status.' },
-                  { step: '8', title: 'Edge Cache Invalidation', desc: 'Backend clears Redis cache and dispatches an HMAC-signed webhook to the consumer frontend.' },
-                  { step: '9', title: 'Live on Public Domain', desc: 'Consumer website serves updated article content with sub-300ms read latency.' },
-                ].map((s) => (
-                  <div key={s.step} className="flex items-start gap-3 p-2.5 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800">
-                    <span className="w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
-                      {s.step}
-                    </span>
+            {/* Right Main Content Area */}
+            <div className="flex-1 flex flex-col overflow-y-auto bg-white dark:bg-[#0c1220] p-4 sm:p-6">
+              {/* Search Results Mode */}
+              {searchQuery ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                     <div>
-                      <div className="font-bold text-slate-900 dark:text-white text-xs">{s.title}</div>
-                      <div className="text-slate-500 dark:text-slate-400 text-[11px]">{s.desc}</div>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <Search className="w-4 h-4 text-red-500" />
+                        <span>Search Results for &ldquo;{searchQuery}&rdquo;</span>
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Found {searchResults.length} matching questions
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="text-xs text-red-600 dark:text-red-400 hover:underline cursor-pointer"
+                    >
+                      Clear search
+                    </button>
+                  </div>
+
+                  {searchResults.length === 0 ? (
+                    <div className="py-16 text-center">
+                      <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-400 mb-3">
+                        <AlertCircle className="w-6 h-6" />
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                        No matching options found
+                      </h4>
+                      <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
+                        Try searching for a simpler keyword like &ldquo;Super Admin&rdquo;, &ldquo;Publish&rdquo;, &ldquo;Image&rdquo;, or &ldquo;403&rdquo;.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {searchResults.map(({ category, question }) => (
+                        <button
+                          key={question.id}
+                          type="button"
+                          onClick={() => {
+                            handleSelectQuestion(category.id, question.id);
+                            setSearchQuery('');
+                          }}
+                          className="w-full text-left p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-red-300 dark:hover:border-red-800 bg-slate-50/50 dark:bg-slate-900/40 hover:bg-white dark:hover:bg-slate-800/80 transition-all flex items-start justify-between gap-3 group cursor-pointer shadow-2xs"
+                        >
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                {category.title}
+                              </span>
+                            </div>
+                            <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors">
+                              {question.title}
+                            </div>
+                            <div className="text-xs text-red-600/80 dark:text-red-400/80 font-medium mt-0.5">
+                              {question.titleHi}
+                            </div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                              {question.shortDesc}
+                            </div>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-red-500 shrink-0 mt-1 transition-transform group-hover:translate-x-0.5" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : activeQuestion ? (
+                /* Detail Resolution View for Selected Question */
+                <div className="space-y-5 animate-in fade-in slide-in-from-right-2 duration-150">
+                  {/* Back button */}
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <button
+                      type="button"
+                      onClick={handleBackToCategory}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      <span>Back to {activeCategory.title} Questions</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => copyAnswerSteps(activeQuestion)}
+                      className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
+                      title="Copy step-by-step instructions"
+                    >
+                      {copiedStep ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedStep ? 'Copied' : 'Copy Steps'}</span>
+                    </button>
+                  </div>
+
+                  {/* Header Question Title */}
+                  <div className="space-y-1.5">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300">
+                      {activeCategory.title}
+                    </div>
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-snug">
+                      {activeQuestion.title}
+                    </h3>
+                    <p className="text-xs sm:text-sm font-semibold text-red-600 dark:text-red-400">
+                      {activeQuestion.titleHi}
+                    </p>
+                  </div>
+
+                  {/* Direct Answer Summary Box */}
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 space-y-2">
+                    <div className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Direct Answer / Saransh</span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-medium">
+                      {activeQuestion.summary}
+                    </p>
+                    {activeQuestion.summaryHi && (
+                      <p className="text-xs text-slate-600 dark:text-slate-300 italic border-t border-slate-200/60 dark:border-slate-800 pt-2">
+                        {activeQuestion.summaryHi}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Numbered Steps Walkthrough */}
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Step-by-Step Instructions:
+                    </h4>
+                    <div className="space-y-2.5">
+                      {activeQuestion.steps.map((st) => (
+                        <div
+                          key={st.step}
+                          className="p-3.5 rounded-xl bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-slate-800 flex items-start gap-3 shadow-2xs"
+                        >
+                          <div className="w-6 h-6 rounded-lg bg-red-600 text-white font-mono font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                            {st.step}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                              {st.instruction}
+                            </div>
+                            {st.detail && (
+                              <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                {st.detail}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
 
-          {/* Section 5: SEO Engine */}
-          {(activeTab === 'all' || activeTab === 'seo') && matchesSearch('seo checks title meta keyword alt robots') && (
-            <div className="p-6 rounded-2xl bg-white dark:bg-[#0d121f] border border-slate-200 dark:border-slate-800 space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-amber-600 text-white font-bold text-xs">05</span>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Automated SEO Quality Standards (8 Benchmarks)
-                </h3>
-              </div>
-              <p className="text-slate-600 dark:text-slate-300">
-                Every article is evaluated against 8 real-time algorithmic quality checks:
-              </p>
+                  {/* Pro-Tip Box */}
+                  {activeQuestion.proTip && (
+                    <div className="p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-300">
+                      <Lightbulb className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold">Important Tip: </span>
+                        <span>{activeQuestion.proTip}</span>
+                      </div>
+                    </div>
+                  )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {[
-                  { label: '1. Title Length', rule: 'Optimal between 50 and 60 characters to prevent SERP truncation.' },
-                  { label: '2. Meta Description', rule: 'Optimal between 150 and 160 characters for complete SERP snippet previews.' },
-                  { label: '3. Focus Keyword in Title', rule: 'Target search query must be present in the article headline.' },
-                  { label: '4. Keyword in Opening 100 Words', rule: 'Search crawlers require immediate topic context in introductory paragraphs.' },
-                  { label: '5. Content Depth & Length', rule: 'Minimum 300+ words required for topical depth and search indexing.' },
-                  { label: '6. Heading Structure', rule: 'Exactly one H1 element followed by properly nested H2 and H3 subheadings.' },
-                  { label: '7. Image Alt Text Attributes', rule: 'All cover photos and embedded images must include descriptive alt attributes.' },
-                  { label: '8. Indexing Directives', rule: 'Verifies robots directives allow proper search engine crawling (index, follow).' },
-                ].map((check, idx) => (
-                  <div key={idx} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
-                    <div className="font-bold text-slate-900 dark:text-slate-200 text-xs mb-0.5">{check.label}</div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400">{check.rule}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+                  {/* Quick Action Button */}
+                  {activeQuestion.actionLink && (
+                    <div className="pt-2 flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleActionClick(activeQuestion.actionLink!.href)}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+                      >
+                        <span>{activeQuestion.actionLink.label}</span>
+                        <ArrowUpRight className="w-4 h-4" />
+                      </button>
 
-          {/* Section 6: Security Architecture */}
-          {(activeTab === 'all' || activeTab === 'settings') && matchesSearch('api key rotation secrets env database security') && (
-            <div className="p-6 rounded-2xl bg-white dark:bg-[#0d121f] border border-slate-200 dark:border-slate-800 space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-teal-600 text-white font-bold text-xs">06</span>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Security Architecture: Database vs Infrastructure Secrets
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 space-y-2">
-                  <div className="flex items-center gap-2 font-bold text-emerald-800 dark:text-emerald-300">
-                    <KeyRound className="w-4 h-4" />
-                    <span>Database Configuration (Website Table)</span>
-                  </div>
-                  <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                    Tenant-scoped settings—Website ID, domain mapping, tenant secret API keys, and webhook URLs. Adding new websites stores credentials dynamically without modifying environment files.
-                  </p>
+                      <button
+                        type="button"
+                        onClick={handleBackToCategory}
+                        className="px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                      >
+                        Ask Another Question
+                      </button>
+                    </div>
+                  )}
                 </div>
-
-                <div className="p-4 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/40 space-y-2">
-                  <div className="flex items-center gap-2 font-bold text-purple-800 dark:text-purple-300">
-                    <Shield className="w-4 h-4" />
-                    <span>System Secrets (.env / Cloud Secret Store)</span>
+              ) : (
+                /* Category Questions Option Picker */
+                <div className="space-y-4">
+                  <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
+                        Category Options
+                      </span>
+                    </div>
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white mt-1">
+                      {activeCategory.title}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      {activeCategory.description}
+                    </p>
                   </div>
-                  <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                    Infrastructure-level secrets—<code className="font-mono text-indigo-600 dark:text-indigo-400">JWT_SECRET</code>, <code className="font-mono text-indigo-600 dark:text-indigo-400">DATABASE_URL</code>, and AWS credentials. Strictly isolated from client-side bundles.
-                  </p>
+
+                  <div className="text-xs font-bold text-slate-600 dark:text-slate-400">
+                    Click any option below to view step-by-step instructions:
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {activeCategory.questions.map((q, idx) => (
+                      <button
+                        key={q.id}
+                        type="button"
+                        onClick={() => handleSelectQuestion(activeCategory.id, q.id)}
+                        className="w-full text-left p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-red-300 dark:hover:border-red-800/80 bg-slate-50/60 dark:bg-slate-900/40 hover:bg-white dark:hover:bg-slate-800/80 transition-all flex items-center justify-between gap-3 group cursor-pointer shadow-2xs"
+                      >
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="w-6 h-6 rounded-lg bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-red-600 group-hover:text-white transition-colors">
+                            {idx + 1}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors">
+                              {q.title}
+                            </div>
+                            <div className="text-xs text-red-600/80 dark:text-red-400/80 font-medium mt-0.5">
+                              {q.titleHi}
+                            </div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 truncate">
+                              {q.shortDesc}
+                            </div>
+                          </div>
+                        </div>
+
+                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-red-500 shrink-0 transition-transform group-hover:translate-x-1" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
-          )}
-
-          {/* Section 7: Headless API & Webhooks */}
-          {(activeTab === 'all' || activeTab === 'api') && matchesSearch('api webhooks headless integration revalidation') && (
-            <div className="p-6 rounded-2xl bg-slate-50 dark:bg-[#111827]/60 border border-slate-200 dark:border-slate-800 space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-indigo-600 text-white font-bold text-xs">07</span>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Cpu className="w-4 h-4 text-indigo-500" />
-                  Headless API &amp; Webhook Integration
-                </h3>
-              </div>
-              <p className="text-slate-600 dark:text-slate-300 text-xs leading-relaxed">
-                The platform exposes REST API endpoints for headless consumer frontends and automated editorial workflows:
-              </p>
-
-              <div className="p-4 rounded-xl bg-white dark:bg-[#0d121f] border border-slate-200 dark:border-slate-800 font-mono text-xs text-slate-700 dark:text-slate-300 space-y-1">
-                <div><span className="text-emerald-600 font-bold">POST</span> /api/blogs ── Create content programmatically</div>
-                <div><span className="text-blue-600 font-bold">GET</span> /api/public/blogs/:slug ── Fetch published article by slug</div>
-                <div><span className="text-amber-600 font-bold">POST</span> /api/revalidate ── HMAC-signed ISR revalidation webhook</div>
-              </div>
-            </div>
-          )}
-
-        </div>
-
-        {/* Modal Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/60 flex items-center justify-between shrink-0">
-          <div className="text-[11px] text-slate-400">
-            Jupsoft Enterprise Content Management Platform
           </div>
+        ) : (
+          /* ========================================================================= */
+          /* 3. MODE: FULL ARCHITECTURE & SYSTEM MANUAL                                */
+          /* ========================================================================= */
+          <div className="flex-1 flex flex-col overflow-y-auto p-4 sm:p-6 space-y-6 bg-white dark:bg-[#0c1220]">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Technical Architecture &amp; Operations Manual
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Full reference documentation for DevOps, Super Admins, and system architects.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={copyFullGuide}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copied ? 'Copied Manual' : 'Copy Manual (Markdown)'}</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
+                  <Layers className="w-4 h-4 text-red-500" />
+                  <span>Centralized PostgreSQL Architecture</span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  All articles, revisions, taxonomy records, and user role assignments reside in a central PostgreSQL database. Tenant websites query this central data store via secure REST endpoints and authenticated tokens.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
+                  <Zap className="w-4 h-4 text-amber-500" />
+                  <span>Sub-300ms On-Demand Cache Invalidation</span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  When articles are published or edited, the backend sends HMAC-SHA256 signed webhooks directly to target consumer domains, triggering on-demand edge cache purging instantly without rebuilding code.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
+                <Globe className="w-4 h-4 text-indigo-500" />
+                <span>Connected Multi-Tenant Properties</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750">
+                  <div className="font-bold text-slate-900 dark:text-white">site-cloud</div>
+                  <div className="text-[11px] text-slate-400 font-mono">cloud.jupsoft.com</div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750">
+                  <div className="font-bold text-slate-900 dark:text-white">site-growth</div>
+                  <div className="text-[11px] text-slate-400 font-mono">digifynext.com</div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750">
+                  <div className="font-bold text-slate-900 dark:text-white">site-jupsoft-test</div>
+                  <div className="text-[11px] text-slate-400 font-mono">test.jupsoft.com</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* 4. FOOTER STATUS BAR                                                      */}
+        {/* ========================================================================= */}
+        <div className="px-4 sm:px-6 py-2.5 border-t border-slate-200/80 dark:border-slate-800 bg-slate-50/90 dark:bg-[#0f172a] flex items-center justify-between text-xs text-slate-500 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[11px]">Jupsoft Multi-Tenant Content Hub v2.4</span>
+          </div>
+
           <button
+            type="button"
             onClick={() => setGuideOpen(false)}
-            className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-all shadow-md cursor-pointer"
+            className="px-3 py-1 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           >
-            Close Manual
+            Close Guide
           </button>
         </div>
       </div>

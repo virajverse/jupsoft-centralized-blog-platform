@@ -18,7 +18,8 @@ import {
   ChevronLeft,
   ChevronRight,
   RefreshCw,
-  X
+  X,
+  HelpCircle
 } from 'lucide-react';
 
 export const JupsoftSidebar: React.FC = () => {
@@ -46,6 +47,7 @@ export const JupsoftSidebar: React.FC = () => {
       setSidebarOpen: s.setSidebarOpen,
       currentUser: s.currentUser,
       modules: s.modules,
+      setGuideOpen: s.setGuideOpen,
     }))
   );
 
@@ -285,12 +287,24 @@ export const JupsoftSidebar: React.FC = () => {
             })}
           </nav>
 
-          {/* Bottom Actions: Mobile Close */}
-          <div className="w-full flex flex-col items-center gap-2 pt-2 border-t border-slate-800/80">
+          {/* Bottom Actions: Help Center & Mobile Close */}
+          <div className="w-full flex flex-col items-center gap-1.5 pt-2 border-t border-slate-800/80">
+            <button
+              type="button"
+              onClick={() => setGuideOpen(true)}
+              className="w-full h-11 flex flex-col items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors group cursor-pointer"
+              title="Help Center & User Guide (सहायता)"
+            >
+              <HelpCircle className="w-4 h-4 text-slate-400 group-hover:text-red-400 transition-colors" />
+              <span className="text-[9px] font-medium tracking-tight mt-0.5 text-slate-400 group-hover:text-slate-200">
+                Help
+              </span>
+            </button>
             <button
               type="button"
               onClick={() => setSidebarOpen(false)}
               className="lg:hidden w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
+              title="Close Navigation"
             >
               <X className="w-4 h-4" />
             </button>
