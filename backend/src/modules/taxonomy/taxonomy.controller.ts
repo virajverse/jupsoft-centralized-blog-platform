@@ -135,6 +135,8 @@ export class TaxonomyController {
     // Mirror to Supabase Cloud Backup (non-blocking)
     this.supabaseSync.syncCategory(category.id).catch(() => {});
     await this.redis.delPattern('admin:categories:*');
+    await this.redis.delPattern(`cats:${body.websiteId}*`);
+    await this.redis.delPattern(`blogs:${body.websiteId}:*`);
 
     return category;
   }
@@ -155,9 +157,21 @@ export class TaxonomyController {
 
     await this.prisma.category.delete({ where: { id } });
 
+    // Clean up orphaned category IDs from blogs table array column
+    try {
+      await this.prisma.$executeRawUnsafe(
+        'UPDATE blogs SET "categoryIds" = array_remove("categoryIds", $1) WHERE $1 = ANY("categoryIds")',
+        id,
+      );
+    } catch {
+      // Non-blocking fallback
+    }
+
     // Mirror to Supabase Cloud Backup (non-blocking)
     this.supabaseSync.deleteCategory(id).catch(() => {});
     await this.redis.delPattern('admin:categories:*');
+    await this.redis.delPattern(`cats:${category.websiteId}*`);
+    await this.redis.delPattern(`blogs:${category.websiteId}:*`);
 
     await this.prisma.systemAuditLog.create({
       data: {
@@ -259,6 +273,8 @@ export class TaxonomyController {
     // Mirror to Supabase Cloud Backup (non-blocking)
     this.supabaseSync.syncTag(tag.id).catch(() => {});
     await this.redis.delPattern('admin:tags:*');
+    await this.redis.delPattern(`tags:${body.websiteId}*`);
+    await this.redis.delPattern(`blogs:${body.websiteId}:*`);
 
     return tag;
   }
@@ -279,9 +295,21 @@ export class TaxonomyController {
 
     await this.prisma.tag.delete({ where: { id } });
 
+    // Clean up orphaned tag IDs from blogs table array column
+    try {
+      await this.prisma.$executeRawUnsafe(
+        'UPDATE blogs SET "tagIds" = array_remove("tagIds", $1) WHERE $1 = ANY("tagIds")',
+        id,
+      );
+    } catch {
+      // Non-blocking fallback
+    }
+
     // Mirror to Supabase Cloud Backup (non-blocking)
     this.supabaseSync.deleteTag(id).catch(() => {});
     await this.redis.delPattern('admin:tags:*');
+    await this.redis.delPattern(`tags:${tag.websiteId}*`);
+    await this.redis.delPattern(`blogs:${tag.websiteId}:*`);
 
     await this.prisma.systemAuditLog.create({
       data: {

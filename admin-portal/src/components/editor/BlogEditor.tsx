@@ -2623,8 +2623,8 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   </label>
                   <input
                     type="datetime-local"
-                    value={scheduledAt}
-                    onChange={(e) => setScheduledAt(e.target.value)}
+                    value={scheduledAt ? scheduledAt.substring(0, 16) : ''}
+                    onChange={(e) => setScheduledAt(e.target.value ? new Date(e.target.value).toISOString() : '')}
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-400"
                   />
                 </div>

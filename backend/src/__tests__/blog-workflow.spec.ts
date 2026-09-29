@@ -16,7 +16,7 @@ const mockPrisma = {
   },
   blogCategory: { createMany: jest.fn(), deleteMany: jest.fn() },
   blogTag: { createMany: jest.fn(), deleteMany: jest.fn() },
-  blogTranslation: { upsert: jest.fn() },
+  blogTranslation: { upsert: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
   workflowLog: { create: jest.fn() },
   systemAuditLog: { create: jest.fn() },
   redirect: { upsert: jest.fn() },
@@ -319,4 +319,33 @@ describe('BlogsService - CRUD', () => {
       })
     );
   });
+
+  // ── 7.13: Update blog - Content Writer cannot directly publish via update() ──
+  it('should forbid Content Writer from setting status to Published in update()', async () => {
+    const existing = makeBlog('Draft');
+    mockPrisma.blog.findUnique.mockResolvedValue(existing);
+
+    const writer = makeUser(['Content Writer']);
+    const dto = { status: 'Published' };
+
+    await expect(service.update('blog-uuid-1', dto as any, writer, '127.0.0.1')).rejects.toThrow(
+      'Only Publishers and Website Admins can directly publish articles.',
+    );
+  });
+
+  // ── 7.14: Create blog - Slug collision guard ────────────────────────────
+  it('should throw ConflictException if slug already exists on website during create()', async () => {
+    mockPrisma.blogTranslation.findFirst.mockResolvedValueOnce({ id: 'existing-trans-id' });
+
+    const admin = makeUser(['Super Admin']);
+    const dto = {
+      websiteId: 'site-1',
+      translations: [{ lang: 'en', title: 'Colliding', slug: 'duplicate-slug', content: '<p>Hi</p>' }],
+    };
+
+    await expect(service.create(dto as any, admin, '127.0.0.1')).rejects.toThrow(
+      'already exists for language "en" on this website.',
+    );
+  });
 });
+

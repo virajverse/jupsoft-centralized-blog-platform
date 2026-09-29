@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WebhookDispatcherService } from '../webhooks/webhook-dispatcher.service';
 import { CreateBlogDto, UpdateBlogDto, TransitionBlogStatusDto } from './dto/create-blog.dto';
@@ -305,6 +305,38 @@ export class BlogsService {
 
     const initialStatus = dto.status || 'Draft';
     const isPublishing = initialStatus === 'Published';
+
+    // RBAC validation: only Super Admin, Website Admin, or Publisher can directly publish
+    if (isPublishing) {
+      const canPublish =
+        user.roles.includes('Super Admin') ||
+        user.roles.includes('Website Admin') ||
+        user.roles.includes('Publisher');
+      if (!canPublish) {
+        throw new ForbiddenException('Only Publishers and Website Admins can directly publish articles.');
+      }
+    }
+
+    // Slug uniqueness guard: prevent URL collision within the same website tenant
+    if (dto.translations && dto.translations.length > 0) {
+      for (const t of dto.translations) {
+        const cleanSlug = (t.slug || '').trim().replace(/^\/+|\/+$/g, '');
+        if (!cleanSlug) continue;
+        const existingSlug = await this.prisma.blogTranslation.findFirst({
+          where: {
+            slug: cleanSlug,
+            lang: t.lang,
+            blog: { websiteId: dto.websiteId },
+          },
+        });
+        if (existingSlug) {
+          throw new ConflictException(
+            `A blog with the slug "${cleanSlug}" already exists for language "${t.lang}" on this website.`,
+          );
+        }
+      }
+    }
+
     const blog = await this.prisma.$transaction(async (tx) => {
       const createdBlog = await tx.blog.create({
         data: {
@@ -420,6 +452,48 @@ export class BlogsService {
 
     // Security: verify the caller owns this blog's tenant (BUG-002 fix)
     this.assertBlogOwnership({ id, websiteId: existing.websiteId }, user);
+
+    const targetWebsiteId = dto.websiteId || existing.websiteId;
+
+    // RBAC validation: only Super Admin, Website Admin, or Publisher can directly publish
+    if (dto.status && dto.status !== existing.status) {
+      const canPublish =
+        user.roles.includes('Super Admin') ||
+        user.roles.includes('Website Admin') ||
+        user.roles.includes('Publisher');
+      if (dto.status === 'Published' && !canPublish) {
+        throw new ForbiddenException('Only Publishers and Website Admins can directly publish articles.');
+      }
+      const canApprove =
+        user.roles.includes('Super Admin') ||
+        user.roles.includes('Website Admin') ||
+        user.roles.includes('Role Admin') ||
+        user.roles.includes('Editor');
+      if (dto.status === 'Approved' && !canApprove) {
+        throw new ForbiddenException('Only Editors and Website Admins can approve articles.');
+      }
+    }
+
+    // Slug uniqueness check: prevent collisions within same website tenant
+    if (dto.translations && dto.translations.length > 0) {
+      for (const updatedTrans of dto.translations) {
+        const cleanSlug = (updatedTrans.slug || '').trim().replace(/^\/+|\/+$/g, '');
+        if (!cleanSlug) continue;
+        const collision = await this.prisma.blogTranslation.findFirst({
+          where: {
+            slug: cleanSlug,
+            lang: updatedTrans.lang,
+            blogId: { not: id },
+            blog: { websiteId: targetWebsiteId },
+          },
+        });
+        if (collision) {
+          throw new ConflictException(
+            `A blog with the slug "${cleanSlug}" already exists for language "${updatedTrans.lang}" on this website.`,
+          );
+        }
+      }
+    }
 
     // Execute atomic update transaction across blog, redirects, taxonomies, and translations
     await this.prisma.$transaction(async (tx) => {

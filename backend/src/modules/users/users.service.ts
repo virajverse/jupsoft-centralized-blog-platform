@@ -71,6 +71,9 @@ export class UsersService {
       if (dto.role === 'Super Admin') {
         throw new ForbiddenException('Only Super Admin can assign the Super Admin role');
       }
+      if (dto.websiteId === 'all' || !dto.websiteId) {
+        throw new ForbiddenException('Only Super Admin can assign global or cross-website access');
+      }
       const inviterRolesForSite = inviter?.roleAssignments
         ?.filter((ra: any) => ra.websiteId === dto.websiteId || ra.websiteId === 'all')
         ?.map((ra: any) => ra.role) || [];

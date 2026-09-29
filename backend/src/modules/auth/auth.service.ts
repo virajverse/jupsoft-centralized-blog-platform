@@ -550,16 +550,21 @@ export class AuthService {
       throw new BadRequestException('Image file buffer is required');
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const sharpLib = require('sharp');
-    const sharpFn = (buf: Buffer) => (typeof sharpLib === 'function' ? sharpLib(buf) : sharpLib.default(buf));
+    let webpBuffer: Buffer;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const sharpLib = require('sharp');
+      const sharpFn = (buf: Buffer) => (typeof sharpLib === 'function' ? sharpLib(buf) : sharpLib.default(buf));
 
-    // Convert any uploaded image to WebP (300x300 square crop, high quality)
-    const webpBuffer: Buffer = await sharpFn(file.buffer)
-      .rotate()
-      .resize(300, 300, { fit: 'cover', position: 'center' })
-      .webp({ quality: 85, effort: 4 })
-      .toBuffer();
+      // Convert any uploaded image to WebP (300x300 square crop, high quality)
+      webpBuffer = await sharpFn(file.buffer)
+        .rotate()
+        .resize(300, 300, { fit: 'cover', position: 'center' })
+        .webp({ quality: 85, effort: 4 })
+        .toBuffer();
+    } catch (err: any) {
+      throw new BadRequestException(`Invalid or corrupt image file: ${err.message}`);
+    }
 
     const fileName = `avatar-${userId}-${Date.now()}.webp`;
     const uploadsDir = join(process.cwd(), 'uploads', 'avatars');
