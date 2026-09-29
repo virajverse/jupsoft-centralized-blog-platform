@@ -139,7 +139,7 @@ export function canDeleteBlog(role: UserRole | string | undefined): boolean {
 }
 
 export function canManageUsers(role: UserRole | string | undefined): boolean {
-  return role === 'Super Admin' || role === 'Website Admin' || role === 'Role Admin';
+  return role === 'Super Admin' || role === 'Website Admin';
 }
 
 export function canDeleteUsers(role: UserRole | string | undefined): boolean {

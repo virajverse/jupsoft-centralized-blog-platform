@@ -21,14 +21,14 @@ export class UsersController {
   }
 
   @Post('invite')
-  @Roles('Super Admin', 'Website Admin', 'Role Admin')
+  @Roles('Super Admin', 'Website Admin')
   @ApiOperation({ summary: 'Invite new team member with role assignment' })
   async invite(@Body() dto: InviteUserDto, @CurrentUser() user: any, @Ip() ip: string) {
     return this.usersService.invite(dto, user, ip);
   }
 
   @Put(':id/role')
-  @Roles('Super Admin', 'Website Admin', 'Role Admin')
+  @Roles('Super Admin', 'Website Admin')
   @ApiOperation({ summary: 'Modify user tenant role assignment' })
   async updateRole(
     @Param('id') id: string,
@@ -84,7 +84,7 @@ export class UsersController {
   }
 
   @Post(':id/reset-password')
-  @Roles('Super Admin', 'Website Admin', 'Role Admin')
+  @Roles('Super Admin', 'Website Admin')
   @ApiOperation({ summary: 'Generate a new secure temporary password for a user' })
   async resetPassword(
     @Param('id') id: string,

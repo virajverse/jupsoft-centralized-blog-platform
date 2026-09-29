@@ -20,8 +20,7 @@ import {
   Sparkles,
   Check,
   Clock,
-  Send,
-  Briefcase
+  Send
 } from 'lucide-react';
 
 const LinkedinIcon = ({ className }: { className?: string }) => (
@@ -64,19 +63,6 @@ export const ProfileView: React.FC = () => {
 
   // Form states for Author Identity
   const [displayName, setDisplayName] = useState(currentUser?.name || '');
-  const [designation, setDesignation] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(`profile_desig_${currentUser?.id}`) || (
-        activeRole === 'Content Writer' ? 'Content Writer & Specialist' :
-        activeRole === 'Website Admin' ? 'Website Administrator' :
-        activeRole === 'Super Admin' ? 'Platform Super Administrator' :
-        activeRole === 'Editor' ? 'Senior Content Editor' :
-        activeRole === 'SEO Manager' ? 'Technical SEO Strategist' :
-        'Content Contributor'
-      );
-    }
-    return '';
-  });
   const [bio, setBio] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem(`profile_bio_${currentUser?.id}`) || 
@@ -130,7 +116,6 @@ export const ProfileView: React.FC = () => {
         await apiClient.updateProfile({ name: displayName.trim() });
       }
       if (typeof window !== 'undefined' && currentUser?.id) {
-        localStorage.setItem(`profile_desig_${currentUser.id}`, designation.trim());
         localStorage.setItem(`profile_bio_${currentUser.id}`, bio.trim());
         localStorage.setItem(`profile_linkedin_${currentUser.id}`, linkedinUrl.trim());
         localStorage.setItem(`profile_twitter_${currentUser.id}`, twitterUrl.trim());
@@ -203,9 +188,9 @@ export const ProfileView: React.FC = () => {
                 <div className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
                   {currentUser?.email || 'user@jupsoft.com'}
                 </div>
-                <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 mt-1 flex items-center gap-1">
-                  <Briefcase className="w-3 h-3 text-slate-400" />
-                  <span>{designation || 'Staff Contributor'}</span>
+                <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 mt-1 flex items-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5 text-red-500" />
+                  <span>Assigned Role: {activeRole}</span>
                 </div>
               </div>
             </div>
@@ -264,16 +249,15 @@ export const ProfileView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                    Designation / Role Title
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1 flex items-center justify-between">
+                    <span>Assigned CMS Role</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Only Admin can change</span>
                   </label>
-                  <input
-                    type="text"
-                    value={designation}
-                    onChange={(e) => setDesignation(e.target.value)}
-                    placeholder="e.g. Senior Content Specialist"
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-red-500 font-medium"
-                  />
+                  <div className="flex items-center gap-2 w-full bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-700 dark:text-slate-300 font-medium select-none">
+                    <Shield className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                    <span className="flex-1 font-semibold">{activeRole}</span>
+                    <span className="text-[10px] bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded font-mono font-medium">System Role</span>
+                  </div>
                 </div>
               </div>
 
