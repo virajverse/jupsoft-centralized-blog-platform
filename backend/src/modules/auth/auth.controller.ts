@@ -1,5 +1,19 @@
-import { Controller, Post, Body, Get, Put, UseGuards, Ip } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Put,
+  UseGuards,
+  Ip,
+  UseInterceptors,
+  UploadedFile,
+  ParseFilePipe,
+  MaxFileSizeValidator,
+  FileTypeValidator,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto, RefreshTokenDto, ChangePasswordDto, LogoutDto, GoogleLoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -63,6 +77,28 @@ export class AuthController {
     @Body() dto: { name?: string; avatar?: string },
   ) {
     return this.authService.updateProfile(userId, dto);
+  }
+
+  @Post('avatar')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Upload user profile avatar with automatic WebP conversion' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadAvatar(
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 8 * 1024 * 1024 }),
+          new FileTypeValidator({ fileType: /^image\/(jpeg|jpg|png|webp|gif|svg\+xml)$/ }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+    @CurrentUser('id') userId: string,
+    @Ip() ip: string,
+  ) {
+    return this.authService.uploadAvatar(userId, file, ip);
   }
 
   @Put('change-password')

@@ -12,6 +12,8 @@ import { LoginDto, RefreshTokenDto, ChangePasswordDto, LogoutDto, GoogleLoginDto
 import { RedisProvider } from '../../common/providers/redis.provider';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import { join } from 'path';
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
@@ -532,6 +534,98 @@ export class AuthService {
         acc[key] = curr.role;
         return acc;
       }, {} as Record<string, string>),
+    };
+  }
+
+  async uploadAvatar(userId: string, file: Express.Multer.File, ipAddress?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { roleAssignments: true },
+    });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (!file || !file.buffer) {
+      throw new BadRequestException('Image file buffer is required');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const sharpLib = require('sharp');
+    const sharpFn = (buf: Buffer) => (typeof sharpLib === 'function' ? sharpLib(buf) : sharpLib.default(buf));
+
+    // Convert any uploaded image to WebP (300x300 square crop, high quality)
+    const webpBuffer: Buffer = await sharpFn(file.buffer)
+      .rotate()
+      .resize(300, 300, { fit: 'cover', position: 'center' })
+      .webp({ quality: 85, effort: 4 })
+      .toBuffer();
+
+    const fileName = `avatar-${userId}-${Date.now()}.webp`;
+    const uploadsDir = join(process.cwd(), 'uploads', 'avatars');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    const localFilePath = join(uploadsDir, fileName);
+    fs.writeFileSync(localFilePath, webpBuffer);
+    this.logger.log(`💾 Saved profile avatar locally in WebP: ${fileName}`);
+
+    let avatarUrl = `/uploads/avatars/${fileName}`;
+
+    // S3 upload if configured
+    const accessKey = this.configService.get<string>('AWS_ACCESS_KEY_ID') || '';
+    const bucket = this.configService.get<string>('AWS_S3_BUCKET') || 'jupsoft-blogs-storage';
+    if (accessKey && !accessKey.startsWith('mock_')) {
+      try {
+        const region = this.configService.get<string>('AWS_REGION') || 'ap-south-1';
+        const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY') || '';
+        const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+        const s3 = new S3Client({ region, credentials: { accessKeyId: accessKey, secretAccessKey } });
+        await s3.send(new PutObjectCommand({
+          Bucket: bucket,
+          Key: `avatars/${fileName}`,
+          Body: webpBuffer,
+          ContentType: 'image/webp',
+        }));
+        const envCdn = this.configService.get<string>('CLOUDFRONT_DOMAIN');
+        if (envCdn && !envCdn.includes('cdn.jupsoft.com')) {
+          avatarUrl = `${envCdn.replace(/\/+$/, '')}/avatars/${fileName}`;
+        }
+      } catch (err: any) {
+        this.logger.warn(`Could not upload avatar to S3, using local: ${err.message}`);
+      }
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { avatar: avatarUrl },
+      include: { roleAssignments: true },
+    });
+
+    await this.redis.del(`auth:user:${userId}`);
+    await this.redis.del(`auth:profile:${userId}`);
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: updated.name,
+        role: updated.roleAssignments[0]?.role || 'Staff Writer',
+        websiteId: 'system',
+        event: 'user.avatar_updated',
+        ipAddress: ipAddress || '',
+        details: `User ${updated.name} (${updated.email}) uploaded new profile photo (auto-converted to WebP, ${(webpBuffer.length / 1024).toFixed(1)} KB).`,
+      },
+    });
+
+    return {
+      success: true,
+      avatar: avatarUrl,
+      user: {
+        id: updated.id,
+        name: updated.name,
+        email: updated.email,
+        avatar: avatarUrl,
+        status: updated.status,
+      },
     };
   }
 

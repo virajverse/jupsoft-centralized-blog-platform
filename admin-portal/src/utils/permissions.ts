@@ -299,9 +299,17 @@ export function cleanAvatarUrl(avatar?: string | null): string | null {
     trimmed.includes('googleusercontent.com') ||
     trimmed.includes('google.com') ||
     trimmed.startsWith('data:image/') ||
-    trimmed.startsWith('/uploads/') ||
     trimmed.startsWith('/vectors/')
   ) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('/uploads/')) {
+    const isBrowser = typeof window !== 'undefined';
+    const isLocal = isBrowser && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    if (isLocal) {
+      const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4010').replace(/\/+$/, '');
+      return `${apiBase}${trimmed}`;
+    }
     return trimmed;
   }
   if (trimmed.includes('unsplash')) {

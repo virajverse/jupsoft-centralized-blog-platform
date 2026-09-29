@@ -344,6 +344,15 @@ class ApiClient {
     });
   }
 
+  async uploadAvatar(file: File): Promise<{ success: boolean; avatar: string; user: UserAccount }> {
+    const form = new FormData();
+    form.append('file', file);
+    return this.request('/admin/auth/avatar', {
+      method: 'POST',
+      body: form,
+    });
+  }
+
   async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean }> {
     return this.request('/admin/auth/change-password', {
       method: 'PUT',

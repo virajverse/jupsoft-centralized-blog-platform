@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -20,7 +20,8 @@ import {
   Sparkles,
   Check,
   Clock,
-  Send
+  Send,
+  Camera
 } from 'lucide-react';
 
 const LinkedinIcon = ({ className }: { className?: string }) => (
@@ -85,6 +86,35 @@ export const ProfileView: React.FC = () => {
 
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [avatarLoadError, setAvatarLoadError] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 8 * 1024 * 1024) {
+      showNotification('Image size exceeds 8MB. Please select a smaller photo.', 'warning');
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const res = await apiClient.uploadAvatar(file);
+      if (res.success && res.avatar) {
+        useBlogStore.setState((prev) => ({
+          currentUser: prev.currentUser ? { ...prev.currentUser, avatar: res.avatar } : null,
+        }));
+        setAvatarLoadError(false);
+        showNotification('Profile photo uploaded and converted to WebP successfully!', 'success');
+      }
+    } catch (err: unknown) {
+      showNotification(err instanceof Error ? err.message : 'Failed to upload photo', 'error');
+    } finally {
+      setIsUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   // Sync state if currentUser changes
   useEffect(() => {
@@ -158,7 +188,7 @@ export const ProfileView: React.FC = () => {
             <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-bl-full pointer-events-none" />
 
             <div className="flex items-center gap-4">
-              <div className="relative">
+              <div className="relative group shrink-0">
                 {safeAvatar && !avatarLoadError ? (
                   <img
                     src={safeAvatar}
@@ -166,14 +196,33 @@ export const ProfileView: React.FC = () => {
                     referrerPolicy="no-referrer"
                     crossOrigin="anonymous"
                     onError={() => setAvatarLoadError(true)}
-                    className="w-16 h-16 rounded-2xl object-cover border-2 border-white dark:border-slate-800 shadow-md ring-2 ring-slate-100 dark:ring-slate-700"
+                    className="w-18 h-18 rounded-2xl object-cover border-2 border-white dark:border-slate-800 shadow-md ring-2 ring-slate-100 dark:ring-slate-700 transition-transform group-hover:scale-105"
                   />
                 ) : (
-                  <div className="w-16 h-16 rounded-2xl bg-red-600 text-white font-black text-xl flex items-center justify-center shadow-md">
+                  <div className="w-18 h-18 rounded-2xl bg-red-600 text-white font-black text-2xl flex items-center justify-center shadow-md">
                     {currentUser?.name?.charAt(0) || activeRole?.charAt(0) || 'U'}
                   </div>
                 )}
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900" title="Account Active" />
+
+                {/* Camera Click Overlay */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingAvatar}
+                  className="absolute inset-0 bg-black/60 text-white rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer backdrop-blur-xs text-[10px] font-bold gap-1"
+                  title="Upload profile photo (auto-converts to WebP)"
+                >
+                  {isUploadingAvatar ? (
+                    <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                  ) : (
+                    <>
+                      <Camera className="w-4 h-4" />
+                      <span>Change</span>
+                    </>
+                  )}
+                </button>
+
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900 z-10" title="Account Active" />
               </div>
 
               <div className="min-w-0 flex-1">
@@ -191,6 +240,36 @@ export const ProfileView: React.FC = () => {
                 <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 mt-1 flex items-center gap-1.5">
                   <Shield className="w-3.5 h-3.5 text-red-500" />
                   <span>Assigned Role: {activeRole}</span>
+                </div>
+
+                {/* Upload Button */}
+                <div className="mt-2.5">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="hidden"
+                    onChange={handleAvatarFileSelect}
+                    disabled={isUploadingAvatar}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingAvatar}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {isUploadingAvatar ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-500" />
+                        <span>Converting to WebP...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Upload Photo (WebP)</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>
