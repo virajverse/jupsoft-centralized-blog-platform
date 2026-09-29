@@ -95,48 +95,62 @@ export class AnalyticsService implements OnModuleDestroy {
   async getDashboard(websiteId: string, days = 30) {
     const since = new Date();
     since.setDate(since.getDate() - days);
+    const isAll = !websiteId || websiteId === 'all';
 
     const [lifetimeViewsAgg, totalTrackedViews, totalSiteUniqueRaw, events, uniqueRaw, referrers, blogs, dailyViewsRaw] = await Promise.all([
-      // Total lifetime authentic views across all published blogs for this site
+      // Total lifetime authentic views across all published blogs for this site (or all sites)
       this.prisma.blog.aggregate({
-        where: { websiteId, status: 'Published' },
+        where: isAll ? { status: 'Published' } : { websiteId, status: 'Published' },
         _sum: { viewCount: true },
       }),
       // Tracked events in the period
       this.prisma.analyticsEvent.count({
-        where: { websiteId, timestamp: { gte: since }, event: 'page_view' },
+        where: isAll ? { timestamp: { gte: since }, event: 'page_view' } : { websiteId, timestamp: { gte: since }, event: 'page_view' },
       }),
       // Site-wide unique visitors (distinct sessions across the entire site in period)
-      this.prisma.$queryRaw<Array<{ totalUnique: number }>>`
-        SELECT COUNT(DISTINCT "sessionId")::int AS "totalUnique"
-        FROM "analytics"
-        WHERE "websiteId" = ${websiteId} AND "timestamp" >= ${since}
-      `,
+      isAll
+        ? this.prisma.$queryRaw<Array<{ totalUnique: number }>>`
+            SELECT COUNT(DISTINCT "sessionId")::int AS "totalUnique"
+            FROM "analytics"
+            WHERE "timestamp" >= ${since}
+          `
+        : this.prisma.$queryRaw<Array<{ totalUnique: number }>>`
+            SELECT COUNT(DISTINCT "sessionId")::int AS "totalUnique"
+            FROM "analytics"
+            WHERE "websiteId" = ${websiteId} AND "timestamp" >= ${since}
+          `,
       // Aggregate analytics per blog
       this.prisma.analyticsEvent.groupBy({
         by: ['blogId', 'event'],
-        where: { websiteId, timestamp: { gte: since } },
+        where: isAll ? { timestamp: { gte: since } } : { websiteId, timestamp: { gte: since } },
         _count: { id: true },
         _avg: { readPercent: true },
       }),
       // Unique visitors per blog (computed natively in PostgreSQL)
-      this.prisma.$queryRaw<Array<{ blogId: string; uniqueVisitors: number }>>`
-        SELECT "blogId", COUNT(DISTINCT "sessionId")::int AS "uniqueVisitors"
-        FROM "analytics"
-        WHERE "websiteId" = ${websiteId} AND "timestamp" >= ${since}
-        GROUP BY "blogId"
-      `,
+      isAll
+        ? this.prisma.$queryRaw<Array<{ blogId: string; uniqueVisitors: number }>>`
+            SELECT "blogId", COUNT(DISTINCT "sessionId")::int AS "uniqueVisitors"
+            FROM "analytics"
+            WHERE "timestamp" >= ${since}
+            GROUP BY "blogId"
+          `
+        : this.prisma.$queryRaw<Array<{ blogId: string; uniqueVisitors: number }>>`
+            SELECT "blogId", COUNT(DISTINCT "sessionId")::int AS "uniqueVisitors"
+            FROM "analytics"
+            WHERE "websiteId" = ${websiteId} AND "timestamp" >= ${since}
+            GROUP BY "blogId"
+          `,
       // Top referrers
       this.prisma.analyticsEvent.groupBy({
         by: ['referrer'],
-        where: { websiteId, timestamp: { gte: since }, referrer: { not: '' } },
+        where: isAll ? { timestamp: { gte: since }, referrer: { not: '' } } : { websiteId, timestamp: { gte: since }, referrer: { not: '' } },
         _count: { id: true },
         orderBy: { _count: { id: 'desc' } },
         take: 10,
       }),
       // Blog view totals from blogs table
       this.prisma.blog.findMany({
-        where: { websiteId },
+        where: isAll ? {} : { websiteId },
         select: {
           id: true,
           viewCount: true,
@@ -150,13 +164,21 @@ export class AnalyticsService implements OnModuleDestroy {
         take: 50,
       }),
       // Daily page view counts for the site within the period
-      this.prisma.$queryRaw<Array<{ day: Date; count: number }>>`
-        SELECT DATE_TRUNC('day', "timestamp") AS day, COUNT(*)::int AS count
-        FROM "analytics"
-        WHERE "websiteId" = ${websiteId} AND "timestamp" >= ${since} AND "event" = 'page_view'
-        GROUP BY 1
-        ORDER BY 1 ASC
-      `,
+      isAll
+        ? this.prisma.$queryRaw<Array<{ day: Date; count: number }>>`
+            SELECT DATE_TRUNC('day', "timestamp") AS day, COUNT(*)::int AS count
+            FROM "analytics"
+            WHERE "timestamp" >= ${since} AND "event" = 'page_view'
+            GROUP BY 1
+            ORDER BY 1 ASC
+          `
+        : this.prisma.$queryRaw<Array<{ day: Date; count: number }>>`
+            SELECT DATE_TRUNC('day', "timestamp") AS day, COUNT(*)::int AS count
+            FROM "analytics"
+            WHERE "websiteId" = ${websiteId} AND "timestamp" >= ${since} AND "event" = 'page_view'
+            GROUP BY 1
+            ORDER BY 1 ASC
+          `,
     ]);
 
     const totalLifetimeViews = lifetimeViewsAgg._sum.viewCount || 0;
@@ -299,7 +321,7 @@ export class AnalyticsService implements OnModuleDestroy {
         await this.prisma.$transaction(
           batch.map(([blogId, count]) =>
             this.prisma.$executeRawUnsafe(
-              'UPDATE blogs SET view_count = view_count + $1 WHERE id = $2',
+              'UPDATE blogs SET "viewCount" = "viewCount" + $1 WHERE id = $2',
               count,
               blogId,
             ),

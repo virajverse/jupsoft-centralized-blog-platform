@@ -128,12 +128,12 @@ describe('PERF-002: View Count Buffering & Batch Persistence', () => {
       expect(mockRedis.drainViewCountBuffer).toHaveBeenCalled();
       expect(mockPrisma.$transaction).toHaveBeenCalled();
       expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith(
-        'UPDATE blogs SET view_count = view_count + $1 WHERE id = $2',
+        'UPDATE blogs SET "viewCount" = "viewCount" + $1 WHERE id = $2',
         15,
         'blog-a',
       );
       expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith(
-        'UPDATE blogs SET view_count = view_count + $1 WHERE id = $2',
+        'UPDATE blogs SET "viewCount" = "viewCount" + $1 WHERE id = $2',
         42,
         'blog-b',
       );
@@ -179,7 +179,7 @@ describe('PERF-002: View Count Buffering & Batch Persistence', () => {
       expect(mockRedis.drainViewCountBuffer).toHaveBeenCalled();
       expect(mockPrisma.$transaction).toHaveBeenCalled();
       expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith(
-        'UPDATE blogs SET view_count = view_count + $1 WHERE id = $2',
+        'UPDATE blogs SET "viewCount" = "viewCount" + $1 WHERE id = $2',
         7,
         'blog-shutdown',
       );

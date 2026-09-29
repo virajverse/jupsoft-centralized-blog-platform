@@ -104,6 +104,7 @@ export const AnalyticsView: React.FC = () => {
 
   const fetchLiveAnalytics = () => {
     setLoadingLive(true);
+    fetchBlogs(targetSiteScope);
     setRefreshTrigger((c) => c + 1);
   };
 
@@ -122,7 +123,7 @@ export const AnalyticsView: React.FC = () => {
 
   useEffect(() => {
     let active = true;
-    const siteId = isFilteredSingleSite ? effectiveSiteId : (websites[0]?.id || 'site-cloud');
+    const siteId = targetSiteScope || 'all';
     if (!siteId) return;
     const days = rangeParam === '7d' ? 7 : rangeParam === '30d' ? 30 : rangeParam === '90d' ? 90 : 365;
 
@@ -152,7 +153,7 @@ export const AnalyticsView: React.FC = () => {
     return () => {
       active = false;
     };
-  }, [effectiveSiteId, isFilteredSingleSite, rangeParam, websites, refreshTrigger]);
+  }, [targetSiteScope, rangeParam, websites, refreshTrigger]);
 
   // ─── Real Metric Computations ──────────────────────────────────────────
   const totalArticles = siteBlogs.length;
