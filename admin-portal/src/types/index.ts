@@ -170,6 +170,9 @@ export interface UserAccount {
   name: string;
   email: string;
   avatar: string;
+  bio?: string;
+  linkedinUrl?: string;
+  twitterUrl?: string;
   // Scoped per website tenant: websiteId -> UserRole
   roleAssignments: Record<string, UserRole>;
   // For Role Admin: explicitly delegated roles they can invite and oversee

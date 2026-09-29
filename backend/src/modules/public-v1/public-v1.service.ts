@@ -151,7 +151,7 @@ export class PublicV1Service {
             },
           },
           website: { select: { domain: true, name: true } },
-          author: { select: { id: true, name: true, avatar: true } },
+          author: { select: { id: true, name: true, avatar: true, bio: true, linkedinUrl: true, twitterUrl: true } },
           blogCategories: {
             include: {
               category: { select: { id: true, name: true, slug: true } },
@@ -182,6 +182,9 @@ export class PublicV1Service {
         featuredImageAlt: b.featuredImageAlt || tr?.title || '',
         authorName: this.cleanAuthorName(b.authorName),
         authorAvatar: this.resolveAuthorAvatar(b),
+        authorBio: b.author?.bio || '',
+        authorLinkedin: b.author?.linkedinUrl || '',
+        authorTwitter: b.author?.twitterUrl || '',
         publishedAt: b.publishDate?.toISOString(),
         readTimeMinutes: b.readTimeMinutes,
         categories: cats,
@@ -255,6 +258,17 @@ export class PublicV1Service {
         featuredImageAlt: b.featuredImageAlt || translation.title || '',
         authorName: this.cleanAuthorName(b.authorName),
         authorAvatar: this.resolveAuthorAvatar(b),
+        authorBio: b.author?.bio || '',
+        authorLinkedin: b.author?.linkedinUrl || '',
+        authorTwitter: b.author?.twitterUrl || '',
+        author: {
+          id: b.author?.id || b.authorId || '',
+          name: this.cleanAuthorName(b.authorName),
+          avatar: this.resolveAuthorAvatar(b),
+          bio: b.author?.bio || '',
+          linkedinUrl: b.author?.linkedinUrl || '',
+          twitterUrl: b.author?.twitterUrl || '',
+        },
         publishedAt: b.publishDate instanceof Date ? b.publishDate.toISOString() : b.publishDate,
         readTimeMinutes: b.readTimeMinutes,
         categories: cats,
@@ -284,7 +298,7 @@ export class PublicV1Service {
             href: `https://${b.website?.domain || ''}/blog/${t.slug}?lang=${t.lang}`,
           })),
         },
-        // TRD §11: Schema.org JSON-LD for consuming sites
+        // TRD §11: Schema.org JSON-LD for consuming sites (E-E-A-T verified author links)
         schemaJsonLd: {
           '@context': 'https://schema.org',
           '@type': 'BlogPosting',
@@ -292,7 +306,15 @@ export class PublicV1Service {
           image: b.featuredImage ? [this.normalizeMediaUrl(b.featuredImage)] : [],
           datePublished: b.publishDate instanceof Date ? b.publishDate.toISOString() : b.publishDate,
           dateModified: b.updatedAt instanceof Date ? b.updatedAt.toISOString() : new Date().toISOString(),
-          author: { '@type': 'Person', name: this.cleanAuthorName(b.authorName) },
+          author: {
+            '@type': 'Person',
+            name: this.cleanAuthorName(b.authorName),
+            ...(b.author?.bio ? { description: b.author.bio } : {}),
+            ...(this.resolveAuthorAvatar(b) ? { image: this.resolveAuthorAvatar(b) } : {}),
+            ...((b.author?.linkedinUrl || b.author?.twitterUrl)
+              ? { sameAs: [b.author?.linkedinUrl, b.author?.twitterUrl].filter(Boolean) }
+              : {}),
+          },
           description: translation.excerpt,
         },
       },
@@ -310,7 +332,7 @@ export class PublicV1Service {
 
     const blogIncludes = {
       website: true,
-      author: { select: { id: true, name: true, avatar: true } },
+      author: { select: { id: true, name: true, avatar: true, bio: true, linkedinUrl: true, twitterUrl: true } },
       translations: { select: { lang: true, slug: true, title: true } },
       blogCategories: {
         include: {

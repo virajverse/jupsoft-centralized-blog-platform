@@ -426,6 +426,9 @@ export class AuthService {
         name: true,
         email: true,
         avatar: true,
+        bio: true,
+        linkedinUrl: true,
+        twitterUrl: true,
         status: true,
         lastLoginIp: true,
         customModules: true,
@@ -448,6 +451,9 @@ export class AuthService {
       name: user.name,
       email: user.email,
       avatar: user.avatar,
+      bio: user.bio || '',
+      linkedinUrl: user.linkedinUrl || '',
+      twitterUrl: user.twitterUrl || '',
       status: user.status,
       lastLoginIp: user.lastLoginIp,
       customModules: user.customModules || [],
@@ -503,7 +509,10 @@ export class AuthService {
     return { success: true, message: 'Password changed successfully' };
   }
 
-  async updateProfile(userId: string, dto: { name?: string; avatar?: string }) {
+  async updateProfile(
+    userId: string,
+    dto: { name?: string; avatar?: string; bio?: string; linkedinUrl?: string; twitterUrl?: string },
+  ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new UnauthorizedException('User not found');
@@ -512,6 +521,9 @@ export class AuthService {
     const updateData: any = {};
     if (dto.name && dto.name.trim()) updateData.name = dto.name.trim();
     if (dto.avatar !== undefined) updateData.avatar = dto.avatar.trim();
+    if (dto.bio !== undefined) updateData.bio = dto.bio.trim();
+    if (dto.linkedinUrl !== undefined) updateData.linkedinUrl = dto.linkedinUrl.trim();
+    if (dto.twitterUrl !== undefined) updateData.twitterUrl = dto.twitterUrl.trim();
 
     const updated = await this.prisma.user.update({
       where: { id: userId },
@@ -521,12 +533,17 @@ export class AuthService {
 
     await this.redis.del(`auth:profile:${userId}`);
     await this.redis.del(`auth:user:${userId}`);
+    await this.redis.delPattern('blog:*');
+    await this.redis.delPattern('blogs:*');
 
     return {
       id: updated.id,
       name: updated.name,
       email: updated.email,
       avatar: updated.avatar,
+      bio: updated.bio,
+      linkedinUrl: updated.linkedinUrl,
+      twitterUrl: updated.twitterUrl,
       status: updated.status,
       customModules: updated.customModules || [],
       roleAssignments: updated.roleAssignments.reduce((acc, curr) => {

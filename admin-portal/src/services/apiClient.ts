@@ -337,7 +337,7 @@ class ApiClient {
     return this.request('/admin/auth/me');
   }
 
-  async updateProfile(data: { name?: string; avatar?: string }): Promise<UserAccount> {
+  async updateProfile(data: { name?: string; avatar?: string; bio?: string; linkedinUrl?: string; twitterUrl?: string }): Promise<UserAccount> {
     return this.request('/admin/auth/profile', {
       method: 'PUT',
       body: JSON.stringify(data),

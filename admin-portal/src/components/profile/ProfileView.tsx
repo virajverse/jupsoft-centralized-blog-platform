@@ -65,23 +65,14 @@ export const ProfileView: React.FC = () => {
   // Form states for Author Identity
   const [displayName, setDisplayName] = useState(currentUser?.name || '');
   const [bio, setBio] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(`profile_bio_${currentUser?.id}`) || 
-        'Author & content contributor crafting engaging, SEO-optimized articles and educational guides for the platform.';
-    }
-    return '';
+    return currentUser?.bio || (typeof window !== 'undefined' ? localStorage.getItem(`profile_bio_${currentUser?.id}`) : '') || 
+      'Author & content contributor crafting engaging, SEO-optimized articles and educational guides for the platform.';
   });
   const [linkedinUrl, setLinkedinUrl] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(`profile_linkedin_${currentUser?.id}`) || '';
-    }
-    return '';
+    return currentUser?.linkedinUrl || (typeof window !== 'undefined' ? localStorage.getItem(`profile_linkedin_${currentUser?.id}`) : '') || '';
   });
   const [twitterUrl, setTwitterUrl] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(`profile_twitter_${currentUser?.id}`) || '';
-    }
-    return '';
+    return currentUser?.twitterUrl || (typeof window !== 'undefined' ? localStorage.getItem(`profile_twitter_${currentUser?.id}`) : '') || '';
   });
 
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -118,10 +109,13 @@ export const ProfileView: React.FC = () => {
 
   // Sync state if currentUser changes
   useEffect(() => {
-    if (currentUser?.name) {
-      setDisplayName(currentUser.name);
+    if (currentUser) {
+      if (currentUser.name) setDisplayName(currentUser.name);
+      if (currentUser.bio !== undefined) setBio(currentUser.bio);
+      if (currentUser.linkedinUrl !== undefined) setLinkedinUrl(currentUser.linkedinUrl);
+      if (currentUser.twitterUrl !== undefined) setTwitterUrl(currentUser.twitterUrl);
     }
-  }, [currentUser?.name]);
+  }, [currentUser]);
 
   const activeSite = websites.find((w) => w.id === activeWebsiteId) || websites[0];
   const safeAvatar = cleanAvatarUrl(currentUser?.avatar);
@@ -142,15 +136,37 @@ export const ProfileView: React.FC = () => {
     e.preventDefault();
     setIsSavingProfile(true);
     try {
-      if (displayName.trim() && displayName.trim() !== currentUser?.name) {
-        await apiClient.updateProfile({ name: displayName.trim() });
-      }
+      const cleanName = displayName.trim() || currentUser?.name || '';
+      const cleanBio = bio.trim();
+      const cleanLinkedin = linkedinUrl.trim();
+      const cleanTwitter = twitterUrl.trim();
+
+      const updated = await apiClient.updateProfile({
+        name: cleanName,
+        bio: cleanBio,
+        linkedinUrl: cleanLinkedin,
+        twitterUrl: cleanTwitter,
+      });
+
+      // Update state in store
+      useBlogStore.setState((prev) => ({
+        currentUser: prev.currentUser
+          ? {
+              ...prev.currentUser,
+              name: updated.name || cleanName,
+              bio: updated.bio !== undefined ? updated.bio : cleanBio,
+              linkedinUrl: updated.linkedinUrl !== undefined ? updated.linkedinUrl : cleanLinkedin,
+              twitterUrl: updated.twitterUrl !== undefined ? updated.twitterUrl : cleanTwitter,
+            }
+          : null,
+      }));
+
       if (typeof window !== 'undefined' && currentUser?.id) {
-        localStorage.setItem(`profile_bio_${currentUser.id}`, bio.trim());
-        localStorage.setItem(`profile_linkedin_${currentUser.id}`, linkedinUrl.trim());
-        localStorage.setItem(`profile_twitter_${currentUser.id}`, twitterUrl.trim());
+        localStorage.setItem(`profile_bio_${currentUser.id}`, cleanBio);
+        localStorage.setItem(`profile_linkedin_${currentUser.id}`, cleanLinkedin);
+        localStorage.setItem(`profile_twitter_${currentUser.id}`, cleanTwitter);
       }
-      showNotification('Profile & Author details saved successfully!', 'success');
+      showNotification('Profile & Author details saved successfully in database!', 'success');
     } catch (err: unknown) {
       showNotification(err instanceof Error ? err.message : 'Failed to update profile', 'warning');
     } finally {

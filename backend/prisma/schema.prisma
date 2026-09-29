@@ -39,6 +39,9 @@ model User {
   passwordHash         String
   name                 String
   avatar               String                 @default("")
+  bio                  String                 @default("")
+  linkedinUrl          String                 @default("")
+  twitterUrl           String                 @default("")
   status               String                 @default("active") // active | suspended
   lastLoginIp          String                 @default("")
   loginAttempts        Int                    @default(0)

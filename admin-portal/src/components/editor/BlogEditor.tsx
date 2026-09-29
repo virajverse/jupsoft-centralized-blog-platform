@@ -358,6 +358,28 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     if (fetchUsers) fetchUsers();
   }, [selectedWebsiteId, fetchMedia, fetchCategories, fetchTags, fetchUsers]);
 
+  const currentAuthorBio = useMemo(() => {
+    if (selectedAuthorId === currentUser?.id || authorName.includes('Sachin')) {
+      return currentUser?.bio || (typeof window !== 'undefined' ? localStorage.getItem(`profile_bio_${currentUser?.id}`) : '') || 'Author & content contributor crafting engaging, SEO-optimized articles and educational guides for the platform.';
+    }
+    const matched = users.find((u) => u.id === selectedAuthorId);
+    return matched?.bio || 'Author & content contributor crafting engaging, SEO-optimized articles and educational guides for the platform.';
+  }, [selectedAuthorId, currentUser, authorName, users]);
+
+  const currentAuthorLinkedin = useMemo(() => {
+    if (selectedAuthorId === currentUser?.id || authorName.includes('Sachin')) {
+      return currentUser?.linkedinUrl || (typeof window !== 'undefined' ? localStorage.getItem(`profile_linkedin_${currentUser?.id}`) : '') || '';
+    }
+    return users.find((u) => u.id === selectedAuthorId)?.linkedinUrl || '';
+  }, [selectedAuthorId, currentUser, authorName, users]);
+
+  const currentAuthorTwitter = useMemo(() => {
+    if (selectedAuthorId === currentUser?.id || authorName.includes('Sachin')) {
+      return currentUser?.twitterUrl || (typeof window !== 'undefined' ? localStorage.getItem(`profile_twitter_${currentUser?.id}`) : '') || '';
+    }
+    return users.find((u) => u.id === selectedAuthorId)?.twitterUrl || '';
+  }, [selectedAuthorId, currentUser, authorName, users]);
+
   // Per-language dictionary state
   const defaultTrans = useCallback((lang: LanguageCode): BlogTranslation => ({
     id: `trans-${lang}-${Date.now()}`,
@@ -3285,6 +3307,64 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   </div>
                 </div>
               )}
+
+              {/* About the Author Card */}
+              <div className="pt-8 border-t border-slate-100 dark:border-slate-800">
+                <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-start gap-4">
+                  <img
+                    src={
+                      resolveMediaUrl(
+                        (authorAvatar && !authorAvatar.includes('avatar-1.webp') && !authorAvatar.includes('avatar-default.webp'))
+                          ? authorAvatar
+                          : (currentUser?.avatar && (selectedAuthorId === currentUser.id || authorName.includes('Sachin'))
+                              ? currentUser.avatar
+                              : (authorAvatar || '/uploads/avatars/avatar-default.webp'))
+                      )
+                    }
+                    alt={authorName || 'Author'}
+                    className="w-14 h-14 rounded-2xl object-cover border-2 border-white dark:border-slate-800 shadow-sm shrink-0"
+                  />
+                  <div className="space-y-2 flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div>
+                        <div className="font-bold text-slate-900 dark:text-white text-sm">
+                          About {authorName || 'the Author'}
+                        </div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Content Contributor &amp; Author
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {currentAuthorLinkedin && (
+                          <a
+                            href={currentAuthorLinkedin}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-100 border border-blue-200 dark:border-blue-900/50 transition-colors shadow-2xs"
+                          >
+                            <span>LinkedIn</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
+                        {currentAuthorTwitter && (
+                          <a
+                            href={currentAuthorTwitter}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 hover:bg-sky-100 border border-sky-200 dark:border-sky-900/50 transition-colors shadow-2xs"
+                          >
+                            <span>Twitter / X</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-sans">
+                      {currentAuthorBio}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

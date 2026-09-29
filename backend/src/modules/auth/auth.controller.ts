@@ -71,10 +71,10 @@ export class AuthController {
   @Put('profile')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update current authenticated user profile (name, avatar)' })
+  @ApiOperation({ summary: 'Update current authenticated user profile (name, avatar, bio, linkedinUrl, twitterUrl)' })
   async updateProfile(
     @CurrentUser('id') userId: string,
-    @Body() dto: { name?: string; avatar?: string },
+    @Body() dto: { name?: string; avatar?: string; bio?: string; linkedinUrl?: string; twitterUrl?: string },
   ) {
     return this.authService.updateProfile(userId, dto);
   }
