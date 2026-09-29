@@ -312,7 +312,7 @@ export const useBlogStore = create<BlogState>()(
             const updatedUser = {
               ...u,
               customModules: u.customModules || get().currentUser?.customModules || [],
-              avatar: cleanAvatarUrl(u.avatar) || '/uploads/avatars/avatar-default.webp',
+              avatar: cleanAvatarUrl(u.avatar) || u.avatar || '',
             };
             updates.currentUser = updatedUser;
             updates.isAuthenticated = true;
@@ -411,7 +411,7 @@ export const useBlogStore = create<BlogState>()(
               currentUser: {
                 ...user,
                 customModules: user.customModules || localUser?.customModules || [],
-                avatar: cleanAvatarUrl(user.avatar) || '/uploads/avatars/avatar-default.webp',
+                avatar: cleanAvatarUrl(user.avatar) || user.avatar || '',
               },
               activeWebsiteId: websiteId,
               activeRole: assignedRole,
@@ -478,7 +478,7 @@ export const useBlogStore = create<BlogState>()(
               currentUser: {
                 ...user,
                 customModules: user.customModules || localUser?.customModules || [],
-                avatar: cleanAvatarUrl(user.avatar) || '/uploads/avatars/avatar-default.webp',
+                avatar: cleanAvatarUrl(user.avatar) || user.avatar || '',
               },
               activeWebsiteId: websiteId,
               activeRole: assignedRole,

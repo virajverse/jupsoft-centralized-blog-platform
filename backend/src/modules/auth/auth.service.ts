@@ -236,16 +236,36 @@ export class AuthService {
     }
 
     // 3. Success: Reset lockout, update IP, and AUTOMATICALLY sync latest Name & Avatar from Google
+    let jwtPayload: any = {};
+    try {
+      jwtPayload = this.jwtService.decode(dto.credential) || {};
+    } catch {
+      jwtPayload = {};
+    }
+
+    const syncName = (googleUser.name || jwtPayload.name || '').trim();
+    const syncAvatar = (
+      googleUser.picture ||
+      jwtPayload.picture ||
+      googleUser.avatar ||
+      jwtPayload.avatar ||
+      ''
+    ).trim();
+
+    this.logger.log(
+      `Google OAuth profile sync for ${email}: name="${syncName}", avatar="${syncAvatar ? syncAvatar.substring(0, 60) + '...' : 'none'}"`,
+    );
+
     const updateData: any = {
       lastLoginIp: ipAddress || '',
       loginAttempts: 0,
       lockoutUntil: null,
     };
-    if (googleUser.name && googleUser.name.trim()) {
-      updateData.name = googleUser.name.trim();
+    if (syncName) {
+      updateData.name = syncName;
     }
-    if (googleUser.picture && googleUser.picture.trim()) {
-      updateData.avatar = googleUser.picture.trim();
+    if (syncAvatar) {
+      updateData.avatar = syncAvatar;
     }
 
     const updatedUser = await this.prisma.user.update({

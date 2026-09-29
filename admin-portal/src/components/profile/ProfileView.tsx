@@ -9,13 +9,9 @@ import { cleanAvatarUrl } from '../../utils/permissions';
 import {
   User as UserIcon,
   Shield,
-  Key,
   Globe,
   FileText,
   CheckCircle2,
-  Lock,
-  Eye,
-  EyeOff,
   RefreshCw,
   ExternalLink,
   Edit3,
@@ -37,27 +33,6 @@ const LinkedinIcon = ({ className }: { className?: string }) => (
 const TwitterIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
     <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-  </svg>
-);
-
-const GoogleIcon = () => (
-  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-    <path
-      fill="#4285F4"
-      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-    />
-    <path
-      fill="#34A853"
-      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-    />
-    <path
-      fill="#FBBC05"
-      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-    />
-    <path
-      fill="#EA4335"
-      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-    />
   </svg>
 );
 
@@ -84,6 +59,7 @@ export const ProfileView: React.FC = () => {
 
   useEffect(() => {
     fetchBlogs();
+    useBlogStore.getState().loadInitialData();
   }, [fetchBlogs]);
 
   // Form states for Author Identity
@@ -122,15 +98,7 @@ export const ProfileView: React.FC = () => {
   });
 
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-
-  // Change Password states
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showCurrentPass, setShowCurrentPass] = useState(false);
-  const [showNewPass, setShowNewPass] = useState(false);
-  const [isChangingPass, setIsChangingPass] = useState(false);
-  const [passError, setPassError] = useState<string | null>(null);
+  const [avatarLoadError, setAvatarLoadError] = useState(false);
 
   // Sync state if currentUser changes
   useEffect(() => {
@@ -175,39 +143,6 @@ export const ProfileView: React.FC = () => {
     }
   };
 
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPassError(null);
-
-    if (!currentPassword) {
-      setPassError('Please enter your current password.');
-      return;
-    }
-    if (newPassword.length < 8) {
-      setPassError('New password must be at least 8 characters long.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPassError('New password and confirm password do not match.');
-      return;
-    }
-
-    setIsChangingPass(true);
-    try {
-      await apiClient.changePassword(currentPassword, newPassword);
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      showNotification('Password updated successfully! Use your new password next time you sign in.', 'success');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to update password. Verify your current password.';
-      setPassError(msg);
-      showNotification(msg, 'warning');
-    } finally {
-      setIsChangingPass(false);
-    }
-  };
-
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-slate-50/50 dark:bg-[#090d16]">
       {/* Top Banner / Heading */}
@@ -218,7 +153,7 @@ export const ProfileView: React.FC = () => {
             <span>My Account &amp; Author Profile</span>
           </h1>
           <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Personal identity, Google Workspace sync status, author byline metadata, and security settings.
+            Personal identity, Google Workspace sync status, author byline metadata, and contribution overview.
           </p>
         </div>
 
@@ -231,18 +166,21 @@ export const ProfileView: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* LEFT COLUMN: Identity Card & Security (5 cols) */}
-        <div className="lg:col-span-5 space-y-6">
-          {/* Identity & Google Sync Card */}
+        {/* LEFT COLUMN: Identity Card (4 cols) */}
+        <div className="lg:col-span-4 space-y-6">
+          {/* Identity Card */}
           <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-bl-full pointer-events-none" />
 
             <div className="flex items-center gap-4">
               <div className="relative">
-                {safeAvatar ? (
+                {safeAvatar && !avatarLoadError ? (
                   <img
                     src={safeAvatar}
                     alt={currentUser?.name || 'User Avatar'}
+                    referrerPolicy="no-referrer"
+                    crossOrigin="anonymous"
+                    onError={() => setAvatarLoadError(true)}
                     className="w-16 h-16 rounded-2xl object-cover border-2 border-white dark:border-slate-800 shadow-md ring-2 ring-slate-100 dark:ring-slate-700"
                   />
                 ) : (
@@ -272,130 +210,34 @@ export const ProfileView: React.FC = () => {
               </div>
             </div>
 
-            {/* Google Sync Status Banner (100% Automatic) */}
-            <div className="mt-5 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 space-y-1.5">
-              <div className="flex items-center gap-2">
-                <GoogleIcon />
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  Google Workspace Single Sign-On
-                </span>
-                <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  Auto-Synced
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                Your full name and profile avatar photo are automatically synchronized directly from your Google corporate account on every sign-in.
-              </p>
-            </div>
-
             {/* Metadata Chips */}
-            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <span className="text-slate-400 text-[11px] block">Account Status:</span>
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-0.5">
+            <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 text-[11px]">Account Status</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Active
                 </span>
               </div>
-              <div>
-                <span className="text-slate-400 text-[11px] block">Assigned Site:</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-300 truncate block mt-0.5">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 text-[11px]">Assigned Site</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[160px]">
                   {activeSite?.name || 'All Tenants'}
                 </span>
               </div>
+              {currentUser?.lastLoginIp && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 text-[11px]">Last Sign-In IP</span>
+                  <span className="font-mono text-[11px] text-slate-600 dark:text-slate-400">
+                    {currentUser.lastLoginIp}
+                  </span>
+                </div>
+              )}
             </div>
-          </div>
-
-          {/* Account Security (Change Password) Card */}
-          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-4">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Key className="w-4 h-4 text-slate-500" />
-              <span>Change Account Password</span>
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              Set a dedicated password to access the CMS portal directly without Google SSO.
-            </p>
-
-            {passError && (
-              <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-xs">
-                {passError}
-              </div>
-            )}
-
-            <form onSubmit={handleChangePassword} className="space-y-3.5 text-xs">
-              <div>
-                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                  Current Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showCurrentPass ? 'text' : 'password'}
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    placeholder="Enter current password"
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg pl-3 pr-9 py-2 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-red-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowCurrentPass(!showCurrentPass)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  >
-                    {showCurrentPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                  New Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showNewPass ? 'text' : 'password'}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Min 8 characters"
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg pl-3 pr-9 py-2 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-red-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowNewPass(!showNewPass)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  >
-                    {showNewPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                  Confirm New Password
-                </label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Repeat new password"
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-red-500"
-                />
-              </div>
-
-              <div className="pt-2 flex justify-end">
-                <button
-                  type="submit"
-                  disabled={isChangingPass || !currentPassword || !newPassword}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold text-xs transition-colors shadow-xs cursor-pointer disabled:opacity-50"
-                >
-                  {isChangingPass ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
-                  <span>{isChangingPass ? 'Updating...' : 'Update Password'}</span>
-                </button>
-              </div>
-            </form>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Author Identity & Contribution Stats (7 cols) */}
-        <div className="lg:col-span-7 space-y-6">
+        {/* RIGHT COLUMN: Author Identity & Contribution Stats (8 cols) */}
+        <div className="lg:col-span-8 space-y-6">
           {/* Author Byline & Bio Form */}
           <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between">

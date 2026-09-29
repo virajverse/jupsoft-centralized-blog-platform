@@ -278,9 +278,9 @@ export function getAllowedInviteRoles(
 }
 
 /**
- * Strict Avatar Sanitizer
- * Rejects any external or online photo (e.g. Unsplash, third-party HTTP/HTTPS JPG/PNG).
- * Only permits local /vectors/*.svg assets or inline SVG data URIs.
+ * Avatar Sanitizer & Normalizer
+ * Permits local /uploads/ avatars, /vectors/*.svg assets, inline SVGs, and external HTTPS profile images (e.g. Google Workspace SSO avatars).
+ * Filters out unwanted unsplash placeholders.
  */
 export function cleanAvatarUrl(avatar?: string | null): string | null {
   if (!avatar || typeof avatar !== 'string') return null;
@@ -294,8 +294,21 @@ export function cleanAvatarUrl(avatar?: string | null): string | null {
   } else if (trimmed.startsWith('http://localhost:3000/uploads/')) {
     trimmed = trimmed.replace('http://localhost:3000', '');
   }
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.includes('unsplash')) {
+  // Explicitly allow Google user profile pictures and safe asset paths
+  if (
+    trimmed.includes('googleusercontent.com') ||
+    trimmed.includes('google.com') ||
+    trimmed.startsWith('data:image/') ||
+    trimmed.startsWith('/uploads/') ||
+    trimmed.startsWith('/vectors/')
+  ) {
+    return trimmed;
+  }
+  if (trimmed.includes('unsplash')) {
     return null;
+  }
+  if (trimmed.startsWith('https://') || trimmed.startsWith('http://') || trimmed.startsWith('/')) {
+    return trimmed;
   }
   return trimmed;
 }

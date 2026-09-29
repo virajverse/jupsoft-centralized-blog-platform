@@ -160,6 +160,8 @@ function renderUserAvatar(avatar?: string | null, name?: string, sizeClasses = '
       <img
         src={safeAvatar}
         alt={name || 'User avatar'}
+        referrerPolicy="no-referrer"
+        crossOrigin="anonymous"
         className={`${sizeClasses} rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0`}
       />
     );

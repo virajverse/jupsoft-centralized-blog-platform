@@ -372,6 +372,8 @@ export const JupsoftNavbar: React.FC = () => {
                 <img
                   src={safeAvatar}
                   alt={currentUser?.name || 'User avatar'}
+                  referrerPolicy="no-referrer"
+                  crossOrigin="anonymous"
                   className="w-7 h-7 rounded-lg object-cover border border-slate-200 dark:border-slate-700"
                 />
               ) : (
