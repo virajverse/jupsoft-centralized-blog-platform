@@ -68,6 +68,18 @@ export class PublicV1Service {
     return cleaned || 'Staff Writer';
   }
 
+  resolveAuthorAvatar(b: any): string {
+    const raw = b?.authorAvatar;
+    const isPlaceholder = !raw || raw.includes('avatar-1.webp') || raw.includes('avatar-default.webp');
+    if (!isPlaceholder) {
+      return this.normalizeMediaUrl(raw);
+    }
+    if (b?.author?.avatar && !b.author.avatar.includes('avatar-1.webp') && !b.author.avatar.includes('avatar-default.webp')) {
+      return this.normalizeMediaUrl(b.author.avatar);
+    }
+    return raw ? this.normalizeMediaUrl(raw) : (b?.author?.avatar ? this.normalizeMediaUrl(b.author.avatar) : '');
+  }
+
   // ─── TRD §13: key format blogs:{website}:{page}:{lang}[:{category}][:{tag}]
   async getPublishedBlogs(params: {
     websiteId: string;
@@ -139,6 +151,7 @@ export class PublicV1Service {
             },
           },
           website: { select: { domain: true, name: true } },
+          author: { select: { id: true, name: true, avatar: true } },
           blogCategories: {
             include: {
               category: { select: { id: true, name: true, slug: true } },
@@ -168,7 +181,7 @@ export class PublicV1Service {
         featuredImage: this.normalizeMediaUrl(b.featuredImage),
         featuredImageAlt: b.featuredImageAlt || tr?.title || '',
         authorName: this.cleanAuthorName(b.authorName),
-        authorAvatar: b.authorAvatar ? this.normalizeMediaUrl(b.authorAvatar) : '',
+        authorAvatar: this.resolveAuthorAvatar(b),
         publishedAt: b.publishDate?.toISOString(),
         readTimeMinutes: b.readTimeMinutes,
         categories: cats,
@@ -241,7 +254,7 @@ export class PublicV1Service {
         featuredImage: this.normalizeMediaUrl(b.featuredImage),
         featuredImageAlt: b.featuredImageAlt || translation.title || '',
         authorName: this.cleanAuthorName(b.authorName),
-        authorAvatar: b.authorAvatar ? this.normalizeMediaUrl(b.authorAvatar) : '',
+        authorAvatar: this.resolveAuthorAvatar(b),
         publishedAt: b.publishDate instanceof Date ? b.publishDate.toISOString() : b.publishDate,
         readTimeMinutes: b.readTimeMinutes,
         categories: cats,
@@ -297,6 +310,7 @@ export class PublicV1Service {
 
     const blogIncludes = {
       website: true,
+      author: { select: { id: true, name: true, avatar: true } },
       translations: { select: { lang: true, slug: true, title: true } },
       blogCategories: {
         include: {

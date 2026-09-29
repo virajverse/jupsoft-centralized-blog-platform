@@ -607,8 +607,30 @@ export class AuthService {
       include: { roleAssignments: true },
     });
 
+    // Cascade avatar update to all blogs authored by this user
+    const cleanName = updated.name.replace(/\s*\([^)]*(?:admin|editor|author|superadmin|user)[^)]*\)/gi, '').trim();
+    try {
+      await this.prisma.blog.updateMany({
+        where: {
+          OR: [
+            { authorId: userId },
+            { authorName: { equals: updated.name, mode: 'insensitive' } },
+            { authorName: { equals: cleanName, mode: 'insensitive' } },
+            ...(cleanName.toLowerCase().includes('sachin') ? [{ authorName: { contains: 'Sachin', mode: 'insensitive' as const } }] : []),
+          ],
+        },
+        data: { authorAvatar: avatarUrl },
+      });
+      this.logger.log(`🔄 Cascaded updated avatar to all blogs authored by ${updated.name} (${userId})`);
+    } catch (e: any) {
+      this.logger.warn(`Failed to cascade avatar to blogs: ${e.message}`);
+    }
+
     await this.redis.del(`auth:user:${userId}`);
     await this.redis.del(`auth:profile:${userId}`);
+    await this.redis.delPattern('blog:*');
+    await this.redis.delPattern('blogs:*');
+    await this.redis.delPattern('admin:blogs:*');
 
     await this.prisma.systemAuditLog.create({
       data: {

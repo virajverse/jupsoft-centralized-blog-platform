@@ -88,6 +88,7 @@ export class BlogsService {
         orderBy: { updatedAt: 'desc' },
         include: {
           website: { select: { id: true, name: true, domain: true } },
+          author: { select: { id: true, name: true, avatar: true } },
           translations: {
             select: {
               id: true,
@@ -115,14 +116,21 @@ export class BlogsService {
     ]);
 
     // Format response matching frontend Blog interface
-    const formatted = blogs.map((b) => ({
-      id: b.id,
-      websiteId: b.websiteId,
-      authorId: b.authorId,
-      authorName: b.authorName,
-      authorAvatar: b.authorAvatar,
-      featuredImage: b.featuredImage,
-      featuredImageAlt: b.featuredImageAlt,
+    const formatted = blogs.map((b: any) => {
+      const isPlaceholder = !b.authorAvatar || b.authorAvatar.includes('avatar-1.webp') || b.authorAvatar.includes('avatar-default.webp');
+      const resolvedAvatar = !isPlaceholder
+        ? b.authorAvatar
+        : (b.author?.avatar && !b.author.avatar.includes('avatar-1.webp') && !b.author.avatar.includes('avatar-default.webp')
+            ? b.author.avatar
+            : (b.authorAvatar || b.author?.avatar || ''));
+      return {
+        id: b.id,
+        websiteId: b.websiteId,
+        authorId: b.authorId,
+        authorName: b.authorName,
+        authorAvatar: resolvedAvatar,
+        featuredImage: b.featuredImage,
+        featuredImageAlt: b.featuredImageAlt,
       status: b.status,
       publishDate: b.publishDate?.toISOString(),
       scheduledAt: b.scheduledAt?.toISOString(),
@@ -166,7 +174,8 @@ export class BlogsService {
       })),
       createdAt: b.createdAt.toISOString(),
       updatedAt: b.updatedAt.toISOString(),
-    }));
+    };
+  });
 
     const result = {
       total,
@@ -221,6 +230,7 @@ export class BlogsService {
       where: { id },
       include: {
         website: true,
+        author: { select: { id: true, name: true, avatar: true } },
         translations: true,
         workflowLogs: { orderBy: { timestamp: 'desc' } },
       },
@@ -234,12 +244,19 @@ export class BlogsService {
       this.assertBlogOwnership({ id, websiteId: blog.websiteId }, caller);
     }
 
+    const isPlaceholder = !blog.authorAvatar || blog.authorAvatar.includes('avatar-1.webp') || blog.authorAvatar.includes('avatar-default.webp');
+    const resolvedAvatar = !isPlaceholder
+      ? blog.authorAvatar
+      : ((blog as any).author?.avatar && !(blog as any).author.avatar.includes('avatar-1.webp') && !(blog as any).author.avatar.includes('avatar-default.webp')
+          ? (blog as any).author.avatar
+          : (blog.authorAvatar || (blog as any).author?.avatar || ''));
+
     const result = {
       id: blog.id,
       websiteId: blog.websiteId,
       authorId: blog.authorId,
       authorName: blog.authorName,
-      authorAvatar: blog.authorAvatar,
+      authorAvatar: resolvedAvatar,
       featuredImage: blog.featuredImage,
       featuredImageAlt: blog.featuredImageAlt,
       status: blog.status,
@@ -338,12 +355,25 @@ export class BlogsService {
     }
 
     const blog = await this.prisma.$transaction(async (tx) => {
+      let resolvedAuthorAvatar = dto.authorAvatar?.trim();
+      const isPlaceholderAvatar = !resolvedAuthorAvatar || resolvedAuthorAvatar.includes('avatar-1.webp') || resolvedAuthorAvatar.includes('avatar-default.webp');
+      if (isPlaceholderAvatar) {
+        if (user.avatar && !user.avatar.includes('avatar-1.webp') && !user.avatar.includes('avatar-default.webp')) {
+          resolvedAuthorAvatar = user.avatar;
+        } else if (dto.authorId && dto.authorId !== user.id) {
+          const authorUser = await tx.user.findUnique({ where: { id: dto.authorId }, select: { avatar: true } });
+          if (authorUser?.avatar && !authorUser.avatar.includes('avatar-1.webp') && !authorUser.avatar.includes('avatar-default.webp')) {
+            resolvedAuthorAvatar = authorUser.avatar;
+          }
+        }
+      }
+
       const createdBlog = await tx.blog.create({
         data: {
           websiteId: dto.websiteId,
           authorId: dto.authorId || user.id,
           authorName: dto.authorName?.trim() || user.name.replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim(),
-          authorAvatar: dto.authorAvatar !== undefined ? dto.authorAvatar : (user.avatar || ''),
+          authorAvatar: resolvedAuthorAvatar || dto.authorAvatar || user.avatar || '',
           featuredImage: dto.featuredImage?.trim() || '/uploads/blogs/default-blog-cover.webp',
           featuredImageAlt: dto.featuredImageAlt || '',
           status: initialStatus,
@@ -554,7 +584,16 @@ export class BlogsService {
         blogUpdateData.authorName = dto.authorName.trim();
       }
       if (dto.authorAvatar !== undefined) {
-        blogUpdateData.authorAvatar = dto.authorAvatar;
+        let resolvedAvatar = dto.authorAvatar?.trim();
+        const isPlaceholder = !resolvedAvatar || resolvedAvatar.includes('avatar-1.webp') || resolvedAvatar.includes('avatar-default.webp');
+        if (isPlaceholder) {
+          const targetAuthorId = dto.authorId || existing.authorId || user.id;
+          const authorUser = await tx.user.findUnique({ where: { id: targetAuthorId }, select: { avatar: true } });
+          if (authorUser?.avatar && !authorUser.avatar.includes('avatar-1.webp') && !authorUser.avatar.includes('avatar-default.webp')) {
+            resolvedAvatar = authorUser.avatar;
+          }
+        }
+        blogUpdateData.authorAvatar = resolvedAvatar;
       }
       if (dto.websiteId) {
         blogUpdateData.websiteId = dto.websiteId;

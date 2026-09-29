@@ -341,9 +341,15 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   const [authorName, setAuthorName] = useState<string>(
     existingBlog?.authorName?.replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim() || cleanCurrentName
   );
-  const [authorAvatar, setAuthorAvatar] = useState<string>(
-    existingBlog?.authorAvatar || currentUser?.avatar || '/uploads/avatars/avatar-default.webp'
-  );
+  const [authorAvatar, setAuthorAvatar] = useState<string>(() => {
+    const raw = existingBlog?.authorAvatar;
+    const isPlaceholder = !raw || raw.includes('avatar-1.webp') || raw.includes('avatar-default.webp');
+    if (!isPlaceholder) return raw;
+    if (currentUser?.avatar && (!existingBlog?.authorId || existingBlog?.authorId === currentUser?.id || existingBlog?.authorName?.includes('Sachin'))) {
+      return currentUser.avatar;
+    }
+    return raw || currentUser?.avatar || '/uploads/avatars/avatar-default.webp';
+  });
 
   useEffect(() => {
     if (fetchMedia) fetchMedia(selectedWebsiteId);
@@ -755,7 +761,14 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           setAuthorName(fullBlog.authorName.replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim());
         }
         if (fullBlog.authorAvatar) {
-          setAuthorAvatar(fullBlog.authorAvatar);
+          const isPlaceholder = fullBlog.authorAvatar.includes('avatar-1.webp') || fullBlog.authorAvatar.includes('avatar-default.webp');
+          if (!isPlaceholder) {
+            setAuthorAvatar(fullBlog.authorAvatar);
+          } else if (currentUser?.avatar && (fullBlog.authorId === currentUser.id || fullBlog.authorName?.includes('Sachin'))) {
+            setAuthorAvatar(currentUser.avatar);
+          } else {
+            setAuthorAvatar(fullBlog.authorAvatar);
+          }
         }
       })
       .catch((err) => {
@@ -1263,12 +1276,20 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       }
     }
 
+    const isPlaceholderAvatar = !authorAvatar || authorAvatar.includes('avatar-1.webp') || authorAvatar.includes('avatar-default.webp');
+    let effectiveAuthorAvatar = authorAvatar;
+    if (isPlaceholderAvatar) {
+      if (currentUser?.avatar && (selectedAuthorId === currentUser.id || authorName.includes('Sachin'))) {
+        effectiveAuthorAvatar = currentUser.avatar;
+      }
+    }
+
     const newBlog: Blog = {
       id,
       websiteId: targetSiteId,
       authorId: authorMode === 'user' ? selectedAuthorId : 'usr-custom',
       authorName: authorName.trim() || cleanCurrentName,
-      authorAvatar: authorAvatar || '/uploads/avatars/avatar-default.webp',
+      authorAvatar: effectiveAuthorAvatar || '/uploads/avatars/avatar-default.webp',
       featuredImage,
       featuredImageAlt,
       status,
@@ -3184,7 +3205,15 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
                   <div className="flex items-center gap-2.5">
                     <img
-                      src={authorAvatar || '/uploads/avatars/avatar-default.webp'}
+                      src={
+                        resolveMediaUrl(
+                          (authorAvatar && !authorAvatar.includes('avatar-1.webp') && !authorAvatar.includes('avatar-default.webp'))
+                            ? authorAvatar
+                            : (currentUser?.avatar && (selectedAuthorId === currentUser.id || authorName.includes('Sachin'))
+                                ? currentUser.avatar
+                                : (authorAvatar || '/uploads/avatars/avatar-default.webp'))
+                        )
+                      }
                       alt="Author"
                       className="w-9 h-9 rounded-full object-cover border border-slate-200 dark:border-slate-700"
                     />
