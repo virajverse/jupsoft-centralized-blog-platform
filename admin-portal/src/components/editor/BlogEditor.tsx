@@ -66,7 +66,10 @@ import {
   UploadCloud,
   FileText,
   Languages,
-  UserCheck
+  UserCheck,
+  User,
+  Upload,
+  Trash2
 } from 'lucide-react';
 import { LanguageCode, BlogStatus, Blog, BlogTranslation, BlogSEO, MediaItem } from '../../types';
 import { createEmptySEO } from '../../data/initialData';
@@ -234,15 +237,17 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   const currentLang = validLang;
   const activeInspectorTab = validTab;
   const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
-  const [mediaPickerTarget, setMediaPickerTarget] = useState<'editor' | 'cover'>('editor');
+  const [mediaPickerTarget, setMediaPickerTarget] = useState<'editor' | 'cover' | 'avatar'>('editor');
   const [mediaModalTab, setMediaModalTab] = useState<'upload' | 'library' | 'url'>('upload');
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingAuthorAvatar, setUploadingAuthorAvatar] = useState(false);
   const [mediaSearchQuery, setMediaSearchQuery] = useState('');
   const [isDraggingMedia, setIsDraggingMedia] = useState(false);
   const [customImageUrl, setCustomImageUrl] = useState('');
   const [customImageAlt, setCustomImageAlt] = useState('');
   const [copiedSchema, setCopiedSchema] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const authorAvatarFileInputRef = useRef<HTMLInputElement>(null);
 
   // Premium Link Manager State
   const [linkModalOpen, setLinkModalOpen] = useState(false);
@@ -404,6 +409,14 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
   const effectiveAuthorAvatar = useMemo(() => {
     const isSachin = effectiveAuthorName.toLowerCase().includes('sachin');
+
+    // 1. Explicit authorAvatar set on blog (via direct upload or media library) takes priority
+    if (authorAvatar && (!authorAvatar.includes('usr-superadmin') || isSachin)) {
+      const isPlaceholder = authorAvatar.includes('avatar-1.webp') || authorAvatar.includes('avatar-default.webp');
+      if (!isPlaceholder) return authorAvatar;
+    }
+
+    // 2. In team user mode, fall back to the selected user's profile avatar
     if (authorMode === 'user') {
       const matched = users.find((u) => u.id === selectedAuthorId) || (currentUser?.id === selectedAuthorId ? currentUser : null);
       if (matched?.avatar && !matched.avatar.includes('avatar-1.webp') && !matched.avatar.includes('avatar-default.webp')) {
@@ -418,12 +431,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       }
       return '';
     }
-    // Custom mode
-    if (authorAvatar && authorAvatar.includes('usr-superadmin') && !isSachin) {
-      return '';
-    }
-    const isPlaceholder = !authorAvatar || authorAvatar.includes('avatar-1.webp') || authorAvatar.includes('avatar-default.webp');
-    if (!isPlaceholder) return authorAvatar;
+
     return '';
   }, [authorMode, selectedAuthorId, users, currentUser, cleanCurrentName, authorAvatar, effectiveAuthorName]);
 
@@ -574,7 +582,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   });
 
   // Open Media Picker with live server refresh & smart tab defaulting
-  const handleOpenMediaPicker = (target: 'editor' | 'cover') => {
+  const handleOpenMediaPicker = (target: 'editor' | 'cover' | 'avatar') => {
     setMediaPickerTarget(target);
     if (fetchMedia) {
       fetchMedia(selectedWebsiteId);
@@ -1223,15 +1231,23 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     setTimeout(() => setCopiedSchema(false), 2000);
   };
 
-  // Unified handler to apply selected image (cover or editor body)
-  const handleApplySelectedMedia = (item: { cdnUrl: string; altText?: string }) => {
+  // Unified handler to apply selected image (cover, avatar, or editor body)
+  const handleApplySelectedMedia = (
+    item: { cdnUrl: string; altText?: string },
+    targetOverride?: 'editor' | 'cover' | 'avatar'
+  ) => {
+    const target = targetOverride || mediaPickerTarget;
     const finalUrl = resolveMediaUrl(item.cdnUrl);
     const alt = item.altText || activeTrans.title || 'Blog image';
 
-    if (mediaPickerTarget === 'cover') {
+    if (target === 'cover') {
       setFeaturedImage(item.cdnUrl);
       setFeaturedImageAlt(alt);
       showNotification('Featured cover image updated.', 'success');
+    } else if (target === 'avatar') {
+      setAuthorAvatar(item.cdnUrl);
+      setHasUnsavedChanges(true);
+      showNotification('Author photo / avatar updated.', 'success');
     } else {
       if (editor) {
         editor.chain().focus().setImage({ src: finalUrl, alt, title: alt }).run();
@@ -1242,7 +1258,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   };
 
   // Upload image file with automated WebP conversion
-  const handleUploadWebpImage = async (file: File) => {
+  const handleUploadWebpImage = async (file: File, targetOverride?: 'editor' | 'cover' | 'avatar') => {
     if (!file) return;
 
     // Guard: Reject files > 10MB before attempting any upload (server or canvas)
@@ -1275,7 +1291,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           createdAt: new Date().toISOString(),
         };
         addMediaItem(newItem);
-        handleApplySelectedMedia(newItem);
+        handleApplySelectedMedia(newItem, targetOverride);
         setUploadingImage(false);
         return;
       }
@@ -1317,7 +1333,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           };
 
           addMediaItem(newItem);
-          handleApplySelectedMedia(newItem);
+          handleApplySelectedMedia(newItem, targetOverride);
         }
         setUploadingImage(false);
       };
@@ -1429,7 +1445,13 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
     const isSachin = finalAuthorName.toLowerCase().includes('sachin');
     let finalAuthorAvatar = '';
-    if (isTeamMode && selectedTeamUser) {
+    // Priority 1: explicitly set blog authorAvatar (via upload or media library)
+    if (authorAvatar && !authorAvatar.includes('avatar-1.webp') && !authorAvatar.includes('avatar-default.webp')) {
+      if (!authorAvatar.includes('usr-superadmin') || isSachin) {
+        finalAuthorAvatar = authorAvatar;
+      }
+    } else if (isTeamMode && selectedTeamUser) {
+      // Priority 2: team member's profile avatar
       if (selectedTeamUser.avatar && !selectedTeamUser.avatar.includes('avatar-1.webp') && !selectedTeamUser.avatar.includes('avatar-default.webp')) {
         const isSelectedSachin = (selectedTeamUser.name || '').toLowerCase().includes('sachin');
         if (!selectedTeamUser.avatar.includes('usr-superadmin') || isSelectedSachin) {
@@ -1437,13 +1459,6 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         }
       } else if (isSachin && currentUser?.avatar) {
         finalAuthorAvatar = currentUser.avatar;
-      }
-    } else {
-      // Custom mode
-      if (authorAvatar && !authorAvatar.includes('avatar-1.webp') && !authorAvatar.includes('avatar-default.webp')) {
-        if (!authorAvatar.includes('usr-superadmin') || isSachin) {
-          finalAuthorAvatar = authorAvatar;
-        }
       }
     }
 
@@ -2789,6 +2804,102 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                       </p>
                     </div>
                   )}
+
+                  {/* Author Avatar Upload & Media Selector */}
+                  <div className="pt-2 border-t border-dashed border-slate-200 dark:border-slate-800/80 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                        Author Photo / Avatar
+                      </span>
+                      {effectiveAuthorAvatar ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAuthorAvatar('');
+                            setHasUnsavedChanges(true);
+                            showNotification('Author avatar removed.', 'info');
+                          }}
+                          className="text-[10px] text-red-500 hover:text-red-600 dark:hover:text-red-400 flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                          <Trash2 className="w-2.5 h-2.5" /> Remove
+                        </button>
+                      ) : null}
+                    </div>
+
+                    <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      {/* Avatar preview */}
+                      <div className="relative shrink-0">
+                        {effectiveAuthorAvatar ? (
+                          <img
+                            src={resolveMediaUrl(effectiveAuthorAvatar)}
+                            alt={effectiveAuthorName}
+                            className="w-10 h-10 rounded-full object-cover border-2 border-white dark:border-slate-800 shadow-xs ring-1 ring-slate-200 dark:ring-slate-700"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-slate-200/70 dark:bg-slate-800 border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-400">
+                            <User className="w-4 h-4" />
+                          </div>
+                        )}
+                        {uploadingAuthorAvatar && (
+                          <div className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center">
+                            <RefreshCw className="w-3.5 h-3.5 text-white animate-spin" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                        {/* Hidden file input */}
+                        <input
+                          ref={authorAvatarFileInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setUploadingAuthorAvatar(true);
+                              try {
+                                await handleUploadWebpImage(file, 'avatar');
+                              } finally {
+                                setUploadingAuthorAvatar(false);
+                                if (authorAvatarFileInputRef.current) {
+                                  authorAvatarFileInputRef.current.value = '';
+                                }
+                              }
+                            }
+                          }}
+                        />
+
+                        {/* Upload Button */}
+                        <button
+                          type="button"
+                          disabled={uploadingAuthorAvatar}
+                          onClick={() => authorAvatarFileInputRef.current?.click()}
+                          className="flex-1 px-2 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 text-slate-700 dark:text-slate-300 text-[11px] font-medium flex items-center justify-center gap-1 shadow-2xs transition-all cursor-pointer"
+                        >
+                          <Upload className="w-3 h-3 text-blue-500" />
+                          <span>{uploadingAuthorAvatar ? 'Uploading...' : 'Upload'}</span>
+                        </button>
+
+                        {/* Select from Media Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenMediaPicker('avatar')}
+                          className="flex-1 px-2 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-[11px] font-medium flex items-center justify-center gap-1 shadow-2xs transition-all cursor-pointer"
+                        >
+                          <ImageIcon className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                          <span>From Media</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
+                      {effectiveAuthorAvatar 
+                        ? 'Custom author photo active. Displays on byline card.' 
+                        : 'Upload photo or choose from Media library (auto-converted to WebP).'}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Categories */}
@@ -3026,7 +3137,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-900/60 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                  {mediaPickerTarget === 'cover' ? (
+                  {mediaPickerTarget === 'avatar' ? (
+                    <UserCheck className="w-5 h-5" />
+                  ) : mediaPickerTarget === 'cover' ? (
                     <ImageIcon className="w-5 h-5" />
                   ) : (
                     <UploadCloud className="w-5 h-5" />
@@ -3034,7 +3147,11 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    {mediaPickerTarget === 'cover' ? 'Set Featured Cover Image' : 'Insert Article Image'}
+                    {mediaPickerTarget === 'cover'
+                      ? 'Set Featured Cover Image'
+                      : mediaPickerTarget === 'avatar'
+                      ? 'Set Author Photo / Avatar'
+                      : 'Insert Article Image'}
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300">
                       Auto-WebP
                     </span>
@@ -3378,7 +3495,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                       disabled={!customImageUrl.trim()}
                       className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
                     >
-                      {mediaPickerTarget === 'cover' ? 'Set as Cover Image' : 'Insert into Article'}
+                      {mediaPickerTarget === 'cover' ? 'Set as Cover Image' : mediaPickerTarget === 'avatar' ? 'Set as Author Avatar' : 'Insert into Article'}
                     </button>
                   </div>
                 </div>
@@ -3465,11 +3582,17 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 {/* Author Card & Meta */}
                 <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
                   <div className="flex items-center gap-2.5">
-                    <img
-                      src={resolveMediaUrl(effectiveAuthorAvatar)}
-                      alt="Author"
-                      className="w-9 h-9 rounded-full object-cover border border-slate-200 dark:border-slate-700"
-                    />
+                    {effectiveAuthorAvatar ? (
+                      <img
+                        src={resolveMediaUrl(effectiveAuthorAvatar)}
+                        alt="Author"
+                        className="w-9 h-9 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-950/60 border border-slate-200 dark:border-slate-700 flex items-center justify-center font-bold text-blue-600 dark:text-blue-400 text-xs shrink-0">
+                        {(effectiveAuthorName || 'A').charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     <div>
                       <div className="font-semibold text-slate-900 dark:text-white">
                         {effectiveAuthorName || 'Staff Writer'}
@@ -3542,11 +3665,17 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
               {/* About the Author Card */}
               <div className="pt-8 border-t border-slate-100 dark:border-slate-800">
                 <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-start gap-4">
-                  <img
-                    src={resolveMediaUrl(effectiveAuthorAvatar)}
-                    alt={effectiveAuthorName || 'Author'}
-                    className="w-14 h-14 rounded-2xl object-cover border-2 border-white dark:border-slate-800 shadow-sm shrink-0"
-                  />
+                  {effectiveAuthorAvatar ? (
+                    <img
+                      src={resolveMediaUrl(effectiveAuthorAvatar)}
+                      alt={effectiveAuthorName || 'Author'}
+                      className="w-14 h-14 rounded-2xl object-cover border-2 border-white dark:border-slate-800 shadow-sm shrink-0"
+                    />
+                  ) : (
+                    <div className="w-14 h-14 rounded-2xl bg-blue-100 dark:bg-blue-950/60 border-2 border-white dark:border-slate-800 shadow-sm shrink-0 flex items-center justify-center font-bold text-blue-600 dark:text-blue-400 text-lg">
+                      {(effectiveAuthorName || 'A').charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   <div className="space-y-2 flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div>
