@@ -328,6 +328,21 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   const [selectedCategories, setSelectedCategories] = useState<string[]>(existingBlog?.categoryIds || []);
   const [selectedTags, setSelectedTags] = useState<string[]>(existingBlog?.tagIds || []);
   const [scheduledAt, setScheduledAt] = useState(existingBlog?.scheduledAt || '');
+  const [publishDate, setPublishDate] = useState<string>(existingBlog?.publishDate || '');
+
+  const formattedPublishDate = useMemo(() => {
+    if (!publishDate) return { inputVal: '', displayVal: '' };
+    try {
+      const d = new Date(publishDate);
+      if (isNaN(d.getTime())) return { inputVal: '', displayVal: '' };
+      return {
+        inputVal: d.toISOString().slice(0, 10),
+        displayVal: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      };
+    } catch {
+      return { inputVal: '', displayVal: '' };
+    }
+  }, [publishDate]);
 
   // Author & Byline state
   const cleanCurrentName = (currentUser?.name || 'Aarav Sharma').replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim();
@@ -1315,7 +1330,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       featuredImage,
       featuredImageAlt,
       status,
-      publishDate: status === 'Published' && !baseBlog?.publishDate ? new Date().toISOString() : baseBlog?.publishDate,
+      publishDate: publishDate || (status === 'Published' && !baseBlog?.publishDate ? new Date().toISOString() : baseBlog?.publishDate),
       scheduledAt: scheduledAt || undefined,
       publishedBy: status === 'Published' ? (currentUser?.name || `User (${activeRole})`) : baseBlog?.publishedBy,
       viewCount: baseBlog?.viewCount || 0,
@@ -1467,6 +1482,33 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 onChange={(e) => setScheduledAt(e.target.value ? new Date(e.target.value).toISOString() : '')}
                 className="bg-transparent text-[10px] font-mono focus:outline-none max-w-[125px]"
                 title="Scheduled publication timestamp"
+              />
+            </div>
+          )}
+
+          {(status === 'Published' || publishDate) && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-300" title="Publication / Backdate Date">
+              <Calendar className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <input
+                type="date"
+                value={formattedPublishDate.inputVal}
+                onClick={(e) => {
+                  try {
+                    (e.target as HTMLInputElement).showPicker?.();
+                  } catch {}
+                }}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val) {
+                    const [y, m, d] = val.split('-').map(Number);
+                    const dateObj = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+                    setPublishDate(dateObj.toISOString());
+                  } else {
+                    setPublishDate('');
+                  }
+                  e.target.blur();
+                }}
+                className="bg-transparent text-[10px] font-mono font-medium focus:outline-none max-w-[105px] cursor-pointer"
               />
             </div>
           )}
@@ -2670,6 +2712,52 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     onChange={(e) => setScheduledAt(e.target.value ? new Date(e.target.value).toISOString() : '')}
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-400"
                   />
+                </div>
+
+                {/* Publication Date / Historical Backdate Picker */}
+                <div className="space-y-1 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                      <Calendar className="w-3 h-3 text-slate-400" /> Publication Date / Backdate
+                    </label>
+                    {publishDate && (
+                      <button
+                        type="button"
+                        onClick={() => setPublishDate('')}
+                        className="text-[10px] text-blue-500 hover:underline font-normal normal-case cursor-pointer"
+                      >
+                        Reset to Auto
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="date"
+                    value={formattedPublishDate.inputVal}
+                    onClick={(e) => {
+                      try {
+                        (e.target as HTMLInputElement).showPicker?.();
+                      } catch {}
+                    }}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val) {
+                        const [y, m, d] = val.split('-').map(Number);
+                        const dateObj = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+                        setPublishDate(dateObj.toISOString());
+                      } else {
+                        setPublishDate('');
+                      }
+                      e.target.blur();
+                    }}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-400 cursor-pointer"
+                  />
+                  {formattedPublishDate.displayVal ? (
+                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                      ✓ Displays as: {formattedPublishDate.displayVal}
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500">Pick any date to authentically backdate this article.</p>
+                  )}
                 </div>
               </div>
             )}

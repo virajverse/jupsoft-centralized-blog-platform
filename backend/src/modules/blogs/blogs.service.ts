@@ -598,9 +598,15 @@ export class BlogsService {
       if (dto.websiteId) {
         blogUpdateData.websiteId = dto.websiteId;
       }
+      if (dto.publishDate) {
+        blogUpdateData.publishDate = new Date(dto.publishDate);
+      }
+      if (dto.scheduledAt !== undefined) {
+        blogUpdateData.scheduledAt = dto.scheduledAt ? new Date(dto.scheduledAt) : null;
+      }
       if (dto.status) {
         blogUpdateData.status = dto.status;
-        if (dto.status === 'Published' && !existing.publishDate) {
+        if (dto.status === 'Published' && !existing.publishDate && !dto.publishDate) {
           blogUpdateData.publishDate = new Date();
           blogUpdateData.publishedBy = user.name;
         }
