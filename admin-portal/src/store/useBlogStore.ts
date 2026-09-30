@@ -582,7 +582,7 @@ export const useBlogStore = create<BlogState>()(
         try {
           let apiResult: Blog;
           // Detect if blog is existing by checking if it has a real DB ID (not a client temporary ID)
-          const isClientTempId = !savedBlog.id || savedBlog.id.startsWith('new-') || savedBlog.id.startsWith('draft-') || savedBlog.id.startsWith('blog-');
+          const isClientTempId = !savedBlog.id || savedBlog.id.startsWith('new-') || savedBlog.id.startsWith('temp-') || savedBlog.id.startsWith('draft-');
           const exists = !isClientTempId || get().blogs.some((b) => b.id === savedBlog.id);
           if (exists) {
             apiResult = await apiClient.updateBlog(savedBlog.id, savedBlog as unknown as BlogPayloadInput);
@@ -596,7 +596,8 @@ export const useBlogStore = create<BlogState>()(
             translations: savedBlog.translations || apiResult?.translations,
           };
           set((state) => {
-            const newBlogs = exists
+            const alreadyInList = state.blogs.some((b) => b.id === savedBlog.id || b.id === finalBlog.id);
+            const newBlogs = alreadyInList
               ? state.blogs.map((b) => (b.id === savedBlog.id || b.id === finalBlog.id ? finalBlog : b))
               : [finalBlog, ...state.blogs.filter((b) => b.id !== savedBlog.id && b.id !== finalBlog.id)];
             const auditLog: SystemAuditLog = {

@@ -69,15 +69,33 @@ export class PublicV1Service {
   }
 
   resolveAuthorAvatar(b: any): string {
-    const raw = b?.authorAvatar;
+    const effectiveName = (b?.authorName || b?.author?.name || '').trim();
+    const isSachin = effectiveName.toLowerCase().includes('sachin');
+
+    let raw = (b?.authorAvatar || '').trim();
+    // Superadmin's avatar must NEVER leak to any non-Sachin author or organizational desk
+    if (raw.includes('usr-superadmin') && !isSachin) {
+      raw = '';
+    }
+
     const isPlaceholder = !raw || raw.includes('avatar-1.webp') || raw.includes('avatar-default.webp');
     if (!isPlaceholder) {
       return this.normalizeMediaUrl(raw);
     }
+
     if (b?.author?.avatar && !b.author.avatar.includes('avatar-1.webp') && !b.author.avatar.includes('avatar-default.webp')) {
-      return this.normalizeMediaUrl(b.author.avatar);
+      const authorAvatar = (b.author.avatar || '').trim();
+      const isAuthorSachin = b.author.id === 'usr-superadmin' || (b.author.name || '').toLowerCase().includes('sachin');
+      if (authorAvatar.includes('usr-superadmin') && !isSachin) {
+        return '';
+      }
+      if (isAuthorSachin && !isSachin) {
+        return '';
+      }
+      return this.normalizeMediaUrl(authorAvatar);
     }
-    return raw ? this.normalizeMediaUrl(raw) : (b?.author?.avatar ? this.normalizeMediaUrl(b.author.avatar) : '');
+
+    return '';
   }
 
   // ─── TRD §13: key format blogs:{website}:{page}:{lang}[:{category}][:{tag}]

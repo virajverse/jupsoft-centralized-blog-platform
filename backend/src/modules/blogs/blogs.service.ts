@@ -117,12 +117,24 @@ export class BlogsService {
 
     // Format response matching frontend Blog interface
     const formatted = blogs.map((b: any) => {
-      const isPlaceholder = !b.authorAvatar || b.authorAvatar.includes('avatar-1.webp') || b.authorAvatar.includes('avatar-default.webp');
-      const resolvedAvatar = !isPlaceholder
-        ? b.authorAvatar
-        : (b.author?.avatar && !b.author.avatar.includes('avatar-1.webp') && !b.author.avatar.includes('avatar-default.webp')
-            ? b.author.avatar
-            : (b.authorAvatar || b.author?.avatar || ''));
+      const isSachin = (b.authorName || '').toLowerCase().includes('sachin');
+      let resolvedAvatar = b.authorAvatar || '';
+      if (resolvedAvatar.includes('usr-superadmin') && !isSachin) {
+        resolvedAvatar = '';
+      }
+      const isPlaceholder = !resolvedAvatar || resolvedAvatar.includes('avatar-1.webp') || resolvedAvatar.includes('avatar-default.webp');
+      if (isPlaceholder) {
+        if (b.author?.avatar && !b.author.avatar.includes('avatar-1.webp') && !b.author.avatar.includes('avatar-default.webp')) {
+          const isAuthorSachin = b.author.id === 'usr-superadmin' || (b.author.name || '').toLowerCase().includes('sachin');
+          if (!isAuthorSachin || isSachin) {
+            resolvedAvatar = b.author.avatar;
+          } else {
+            resolvedAvatar = '';
+          }
+        } else {
+          resolvedAvatar = '';
+        }
+      }
       return {
         id: b.id,
         websiteId: b.websiteId,
@@ -244,12 +256,24 @@ export class BlogsService {
       this.assertBlogOwnership({ id, websiteId: blog.websiteId }, caller);
     }
 
-    const isPlaceholder = !blog.authorAvatar || blog.authorAvatar.includes('avatar-1.webp') || blog.authorAvatar.includes('avatar-default.webp');
-    const resolvedAvatar = !isPlaceholder
-      ? blog.authorAvatar
-      : ((blog as any).author?.avatar && !(blog as any).author.avatar.includes('avatar-1.webp') && !(blog as any).author.avatar.includes('avatar-default.webp')
-          ? (blog as any).author.avatar
-          : (blog.authorAvatar || (blog as any).author?.avatar || ''));
+    const isSachin = (blog.authorName || '').toLowerCase().includes('sachin');
+    let resolvedAvatar = blog.authorAvatar || '';
+    if (resolvedAvatar.includes('usr-superadmin') && !isSachin) {
+      resolvedAvatar = '';
+    }
+    const isPlaceholder = !resolvedAvatar || resolvedAvatar.includes('avatar-1.webp') || resolvedAvatar.includes('avatar-default.webp');
+    if (isPlaceholder) {
+      if ((blog as any).author?.avatar && !(blog as any).author.avatar.includes('avatar-1.webp') && !(blog as any).author.avatar.includes('avatar-default.webp')) {
+        const isAuthorSachin = (blog as any).author.id === 'usr-superadmin' || ((blog as any).author.name || '').toLowerCase().includes('sachin');
+        if (!isAuthorSachin || isSachin) {
+          resolvedAvatar = (blog as any).author.avatar;
+        } else {
+          resolvedAvatar = '';
+        }
+      } else {
+        resolvedAvatar = '';
+      }
+    }
 
     const result = {
       id: blog.id,
@@ -355,16 +379,30 @@ export class BlogsService {
     }
 
     const blog = await this.prisma.$transaction(async (tx) => {
-      let resolvedAuthorAvatar = dto.authorAvatar?.trim();
+      const effectiveAuthorName = dto.authorName?.trim() || user.name.replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim();
+      const isSachin = effectiveAuthorName.toLowerCase().includes('sachin');
+      let resolvedAuthorAvatar = dto.authorAvatar?.trim() || '';
+      if (resolvedAuthorAvatar.includes('usr-superadmin') && !isSachin) {
+        resolvedAuthorAvatar = '';
+      }
       const isPlaceholderAvatar = !resolvedAuthorAvatar || resolvedAuthorAvatar.includes('avatar-1.webp') || resolvedAuthorAvatar.includes('avatar-default.webp');
       if (isPlaceholderAvatar) {
-        if (user.avatar && !user.avatar.includes('avatar-1.webp') && !user.avatar.includes('avatar-default.webp')) {
-          resolvedAuthorAvatar = user.avatar;
-        } else if (dto.authorId && dto.authorId !== user.id) {
-          const authorUser = await tx.user.findUnique({ where: { id: dto.authorId }, select: { avatar: true } });
+        if (dto.authorId && dto.authorId !== user.id && dto.authorId !== 'usr-custom') {
+          const authorUser = await tx.user.findUnique({ where: { id: dto.authorId }, select: { avatar: true, name: true } });
           if (authorUser?.avatar && !authorUser.avatar.includes('avatar-1.webp') && !authorUser.avatar.includes('avatar-default.webp')) {
-            resolvedAuthorAvatar = authorUser.avatar;
+            const isUserSachin = (authorUser.name || '').toLowerCase().includes('sachin');
+            if (!authorUser.avatar.includes('usr-superadmin') || isUserSachin) {
+              resolvedAuthorAvatar = authorUser.avatar;
+            } else {
+              resolvedAuthorAvatar = '';
+            }
+          } else {
+            resolvedAuthorAvatar = '';
           }
+        } else if (isSachin && dto.authorId === user.id && user.avatar && !user.avatar.includes('avatar-1.webp') && !user.avatar.includes('avatar-default.webp')) {
+          resolvedAuthorAvatar = user.avatar;
+        } else {
+          resolvedAuthorAvatar = '';
         }
       }
 
@@ -373,7 +411,7 @@ export class BlogsService {
           websiteId: dto.websiteId,
           authorId: dto.authorId || user.id,
           authorName: dto.authorName?.trim() || user.name.replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim(),
-          authorAvatar: resolvedAuthorAvatar || dto.authorAvatar || user.avatar || '',
+          authorAvatar: resolvedAuthorAvatar || '',
           featuredImage: dto.featuredImage?.trim() || '/uploads/blogs/default-blog-cover.webp',
           featuredImageAlt: dto.featuredImageAlt || '',
           status: initialStatus,
@@ -584,13 +622,29 @@ export class BlogsService {
         blogUpdateData.authorName = dto.authorName.trim();
       }
       if (dto.authorAvatar !== undefined) {
-        let resolvedAvatar = dto.authorAvatar?.trim();
+        const effectiveAuthorName = (dto.authorName !== undefined ? dto.authorName : (existing.authorName || '')).trim();
+        const isSachin = effectiveAuthorName.toLowerCase().includes('sachin');
+        let resolvedAvatar = dto.authorAvatar?.trim() || '';
+        if (resolvedAvatar.includes('usr-superadmin') && !isSachin) {
+          resolvedAvatar = '';
+        }
         const isPlaceholder = !resolvedAvatar || resolvedAvatar.includes('avatar-1.webp') || resolvedAvatar.includes('avatar-default.webp');
         if (isPlaceholder) {
-          const targetAuthorId = dto.authorId || existing.authorId || user.id;
-          const authorUser = await tx.user.findUnique({ where: { id: targetAuthorId }, select: { avatar: true } });
-          if (authorUser?.avatar && !authorUser.avatar.includes('avatar-1.webp') && !authorUser.avatar.includes('avatar-default.webp')) {
-            resolvedAvatar = authorUser.avatar;
+          const targetAuthorId = dto.authorId || existing.authorId;
+          if (targetAuthorId && targetAuthorId !== 'usr-custom') {
+            const authorUser = await tx.user.findUnique({ where: { id: targetAuthorId }, select: { avatar: true, name: true } });
+            if (authorUser?.avatar && !authorUser.avatar.includes('avatar-1.webp') && !authorUser.avatar.includes('avatar-default.webp')) {
+              const isUserSachin = (authorUser.name || '').toLowerCase().includes('sachin');
+              if (!authorUser.avatar.includes('usr-superadmin') || isUserSachin) {
+                resolvedAvatar = authorUser.avatar;
+              } else {
+                resolvedAvatar = '';
+              }
+            } else {
+              resolvedAvatar = '';
+            }
+          } else {
+            resolvedAvatar = '';
           }
         }
         blogUpdateData.authorAvatar = resolvedAvatar;
