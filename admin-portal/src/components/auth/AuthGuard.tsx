@@ -37,7 +37,8 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
     const token = cookieToken || lsToken;
 
     if (token && !cookieToken && !token.startsWith('offline_token_')) {
-      document.cookie = `jupsoft_auth_token=${token}; path=/; max-age=604800; SameSite=Lax`;
+      const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+      document.cookie = `jupsoft_auth_token=${token}; path=/; max-age=604800; SameSite=Lax${isHttps ? '; Secure' : ''}`;
     }
     return token;
   };

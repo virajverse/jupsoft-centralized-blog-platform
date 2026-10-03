@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisProvider } from '../../common/providers/redis.provider';
 import { CreateWebsiteDto, UpdateWebsiteDto } from './dto/create-website.dto';
@@ -6,11 +6,16 @@ import { clearTenantCache } from '../../common/guards/api-key.guard';
 import * as crypto from 'crypto';
 
 @Injectable()
-export class WebsitesService {
+export class WebsitesService implements OnModuleInit {
   constructor(
     private prisma: PrismaService,
     private redis: RedisProvider,
   ) {}
+
+  async onModuleInit() {
+    // Pre-warm websites cache on boot so first request/login is instant (< 0.1ms)
+    this.findAll().catch(() => {});
+  }
 
   private canUserViewApiKey(user: any, websiteId?: string): boolean {
     if (!user) return false;

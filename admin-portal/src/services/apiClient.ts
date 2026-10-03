@@ -100,12 +100,14 @@ function setCookie(name: string, value: string, days = 7) {
   if (typeof document === 'undefined') return;
   const maxAge = days * 86400;
   const expires = new Date(Date.now() + days * 864e5).toUTCString();
-  document.cookie = `${name}=${value}; max-age=${maxAge}; expires=${expires}; path=/; SameSite=Lax`;
+  const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  document.cookie = `${name}=${value}; max-age=${maxAge}; expires=${expires}; path=/; SameSite=Lax${isHttps ? '; Secure' : ''}`;
 }
 
 function deleteCookie(name: string) {
   if (typeof document === 'undefined') return;
-  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0; path=/; SameSite=Lax`;
+  const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0; path=/; SameSite=Lax${isHttps ? '; Secure' : ''}`;
 }
 
 class ApiClient {
@@ -177,6 +179,7 @@ class ApiClient {
     try {
       const res = await fetch(`${getApiBase()}/admin/auth/refresh`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken: rt }),
       });
@@ -206,7 +209,11 @@ class ApiClient {
       headers.set('Authorization', `Bearer ${token}`);
     }
 
-    const response = await fetch(`${getApiBase()}${endpoint}`, { ...options, headers });
+    const response = await fetch(`${getApiBase()}${endpoint}`, {
+      credentials: 'include',
+      ...options,
+      headers,
+    });
 
     if (response.status === 204) return undefined as unknown as T;
 
@@ -277,7 +284,11 @@ class ApiClient {
 
       // Retry the original request with new token
       headers.set('Authorization', `Bearer ${newToken}`);
-      const retryResponse = await fetch(`${getApiBase()}${endpoint}`, { ...options, headers });
+      const retryResponse = await fetch(`${getApiBase()}${endpoint}`, {
+        credentials: 'include',
+        ...options,
+        headers,
+      });
       if (retryResponse.status === 204) return undefined as unknown as T;
       if (!retryResponse.ok) {
         const errorBody = await retryResponse.json().catch(() => ({}));
@@ -303,7 +314,12 @@ class ApiClient {
   // ─── Auth (TRD §4) ────────────────────────────────────────────────────────
 
   async login(email: string, password: string) {
-    const data = await this.request<{ accessToken: string; refreshToken: string; user: UserAccount }>(
+    const data = await this.request<{
+      accessToken: string;
+      refreshToken: string;
+      user: UserAccount;
+      websites?: Website[];
+    }>(
       '/admin/auth/login',
       { method: 'POST', body: JSON.stringify({ email, password }) },
     );
@@ -314,7 +330,12 @@ class ApiClient {
   }
 
   async googleLogin(credential: string) {
-    const data = await this.request<{ accessToken: string; refreshToken: string; user: UserAccount }>(
+    const data = await this.request<{
+      accessToken: string;
+      refreshToken: string;
+      user: UserAccount;
+      websites?: Website[];
+    }>(
       '/admin/auth/google',
       { method: 'POST', body: JSON.stringify({ credential }) },
     );

@@ -54,7 +54,8 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, ipAddress: string) {
-    const user = await this.prisma.user.findUnique({
+    // 1. Parallel fetch: User record + In-memory / L2 cached websites prefetch
+    const userPromise = this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase() },
       include: {
         roleAssignments: {
@@ -62,6 +63,28 @@ export class AuthService {
         },
       },
     });
+
+    const websitesPromise = (async () => {
+      try {
+        const cached = await this.redis.get<any[]>('admin:websites:all');
+        if (cached && Array.isArray(cached) && cached.length > 0) return cached;
+        if (this.prisma.website?.findMany) {
+          const sites = await this.prisma.website.findMany({
+            orderBy: { createdAt: 'asc' },
+            include: {
+              _count: {
+                select: { blogs: true, categories: true, tags: true },
+              },
+            },
+          });
+          await this.redis.set('admin:websites:all', sites, 300);
+          return sites;
+        }
+      } catch {}
+      return [];
+    })();
+
+    const [user, rawWebsites] = await Promise.all([userPromise, websitesPromise]);
 
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
@@ -104,25 +127,28 @@ export class AuthService {
       );
     }
 
-    // --- Success: reset lockout counters ---
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        lastLoginIp: ipAddress || '',
-        loginAttempts: 0,
-        lockoutUntil: null,
-      },
-    });
-
-    await this.prisma.systemAuditLog.create({
-      data: {
-        userName: user.name,
-        role: user.roleAssignments[0]?.role || 'Staff Writer',
-        websiteId: 'system',
-        event: 'user.login',
-        ipAddress: ipAddress || '',
-        details: `User ${user.name} (${user.email}) logged in from ${ipAddress || 'unknown'}.`,
-      },
+    // --- Success: Non-blocking parallel background bookkeeping (0-delay response) ---
+    Promise.all([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          lastLoginIp: ipAddress || '',
+          loginAttempts: 0,
+          lockoutUntil: null,
+        },
+      }),
+      this.prisma.systemAuditLog.create({
+        data: {
+          userName: user.name,
+          role: user.roleAssignments[0]?.role || 'Staff Writer',
+          websiteId: 'system',
+          event: 'user.login',
+          ipAddress: ipAddress || '',
+          details: `User ${user.name} (${user.email}) logged in from ${ipAddress || 'unknown'}.`,
+        },
+      }),
+    ]).catch((err) => {
+      this.logger.warn(`Post-login background update error: ${err.message}`);
     });
 
     const roles = user.roleAssignments.map((r) => r.role);
@@ -138,9 +164,20 @@ export class AuthService {
       expiresIn: this.jwtRefreshExpiration as any,
     });
 
+    // Clean websites for response (mask apiKey if not super admin)
+    const isSuperAdmin = roles.includes('Super Admin');
+    const websites = (rawWebsites || []).map((w: any) => {
+      const clone = { ...w };
+      if (!isSuperAdmin) {
+        clone.apiKey = '••••••••••••••••';
+      }
+      return clone;
+    });
+
     return {
       accessToken,
       refreshToken,
+      websites,
       user: {
         id: user.id,
         name: user.name,
@@ -270,24 +307,51 @@ export class AuthService {
       updateData.avatar = syncAvatar;
     }
 
-    const updatedUser = await this.prisma.user.update({
+    // 3. Success: Non-blocking parallel background bookkeeping (0-delay response)
+    const updatePromise = this.prisma.user.update({
       where: { id: user.id },
       data: updateData,
       include: { roleAssignments: true },
     });
 
-    await this.redis.del(`auth:user:${user.id}`);
-    await this.redis.del(`auth:profile:${user.id}`);
+    const websitesPromise = (async () => {
+      try {
+        const cached = await this.redis.get<any[]>('admin:websites:all');
+        if (cached && Array.isArray(cached) && cached.length > 0) return cached;
+        if (this.prisma.website?.findMany) {
+          const sites = await this.prisma.website.findMany({
+            orderBy: { createdAt: 'asc' },
+            include: {
+              _count: {
+                select: { blogs: true, categories: true, tags: true },
+              },
+            },
+          });
+          await this.redis.set('admin:websites:all', sites, 300);
+          return sites;
+        }
+      } catch {}
+      return [];
+    })();
 
-    await this.prisma.systemAuditLog.create({
-      data: {
-        userName: updatedUser.name,
-        role: updatedUser.roleAssignments[0]?.role || 'Staff Writer',
-        websiteId: 'system',
-        event: 'user.login.google',
-        ipAddress: ipAddress || '',
-        details: `User ${updatedUser.name} (${updatedUser.email}) signed in via Google OAuth from ${ipAddress || 'unknown'} (profile automatically synced).`,
-      },
+    const [updatedUser, rawWebsites] = await Promise.all([updatePromise, websitesPromise]);
+
+    // Background cache purge and audit log
+    Promise.all([
+      this.redis.del(`auth:user:${user.id}`),
+      this.redis.del(`auth:profile:${user.id}`),
+      this.prisma.systemAuditLog.create({
+        data: {
+          userName: updatedUser.name,
+          role: updatedUser.roleAssignments[0]?.role || 'Staff Writer',
+          websiteId: 'system',
+          event: 'user.login.google',
+          ipAddress: ipAddress || '',
+          details: `User ${updatedUser.name} (${updatedUser.email}) signed in via Google OAuth from ${ipAddress || 'unknown'} (profile automatically synced).`,
+        },
+      }),
+    ]).catch((err) => {
+      this.logger.warn(`Post-google-login background update error: ${err.message}`);
     });
 
     const roles = user.roleAssignments.map((r) => r.role);
@@ -303,9 +367,19 @@ export class AuthService {
       expiresIn: this.jwtRefreshExpiration as any,
     });
 
+    const isSuperAdmin = roles.includes('Super Admin');
+    const websites = (rawWebsites || []).map((w: any) => {
+      const clone = { ...w };
+      if (!isSuperAdmin) {
+        clone.apiKey = '••••••••••••••••';
+      }
+      return clone;
+    });
+
     return {
       accessToken,
       refreshToken,
+      websites,
       user: {
         id: updatedUser.id,
         name: updatedUser.name,

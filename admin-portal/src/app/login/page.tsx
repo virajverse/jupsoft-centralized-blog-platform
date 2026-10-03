@@ -65,6 +65,7 @@ export default function LoginPage() {
 
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
   const isRedirectingRef = useRef(false);
+  const isSubmittingRef = useRef(false);
 
   const performRedirect = (targetPath?: string) => {
     if (isRedirectingRef.current) return;
@@ -74,8 +75,17 @@ export default function LoginPage() {
     const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     const dest = targetPath || urlParams?.get('redirect') || '/dashboard';
 
-    // Hard navigation guarantees browser network stack sends jupsoft_auth_token cookie to proxy middleware
-    window.location.href = dest;
+    // Ensure jupsoft_auth_token cookie is explicitly synced in document.cookie before redirect
+    const token = useBlogStore.getState().currentUser
+      ? (apiClient.getToken() || localStorage.getItem('jupsoft_auth_token'))
+      : null;
+    if (token && typeof document !== 'undefined') {
+      const isHttps = window.location.protocol === 'https:';
+      document.cookie = `jupsoft_auth_token=${token}; path=/; max-age=604800; SameSite=Lax${isHttps ? '; Secure' : ''}`;
+    }
+
+    // Replace navigation so user cannot back-button into login form and browser sends cookie
+    window.location.replace(dest);
   };
 
   const handleGoogleCredentialResponse = async (response: { credential?: string }) => {
@@ -84,6 +94,11 @@ export default function LoginPage() {
       return;
     }
 
+    // Synchronous immediate lock against rapid clicks
+    if (isSubmittingRef.current || loading || googleLoading) {
+      return;
+    }
+    isSubmittingRef.current = true;
     setGoogleLoading(true);
     setErrorMsg(null);
 
@@ -92,10 +107,12 @@ export default function LoginPage() {
       if (res.success) {
         performRedirect();
       } else {
+        isSubmittingRef.current = false;
         setGoogleLoading(false);
         setErrorMsg(res.message || 'Google sign-in denied. Only registered accounts can access the CMS.');
       }
     } catch (err: unknown) {
+      isSubmittingRef.current = false;
       setGoogleLoading(false);
       const msg = err instanceof Error ? err.message : 'An unexpected error occurred during Google sign-in.';
       setErrorMsg(msg);
@@ -178,11 +195,18 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Synchronous immediate double-fire lock: stops 2nd POST in same tick or rapid clicks
+    if (isSubmittingRef.current || loading || googleLoading) {
+      return;
+    }
+
     if (!email.trim() || !password.trim()) {
       setErrorMsg('Please enter both email and password.');
       return;
     }
 
+    isSubmittingRef.current = true;
     setLoading(true);
     setErrorMsg(null);
 
@@ -191,10 +215,12 @@ export default function LoginPage() {
       if (res.success) {
         performRedirect();
       } else {
+        isSubmittingRef.current = false;
         setLoading(false);
         setErrorMsg(res.message || 'Authentication failed. Please check your credentials.');
       }
     } catch (err: unknown) {
+      isSubmittingRef.current = false;
       setLoading(false);
       const msg = err instanceof Error ? err.message : 'An unexpected error occurred.';
       setErrorMsg(msg);
@@ -303,11 +329,13 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Submit CTA */}
+              {/* Submit CTA — immediately disabled on click, pointer-events blocked */}
               <button
                 type="submit"
-                disabled={loading || googleLoading}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 transition-all shadow-sm cursor-pointer"
+                disabled={loading || googleLoading || isSubmittingRef.current}
+                className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 transition-all shadow-sm ${
+                  loading || googleLoading ? 'cursor-not-allowed pointer-events-none' : 'cursor-pointer'
+                }`}
               >
                 {loading ? (
                   <span>Verifying credentials...</span>

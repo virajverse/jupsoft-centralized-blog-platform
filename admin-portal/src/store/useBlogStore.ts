@@ -422,22 +422,16 @@ export const useBlogStore = create<BlogState>()(
               user.roleAssignments?.['all'] !== undefined;
             const assignedWebsites = Object.keys(user.roleAssignments || {}).filter((k) => k !== 'all');
 
-            // Immediately load live websites from backend API to guarantee multi-tenant store is fresh (guarded with 1500ms timeout)
-            let liveWebsites = get().websites;
-            try {
-              const fetchWebsitesPromise = apiClient.getWebsites();
-              const timeoutPromise = new Promise<Website[]>((_, reject) =>
-                setTimeout(() => reject(new Error('Websites pre-fetch timeout')), 1500)
-              );
-              const fetchedWebsites = await Promise.race([fetchWebsitesPromise, timeoutPromise]);
-              if (Array.isArray(fetchedWebsites) && fetchedWebsites.length > 0) {
-                const map = new Map<string, Website>();
-                fetchedWebsites.forEach((w) => map.set(w.id, w));
-                liveWebsites = Array.from(map.values());
-              }
-            } catch (wErr) {
-              console.warn('Failed or timed out pre-fetching websites during login:', wErr);
-            }
+            // 1. Immediately use prefetched websites from backend login payload (0-delay!)
+            // or existing in-memory store websites — NEVER block login with a prefetch timeout!
+            let liveWebsites = (Array.isArray((data as any).websites) && (data as any).websites.length > 0)
+              ? (data as any).websites
+              : get().websites;
+
+            // 2. Trigger fresh background sync of websites asynchronously without blocking navigation
+            setTimeout(() => {
+              get().fetchWebsites().catch(() => {});
+            }, 0);
 
             let websiteId = get().activeWebsiteId;
             if (!isSuper) {
@@ -489,21 +483,16 @@ export const useBlogStore = create<BlogState>()(
               user.roleAssignments?.['all'] !== undefined;
             const assignedWebsites = Object.keys(user.roleAssignments || {}).filter((k) => k !== 'all');
 
-            let liveWebsites = get().websites;
-            try {
-              const fetchWebsitesPromise = apiClient.getWebsites();
-              const timeoutPromise = new Promise<Website[]>((_, reject) =>
-                setTimeout(() => reject(new Error('Websites pre-fetch timeout')), 1500)
-              );
-              const fetchedWebsites = await Promise.race([fetchWebsitesPromise, timeoutPromise]);
-              if (Array.isArray(fetchedWebsites) && fetchedWebsites.length > 0) {
-                const map = new Map<string, Website>();
-                fetchedWebsites.forEach((w) => map.set(w.id, w));
-                liveWebsites = Array.from(map.values());
-              }
-            } catch (wErr) {
-              console.warn('Failed or timed out pre-fetching websites during Google login:', wErr);
-            }
+            // 1. Immediately use prefetched websites from backend login payload (0-delay!)
+            // or existing in-memory store websites — NEVER block login with a prefetch timeout!
+            let liveWebsites = (Array.isArray((data as any).websites) && (data as any).websites.length > 0)
+              ? (data as any).websites
+              : get().websites;
+
+            // 2. Trigger fresh background sync of websites asynchronously without blocking navigation
+            setTimeout(() => {
+              get().fetchWebsites().catch(() => {});
+            }, 0);
 
             let websiteId = get().activeWebsiteId;
             if (!isSuper) {
