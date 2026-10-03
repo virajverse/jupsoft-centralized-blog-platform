@@ -613,7 +613,10 @@ export class AuthService {
           CacheControl: 'public, max-age=31536000, immutable',
         }));
         const envCdn = this.configService.get<string>('CLOUDFRONT_DOMAIN');
-        avatarUrl = envCdn ? `${envCdn.replace(/\/+$/, '')}/avatars/${fileName}` : `https://${bucket}.s3.${region}.amazonaws.com/avatars/${fileName}`;
+        const s3Domain = `https://${bucket}.s3.${region}.amazonaws.com`;
+        avatarUrl = envCdn && !envCdn.includes('cdn.jupsoft.com')
+          ? `${envCdn.replace(/\/+$/, '')}/avatars/${fileName}`
+          : `${s3Domain}/avatars/${fileName}`;
         this.logger.log(`☁️ Uploaded profile avatar directly to S3: avatars/${fileName}`);
       } catch (err: any) {
         this.logger.error(`❌ S3 upload failed for avatar: ${err.message}`);

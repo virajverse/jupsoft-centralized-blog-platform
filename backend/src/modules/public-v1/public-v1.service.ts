@@ -27,16 +27,15 @@ export class PublicV1Service {
     private redis: RedisProvider,
     private configService: ConfigService,
   ) {
+    const bucket = this.configService.get<string>('AWS_S3_BUCKET') || 'blogary';
+    const region = this.configService.get<string>('AWS_REGION') || 'ap-south-1';
     const envCdn = this.configService.get<string>('CLOUDFRONT_DOMAIN');
-    const nodeEnv = this.configService.get<string>('NODE_ENV') || 'development';
-    const platformBase = this.configService.get<string>('PLATFORM_BASE_URL') || 'https://blogary.jupsoft.com';
+    const s3DirectOrigin = `https://${bucket}.s3.${region}.amazonaws.com`;
 
     if (envCdn && !envCdn.includes('cdn.jupsoft.com')) {
       this.mediaBaseUrl = envCdn.replace(/\/+$/, '');
-    } else if (nodeEnv === 'production') {
-      this.mediaBaseUrl = `${platformBase.replace(/\/+$/, '')}/uploads`;
     } else {
-      this.mediaBaseUrl = 'http://localhost:4000/uploads';
+      this.mediaBaseUrl = s3DirectOrigin;
     }
   }
 
@@ -47,16 +46,21 @@ export class PublicV1Service {
   private normalizeMediaUrl(url?: string): string {
     if (!url) return '';
     if (url.startsWith('data:') || url.startsWith('blob:')) return url;
-    if (url.includes('cdn.jupsoft.com')) {
+    if (url.startsWith(this.mediaBaseUrl) || url.includes('.amazonaws.com/')) return url;
+
+    if (url.includes('cdn.jupsoft.com') || url.includes('/uploads/blogs/') || url.includes('/uploads/avatars/')) {
       const blogsIdx = url.indexOf('blogs/');
-      const rel = blogsIdx !== -1 ? url.substring(blogsIdx) : url.replace(/^https?:\/\/[^/]+\/(uploads\/)?/, '');
+      const avatarsIdx = url.indexOf('avatars/');
+      if (blogsIdx !== -1) return `${this.mediaBaseUrl}/${url.substring(blogsIdx)}`;
+      if (avatarsIdx !== -1) return `${this.mediaBaseUrl}/${url.substring(avatarsIdx)}`;
+      const rel = url.replace(/^https?:\/\/[^/]+\/(uploads\/)?/, '');
       return `${this.mediaBaseUrl}/${rel}`;
     }
     if (url.startsWith('/uploads/')) {
-      const baseWithoutUploads = this.mediaBaseUrl.replace(/\/uploads$/, '');
-      return `${baseWithoutUploads}${url}`;
+      const cleanKey = url.replace(/^\/uploads\//, '');
+      return `${this.mediaBaseUrl}/${cleanKey}`;
     }
-    if (url.startsWith('blogs/')) {
+    if (url.startsWith('blogs/') || url.startsWith('avatars/') || url.startsWith('logos/')) {
       return `${this.mediaBaseUrl}/${url}`;
     }
     return url;

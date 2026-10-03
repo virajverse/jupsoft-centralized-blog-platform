@@ -414,7 +414,7 @@ export class BlogsService {
           authorId: dto.authorId || user.id,
           authorName: dto.authorName?.trim() || user.name.replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim(),
           authorAvatar: resolvedAuthorAvatar || '',
-          featuredImage: dto.featuredImage?.trim() || '/uploads/blogs/default-blog-cover.webp',
+          featuredImage: dto.featuredImage?.trim() || 'https://blogary.s3.ap-south-1.amazonaws.com/blogs/default-blog-cover.webp',
           featuredImageAlt: dto.featuredImageAlt || '',
           status: initialStatus,
           publishDate: isPublishing ? new Date() : undefined,

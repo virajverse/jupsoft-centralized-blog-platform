@@ -45,16 +45,15 @@ export class MediaService {
 
     this.bucket = this.configService.get<string>('AWS_S3_BUCKET') || 'blogary';
     const envCdn = this.configService.get<string>('CLOUDFRONT_DOMAIN');
-    const nodeEnv = this.configService.get<string>('NODE_ENV') || 'development';
-    const platformBase = this.configService.get<string>('PLATFORM_BASE_URL') || 'https://blogary.jupsoft.com';
+    const s3DirectOrigin = `https://${this.bucket}.s3.${region}.amazonaws.com`;
 
-    // Auto-fallback: if CLOUDFRONT_DOMAIN points to the inactive cdn.jupsoft.com domain, route through active platform uploads
+    // Authoritative CDN / Storage Domain:
+    // If CLOUDFRONT_DOMAIN is explicitly set and not the legacy inactive cdn.jupsoft.com, use it.
+    // Otherwise, default directly to the AWS S3 bucket endpoint (ap-south-1).
     if (envCdn && !envCdn.includes('cdn.jupsoft.com')) {
       this.cdnDomain = envCdn.replace(/\/+$/, '');
-    } else if (nodeEnv === 'production') {
-      this.cdnDomain = `${platformBase.replace(/\/+$/, '')}/uploads`;
     } else {
-      this.cdnDomain = 'http://localhost:4000/uploads';
+      this.cdnDomain = s3DirectOrigin;
     }
 
     const s3Config: any = { region };
@@ -413,10 +412,13 @@ export class MediaService {
       s3Key = s3Key.replace(/^\/+/, '');
 
       let cdnUrl = asset.cdnUrl || '';
-      if (cdnUrl.includes('cdn.jupsoft.com')) {
+      if (
+        cdnUrl.includes('cdn.jupsoft.com') ||
+        cdnUrl.includes('blogary.jupsoft.com/uploads/') ||
+        cdnUrl.startsWith('/uploads/') ||
+        cdnUrl.startsWith('blogs/')
+      ) {
         cdnUrl = `${this.cdnDomain}/${s3Key || asset.fileName}`;
-      } else if (cdnUrl.startsWith('/uploads/')) {
-        cdnUrl = `${this.cdnDomain.replace(/\/uploads$/, '')}${cdnUrl}`;
       }
 
       return {
