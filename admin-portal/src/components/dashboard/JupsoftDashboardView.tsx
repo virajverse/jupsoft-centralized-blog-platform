@@ -418,7 +418,9 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
 
               <div className="space-y-2 text-xs">
                 {visibleWebsites.map((site) => {
-                  const count = blogs.filter((b) => b.websiteId === site.id).length;
+                  const serverCount = site._count?.blogs;
+                  const localCount = blogs.filter((b) => b.websiteId === site.id).length;
+                  const count = typeof serverCount === 'number' ? Math.max(serverCount, localCount) : localCount;
                   const isSelected = activeWebsiteId === site.id;
 
                   return (

@@ -53,6 +53,7 @@ interface BlogState {
 
   // Actions
   fetchBlogs: (overrideSiteId?: string) => Promise<void>;
+  prefetchOtherSites: (currentSiteId?: string) => Promise<void>;
   fetchWebsites: () => Promise<void>;
   fetchMedia: (overrideSiteId?: string) => Promise<void>;
   fetchUsers: () => Promise<void>;
@@ -149,12 +150,61 @@ export const useBlogStore = create<BlogState>()(
               res.data.forEach((b: Blog) => map.set(b.id, b));
               return { blogs: Array.from(map.values()), isLoading: false };
             });
+            // Asynchronously prefetch remaining tenant blogs for 0ms instant tab switching
+            if (siteId !== 'all') {
+              setTimeout(() => {
+                get().prefetchOtherSites(siteId);
+              }, 250);
+            }
           } else {
             set({ isLoading: false });
           }
         } catch (err) {
           console.warn('apiClient.getBlogs failed, keeping local store:', err);
           set({ isLoading: false });
+        }
+      },
+
+      prefetchOtherSites: async (currentSiteId?: string) => {
+        try {
+          const { websites, currentUser, activeRole, blogs } = get();
+          const hasGlobalAll = Boolean(currentUser?.roleAssignments?.['all']);
+          const isSuperAdmin = isGlobalScopeRole(activeRole) || hasGlobalAll;
+          const targetSites = isSuperAdmin
+            ? websites
+            : websites.filter((w) => currentUser?.roleAssignments?.[w.id]);
+
+          const missingSites = targetSites.filter(
+            (s) => s.id !== currentSiteId && !blogs.some((b) => b.websiteId === s.id)
+          );
+          if (missingSites.length === 0) return;
+
+          // Single batch prefetch for superadmin or multi-tenant scope
+          if (isSuperAdmin && currentSiteId !== 'all') {
+            const res = await apiClient.getBlogs({ limit: 100 });
+            if (res && Array.isArray(res.data)) {
+              set((state) => {
+                const map = new Map<string, Blog>();
+                state.blogs.forEach((b) => map.set(b.id, b));
+                res.data.forEach((b: Blog) => map.set(b.id, b));
+                return { blogs: Array.from(map.values()) };
+              });
+            }
+          } else {
+            for (const site of missingSites) {
+              const res = await apiClient.getBlogs({ websiteId: site.id, limit: 100 });
+              if (res && Array.isArray(res.data)) {
+                set((state) => {
+                  const map = new Map<string, Blog>();
+                  state.blogs.forEach((b) => map.set(b.id, b));
+                  res.data.forEach((b: Blog) => map.set(b.id, b));
+                  return { blogs: Array.from(map.values()) };
+                });
+              }
+            }
+          }
+        } catch {
+          // Silent background prefetch
         }
       },
 

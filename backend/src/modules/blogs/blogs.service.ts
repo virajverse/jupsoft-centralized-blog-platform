@@ -151,12 +151,14 @@ export class BlogsService {
       readTimeMinutes: b.readTimeMinutes,
       categoryIds: b.categoryIds,
       tagIds: b.tagIds,
+      wordCount: (b.readTimeMinutes && b.readTimeMinutes > 0 ? b.readTimeMinutes : 3) * 220,
       translations: b.translations.reduce((acc, t) => {
         acc[t.lang] = {
           title: t.title,
           slug: t.slug,
           excerpt: t.excerpt,
           content: '', // Omitted in list view for 0-delay performance; loaded in detail view
+          wordCount: (b.readTimeMinutes && b.readTimeMinutes > 0 ? b.readTimeMinutes : 3) * 220,
           seo: {
             metaTitle: t.metaTitle,
             metaDescription: t.metaDescription,

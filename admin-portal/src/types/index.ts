@@ -34,6 +34,11 @@ export interface Website {
   supportedLanguages: LanguageCode[];
   revalidateWebhookUrl: string;
   createdAt: string;
+  _count?: {
+    blogs?: number;
+    categories?: number;
+    tags?: number;
+  };
 }
 
 export interface Category {

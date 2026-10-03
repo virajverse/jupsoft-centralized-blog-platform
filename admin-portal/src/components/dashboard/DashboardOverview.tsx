@@ -99,15 +99,29 @@ export const DashboardOverview: React.FC = () => {
       else if (blog.status === 'Approved') app.push(blog);
       else if (blog.status === 'Draft') drf.push(blog);
 
-      if (blog.translations) {
-        for (const trans of Object.values(blog.translations)) {
-          if (trans?.content) {
-            const plain = trans.content.replace(/<[^>]*>/g, ' ').trim();
-            if (plain) {
-              words += plain.split(/\s+/).filter(Boolean).length;
+      if (blog.status === 'Published') {
+        let blogWords = 0;
+        if (blog.translations) {
+          for (const trans of Object.values(blog.translations)) {
+            if ((trans as any)?.wordCount && (trans as any).wordCount > 0) {
+              blogWords += (trans as any).wordCount;
+            } else if (trans?.content) {
+              const plain = trans.content.replace(/<[^>]*>/g, ' ').trim();
+              if (plain) {
+                blogWords += plain.split(/\s+/).filter(Boolean).length;
+              }
+            } else if (trans?.excerpt) {
+              const excerptWords = trans.excerpt.split(/\s+/).filter(Boolean).length;
+              if (excerptWords > 0) {
+                blogWords += Math.max(excerptWords * 8, (blog.readTimeMinutes || 3) * 220);
+              }
             }
           }
         }
+        if (blogWords === 0) {
+          blogWords = (blog.readTimeMinutes && blog.readTimeMinutes > 0 ? blog.readTimeMinutes : 3) * 220;
+        }
+        words += blogWords;
       }
     }
 
