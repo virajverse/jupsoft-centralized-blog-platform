@@ -200,11 +200,25 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     const siteQuery = searchParams.get('site');
     if (siteQuery && siteQuery !== 'all' && websites.some((w) => w.id === siteQuery)) return siteQuery;
     if (activeWebsiteId && activeWebsiteId !== 'all') return activeWebsiteId;
-    return websites[0]?.id || 'site-cloud';
+    return websites[0]?.id || 'site-growth';
   });
 
+  // Synchronize selectedWebsiteId once websites load asynchronously from API
+  useEffect(() => {
+    if (websites.length > 0) {
+      if (!selectedWebsiteId || selectedWebsiteId === 'site-cloud' || !websites.some((w) => w.id === selectedWebsiteId)) {
+        const siteQuery = searchParams.get('site');
+        const matched = siteQuery && siteQuery !== 'all' ? websites.find((w) => w.id === siteQuery) : null;
+        const validSite = matched || (activeWebsiteId && activeWebsiteId !== 'all' ? websites.find((w) => w.id === activeWebsiteId) : null) || websites[0];
+        if (validSite) {
+          setSelectedWebsiteId(validSite.id);
+        }
+      }
+    }
+  }, [websites, selectedWebsiteId, activeWebsiteId, searchParams]);
+
   const activeSite = useMemo(
-    () => websites.find((w) => w.id === selectedWebsiteId) || websites[0] || { id: 'site-cloud', name: 'Jupsoft Cloud & ERP' },
+    () => websites.find((w) => w.id === selectedWebsiteId) || websites[0] || { id: 'site-growth', name: 'DigifyNext Marketing' },
     [websites, selectedWebsiteId]
   );
   const siteCategories = categories[selectedWebsiteId] || [];
@@ -529,7 +543,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       HeadingEnterExit,
       ResizableImage.configure({
         inline: false,
-        allowBase64: false,
+        allowBase64: true,
       }),
       TiptapLink.configure({
         openOnClick: false,
@@ -1250,7 +1264,13 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       showNotification('Author photo / avatar updated.', 'success');
     } else {
       if (editor) {
-        editor.chain().focus().setImage({ src: finalUrl, alt, title: alt }).run();
+        const ok = editor.chain().focus().setImage({ src: finalUrl, alt, title: alt }).run();
+        if (!ok) {
+          editor.commands.insertContent({
+            type: 'image',
+            attrs: { src: finalUrl, alt, title: alt },
+          });
+        }
         showNotification('Image inserted into article.', 'success');
       }
     }
@@ -1270,7 +1290,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
     setUploadingImage(true);
     const cleanName = file.name.replace(/\.[^/.]+$/, '') + '.webp';
-    const uploadSiteId = selectedWebsiteId || activeWebsiteId || 'site-cloud';
+    const uploadSiteId = activeSite?.id || (websites.length > 0 ? websites[0].id : 'site-growth');
     const uploadSite = websites.find((w) => w.id === uploadSiteId) || websites[0];
 
     try {
@@ -1295,7 +1315,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         setUploadingImage(false);
         return;
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Server media upload failed, converting to WebP on client canvas:', err);
     }
 
@@ -1342,6 +1362,10 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         showNotification('Failed to process and convert image.', 'warning');
       };
       img.src = event.target?.result as string;
+    };
+    reader.onerror = () => {
+      setUploadingImage(false);
+      showNotification('Failed to read image file.', 'error');
     };
     reader.readAsDataURL(file);
   };
@@ -3222,9 +3246,13 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     type="file"
                     accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
                     className="hidden"
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const file = e.target.files?.[0];
-                      if (file) handleUploadWebpImage(file);
+                      if (file) {
+                        await handleUploadWebpImage(file);
+                      }
+                      if (e.target) e.target.value = '';
+                      if (fileInputRef.current) fileInputRef.current.value = '';
                     }}
                   />
 

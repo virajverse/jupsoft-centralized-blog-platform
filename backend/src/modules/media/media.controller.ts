@@ -55,7 +55,7 @@ export class MediaController {
         validators: [
           // TRD §10: max 10MB
           new MaxFileSizeValidator({ maxSize: 10 * 1024 * 1024 }),
-          new FileTypeValidator({ fileType: /^image\/(jpeg|jpg|png|webp|gif)$/ }),
+          new FileTypeValidator({ fileType: /^image\/(jpeg|jpg|png|webp|gif|svg\+xml|x-icon)$/ }),
         ],
       }),
     )

@@ -113,7 +113,7 @@ export class MediaService {
     ipAddress?: string,
   ) {
     // Validate it's an image
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'];
     if (!allowedTypes.includes(mimeType)) {
       throw new BadRequestException(`File type "${mimeType}" is not allowed. Only images are accepted.`);
     }
