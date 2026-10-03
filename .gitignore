@@ -68,3 +68,10 @@ test_*.jpg
 client_secret*.json
 docs/*.json
 
+# Local uploads & migration scripts
+backend/uploads/
+backend/scripts/
+UI-AUDIT-REPORT-localhost5000.md
+scripts/
+
+

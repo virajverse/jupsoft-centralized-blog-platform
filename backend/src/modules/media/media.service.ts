@@ -43,7 +43,7 @@ export class MediaService {
     const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID') || '';
     const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY') || '';
 
-    this.bucket = this.configService.get<string>('AWS_S3_BUCKET') || 'jupsoft-blogs-storage';
+    this.bucket = this.configService.get<string>('AWS_S3_BUCKET') || 'blogary';
     const envCdn = this.configService.get<string>('CLOUDFRONT_DOMAIN');
     const nodeEnv = this.configService.get<string>('NODE_ENV') || 'development';
     const platformBase = this.configService.get<string>('PLATFORM_BASE_URL') || 'https://blogary.jupsoft.com';
@@ -222,39 +222,53 @@ export class MediaService {
     };
   }
 
-  // ─── Internal: Upload buffer to S3 / Local Disk ─────────────────────────
+  // ─── Internal: Upload buffer to S3 / Local Disk Fallback ──────────────────
   private async uploadToS3(s3Key: string, buffer: Buffer, contentType: string): Promise<string> {
     const cleanKey = s3Key.replace(/^\/+/, '');
     const cdnUrl = `${this.cdnDomain}/${cleanKey}`;
 
-    // 1. Always save a copy locally on disk for local dev / testing serving
-    try {
-      const uploadsDir = join(process.cwd(), 'uploads');
-      const targetPath = join(uploadsDir, cleanKey);
-      const targetDir = dirname(targetPath);
-      if (!fs.existsSync(targetDir)) {
-        fs.mkdirSync(targetDir, { recursive: true });
-      }
-      fs.writeFileSync(targetPath, buffer);
-      this.logger.log(`💾 Saved media asset locally: ${cleanKey}`);
-    } catch (fsErr) {
-      this.logger.warn(`Could not save local copy for ${cleanKey}: ${(fsErr as Error).message}`);
-    }
-
-    // 2. Upload to S3 if live AWS credentials exist
     const accessKey = this.configService.get<string>('AWS_ACCESS_KEY_ID') || '';
-    if (accessKey && !accessKey.startsWith('mock_')) {
+    const isLiveS3 = accessKey && !accessKey.startsWith('mock_');
+
+    if (isLiveS3) {
+      // Pure S3 Upload (Cloud-native, zero disk storage)
       try {
         await this.s3Client.send(new PutObjectCommand({
           Bucket: this.bucket,
           Key: cleanKey,
           Body: buffer,
           ContentType: contentType,
+          CacheControl: 'public, max-age=31536000, immutable',
         }));
+        // Also upload alias under uploads/ for full backwards-compatibility
+        await this.s3Client.send(new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: `uploads/${cleanKey}`,
+          Body: buffer,
+          ContentType: contentType,
+          CacheControl: 'public, max-age=31536000, immutable',
+        }));
+        this.logger.log(`☁️ Uploaded media directly to S3 bucket [${this.bucket}]: ${cleanKey}`);
       } catch (err) {
-        this.logger.warn(`S3 upload skipped (mock credentials): ${(err as Error).message}`);
+        this.logger.error(`❌ S3 upload failed for ${cleanKey}: ${(err as Error).message}`);
+        throw err;
+      }
+    } else {
+      // Local dev fallback only when mock credentials are used
+      try {
+        const uploadsDir = join(process.cwd(), 'uploads');
+        const targetPath = join(uploadsDir, cleanKey);
+        const targetDir = dirname(targetPath);
+        if (!fs.existsSync(targetDir)) {
+          fs.mkdirSync(targetDir, { recursive: true });
+        }
+        fs.writeFileSync(targetPath, buffer);
+        this.logger.log(`💾 Saved media locally (offline dev mode): ${cleanKey}`);
+      } catch (fsErr) {
+        this.logger.warn(`Could not save local copy for ${cleanKey}: ${(fsErr as Error).message}`);
       }
     }
+
     return cdnUrl;
   }
 

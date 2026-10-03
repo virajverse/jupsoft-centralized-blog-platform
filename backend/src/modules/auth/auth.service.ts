@@ -584,20 +584,14 @@ export class AuthService {
     }
 
     const fileName = `avatar-${userId}-${Date.now()}.webp`;
-    const uploadsDir = join(process.cwd(), 'uploads', 'avatars');
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-    const localFilePath = join(uploadsDir, fileName);
-    fs.writeFileSync(localFilePath, webpBuffer);
-    this.logger.log(`💾 Saved profile avatar locally in WebP: ${fileName}`);
+    const accessKey = this.configService.get<string>('AWS_ACCESS_KEY_ID') || '';
+    const bucket = this.configService.get<string>('AWS_S3_BUCKET') || 'blogary';
+    const isLiveS3 = accessKey && !accessKey.startsWith('mock_');
 
     let avatarUrl = `/uploads/avatars/${fileName}`;
 
-    // S3 upload if configured
-    const accessKey = this.configService.get<string>('AWS_ACCESS_KEY_ID') || '';
-    const bucket = this.configService.get<string>('AWS_S3_BUCKET') || 'jupsoft-blogs-storage';
-    if (accessKey && !accessKey.startsWith('mock_')) {
+    if (isLiveS3) {
+      // Pure S3 Upload (Cloud-native, zero disk storage)
       try {
         const region = this.configService.get<string>('AWS_REGION') || 'ap-south-1';
         const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY') || '';
@@ -608,14 +602,32 @@ export class AuthService {
           Key: `avatars/${fileName}`,
           Body: webpBuffer,
           ContentType: 'image/webp',
+          CacheControl: 'public, max-age=31536000, immutable',
+        }));
+        // Also upload alias under uploads/
+        await s3.send(new PutObjectCommand({
+          Bucket: bucket,
+          Key: `uploads/avatars/${fileName}`,
+          Body: webpBuffer,
+          ContentType: 'image/webp',
+          CacheControl: 'public, max-age=31536000, immutable',
         }));
         const envCdn = this.configService.get<string>('CLOUDFRONT_DOMAIN');
-        if (envCdn && !envCdn.includes('cdn.jupsoft.com')) {
-          avatarUrl = `${envCdn.replace(/\/+$/, '')}/avatars/${fileName}`;
-        }
+        avatarUrl = envCdn ? `${envCdn.replace(/\/+$/, '')}/avatars/${fileName}` : `https://${bucket}.s3.${region}.amazonaws.com/avatars/${fileName}`;
+        this.logger.log(`☁️ Uploaded profile avatar directly to S3: avatars/${fileName}`);
       } catch (err: any) {
-        this.logger.warn(`Could not upload avatar to S3, using local: ${err.message}`);
+        this.logger.error(`❌ S3 upload failed for avatar: ${err.message}`);
+        throw err;
       }
+    } else {
+      // Local dev fallback only
+      const uploadsDir = join(process.cwd(), 'uploads', 'avatars');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      const localFilePath = join(uploadsDir, fileName);
+      fs.writeFileSync(localFilePath, webpBuffer);
+      this.logger.log(`💾 Saved profile avatar locally (offline dev mode): ${fileName}`);
     }
 
     const updated = await this.prisma.user.update({
