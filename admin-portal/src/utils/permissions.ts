@@ -286,13 +286,20 @@ export function cleanAvatarUrl(avatar?: string | null): string | null {
   if (!avatar || typeof avatar !== 'string') return null;
   let trimmed = avatar.trim();
   if (trimmed === '') return null;
-  // Normalize upload URLs to relative /uploads
+  // Normalize upload URLs to AWS S3 storage
   if (trimmed.startsWith('https://blogary.jupsoft.com/uploads/')) {
-    trimmed = trimmed.replace('https://blogary.jupsoft.com', '');
+    trimmed = trimmed.replace('https://blogary.jupsoft.com/uploads/', '/uploads/');
   } else if (trimmed.startsWith('http://localhost:4000/uploads/')) {
-    trimmed = trimmed.replace('http://localhost:4000', '');
+    trimmed = trimmed.replace('http://localhost:4000/uploads/', '/uploads/');
   } else if (trimmed.startsWith('http://localhost:3000/uploads/')) {
-    trimmed = trimmed.replace('http://localhost:3000', '');
+    trimmed = trimmed.replace('http://localhost:3000/uploads/', '/uploads/');
+  }
+
+  if (trimmed.startsWith('/uploads/avatars/')) {
+    return `https://blogary.s3.ap-south-1.amazonaws.com/avatars/${trimmed.replace('/uploads/avatars/', '')}`;
+  }
+  if (trimmed.startsWith('/uploads/logos/')) {
+    return `https://blogary.s3.ap-south-1.amazonaws.com/logos/${trimmed.replace('/uploads/logos/', '')}`;
   }
   // Explicitly allow Google user profile pictures and safe asset paths
   if (

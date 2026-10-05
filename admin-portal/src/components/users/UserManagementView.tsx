@@ -153,18 +153,35 @@ function generateStrongPassword(): string {
   return `Jupsoft@${num}${spec}${rand}`;
 }
 
+const UserAvatarImg: React.FC<{ src: string; name?: string; sizeClasses: string }> = ({ src, name, sizeClasses }) => {
+  const [hasError, setHasError] = useState(false);
+  const initial = (name?.trim()?.charAt(0) || 'U').toUpperCase();
+
+  if (hasError) {
+    return (
+      <div
+        className={`${sizeClasses} rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-bold border border-indigo-200 dark:border-indigo-800 shrink-0 select-none`}
+      >
+        {initial}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={name || 'User avatar'}
+      referrerPolicy="no-referrer"
+      onError={() => setHasError(true)}
+      className={`${sizeClasses} rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0`}
+    />
+  );
+};
+
 function renderUserAvatar(avatar?: string | null, name?: string, sizeClasses = 'w-8 h-8 text-xs') {
   const safeAvatar = cleanAvatarUrl(avatar);
   if (safeAvatar && safeAvatar.trim() !== '') {
-    return (
-      <img
-        src={safeAvatar}
-        alt={name || 'User avatar'}
-        referrerPolicy="no-referrer"
-        crossOrigin="anonymous"
-        className={`${sizeClasses} rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0`}
-      />
-    );
+    return <UserAvatarImg src={safeAvatar} name={name} sizeClasses={sizeClasses} />;
   }
   const initial = (name?.trim()?.charAt(0) || 'U').toUpperCase();
   return (

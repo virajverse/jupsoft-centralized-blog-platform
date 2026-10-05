@@ -373,15 +373,20 @@ export const JupsoftNavbar: React.FC = () => {
                   src={safeAvatar}
                   alt={currentUser?.name || 'User avatar'}
                   referrerPolicy="no-referrer"
-                  crossOrigin="anonymous"
+                  onError={(e) => {
+                    // Fall back to initial letter if image fails to load
+                    (e.currentTarget as HTMLElement).style.display = 'none';
+                    const parent = (e.currentTarget as HTMLElement).parentElement;
+                    const fallback = parent?.querySelector('.avatar-navbar-fallback');
+                    if (fallback) fallback.classList.remove('hidden');
+                  }}
                   className="w-7 h-7 rounded-lg object-cover border border-slate-200 dark:border-slate-700"
                 />
-              ) : (
-                <div className="w-7 h-7 rounded-lg bg-red-600 text-white flex items-center justify-center font-bold text-xs">
-                  {currentUser?.name?.charAt(0) || activeRole?.charAt(0) || 'A'}
-                </div>
-              );
+              ) : null;
             })()}
+            <div className={`avatar-navbar-fallback w-7 h-7 rounded-lg bg-red-600 text-white flex items-center justify-center font-bold text-xs ${cleanAvatarUrl(currentUser?.avatar) ? 'hidden' : ''}`}>
+              {currentUser?.name?.charAt(0) || activeRole?.charAt(0) || 'A'}
+            </div>
           </button>
 
           {userDropdownOpen && (

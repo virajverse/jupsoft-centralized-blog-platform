@@ -121,12 +121,14 @@ export class WebsitesService implements OnModuleInit {
       webhookUrl = `https://${cleanDomain}/api/revalidate`;
     }
 
+    const s3Base = 'https://blogary.s3.ap-south-1.amazonaws.com';
+
     const website = await this.prisma.website.create({
       data: {
         id: dto.id || `web-${Date.now()}`,
         name: dto.name,
         domain: cleanDomain,
-        logoUrl: dto.logoUrl?.trim() || '/uploads/logos/default-website-logo.webp',
+        logoUrl: dto.logoUrl?.trim() || `${s3Base}/logos/default-website-logo.webp`,
         description: dto.description || '',
         apiKey: dto.apiKey?.trim() || `jup_sec_${crypto.randomUUID().replace(/-/g, '')}`,
         s3Prefix: dto.s3Prefix?.trim() || `blogs/${cleanDomain.replace(/[^a-zA-Z0-9]/g, '_')}/`,
@@ -147,7 +149,7 @@ export class WebsitesService implements OnModuleInit {
             fileType: 'image/webp',
             fileSizeBytes: 6200,
             s3Key: `logos/${website.id}/default-website-logo.webp`,
-            cdnUrl: '/uploads/logos/default-website-logo.webp',
+            cdnUrl: `${s3Base}/logos/default-website-logo.webp`,
             altText: `${website.name} Default Logo`,
             uploadedBy: user?.name || 'System Admin',
           },
@@ -157,7 +159,7 @@ export class WebsitesService implements OnModuleInit {
             fileType: 'image/webp',
             fileSizeBytes: 34000,
             s3Key: `blogs/${website.id}/default-blog-cover.webp`,
-            cdnUrl: '/uploads/blogs/default-blog-cover.webp',
+            cdnUrl: `${s3Base}/blogs/default-blog-cover.webp`,
             altText: `${website.name} Featured Article Banner`,
             uploadedBy: user?.name || 'System Admin',
           },

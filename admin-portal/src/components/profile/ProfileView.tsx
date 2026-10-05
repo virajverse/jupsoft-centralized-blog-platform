@@ -210,7 +210,6 @@ export const ProfileView: React.FC = () => {
                     src={safeAvatar}
                     alt={currentUser?.name || 'User Avatar'}
                     referrerPolicy="no-referrer"
-                    crossOrigin="anonymous"
                     onError={() => setAvatarLoadError(true)}
                     className="w-18 h-18 rounded-2xl object-cover border-2 border-white dark:border-slate-800 shadow-md ring-2 ring-slate-100 dark:ring-slate-700 transition-transform group-hover:scale-105"
                   />
