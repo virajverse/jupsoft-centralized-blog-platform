@@ -16,6 +16,41 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['lucide-react'],
     cpus: 1,
   },
+  async redirects() {
+    return [
+      {
+        source: '/index.html',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/landing.html',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/contact.html',
+        destination: '/contact',
+        permanent: true,
+      },
+    ];
+  },
+  async rewrites() {
+    return {
+      beforeFiles: [
+        {
+          source: '/',
+          destination: '/landing.html',
+        },
+        {
+          source: '/contact',
+          destination: '/contact.html',
+        },
+      ],
+      afterFiles: [],
+      fallback: [],
+    };
+  },
   async headers() {
     return [
       {

@@ -12,6 +12,7 @@
     "build:frontend": "pnpm --filter admin-portal build",
     "build:backend": "pnpm --filter ./backend build",
     "build:all": "pnpm -r --if-present run build",
+    "upload:landing": "node scripts/upload_landing_to_s3.js",
     "db:generate": "pnpm --filter ./backend exec prisma generate",
     "db:migrate": "pnpm --filter ./backend exec prisma migrate dev",
     "db:push": "pnpm --filter ./backend exec prisma db push",

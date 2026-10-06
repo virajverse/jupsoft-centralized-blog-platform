@@ -71,7 +71,10 @@ docs/*.json
 # Local uploads & migration scripts
 backend/uploads/
 backend/scripts/
-UI-AUDIT-REPORT-localhost5000.md
+*-AUDIT-*.md
+*-EXPERIENCE-*.md
 scripts/
+blogary.zip
+blogary/
 
 
