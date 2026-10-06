@@ -29,6 +29,10 @@
     <meta property="og:type" content="website" />
     <meta content="summary_large_image" name="twitter:card" />
     <meta content="width=device-width, initial-scale=1" name="viewport" />
+    <link rel="preconnect" href="https://blogary.s3.ap-south-1.amazonaws.com" crossorigin />
+    <link rel="dns-prefetch" href="https://blogary.s3.ap-south-1.amazonaws.com" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/css/style.css" rel="stylesheet" type="text/css" />
     <link
       href="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/css/blogary-colors.css"
@@ -245,6 +249,12 @@
         outline-offset: 3px;
       }
     </style>
+      <script id="w-mod-ix3-timeout">
+      // Instant reveal fallback to prevent blank/hidden page lag
+      setTimeout(function() {
+        document.documentElement.classList.add('w-mod-ix3');
+      }, 150);
+    </script>
   </head>
   <body id="top">
     <div class="persistant-color-scheme-script w-embed"></div>
@@ -264,52 +274,11 @@
             href="#top"
             class="nav-logo-link w-inline-block"
             aria-label="Blogary home"
-            ><div class="logo bl-logo">
-              <img src="/jupsoft-logo.png" alt="Jupsoft" style="height: 38px; width: auto; object-fit: contain;">
-            </div></a
-          >
-          <div class="nav-actions">
-            <div class="nav-theme-toggle">
-              <div
-                class="color-scheme-toggle"
-                role="button"
-                tabindex="0"
-                aria-label="Switch between light and dark mode"
-              >
-                <div class="color-scheme-item light-toggle">
-                  <div class="icon color-scheme-icon w-embed">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      x="0px"
-                      y="0px"
-                      viewbox="0 0 24 24"
-                    >
-                      <path
-                        fill="currentColor"
-                        d="M 11 0 L 11 3 L 13 3 L 13 0 L 11 0 z M 4.2226562 2.8085938 L 2.8085938 4.2226562 L 4.9296875 6.34375 L 6.34375 4.9296875 L 4.2226562 2.8085938 z M 19.777344 2.8085938 L 17.65625 4.9296875 L 19.070312 6.34375 L 21.191406 4.2226562 L 19.777344 2.8085938 z M 12 5 A 7 7 0 0 0 5 12 A 7 7 0 0 0 12 19 A 7 7 0 0 0 19 12 A 7 7 0 0 0 12 5 z M 0 11 L 0 13 L 3 13 L 3 11 L 0 11 z M 21 11 L 21 13 L 24 13 L 24 11 L 21 11 z M 4.9296875 17.65625 L 2.8085938 19.777344 L 4.2226562 21.191406 L 6.34375 19.070312 L 4.9296875 17.65625 z M 19.070312 17.65625 L 17.65625 19.070312 L 19.777344 21.191406 L 21.191406 19.777344 L 19.070312 17.65625 z M 11 21 L 11 24 L 13 24 L 13 21 L 11 21 z"
-                      ></path>
-                    </svg>
-                  </div>
-                </div>
-                <div class="color-scheme-item dark-toggle">
-                  <div class="icon color-scheme-icon w-embed">
-                    <svg
-                      viewbox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M13.019 21.998C9.29 21.998 5.706 19.905 3.987 16.325C2.831 13.917 2.682 11.203 3.568 8.683C4.454 6.163 6.268 4.139 8.676 2.983C10.219 2.242 11.937 1.91 13.652 2.023L14.034 3.024C10.611 4.423 9.031 9.71 10.574 12.925C11.967 15.826 15.984 18.924 20.585 16.937L21.192 17.732C20.209 19.139 18.873 20.274 17.331 21.014C15.939 21.681 14.467 21.997 13.019 21.998Z"
-                        fill="currentColor"
-                      ></path>
-                    </svg>
-                  </div>
-                </div>
-                <div class="color-scheme-indicator"></div>
-              </div>
-            </div>
-            <div class="nav-action-button" style="display: flex; gap: 8px; align-items: center;">
-              <a href="/login" class="button w-variant-f663b26e-de5f-4688-ac6c-b0536a65982f bg-surface-3 w-inline-block"><div class="button-text">Login</div><div class="button-hover-element-wrap"><div class="button-hover-element"></div></div></a>
+            ><div class="logo bl-logo" style="display: flex; align-items: center; gap: 10px;">
+              <img src="/jupsoft-logo.png" alt="Jupsoft" style="height: 34px; width: auto; object-fit: contain;">
+              <div style="height: 22px; width: 1.5px; background: currentColor; opacity: 0.25;"></div>
+              <span class="bl-wordmark" style="font-size: 21px; font-weight: 700; letter-spacing: -0.02em; line-height: 1;">Blogary</span>
+            </div></a>
               <a
                 data-wf--button--variant="small"
                 href="#demo"
@@ -418,7 +387,7 @@
                       alt="A writer drafting a post on a laptop"
                       src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/landscape-17.webp"
                       class="dropdown-cta-bg"
-                    />
+                    / loading="lazy" decoding="async">
                     <div class="title">
                       <div class="text-lead">Meet Blogary</div>
                       <div class="text-lead muted-opacity">
@@ -485,7 +454,7 @@
               ></a>
             </div>
           </div>
-          <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/blogaryimg1.png" alt="">
+          <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/blogaryimg1.webp" alt="" decoding="async" fetchpriority="high">
         </div>
       </div>
     </section>
@@ -886,7 +855,7 @@
           <div class="wide-features-list">
             <div data-gsap-onscroll="scroll-reveal" class="wide-feature-grid">
               <div class="bento-tile-box portrait">
-                  <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/content1.png" alt="">
+                  <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/content1.webp" alt="" loading="lazy" decoding="async">
               </div>
               <div class="wide-feature-grid-body">
                 <div class="wide-feature-grid-content">
@@ -945,7 +914,7 @@
             </div>
             <div data-gsap-onscroll="scroll-reveal" class="wide-feature-grid">
               <div class="bento-tile-box portrait">
-                  <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/content2.png" alt="">
+                  <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/content2.webp" alt="" loading="lazy" decoding="async">
               </div>
               <div class="wide-feature-grid-body">
                 <div class="wide-feature-grid-content">
@@ -1007,7 +976,7 @@
             </div>
             <div data-gsap-onscroll="scroll-reveal" class="wide-feature-grid">
               <div class="bento-tile-box portrait">
-                  <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/content3.png" alt="">
+                  <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/content3.webp" alt="" loading="lazy" decoding="async">
               </div>
               <div class="wide-feature-grid-body">
                 <div class="wide-feature-grid-content">
@@ -1172,7 +1141,7 @@
               
               <div class="wrap metric-box-3-text">
                 <div class="how_works_img">
-                  <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/whyblogary1.png" alt="">
+                  <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/whyblogary1.webp" alt="" loading="lazy" decoding="async">
                 </div>
                 <div>
                   <div>Author &amp; approve</div>
@@ -1187,7 +1156,7 @@
               
               <div class="wrap metric-box-3-text">
                 <div class="how_works_img">
-                  <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/whyblogary2.png" alt="">
+                  <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/whyblogary2.webp" alt="" loading="lazy" decoding="async">
                 </div>
                 <div>
                   <div>Publish to a site</div>
@@ -1202,7 +1171,7 @@
               
               <div class="wrap metric-box-3-text">
                 <div class="how_works_img">
-                  <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/whyblogary3.png" alt="">
+                  <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/whyblogary3.webp" alt="" loading="lazy" decoding="async">
                 </div>
                 <div>
                   <div>Your site pulls the API</div>
@@ -1328,7 +1297,7 @@
                   srcset="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/art_03-p-500.webp   500w, https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/art_03-p-800.webp   800w, https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/art_03-p-1080.webp 1080w, https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/art_03-p-1600.webp 1600w, https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/art_03.webp        1920w
                   "
                   class="motif-strip-image"
-                />
+                / loading="lazy" decoding="async">
               </div>
               <div class="pricing-plan square-borders">
                 <div>
@@ -1413,7 +1382,7 @@
             id="w-node-_631b6a3e-5fd7-7175-93a8-45f743b877c0-b4446557"
             class="bento-tile-area square"
           >
-           <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/blogaryapi.png">
+           <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/blogaryapi.webp" loading="lazy" decoding="async">
           </div>
           <div class="wide-feature-grid-body-2">
             <div class="wide-feature-2-content">
@@ -1653,9 +1622,11 @@
       <div class="main-container">
         <div class="footer-2-wrap">
           
-          <div class="bl-foot"><div class="bl-foot-brand"><a href="#top" class="logo bl-logo" aria-label="Blogary home">
-            <img src="/jupsoft-logo.png" alt="Jupsoft" style="height: 34px; width: auto; object-fit: contain;">
-            <span class="bl-by">by Jupsoft</span></a>
+          <div class="bl-foot"><div class="bl-foot-brand"><a href="#top" class="logo bl-logo" aria-label="Blogary home" style="display: flex; align-items: center; gap: 10px;">
+            <img src="/jupsoft-logo.png" alt="Jupsoft" style="height: 30px; width: auto; object-fit: contain;">
+            <div style="height: 18px; width: 1.5px; background: currentColor; opacity: 0.25;"></div>
+            <span class="bl-wordmark" style="font-size: 19px; font-weight: 700; letter-spacing: -0.02em; line-height: 1;">Blogary</span>
+          </a>
             <div class="muted-text">The central content hub for teams that run more than one website.</div><a href="mailto:hello@jupsoft.com" class="bl-foot-mail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-10z"/><path d="M3 7l9 6l9 -6"/></svg><span>hello@jupsoft.com</span></a></div><div class="footer-2-menus">
               <div class="footer-menu">
                 <div class="footer-menu-heading">Product</div>
