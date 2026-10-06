@@ -333,11 +333,55 @@
             href="/"
             class="nav-logo-link w-inline-block"
             aria-label="Blogary home"
-            ><div class="logo bl-logo" style="display: flex; align-items: center; gap: 10px;">
-              <img src="/jupsoft-logo.png" alt="Jupsoft" style="height: 34px; width: auto; object-fit: contain;">
-              <div style="height: 22px; width: 1.5px; background: currentColor; opacity: 0.25;"></div>
-              <span class="bl-wordmark" style="font-size: 21px; font-weight: 700; letter-spacing: -0.02em; line-height: 1;">Blogary</span>
-            </div></a>
+            ><div class="logo bl-logo">
+              <picture>
+                <source srcset="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/logo.webp" type="image/webp" />
+                <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/logo.PNG" alt="Blogary" style="height: 28px; width: auto; object-fit: contain;" />
+              </picture>
+            </div></a
+          >
+          <div class="nav-actions">
+            <div class="nav-theme-toggle">
+              <div
+                class="color-scheme-toggle"
+                role="button"
+                tabindex="0"
+                aria-label="Switch between light and dark mode"
+              >
+                <div class="color-scheme-item light-toggle">
+                  <div class="icon color-scheme-icon w-embed">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      x="0px"
+                      y="0px"
+                      viewbox="0 0 24 24"
+                    >
+                      <path
+                        fill="currentColor"
+                        d="M 11 0 L 11 3 L 13 3 L 13 0 L 11 0 z M 4.2226562 2.8085938 L 2.8085938 4.2226562 L 4.9296875 6.34375 L 6.34375 4.9296875 L 4.2226562 2.8085938 z M 19.777344 2.8085938 L 17.65625 4.9296875 L 19.070312 6.34375 L 21.191406 4.2226562 L 19.777344 2.8085938 z M 12 5 A 7 7 0 0 0 5 12 A 7 7 0 0 0 12 19 A 7 7 0 0 0 12 5 z M 0 11 L 0 13 L 3 13 L 3 11 L 0 11 z M 21 11 L 21 13 L 24 13 L 24 11 L 21 11 z M 4.9296875 17.65625 L 2.8085938 19.777344 L 4.2226562 21.191406 L 6.34375 19.070312 L 4.9296875 17.65625 z M 19.070312 17.65625 L 17.65625 19.070312 L 19.777344 21.191406 L 21.191406 19.777344 L 19.070312 17.65625 z M 11 21 L 11 24 L 13 24 L 13 21 L 11 21 z"
+                      ></path>
+                    </svg>
+                  </div>
+                </div>
+                <div class="color-scheme-item dark-toggle">
+                  <div class="icon color-scheme-icon w-embed">
+                    <svg
+                      viewbox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M13.019 21.998C9.29 21.998 5.706 19.905 3.987 16.325C2.831 13.917 2.682 11.203 3.568 8.683C4.454 6.163 6.268 4.139 8.676 2.983C10.219 2.242 11.937 1.91 13.652 2.023L14.034 3.024C10.611 4.423 9.031 9.71 10.574 12.925C11.967 15.826 15.984 18.924 20.585 16.937L21.192 17.732C20.209 19.139 18.873 20.274 17.331 21.014C15.939 21.681 14.467 21.997 13.019 21.998Z"
+                        fill="currentColor"
+                      ></path>
+                    </svg>
+                  </div>
+                </div>
+                <div class="color-scheme-indicator"></div>
+              </div>
+            </div>
+            <div class="nav-action-button" style="display: flex; gap: 8px; align-items: center;">
+              <a href="/login" class="button w-variant-f663b26e-de5f-4688-ac6c-b0536a65982f bg-surface-3 w-inline-block"><div class="button-text">Login</div><div class="button-hover-element-wrap"><div class="button-hover-element"></div></div></a>
               <a
                 data-wf--button--variant="small"
                 href="/#demo"
@@ -347,7 +391,8 @@
                   <div class="button-hover-element"></div></div
               ></a>
             </div>
-            <div class="menu-button w-nav-button">
+          </div>
+          <div class="menu-button w-nav-button">
               <div class="menu-button-icons-wrap">
                 <div class="menu-button-icon">
                   <div class="icon w-embed">
@@ -640,24 +685,10 @@
                 href="/"
                 class="logo bl-logo"
                 aria-label="Blogary home"
-                ><svg
-                  class="bl-mark-svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <rect width="24" height="24" rx="6" fill="currentColor" />
-                  <path
-                    d="M7 6.5h4.2c1.9 0 3.1 1 3.1 2.6 0 1-.5 1.8-1.4 2.2 1.2.3 2 1.3 2 2.6 0 1.9-1.4 3.1-3.5 3.1H7z"
-                    fill="var(--bl-mark-ink,#fff)"
-                  />
-                  <circle
-                    cx="17.4"
-                    cy="15.9"
-                    r="1.6"
-                    fill="var(--bl-mark-ink,#fff)"
-                  /></svg
-                ><span class="bl-wordmark">Blogary</span
+                ><picture>
+                  <source srcset="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/logo.webp" type="image/webp" />
+                  <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/logo.PNG" alt="Blogary" style="height: 30px; width: auto; object-fit: contain;">
+                </picture
                 ><span class="bl-by">by Jupsoft</span></a
               >
               <div class="muted-text">
