@@ -29,16 +29,12 @@
     <meta property="og:type" content="website" />
     <meta content="summary_large_image" name="twitter:card" />
     <meta content="width=device-width, initial-scale=1" name="viewport" />
-    <link rel="preconnect" href="https://blogary.s3.ap-south-1.amazonaws.com" crossorigin />
-    <link rel="dns-prefetch" href="https://blogary.s3.ap-south-1.amazonaws.com" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/css/style.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/style.css" rel="stylesheet" type="text/css" />
     <link
-      href="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/css/blogary-colors.css"
+      href="assets/css/blogary-colors.css"
       rel="stylesheet"
       type="text/css"
-    /><link href="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/css/blogary-ui.css" rel="stylesheet" type="text/css">
+    /><link href="assets/css/blogary-ui.css" rel="stylesheet" type="text/css">
     <style>
       html.w-mod-js:not(.w-mod-ix3)
         :is(
@@ -92,7 +88,7 @@
     </style>
     <link href="https://fonts.googleapis.com" rel="preconnect" />
     <link href="https://fonts.gstatic.com" rel="preconnect" />
-    <script src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/lib/webfont.js" type="text/javascript"></script>
+    <script src="assets/lib/webfont.js" type="text/javascript"></script>
     <script type="text/javascript">
       WebFont.load({ google: { families: ["Inconsolata:400,700"] } });
     </script>
@@ -106,10 +102,9 @@
             (n.className += t + "touch"));
       })(window, document);
     </script>
-    <link href="/logomobileapp.png" rel="icon" type="image/png" />
-    <link href="/favicon.png" rel="icon" type="image/png" />
-    <link href="/favicon.ico" rel="shortcut icon" />
-    <link href="/logomobileapp.png" rel="apple-touch-icon" />
+    <link href="assets/img/favicon.png" rel="icon" type="image/png" />
+    <link href="assets/img/favicon.ico" rel="shortcut icon" />
+    <link href="assets/img/webclip.png" rel="apple-touch-icon" />
     <style>
       body {
         -moz-osx-font-smoothing: grayscale;
@@ -248,103 +243,7 @@
         outline: 2px solid currentColor;
         outline-offset: 3px;
       }
-      .bl-logo {
-        display: flex;
-        align-items: center;
-        width: auto !important;
-      }
-      .bl-logo img {
-        height: 38px;
-        width: auto;
-        max-width: none;
-        object-fit: contain;
-        display: block;
-      }
-      body.dark-mode .bl-logo img {
-        filter: brightness(1.2) contrast(1.05);
-      }
-      .nav-actions {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-      }
-      .nav-action-button {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
-      .bl-btn-login {
-        height: 36px;
-        padding: 0 18px;
-        border-radius: 9999px;
-        background-color: var(--_colors--surface---surface-3, #e5e4de);
-        color: var(--_colors--text---text-heading, #1f1f1f);
-        font-size: 14px;
-        font-weight: 500;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        text-decoration: none;
-        transition: background-color 0.2s, opacity 0.2s;
-        line-height: 1;
-        white-space: nowrap;
-      }
-      .bl-btn-login:hover {
-        background-color: #dad9d2;
-      }
-      body.dark-mode .bl-btn-login {
-        background-color: #2c2c2c;
-        color: #f5f5f5;
-      }
-      body.dark-mode .bl-btn-login:hover {
-        background-color: #383838;
-      }
-      .bl-btn-demo {
-        height: 36px;
-        padding: 0 18px;
-        border-radius: 9999px;
-        background-color: #141414;
-        color: #ffffff;
-        font-size: 14px;
-        font-weight: 500;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        text-decoration: none;
-        transition: opacity 0.2s, background-color 0.2s;
-        line-height: 1;
-        white-space: nowrap;
-      }
-      .bl-btn-demo:hover {
-        opacity: 0.9;
-      }
-      body.dark-mode .bl-btn-demo {
-        background-color: #ffffff;
-        color: #141414;
-      }
-      body.dark-mode .bl-btn-demo:hover {
-        opacity: 0.92;
-      }
-      @media screen and (max-width: 560px) {
-        .bl-btn-login {
-          display: none;
-        }
-        .bl-logo img {
-          height: 32px;
-        }
-        .bl-btn-demo {
-          height: 32px;
-          padding: 0 12px;
-          font-size: 13px;
-        }
-      }
     </style>
-      <script id="w-mod-ix3-timeout">
-      // Instant reveal fallback to prevent blank/hidden page lag
-      setTimeout(function() {
-        document.documentElement.classList.add('w-mod-ix3');
-      }, 150);
-    </script>
   </head>
   <body id="top">
     <div class="persistant-color-scheme-script w-embed"></div>
@@ -365,10 +264,7 @@
             class="nav-logo-link w-inline-block"
             aria-label="Blogary home"
             ><div class="logo bl-logo">
-              <picture>
-                <source srcset="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/logo.webp" type="image/webp" />
-                <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/logo.png" alt="Blogary" style="height: 38px; width: auto; max-width: none; object-fit: contain; display: block;" />
-              </picture>
+              <img src="assets/img/logo.PNG" alt="">
             </div></a
           >
           <div class="nav-actions">
@@ -412,8 +308,14 @@
               </div>
             </div>
             <div class="nav-action-button">
-              <a href="/login" class="bl-btn-login w-inline-block">Login</a>
-              <a href="#demo" class="bl-btn-demo w-inline-block">Book a demo</a>
+              <a
+                data-wf--button--variant="small"
+                href="#demo"
+                class="button w-variant-f663b26e-de5f-4688-ac6c-b0536a65982f w-inline-block"
+                ><div class="button-text">Book a demo</div>
+                <div class="button-hover-element-wrap">
+                  <div class="button-hover-element"></div></div
+              ></a>
             </div>
             <div class="menu-button w-nav-button">
               <div class="menu-button-icons-wrap">
@@ -493,14 +395,13 @@
                       </div>
                       <div class="dropdown-links-small">
                         <div class="dropdown-links-small-title">Company</div>
-                        <a href="/login" class="dropdown-small-link">Sign In / Studio</a>
                         <a
                           href="https://jupsoft.com"
                           class="dropdown-small-link"
                            target="_blank" rel="noopener">Jupsoft Systems</a
                         ><a href="#demo" class="dropdown-small-link"
                           >Book a demo</a
-                        ><a href="/contact" class="dropdown-small-link"
+                        ><a href="contact.html" class="dropdown-small-link"
                           >Contact</a
                         >
                       </div>
@@ -509,13 +410,15 @@
                   <a href="#demo" class="dropdown-cta w-inline-block"
                     ><img
                       sizes="100vw"
-                      srcset="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/landscape-17-p-500.webp   500w, https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/landscape-17-p-800.webp   800w, https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/landscape-17-p-1080.webp 1080w, https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/landscape-17.webp        1536w
+                      srcset="
+                        assets/img/landscape-17-p-500.webp   500w,
+                        assets/img/landscape-17-p-800.webp   800w,
+                        assets/img/landscape-17-p-1080.webp 1080w,
+                        assets/img/landscape-17.webp        1536w
                       "
                       alt="A writer drafting a post on a laptop"
-                      src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/landscape-17.webp"
+                      src="assets/img/landscape-17.webp"
                       class="dropdown-cta-bg"
-                      loading="lazy"
-                      decoding="async"
                     />
                     <div class="title">
                       <div class="text-lead">Meet Blogary</div>
@@ -583,7 +486,7 @@
               ></a>
             </div>
           </div>
-          <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/blogaryimg1.webp" alt="" decoding="async" fetchpriority="high">
+          <img src="assets/img/blogaryimg1.png" alt="">
         </div>
       </div>
     </section>
@@ -984,7 +887,7 @@
           <div class="wide-features-list">
             <div data-gsap-onscroll="scroll-reveal" class="wide-feature-grid">
               <div class="bento-tile-box portrait">
-                  <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/content1.webp" alt="" loading="lazy" decoding="async">
+                  <img src="assets/img/content1.png" alt="">
               </div>
               <div class="wide-feature-grid-body">
                 <div class="wide-feature-grid-content">
@@ -1043,7 +946,7 @@
             </div>
             <div data-gsap-onscroll="scroll-reveal" class="wide-feature-grid">
               <div class="bento-tile-box portrait">
-                  <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/content2.webp" alt="" loading="lazy" decoding="async">
+                  <img src="assets/img/content2.png" alt="">
               </div>
               <div class="wide-feature-grid-body">
                 <div class="wide-feature-grid-content">
@@ -1105,7 +1008,7 @@
             </div>
             <div data-gsap-onscroll="scroll-reveal" class="wide-feature-grid">
               <div class="bento-tile-box portrait">
-                  <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/content3.webp" alt="" loading="lazy" decoding="async">
+                  <img src="assets/img/content3.png" alt="">
               </div>
               <div class="wide-feature-grid-body">
                 <div class="wide-feature-grid-content">
@@ -1270,7 +1173,7 @@
               
               <div class="wrap metric-box-3-text">
                 <div class="how_works_img">
-                  <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/whyblogary1.webp" alt="" loading="lazy" decoding="async">
+                  <img src="assets/img/whyblogary1.png" alt="">
                 </div>
                 <div>
                   <div>Author &amp; approve</div>
@@ -1285,7 +1188,7 @@
               
               <div class="wrap metric-box-3-text">
                 <div class="how_works_img">
-                  <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/whyblogary2.webp" alt="" loading="lazy" decoding="async">
+                  <img src="assets/img/whyblogary2.png" alt="">
                 </div>
                 <div>
                   <div>Publish to a site</div>
@@ -1300,7 +1203,7 @@
               
               <div class="wrap metric-box-3-text">
                 <div class="how_works_img">
-                  <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/whyblogary3.webp" alt="" loading="lazy" decoding="async">
+                  <img src="assets/img/whyblogary3.png" alt="">
                 </div>
                 <div>
                   <div>Your site pulls the API</div>
@@ -1421,13 +1324,16 @@
               >
                 <img
                   alt=""
-                  src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/art_03.webp"
+                  src="assets/img/art_03.webp"
                   sizes="(max-width: 1920px) 100vw, 1920px"
-                  srcset="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/art_03-p-500.webp   500w, https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/art_03-p-800.webp   800w, https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/art_03-p-1080.webp 1080w, https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/art_03-p-1600.webp 1600w, https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/art_03.webp        1920w
+                  srcset="
+                    assets/img/art_03-p-500.webp   500w,
+                    assets/img/art_03-p-800.webp   800w,
+                    assets/img/art_03-p-1080.webp 1080w,
+                    assets/img/art_03-p-1600.webp 1600w,
+                    assets/img/art_03.webp        1920w
                   "
                   class="motif-strip-image"
-                  loading="lazy"
-                  decoding="async"
                 />
               </div>
               <div class="pricing-plan square-borders">
@@ -1491,7 +1397,7 @@
               </div>
               <a
                 data-wf--button--variant="default---surface-3"
-                href="/contact"
+                href="contact.html"
                 class="button w-variant-3f9033b6-e1aa-18e1-1f60-3c73266dd11d w-inline-block"
                 ><div class="button-text">Contact sales</div>
                 <div class="button-hover-element-wrap">
@@ -1513,7 +1419,7 @@
             id="w-node-_631b6a3e-5fd7-7175-93a8-45f743b877c0-b4446557"
             class="bento-tile-area square"
           >
-           <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/blogaryapi.webp" loading="lazy" decoding="async">
+           <img src="assets/img/blogaryapi.png">
           </div>
           <div class="wide-feature-grid-body-2">
             <div class="wide-feature-2-content">
@@ -1712,7 +1618,7 @@
           <div data-gsap-onscroll="scroll-reveal" class="button-pair">
             <a
               data-wf--button--variant="default"
-              href="/contact"
+              href="contact.html"
               class="button flush-right w-inline-block"
               ><div class="button-text">Book a demo</div>
               <div class="button-hover-element-wrap">
@@ -1754,10 +1660,8 @@
         <div class="footer-2-wrap">
           
           <div class="bl-foot"><div class="bl-foot-brand"><a href="#top" class="logo bl-logo" aria-label="Blogary home">
-            <picture>
-              <source srcset="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/logo.webp" type="image/webp" />
-              <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/logo.png" alt="Blogary" style="height: 36px; width: auto; max-width: none; object-fit: contain; display: block;" />
-            </picture></a>
+            <img src="assets/img/logo.PNG" alt="">
+            <span class="bl-by">by Jupsoft</span></a>
             <div class="muted-text">The central content hub for teams that run more than one website.</div><a href="mailto:hello@jupsoft.com" class="bl-foot-mail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-10z"/><path d="M3 7l9 6l9 -6"/></svg><span>hello@jupsoft.com</span></a></div><div class="footer-2-menus">
               <div class="footer-menu">
                 <div class="footer-menu-heading">Product</div>
@@ -1772,27 +1676,26 @@
                 <a href="https://jupsoft.com" class="footer-menu-link"
                    target="_blank" rel="noopener">Jupsoft Systems</a
                 ><a href="#demo" class="footer-menu-link">Book a demo</a
-                ><a href="/contact" class="footer-menu-link">Contact</a>
-                <a href="/login" class="footer-menu-link">Admin Studio Login</a>
+                ><a href="contact.html" class="footer-menu-link">Contact</a>
               </div>
               </div></div><div class="bl-foot-base"><span>© 2026 Jupsoft Systems Pvt. Ltd. · Blogary is a Jupsoft product.</span><div class="bl-foot-base-links"><a href="https://jupsoft.com/privacy-policy" target="_blank" rel="noopener">Privacy</a><a href="https://jupsoft.com/terms-of-use" target="_blank" rel="noopener">Terms</a><a href="https://jupsoft.com" target="_blank" rel="noopener">jupsoft.com ↗</a></div></div></div></div></section>
-    <script src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/lib/jquery.min.js" type="text/javascript"></script>
+    <script src="assets/lib/jquery.min.js" type="text/javascript"></script>
     <script
-      src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/js/webflow.chunk.36b8fb49256177c8.js"
+      src="assets/js/webflow.chunk.36b8fb49256177c8.js"
       type="text/javascript"
     ></script>
     <script
-      src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/js/webflow.chunk.654b4983dfc5cf94.js"
+      src="assets/js/webflow.chunk.654b4983dfc5cf94.js"
       type="text/javascript"
     ></script>
-    <script src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/js/webflow.js" type="text/javascript"></script>
-    <script src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/lib/gsap.min.js" type="text/javascript"></script>
+    <script src="assets/js/webflow.js" type="text/javascript"></script>
+    <script src="assets/lib/gsap.min.js" type="text/javascript"></script>
     <script
-      src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/lib/ScrollTrigger.min.js"
+      src="assets/lib/ScrollTrigger.min.js"
       type="text/javascript"
     ></script>
-    <script src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/lib/SplitText.min.js" type="text/javascript"></script>
-    <script src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/lib/CustomEase.min.js" type="text/javascript"></script>
+    <script src="assets/lib/SplitText.min.js" type="text/javascript"></script>
+    <script src="assets/lib/CustomEase.min.js" type="text/javascript"></script>
     <script type="text/javascript">
       gsap.registerPlugin(ScrollTrigger, SplitText, CustomEase);
     </script>
@@ -1845,7 +1748,7 @@
         });
       })();
     </script>
-    <script src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/lib/lenis.min.js"></script>
+    <script src="assets/lib/lenis.min.js"></script>
 
     <script>
       // Initialize Lenis
