@@ -73,7 +73,7 @@ async function bootstrap() {
   const staticAllowedOrigins = new Set(
     (
       rawAllowedOrigins ||
-      'http://localhost:3000,http://localhost:4000,http://localhost:4010,https://blogary.jupsoft.com,http://blogary.jupsoft.com,https://cms.jupsoft.com,https://api.cms.jupsoft.com,https://cloud.jupsoft.com,https://jupsoft.com,https://digifynext.com,https://schoolerp.in'
+      'http://localhost:3000,http://localhost:4000,http://localhost:4010,https://blogary.jupsoft.com,http://blogary.jupsoft.com,https://cms.jupsoft.com,https://api.cms.jupsoft.com,https://cloud.jupsoft.com,https://jupsoft.com,https://digifynext.com,https://www.digifynext.com,https://schoolerp.in'
     )
       .split(',')
       .map((o) => o.trim().toLowerCase().replace(/\/+$/, '')),
@@ -100,6 +100,9 @@ async function bootstrap() {
           if (w.domain) {
             const cleanDomain = w.domain.toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '');
             domains.add(cleanDomain);
+            if (!cleanDomain.startsWith('www.')) {
+              domains.add('www.' + cleanDomain);
+            }
           }
         }
         activeTenantDomains = domains;
