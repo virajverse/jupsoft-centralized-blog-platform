@@ -1,0 +1,149 @@
+/* Blogary colour layer - sits on top of style.css.
+   Palette follows the CMS workflow: draft -> review -> approved/published -> scheduled.
+   Remove the <link> to this file to go back to the neutral theme. */
+
+body{
+  --bl-indigo:#4f46e5;      /* brand / actions   */
+  --bl-violet:#8b5cf6;      /* in review         */
+  --bl-amber:#e59a0e;       /* draft             */
+  --bl-green:#2f9e63;       /* approved/published*/
+  --bl-blue:#2b8ae8;        /* scheduled         */
+  --bl-coral:#ee6a4b;       /* highlight / old way */
+  --bl-tint-a:rgba(79,70,229,.10);
+  --bl-tint-b:rgba(139,92,246,.10);
+  --bl-tint-c:rgba(238,106,75,.08);
+  --_colors--button---button-hover-element:var(--bl-indigo);
+}
+body.dark-mode{
+  --bl-indigo:#8b87ff;
+  --bl-violet:#a98bff;
+  --bl-amber:#f2b33d;
+  --bl-green:#4cc68a;
+  --bl-blue:#5aa9ff;
+  --bl-coral:#ff8a6b;
+  --bl-tint-a:rgba(139,135,255,.14);
+  --bl-tint-b:rgba(169,139,255,.12);
+  --bl-tint-c:rgba(255,138,107,.10);
+}
+
+::selection{background:var(--bl-indigo);color:#fff}
+
+/* hero: soft glow behind the headline */
+[data-gsap-onload="hero-stack-reveal"]{position:relative;isolation:isolate}
+[data-gsap-onload="hero-stack-reveal"]::before{
+  content:"";position:absolute;z-index:-1;pointer-events:none;
+  left:50%;top:-10%;width:min(900px,120%);height:120%;transform:translateX(-50%);
+  background:
+    radial-gradient(40% 50% at 30% 40%,var(--bl-tint-a),transparent 70%),
+    radial-gradient(35% 45% at 70% 35%,var(--bl-tint-b),transparent 70%),
+    radial-gradient(30% 40% at 55% 75%,var(--bl-tint-c),transparent 70%);
+}
+
+/* links, code chips */
+.link-underline{text-decoration-color:var(--bl-indigo);text-underline-offset:3px}
+.bl-code,.api-chip{background:var(--bl-tint-a);color:inherit}
+.api-chip{box-shadow:inset 0 0 0 1px var(--bl-tint-a)}
+
+/* bullets: indigo by default, coral for "without", green for "with" */
+.bullet{background-color:var(--bl-indigo)}
+.bl-compare .pricing-plan:first-child .bullet{background-color:var(--bl-coral)}
+.bl-compare .pricing-plan:last-child .bullet{background-color:var(--bl-green)}
+.bl-compare .pricing-plan:first-child{box-shadow:inset 0 3px 0 var(--bl-coral)}
+.bl-compare .pricing-plan:last-child{box-shadow:inset 0 3px 0 var(--bl-green)}
+
+/* workflow statuses inside the product tiles */
+.tile-location-segment-circle{background-color:var(--bl-amber)}
+.tile-location-segment-circle.full{background-color:var(--bl-green)}
+.tile-checkbox:has(.tile-checkbox-check){border-color:var(--bl-green);color:var(--bl-green);background:rgba(47,158,99,.12)}
+.tile-bar-graph{background-image:linear-gradient(180deg,var(--bl-violet),var(--bl-indigo));background-color:var(--bl-indigo)}
+
+/* steps: draft -> review -> published colours, reused by the audience cards */
+.metric-box-3 .step-label{display:inline-flex;align-items:center;gap:8px}
+.metric-box-3 .step-label::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--bl-amber)}
+.metric-box-grid .metric-box-3:nth-child(2) .step-label::before{background:var(--bl-violet)}
+.metric-box-grid .metric-box-3:nth-child(3) .step-label::before{background:var(--bl-green)}
+.metric-box-grid .metric-box-3:nth-child(1) .metric-text{color:var(--bl-amber)}
+.metric-box-grid .metric-box-3:nth-child(2) .metric-text{color:var(--bl-violet)}
+.metric-box-grid .metric-box-3:nth-child(3) .metric-text{color:var(--bl-green)}
+.bl-audience .metric-box-3:nth-child(1){box-shadow:inset 0 3px 0 var(--bl-amber)}
+.bl-audience .metric-box-3:nth-child(2){box-shadow:inset 0 3px 0 var(--bl-violet)}
+.bl-audience .metric-box-3:nth-child(3){box-shadow:inset 0 3px 0 var(--bl-green)}
+
+/* small feature icons */
+.icon-list-horizontal .icon-with-label:nth-child(1) .icon{color:var(--bl-indigo)}
+.icon-list-horizontal .icon-with-label:nth-child(2) .icon{color:var(--bl-coral)}
+.wide-feature-grid:nth-child(2) .icon-with-label:nth-child(1) .icon{color:var(--bl-violet)}
+.wide-feature-grid:nth-child(2) .icon-with-label:nth-child(2) .icon{color:var(--bl-blue)}
+.wide-feature-grid:nth-child(3) .icon-with-label:nth-child(1) .icon{color:var(--bl-green)}
+.wide-feature-grid:nth-child(3) .icon-with-label:nth-child(2) .icon{color:var(--bl-amber)}
+
+/* pricing: highlight the popular plan */
+.badge.pricing-badge{background:var(--bl-indigo);color:#fff}
+.pricing-plan.square-borders{box-shadow:inset 0 0 0 1.5px var(--bl-indigo)}
+
+/* forms, footer */
+.form-input-text:focus{border-color:var(--bl-indigo);box-shadow:0 0 0 3px var(--bl-tint-a);outline:0}
+.footer-2{border-top:2px solid transparent;border-image:linear-gradient(90deg,var(--bl-indigo),var(--bl-violet),var(--bl-coral),var(--bl-amber)) 1}
+.footer-menu-link:hover,.dropdown-small-link:hover,.dropdown-link-large:hover{color:var(--bl-indigo)}
+
+/* ---------- Why Blogary: one colour per card (icon + its box) ---------- */
+.wide-icon-grid .icon-text-row { --card: var(--bl-indigo); transition: background-color .2s, box-shadow .2s; }
+.wide-icon-grid .icon-text-row:nth-child(2) { --card: var(--bl-green); }
+.wide-icon-grid .icon-text-row:nth-child(3) { --card: var(--bl-violet); }
+.wide-icon-grid .icon-text-row:nth-child(4) { --card: var(--bl-amber); }
+.wide-icon-grid .boxed-icon {
+  background-color: color-mix(in srgb, var(--card) 14%, transparent);
+  color: var(--card); transition: background-color .2s, color .2s;
+}
+.wide-icon-grid .boxed-icon-svg { color: inherit; }
+.wide-icon-grid .icon-text-row-arrow { transition: color .2s, transform .2s; }
+.wide-icon-grid .icon-text-row:hover { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--card) 35%, transparent); }
+.wide-icon-grid .icon-text-row:hover .boxed-icon { background-color: var(--card); color: #fff; }
+.wide-icon-grid .icon-text-row:hover .icon-text-row-arrow { color: var(--card); transform: translateX(3px); }
+
+/* ---------- Pricing: one accent per plan (Starter blue, Growth indigo, Enterprise violet) ---------- */
+#pricing .pricing-grid > .pricing-plan:first-child { --plan: var(--bl-blue); }
+#pricing .pricing-plan-wrap .pricing-plan { --plan: var(--bl-indigo); }
+#pricing .pricing-grid > .pricing-plan:last-child { --plan: var(--bl-violet); }
+
+#pricing .pricing-grid > * { transition: transform .25s ease; }
+#pricing .pricing-grid > *:hover { transform: translateY(-4px); }
+#pricing .pricing-plan {
+  background-image: linear-gradient(180deg, color-mix(in srgb, var(--plan) 7%, transparent), transparent 55%);
+  transition: box-shadow .25s ease;
+}
+#pricing .pricing-grid > .pricing-plan { box-shadow: inset 0 3px 0 var(--plan); }
+#pricing .pricing-grid > .pricing-plan:hover { box-shadow: inset 0 3px 0 var(--plan), 0 22px 44px -28px color-mix(in srgb, var(--plan) 70%, transparent); }
+#pricing .pricing-plan.square-borders {
+  background-image: linear-gradient(180deg, color-mix(in srgb, var(--plan) 12%, transparent), transparent 60%);
+}
+#pricing .pricing-plan-wrap:hover .pricing-plan.square-borders { box-shadow: inset 0 0 0 1.5px var(--plan), 0 22px 44px -28px color-mix(in srgb, var(--plan) 70%, transparent); }
+
+/* plan name gets a colour dot */
+#pricing .pricing-plan > div:first-child > .heading-h4:first-child { display: flex; align-items: center; gap: 10px; }
+#pricing .pricing-plan > div:first-child > .heading-h4:first-child::before {
+  content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--plan); flex: none;
+}
+
+/* thin divider + tick bullets in the plan colour */
+#pricing .pricing-list { border-top: 1px solid color-mix(in srgb, var(--plan) 22%, transparent); padding-top: var(--_spacing--gap---gap-6); }
+#pricing .bullet {
+  position: relative; flex: none; width: 18px; height: 18px; border-radius: 50%;
+  background-color: color-mix(in srgb, var(--plan) 16%, transparent);
+}
+#pricing .bullet::after {
+  content: ""; position: absolute; inset: 4px; background-color: var(--plan);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='%23000' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='%23000' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* Growth button in the brand colour; the other two pick up their plan colour on hover */
+#pricing .pricing-plan.square-borders {
+  --_colors--button---button-background-primary: var(--plan);
+  --_colors--button---button-text-primary: #fff;
+  --_colors--button---button-hover-element: color-mix(in srgb, var(--plan) 70%, #000);
+}
+#pricing .pricing-grid > .pricing-plan .button { transition: background-color .2s, color .2s; }
+#pricing .pricing-grid > .pricing-plan .button:hover { background-color: color-mix(in srgb, var(--plan) 16%, var(--_colors--surface---surface-3)); }
+#pricing .pricing-list { align-self: stretch; }
+body.dark-mode #pricing .pricing-plan.square-borders { --_colors--button---button-text-primary: #0f1020; }
