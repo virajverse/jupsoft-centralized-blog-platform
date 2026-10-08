@@ -66,6 +66,7 @@ export const DeveloperIntegrationGuide: React.FC<DeveloperIntegrationGuideProps>
   const [testLatency, setTestLatency] = useState<number | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
   const [bypassCacheTest, setBypassCacheTest] = useState(false);
+  const [isConsoleOpen, setIsConsoleOpen] = useState(false);
 
   // FAQ Accordion State
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -145,6 +146,7 @@ export const DeveloperIntegrationGuide: React.FC<DeveloperIntegrationGuideProps>
   };
 
   const runLiveTest = async () => {
+    setIsConsoleOpen(true);
     setIsTesting(true);
     setTestError(null);
     setTestResult(null);
@@ -1692,57 +1694,67 @@ Accept: application/json
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => copyToClipboard(websiteId, 'top-site-id')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-semibold text-slate-800 dark:text-slate-200 shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer"
-            >
-              {copiedKey === 'top-site-id' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
-              <span>ID: {websiteId}</span>
-            </button>
-            <button
-              onClick={() => copyToClipboard(apiKey, 'top-api-key')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-semibold text-slate-800 dark:text-slate-200 shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer"
-            >
-              {copiedKey === 'top-api-key' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
-              <span>Key: {apiKey ? `${apiKey.slice(0, 14)}...` : 'Not Set'}</span>
-            </button>
-            <button
-              onClick={() => copyToClipboard(apiBaseUrl, 'top-api-url')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-semibold text-slate-800 dark:text-slate-200 shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer"
-            >
-              {copiedKey === 'top-api-url' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
-              <span>API: {apiBaseUrl}</span>
-            </button>
-            <button
-              onClick={() => downloadFile(handoverMarkdown, `${websiteId}-developer-handover-guide.md`, 'text/markdown')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-              title="Download complete handover documentation as Markdown file"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Export Handover Guide (.MD)</span>
-            </button>
-            <button
-              onClick={() => {
-                downloadFile(jsClientCode, 'cms-client.js');
-                setTimeout(() => downloadFile(htmlBlogListCode, 'blog.shtml'), 200);
-                setTimeout(() => downloadFile(htmlBlogDetailCode, 'blog-detail.shtml'), 400);
-                setTimeout(() => downloadFile(iisRewriteCode, 'web.config', 'application/xml'), 600);
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-              title="Download all 4 frontend integration files at once"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Download SHTML Pack (4 Files)</span>
-            </button>
-            <button
-              onClick={() => downloadFile(postmanCollectionJson, `${websiteId}-postman-collection.json`, 'application/json')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-              title="Download Postman Collection v2.1"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Postman Collection</span>
-            </button>
+          <div className="flex flex-col xl:flex-row xl:items-center gap-3">
+            {/* Credentials Row */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => copyToClipboard(websiteId, 'top-site-id')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-semibold text-slate-800 dark:text-slate-200 shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer"
+                title="Click to copy Website ID"
+              >
+                {copiedKey === 'top-site-id' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+                <span>ID: {websiteId}</span>
+              </button>
+              <button
+                onClick={() => copyToClipboard(apiKey, 'top-api-key')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-semibold text-slate-800 dark:text-slate-200 shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer"
+                title="Click to copy Client API Key"
+              >
+                {copiedKey === 'top-api-key' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+                <span>Key: {apiKey ? `${apiKey.slice(0, 14)}...` : 'Not Set'}</span>
+              </button>
+              <button
+                onClick={() => copyToClipboard(apiBaseUrl, 'top-api-url')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-semibold text-slate-800 dark:text-slate-200 shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer"
+                title="Click to copy Base API URL"
+              >
+                {copiedKey === 'top-api-url' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+                <span>API: {apiBaseUrl}</span>
+              </button>
+            </div>
+
+            {/* Quick Handover Toolbar */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => {
+                  downloadFile(jsClientCode, 'cms-client.js');
+                  setTimeout(() => downloadFile(htmlBlogListCode, 'blog.shtml'), 200);
+                  setTimeout(() => downloadFile(htmlBlogDetailCode, 'blog-detail.shtml'), 400);
+                  setTimeout(() => downloadFile(iisRewriteCode, 'web.config', 'application/xml'), 600);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                title="Download all 4 frontend integration files at once"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Download SHTML Pack</span>
+              </button>
+              <button
+                onClick={() => downloadFile(handoverMarkdown, `${websiteId}-developer-handover-guide.md`, 'text/markdown')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800/80 hover:bg-slate-50 border border-emerald-500/50 text-emerald-700 dark:text-emerald-400 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                title="Download complete handover documentation as Markdown file"
+              >
+                <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Handover Guide (.MD)</span>
+              </button>
+              <button
+                onClick={() => downloadFile(postmanCollectionJson, `${websiteId}-postman-collection.json`, 'application/json')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800/80 hover:bg-slate-50 border border-indigo-500/50 text-indigo-700 dark:text-indigo-400 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                title="Download Postman Collection v2.1"
+              >
+                <Download className="w-3.5 h-3.5 text-indigo-500" />
+                <span>Postman Collection</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1774,20 +1786,33 @@ Accept: application/json
         </div>
       </div>
 
-      {/* ── STEP 1: INTERACTIVE LIVE API CONSOLE ── */}
-      <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-          <div>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Play className="w-4 h-4 text-emerald-500" />
-              <span>Step 1: Test Live API Connection &amp; Slugs for {activeSite?.name}</span>
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Execute live HTTP requests against the production database. Real published slugs are loaded directly from your catalog.
-            </p>
+      {/* ── STEP 1: INTERACTIVE LIVE API CONSOLE (COLLAPSIBLE) ── */}
+      <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs transition-all overflow-hidden">
+        {/* Accordion / Toggle Header */}
+        <div 
+          onClick={() => setIsConsoleOpen(!isConsoleOpen)}
+          className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer hover:bg-slate-50/70 dark:hover:bg-slate-900/40 transition-colors select-none"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <Play className="w-4 h-4 fill-emerald-600 dark:fill-emerald-400" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Step 1: Test Live API Connection &amp; Slugs for {activeSite?.name}
+                </h3>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                  {isConsoleOpen ? 'Active Console' : 'Click to Expand Tester'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Execute live HTTP requests against the production database to verify latency &amp; CORS before deploying code.
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5 self-end sm:self-auto shrink-0" onClick={(e) => e.stopPropagation()}>
             {testStatus && (
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono font-bold ${
                 testStatus === 200
@@ -1803,112 +1828,126 @@ Accept: application/json
               onClick={runLiveTest}
               disabled={isTesting}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+              title="Test connection immediately and view response"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isTesting ? 'animate-spin' : ''}`} />
-              <span>{isTesting ? 'Testing...' : 'Execute Live Request'}</span>
+              <span>{isTesting ? 'Testing...' : 'Execute Live Ping'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsConsoleOpen(!isConsoleOpen)}
+              className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title={isConsoleOpen ? 'Collapse console' : 'Expand console'}
+            >
+              {isConsoleOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
           </div>
         </div>
 
-        {/* Console Controls */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-          <div>
-            <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">Target Endpoint</label>
-            <select
-              value={testEndpoint}
-              onChange={(e: any) => setTestEndpoint(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none"
-            >
-              <option value="blogs">GET /v1/blogs (Paginated Listing)</option>
-              <option value="detail">GET /v1/blogs/:slug (Full Article Detail)</option>
-              <option value="latest">GET /v1/blogs/latest (Latest 3 Posts)</option>
-              <option value="popular">GET /v1/blogs/popular (Most Viewed Posts)</option>
-              <option value="categories">GET /v1/categories (Taxonomy Tree)</option>
-              <option value="health">GET /v1/health (System Health)</option>
-            </select>
-          </div>
+        {/* Collapsible Body Content */}
+        {isConsoleOpen && (
+          <div className="p-5 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-4 bg-slate-50/30 dark:bg-slate-900/20">
+            {/* Console Controls */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div>
+                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">Target Endpoint</label>
+                <select
+                  value={testEndpoint}
+                  onChange={(e: any) => setTestEndpoint(e.target.value)}
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none"
+                >
+                  <option value="blogs">GET /v1/blogs (Paginated Listing)</option>
+                  <option value="detail">GET /v1/blogs/:slug (Full Article Detail)</option>
+                  <option value="latest">GET /v1/blogs/latest (Latest 3 Posts)</option>
+                  <option value="popular">GET /v1/blogs/popular (Most Viewed Posts)</option>
+                  <option value="categories">GET /v1/categories (Taxonomy Tree)</option>
+                  <option value="health">GET /v1/health (System Health)</option>
+                </select>
+              </div>
 
-          <div>
-            <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">Target Website ID</label>
-            <input
-              type="text"
-              readOnly
-              value={websiteId}
-              className="w-full bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-600 dark:text-slate-400 font-mono text-xs cursor-not-allowed"
-            />
-          </div>
+              <div>
+                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">Target Website ID</label>
+                <input
+                  type="text"
+                  readOnly
+                  value={websiteId}
+                  className="w-full bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-600 dark:text-slate-400 font-mono text-xs cursor-not-allowed"
+                />
+              </div>
 
-          <div>
-            <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">
-              {testEndpoint === 'detail' ? 'Select Published Blog Slug' : 'Options'}
-            </label>
-            {testEndpoint === 'detail' ? (
-              <div className="space-y-1">
-                {publishedBlogs.length > 0 ? (
-                  <select
-                    value={testSlug}
-                    onChange={(e) => setTestSlug(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none truncate"
-                  >
-                    {publishedBlogs.map((b) => {
-                      const lang = activeSite.defaultLanguage || 'en';
-                      const slug = b.translations[lang]?.slug || Object.values(b.translations)[0]?.slug || b.id;
-                      return (
-                        <option key={b.id} value={slug}>
-                          {b.translations[lang]?.title || slug} ({slug})
-                        </option>
-                      );
-                    })}
-                  </select>
+              <div>
+                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">
+                  {testEndpoint === 'detail' ? 'Select Published Blog Slug' : 'Options'}
+                </label>
+                {testEndpoint === 'detail' ? (
+                  <div className="space-y-1">
+                    {publishedBlogs.length > 0 ? (
+                      <select
+                        value={testSlug}
+                        onChange={(e) => setTestSlug(e.target.value)}
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none truncate"
+                      >
+                        {publishedBlogs.map((b) => {
+                          const lang = activeSite.defaultLanguage || 'en';
+                          const slug = b.translations[lang]?.slug || Object.values(b.translations)[0]?.slug || b.id;
+                          return (
+                            <option key={b.id} value={slug}>
+                              {b.translations[lang]?.title || slug} ({slug})
+                            </option>
+                          );
+                        })}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={testSlug}
+                        onChange={(e) => setTestSlug(e.target.value)}
+                        placeholder="enter-custom-slug"
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none"
+                      />
+                    )}
+                  </div>
                 ) : (
-                  <input
-                    type="text"
-                    value={testSlug}
-                    onChange={(e) => setTestSlug(e.target.value)}
-                    placeholder="enter-custom-slug"
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none"
-                  />
+                  <label className="flex items-center gap-2 pt-2 cursor-pointer text-slate-700 dark:text-slate-300 font-medium">
+                    <input
+                      type="checkbox"
+                      checked={bypassCacheTest}
+                      onChange={(e) => setBypassCacheTest(e.target.checked)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span>Bypass Cache (<code className="text-indigo-600 font-mono">&amp;fresh=1</code>)</span>
+                  </label>
                 )}
               </div>
-            ) : (
-              <label className="flex items-center gap-2 pt-2 cursor-pointer text-slate-700 dark:text-slate-300 font-medium">
-                <input
-                  type="checkbox"
-                  checked={bypassCacheTest}
-                  onChange={(e) => setBypassCacheTest(e.target.checked)}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <span>Bypass Cache (<code className="text-indigo-600 font-mono">&amp;fresh=1</code>)</span>
-              </label>
-            )}
-          </div>
-        </div>
-
-        {/* Gotcha Callout Banner */}
-        <div className="p-3.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2.5">
-          <HelpCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
-          <div className="leading-relaxed">
-            <strong>Important Developer Gotcha (Browser Address Bar 401):</strong> If you copy the API URL and paste it directly into your Chrome/Edge address bar, you will receive <code className="font-mono font-bold">401 Direct browser access denied</code> because browser address bars do not send an <code className="font-mono">Origin</code> header.
-            When your frontend JavaScript runs on <strong>{siteDomain}</strong> (or <strong>localhost</strong>), the browser automatically supplies the Origin, connecting instantly with <strong>zero API keys</strong>.
-          </div>
-        </div>
-
-        {/* Live Response Box */}
-        {(testResult || testError) && (
-          <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-[#0f1117] text-slate-200 text-xs font-mono">
-            <div className="px-3.5 py-2 bg-[#171b26] border-b border-slate-800 flex items-center justify-between">
-              <span className="text-slate-400 text-[11px]">Live Database Response Output</span>
-              <button
-                onClick={() => copyToClipboard(JSON.stringify(testResult || testError, null, 2), 'console-json')}
-                className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
-              >
-                {copiedKey === 'console-json' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                <span>{copiedKey === 'console-json' ? 'Copied' : 'Copy JSON'}</span>
-              </button>
             </div>
-            <pre className="p-3.5 max-h-56 overflow-y-auto overflow-x-auto text-[11.5px] leading-relaxed text-emerald-300">
-              {testResult ? JSON.stringify(testResult, null, 2) : testError}
-            </pre>
+
+            {/* Gotcha Callout Banner */}
+            <div className="p-3.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2.5">
+              <HelpCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+              <div className="leading-relaxed">
+                <strong>Important Developer Gotcha (Browser Address Bar 401):</strong> If you copy the API URL and paste it directly into your Chrome/Edge address bar, you will receive <code className="font-mono font-bold">401 Direct browser access denied</code> because browser address bars do not send an <code className="font-mono">Origin</code> header.
+                When your frontend JavaScript runs on <strong>{siteDomain}</strong> (or <strong>localhost</strong>), the browser automatically supplies the Origin, connecting instantly with <strong>zero API keys</strong>.
+              </div>
+            </div>
+
+            {/* Live Response Box */}
+            {(testResult || testError) && (
+              <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-[#0f1117] text-slate-200 text-xs font-mono">
+                <div className="px-3.5 py-2 bg-[#171b26] border-b border-slate-800 flex items-center justify-between">
+                  <span className="text-slate-400 text-[11px]">Live Database Response Output</span>
+                  <button
+                    onClick={() => copyToClipboard(JSON.stringify(testResult || testError, null, 2), 'console-json')}
+                    className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    {copiedKey === 'console-json' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedKey === 'console-json' ? 'Copied' : 'Copy JSON'}</span>
+                  </button>
+                </div>
+                <pre className="p-3.5 max-h-56 overflow-y-auto overflow-x-auto text-[11.5px] leading-relaxed text-emerald-300">
+                  {testResult ? JSON.stringify(testResult, null, 2) : testError}
+                </pre>
+              </div>
+            )}
           </div>
         )}
       </div>
