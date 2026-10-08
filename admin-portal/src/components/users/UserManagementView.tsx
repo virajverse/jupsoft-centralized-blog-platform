@@ -57,13 +57,13 @@ export const PLUGIN_MODULES: {
   icon: React.ComponentType<{ className?: string }>;
 }[] = [
   { id: 'blogs', name: 'Blog Studio', desc: 'Writing, editing & translations', icon: FileText },
-  { id: 'workflow', name: 'Workflow Kanban', desc: 'Review & approval pipeline', icon: Kanban },
+  { id: 'workflow', name: 'Workflow Board', desc: 'Review & approval pipeline', icon: Kanban },
   { id: 'media', name: 'Media Library', desc: 'Uploads & WebP compression', icon: ImageIcon },
-  { id: 'taxonomy', name: 'Taxonomy & Tags', desc: 'Categories & hashtag tagging', icon: Tags },
-  { id: 'redirects', name: '301 Redirects', desc: 'Permanent URL migration rules', icon: ArrowRightLeft },
+  { id: 'taxonomy', name: 'Categories & Tags', desc: 'Categories & hashtag tagging', icon: Tags },
+  { id: 'redirects', name: 'Link Redirects', desc: 'Permanent URL migration rules', icon: ArrowRightLeft },
   { id: 'analytics', name: 'Analytics Hub', desc: 'Traffic & author performance', icon: BarChart3 },
-  { id: 'users', name: 'Team & RBAC', desc: 'User management & permissions', icon: Users },
-  { id: 'settings', name: 'Tenant Settings', desc: 'API keys, webhooks & site settings', icon: Settings },
+  { id: 'users', name: 'Team Roles & Permissions', desc: 'User management & permissions', icon: Users },
+  { id: 'settings', name: 'Website Settings', desc: 'API keys, webhooks & site settings', icon: Settings },
 ];
 
 export const DELEGATABLE_ROLES: { role: UserRole; label: string; desc: string }[] = [
@@ -652,10 +652,10 @@ _Please log in and update your password on your first sign-in._`;
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-              Team Governance &amp; RBAC Directory
+              Team Roles &amp; Permissions
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-              Manage organization members, tenant-scoped role assignments, and role-based access control policies.
+              Manage organization members, website role assignments, and permissions.
             </p>
           </div>
         </div>
@@ -716,13 +716,13 @@ _Please log in and update your password on your first sign-in._`;
             {users.filter((u) => isSuperAdminAccount(u) || Object.values(u.roleAssignments || {}).some((r) => r === 'Website Admin' || r === 'Role Admin')).length}
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-            Super &amp; Tenant Admins
+            Super &amp; Website Admins
           </p>
         </div>
 
         <div className="bg-white dark:bg-[#0f172a] p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Tenants Covered</span>
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Websites Covered</span>
             <span className="p-1.5 rounded-lg bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400">
               <Globe className="w-4 h-4" />
             </span>
@@ -731,7 +731,7 @@ _Please log in and update your password on your first sign-in._`;
             {websites.length}
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-            Multi-tenant workspaces
+            Connected websites
           </p>
         </div>
       </div>
@@ -772,7 +772,7 @@ _Please log in and update your password on your first sign-in._`;
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Role Permissions Matrix</span>
+            <span>Permissions Table</span>
           </button>
         </div>
 
@@ -1103,7 +1103,7 @@ _Please log in and update your password on your first sign-in._`;
                 <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400">
                   <th className="py-3 px-4 font-semibold">Team Member</th>
                   <th className="py-3 px-4 font-semibold">Role Assignments</th>
-                  <th className="py-3 px-4 font-semibold">Delegation / Reporting</th>
+                  <th className="py-3 px-4 font-semibold">Reports To</th>
                   <th className="py-3 px-4 font-semibold">Status</th>
                   <th className="py-3 px-4 font-semibold text-right">Actions</th>
                 </tr>
@@ -1154,7 +1154,7 @@ _Please log in and update your password on your first sign-in._`;
                     let delegationText = 'Super Admin (Global)';
                     if (!isGlobalSuper) {
                       if (isAnyWebsiteAdmin) {
-                        delegationText = 'Website Admin (Tenant Lead)';
+                        delegationText = 'Website Admin (Team Lead)';
                       } else {
                         const siteId = assignedTenants[0]?.[0];
                         const siteLead = siteId ? users.find(lead => lead.roleAssignments?.[siteId] === 'Website Admin') : null;
@@ -1375,7 +1375,7 @@ _Please log in and update your password on your first sign-in._`;
           <div className="p-4 border-b border-slate-200 dark:border-slate-800">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <KeyRound className="w-4 h-4 text-indigo-500" />
-              Role-Based Access Control (RBAC) Entitlement Matrix
+              Team Roles &amp; Permissions Table
             </h3>
           </div>
 
@@ -1642,7 +1642,7 @@ _Please log in and update your password on your first sign-in._`;
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Tenant Assignment Scope
+                    Website Assignment Scope
                   </label>
                   <select
                     value={inviteRole === 'Super Admin' ? 'all' : inviteWebsiteId}
@@ -1685,10 +1685,10 @@ _Please log in and update your password on your first sign-in._`;
                   <div>
                     <label className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
                       <Boxes className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                      <span>Modular Permissions &amp; Feature Access for &ldquo;{inviteRole}&rdquo;</span>
+                      <span>Module Permissions &amp; Feature Access for &ldquo;{inviteRole}&rdquo;</span>
                     </label>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      Super Admin can click any locked module below to unlock custom access.
+                      Super Admin can click any module below to grant or customize access for this user.
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -2005,10 +2005,10 @@ _Please log in and update your password on your first sign-in._`;
                   <div>
                     <label className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
                       <Network className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
-                      <span>Assigned Website Tenants &amp; Scoped Roles</span>
+                      <span>Assigned Websites &amp; Roles</span>
                     </label>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      Control which websites this user ID has access to and their exact role per tenant.
+                      Control which websites this user has access to and their exact role per website.
                     </p>
                   </div>
                   <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
@@ -2020,7 +2020,7 @@ _Please log in and update your password on your first sign-in._`;
                 <div className="space-y-2">
                   {Object.entries(editRoleAssignments).length === 0 ? (
                     <div className="p-3 text-center text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-900/40">
-                      No websites assigned yet. Please assign at least one website tenant below.
+                      No websites assigned yet. Please assign at least one website below.
                     </div>
                   ) : (
                     Object.entries(editRoleAssignments).map(([siteId, role]) => {
@@ -2090,7 +2090,7 @@ _Please log in and update your password on your first sign-in._`;
                           onChange={(e) => setEditAddWebsiteId(e.target.value)}
                           className="w-full bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none"
                         >
-                          <option value="" disabled>Select website tenant...</option>
+                          <option value="" disabled>Select website...</option>
                           {isSuperAdmin && !editRoleAssignments['all'] && (
                             <option value="all">All Websites (Network Wide)</option>
                           )}
@@ -2140,10 +2140,10 @@ _Please log in and update your password on your first sign-in._`;
                   <div>
                     <label className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
                       <Boxes className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                      <span>Modular Permissions &amp; Feature Access</span>
+                      <span>Module Permissions &amp; Feature Access</span>
                     </label>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      Super Admin can click any locked module below to unlock custom access across assigned tenants.
+                      Super Admin can click any module below to grant or customize access for this user.
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">

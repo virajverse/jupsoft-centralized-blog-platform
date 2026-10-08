@@ -29,9 +29,11 @@ import {
   Settings,
   ArrowRightLeft,
   KeyRound,
-  Lock
+  Lock,
+  Code
 } from 'lucide-react';
 import { RedirectsView } from '../redirects/RedirectsView';
+import { DeveloperIntegrationGuide } from './DeveloperIntegrationGuide';
 
 export const SettingsView: React.FC = () => {
   const searchParams = useSearchParams();
@@ -112,10 +114,10 @@ export const SettingsView: React.FC = () => {
   const isAllSites = effectiveSiteId === 'all';
 
   // URL state
-  type SettingsTab = 'all' | 'general' | 'redirects' | 'webhook' | 'audit';
+  type SettingsTab = 'all' | 'general' | 'developer' | 'redirects' | 'webhook' | 'audit';
   const tenantParam = searchParams.get('tenant');
   const rawTabParam = searchParams.get('tab') as SettingsTab;
-  const activeTab: SettingsTab = (rawTabParam && ['all', 'general', 'redirects', 'webhook', 'audit'].includes(rawTabParam))
+  const activeTab: SettingsTab = (rawTabParam && ['all', 'general', 'developer', 'redirects', 'webhook', 'audit'].includes(rawTabParam))
     ? ((!isSuperAdmin && rawTabParam === 'all') ? 'general' : rawTabParam)
     : (isSuperAdmin ? 'all' : 'general');
 
@@ -338,7 +340,7 @@ export const SettingsView: React.FC = () => {
         <div>
           <div className="flex flex-wrap items-center gap-2 mb-1">
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-              Tenant &amp; System Settings
+              Website &amp; System Settings
             </h1>
             {activeSite && (
               <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 truncate max-w-[150px]">
@@ -371,7 +373,7 @@ export const SettingsView: React.FC = () => {
             <div className="min-w-0">
               <span className="font-bold">Read-Only Mode: </span>
               <span className="text-amber-700 dark:text-amber-400">
-                Tenant configuration, production domains, API keys, and webhooks are strictly locked. Only a <strong>Super Admin</strong> can save or modify these settings.
+                Website configuration, production domains, API keys, and webhooks are strictly locked. Only a <strong>Super Admin</strong> can save or modify these settings.
               </span>
             </div>
           </div>
@@ -386,7 +388,7 @@ export const SettingsView: React.FC = () => {
         <div className="p-3.5 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1">
           <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
             <Globe className="w-3.5 h-3.5 text-blue-500" />
-            Configured Sites
+            Configured Websites
           </div>
           <div className="text-lg font-bold text-slate-900 dark:text-white font-mono">
             {websites.length}
@@ -396,7 +398,7 @@ export const SettingsView: React.FC = () => {
         <div className="p-3.5 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1">
           <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-            Active Tenants
+            Active Websites
           </div>
           <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 font-mono">
             {websites.filter((w) => w.status === 'active').length}
@@ -416,7 +418,7 @@ export const SettingsView: React.FC = () => {
         <div className="p-3.5 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1">
           <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
             <History className="w-3.5 h-3.5 text-amber-500" />
-            Audit Logs
+            Activity Logs
           </div>
           <div className="text-lg font-bold text-slate-900 dark:text-white font-mono">
             {auditLogs.length}
@@ -427,7 +429,7 @@ export const SettingsView: React.FC = () => {
       {/* Tenant Scope Selector (in All mode) */}
       {isAllSites && (
         <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60">
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold px-2">Configuring Tenant:</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold px-2">Configuring Website:</span>
           {websites.map((w) => (
             <button
               key={w.id}
@@ -456,7 +458,7 @@ export const SettingsView: React.FC = () => {
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            All Tenants
+            All Websites
           </button>
         )}
         <button
@@ -470,6 +472,17 @@ export const SettingsView: React.FC = () => {
           Identity &amp; API Key
         </button>
         <button
+          onClick={() => handleTabChange('developer')}
+          className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+            activeTab === 'developer'
+              ? 'bg-red-600 text-white font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Code className="w-3.5 h-3.5" />
+          <span>Developer API &amp; Integration</span>
+        </button>
+        <button
           onClick={() => handleTabChange('redirects')}
           className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
             activeTab === 'redirects'
@@ -478,7 +491,7 @@ export const SettingsView: React.FC = () => {
           }`}
         >
           <ArrowRightLeft className="w-3.5 h-3.5" />
-          <span>301 SEO Redirects</span>
+          <span>Old Link Redirects (301)</span>
         </button>
         <button
           onClick={() => handleTabChange('webhook')}
@@ -488,7 +501,7 @@ export const SettingsView: React.FC = () => {
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
-          Webhook Revalidation
+          Website Refresh &amp; Sync
         </button>
         <button
           onClick={() => handleTabChange('audit')}
@@ -498,7 +511,7 @@ export const SettingsView: React.FC = () => {
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
-          Audit Trail ({auditLogs.length})
+          Activity Log ({auditLogs.length})
         </button>
       </div>
 
@@ -509,11 +522,11 @@ export const SettingsView: React.FC = () => {
             <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Multi-Tenant Registry
+                  Websites Registry
                 </h3>
               </div>
               <span className="text-xs font-mono font-medium text-slate-500 dark:text-slate-400">
-                {websites.length} Tenants Configured
+                {websites.length} Websites Configured
               </span>
             </div>
 
@@ -648,7 +661,7 @@ export const SettingsView: React.FC = () => {
                               <button
                                 onClick={() => handleDeleteWebsite(w.id, w.name)}
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer border border-rose-200 dark:border-rose-800 whitespace-nowrap"
-                                title={`Delete tenant ${w.name}`}
+                                title={`Delete website ${w.name}`}
                               >
                                 <Trash2 className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 shrink-0" />
                                 <span>Remove</span>
@@ -668,11 +681,12 @@ export const SettingsView: React.FC = () => {
 
       {/* TAB: IDENTITY & API KEY */}
       {activeTab === 'general' && activeSite && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 space-y-5 shadow-xs">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Globe className="w-4 h-4 text-slate-500" />
-              Tenant Profile &amp; Domain
+              Website Profile &amp; Domain
             </h3>
 
             <div className="space-y-4 text-xs">
@@ -797,7 +811,7 @@ export const SettingsView: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-slate-700 dark:text-slate-300 font-semibold block">
-                    Tenant Live Secret API Key
+                    Website Live Secret API Key
                   </label>
                   {isSuperAdmin && (
                     <button
@@ -805,7 +819,7 @@ export const SettingsView: React.FC = () => {
                       onClick={handleRegenerateApiKey}
                       disabled={isRegeneratingKey}
                       className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
-                      title="Roll a new secret API key for this tenant"
+                      title="Roll a new secret API key for this website"
                     >
                       <RefreshCw className={`w-3 h-3 ${isRegeneratingKey ? 'animate-spin' : ''}`} />
                       <span>{isRegeneratingKey ? 'Rotating...' : 'Rotate Key'}</span>
@@ -882,7 +896,26 @@ export const SettingsView: React.FC = () => {
               </button>
             </div>
           )}
+          </div>
+
+          {/* Dynamic Developer Integration Guide (Pre-filled for active tenant) */}
+          <div className="pt-2">
+            <DeveloperIntegrationGuide
+              activeSite={activeSite}
+              isSuperAdmin={isSuperAdmin}
+              canViewApiKey={canViewActiveApiKey}
+            />
+          </div>
         </div>
+      )}
+
+      {/* TAB: DEVELOPER API & INTEGRATION GUIDE */}
+      {activeTab === 'developer' && activeSite && (
+        <DeveloperIntegrationGuide
+          activeSite={activeSite}
+          isSuperAdmin={isSuperAdmin}
+          canViewApiKey={canViewActiveApiKey}
+        />
       )}
 
       {/* TAB: 301 SEO REDIRECTS */}
@@ -898,10 +931,10 @@ export const SettingsView: React.FC = () => {
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Zap className="w-4 h-4 text-red-500" />
-                  On-Demand Cache Revalidation Webhook
+                  Website Refresh &amp; Sync Webhook
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Target Next.js or edge URL receiving HMAC-SHA256 signed cache busting pings on blog publish, update, and unpublish events.
+                  Target website URL that automatically gets notified whenever you publish or update a blog, so visitors immediately see new articles.
                 </p>
               </div>
               <span className="text-[10px] font-mono px-2.5 py-1 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1.5 shrink-0 self-start sm:self-auto">
@@ -913,7 +946,7 @@ export const SettingsView: React.FC = () => {
             <div className="space-y-4 text-xs">
               <div>
                 <label className="text-slate-800 dark:text-slate-200 font-semibold block mb-1">
-                  Primary Next.js Cache Revalidation Endpoint
+                  Website Refresh URL (Webhook Endpoint)
                 </label>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input
@@ -932,7 +965,7 @@ export const SettingsView: React.FC = () => {
                       className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
                     >
                       {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                      <span>{isSaving ? 'Saving...' : 'Save Webhook URL'}</span>
+                      <span>{isSaving ? 'Saving...' : 'Save Refresh URL'}</span>
                     </button>
                   ) : (
                     <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs font-semibold shrink-0 border border-slate-200 dark:border-slate-700">
@@ -949,7 +982,7 @@ export const SettingsView: React.FC = () => {
               {/* Webhook Signature Secret Display */}
               <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">Tenant Webhook HMAC Secret:</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">Website Webhook HMAC Secret:</span>
                   {canViewActiveApiKey && (
                     <button
                       type="button"
@@ -967,7 +1000,7 @@ export const SettingsView: React.FC = () => {
                   </div>
                 ) : (
                   <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-400 bg-white dark:bg-[#0c1322] px-3 py-1.5 rounded border border-slate-200 dark:border-slate-800 select-none">
-                    <Lock className="w-3 h-3 text-amber-500 shrink-0" />
+                    <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                     <span>•••••••••••••••••••••••••••••••• (Super Admin / Website Admin Only)</span>
                   </div>
                 )}
@@ -987,7 +1020,7 @@ export const SettingsView: React.FC = () => {
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <History className="w-4 h-4 text-slate-500" />
-                System Audit Logs
+                System Activity Logs
               </h3>
             </div>
 
@@ -1010,7 +1043,7 @@ export const SettingsView: React.FC = () => {
                   <th className="py-2.5 px-4 font-semibold">Timestamp</th>
                   <th className="py-2.5 px-4 font-semibold">User &amp; Role</th>
                   <th className="py-2.5 px-4 font-semibold">Event</th>
-                  <th className="py-2.5 px-4 font-semibold">Tenant Scope</th>
+                  <th className="py-2.5 px-4 font-semibold">Website Scope</th>
                   <th className="py-2.5 px-4 font-semibold">Client IP</th>
                   <th className="py-2.5 px-4 font-semibold">Activity Details</th>
                 </tr>
@@ -1051,8 +1084,12 @@ export const SettingsView: React.FC = () => {
                       <td className="py-2.5 px-4 font-mono text-[11px] text-slate-500 dark:text-slate-400">
                         {log.websiteId}
                       </td>
-                      <td className="py-2.5 px-4 font-mono text-[11px] text-slate-400">
-                        {log.ipAddress}
+                      <td className="py-2.5 px-4 font-mono text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                        {log.ipAddress ? (
+                          log.ipAddress.replace(/^::ffff:/, '').trim() === '127.0.0.1' || log.ipAddress.replace(/^::ffff:/, '').trim() === '::1'
+                            ? '127.0.0.1 (Local)'
+                            : log.ipAddress.replace(/^::ffff:/, '').trim()
+                        ) : '—'}
                       </td>
                       <td className="py-2.5 px-4 text-slate-600 dark:text-slate-300 max-w-xs truncate">
                         {log.details}

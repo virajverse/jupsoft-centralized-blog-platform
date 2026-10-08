@@ -1,0 +1,1918 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Developer API &amp; Integration Guide — Blogary</title>
+    <meta
+      content="Comprehensive developer documentation for the Blogary Headless Content API. Complete integration blueprints for ASP.NET C#, Next.js, React, and Vanilla JS with live API testing console."
+      name="description"
+    />
+    <meta
+      content="Blogary Developer API — Headless Content &amp; Multi-Tenant Integration Hub"
+      property="og:title"
+    />
+    <meta
+      content="Author once in Blogary Studio, stream live articles, categories, and rich SEO metadata to any website over a sub-50ms REST API. Real-world blueprints for ASP.NET and JAMstack."
+      property="og:description"
+    />
+    <meta
+      content="https://blogary.jupsoft.com/developers"
+      property="og:url"
+    />
+    <meta
+      content="Blogary Developer API — Headless Content Hub"
+      name="twitter:title"
+    />
+    <meta
+      content="Author once in Blogary Studio, stream live articles, categories, and rich SEO metadata to any website over a sub-50ms REST API."
+      name="twitter:description"
+    />
+    <meta property="og:type" content="website" />
+    <meta content="summary_large_image" name="twitter:card" />
+    <meta content="width=device-width, initial-scale=1" name="viewport" />
+    <link href="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/css/style.css" rel="stylesheet" type="text/css" />
+    <link
+      href="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/css/blogary-colors.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <link href="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/css/blogary-ui.css" rel="stylesheet" type="text/css" />
+    
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link href="https://fonts.gstatic.com" rel="preconnect" />
+    <script src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/lib/webfont.js" type="text/javascript"></script>
+    <script type="text/javascript">
+      WebFont.load({ google: { families: ["Inconsolata:400,700"] } });
+    </script>
+    <script type="text/javascript">
+      !(function (o, c) {
+        var n = c.documentElement,
+          t = " w-mod-";
+        ((n.className += t + "js"),
+          ("ontouchstart" in o ||
+            (o.DocumentTouch && c instanceof DocumentTouch)) &&
+            (n.className += t + "touch"));
+      })(window, document);
+    </script>
+    
+    <link href="/favicon.png?v=3" rel="icon" type="image/png" />
+    <link href="/favicon.ico?v=3" rel="shortcut icon" />
+    <link href="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/webclip.png" rel="apple-touch-icon" />
+
+    <style>
+      body {
+        -moz-osx-font-smoothing: grayscale;
+        -webkit-font-smoothing: antialiased;
+      }
+      .w-webflow-badge {
+        display: none !important;
+      }
+      html {
+        scroll-padding-top: 110px;
+      }
+      .bl-logo {
+        display: flex;
+        align-items: center;
+        width: auto !important;
+      }
+      .bl-logo img {
+        height: 38px;
+        width: auto;
+        max-width: none;
+        object-fit: contain;
+        display: block;
+      }
+      body.dark-mode .bl-logo img {
+        filter: brightness(1.2) contrast(1.05);
+      }
+      .nav-actions {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .nav-action-button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .bl-btn-login {
+        height: 36px;
+        padding: 0 18px;
+        border-radius: 9999px;
+        background-color: var(--_colors--surface---surface-3, #e5e4de);
+        color: var(--_colors--text---text-heading, #1f1f1f);
+        font-size: 14px;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        transition: background-color 0.2s, opacity 0.2s;
+        line-height: 1;
+        white-space: nowrap;
+      }
+      .bl-btn-login:hover {
+        background-color: #dad9d2;
+      }
+      body.dark-mode .bl-btn-login {
+        background-color: #2c2c2c;
+        color: #f5f5f5;
+      }
+      body.dark-mode .bl-btn-login:hover {
+        background-color: #383838;
+      }
+      .bl-btn-demo {
+        height: 36px;
+        padding: 0 18px;
+        border-radius: 9999px;
+        background-color: #141414;
+        color: #ffffff;
+        font-size: 14px;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        transition: opacity 0.2s, background-color 0.2s;
+        line-height: 1;
+        white-space: nowrap;
+      }
+      .bl-btn-demo:hover {
+        opacity: 0.9;
+      }
+      body.dark-mode .bl-btn-demo {
+        background-color: #ffffff;
+        color: #141414;
+      }
+      body.dark-mode .bl-btn-demo:hover {
+        opacity: 0.92;
+      }
+      @media screen and (max-width: 560px) {
+        .bl-btn-login, .bl-btn-demo {
+          height: 32px;
+          padding: 0 12px;
+          font-size: 13px;
+        }
+        .bl-logo img {
+          height: 30px;
+        }
+      }
+
+      /* Developer Hub Scoped Styling */
+      .dev-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-family: Inconsolata, ui-monospace, Menlo, monospace;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        padding: 6px 14px;
+        border-radius: 9999px;
+        background: var(--bl-tint-a, rgba(79, 70, 229, 0.12));
+        color: var(--bl-indigo, #4f46e5);
+        border: 1px solid rgba(79, 70, 229, 0.2);
+        margin-bottom: 16px;
+      }
+      .dev-pill-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 24px;
+        justify-content: center;
+      }
+      .dev-pill {
+        font-size: 13px;
+        font-weight: 500;
+        padding: 8px 16px;
+        border-radius: 9999px;
+        background: var(--_colors--surface---surface-2, rgba(0,0,0,0.04));
+        color: var(--_colors--text---text-heading, #1f1f1f);
+        text-decoration: none;
+        transition: all 0.2s ease;
+        border: 1px solid var(--_colors--border---border-primary, rgba(0,0,0,0.08));
+      }
+      .dev-pill:hover, .dev-pill.active {
+        background: var(--bl-indigo, #4f46e5);
+        color: #fff !important;
+        border-color: var(--bl-indigo, #4f46e5);
+      }
+      body.dark-mode .dev-pill {
+        background: #1e1e1e;
+        border-color: rgba(255,255,255,0.1);
+        color: #e5e5e5;
+      }
+
+      /* Cards & Containers */
+      .dev-card {
+        background: var(--_colors--surface---surface-1, #ffffff);
+        border: 1px solid var(--_colors--border---border-primary, rgba(0,0,0,0.09));
+        border-radius: 16px;
+        padding: 28px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+        transition: transform 0.2s, box-shadow 0.2s;
+        position: relative;
+      }
+      body.dark-mode .dev-card {
+        background: #161616;
+        border-color: rgba(255,255,255,0.08);
+        box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+      }
+      .dev-grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+      }
+      .dev-grid-3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+      }
+      @media (max-width: 900px) {
+        .dev-grid-2, .dev-grid-3 {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* Code Playground & Tabs */
+      .code-window {
+        background: #0f1117;
+        border-radius: 14px;
+        border: 1px solid #232734;
+        overflow: hidden;
+        font-family: Inconsolata, ui-monospace, Menlo, monospace;
+        color: #d1d5db;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      }
+      .code-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 16px;
+        background: #171b26;
+        border-bottom: 1px solid #232734;
+      }
+      .code-dots {
+        display: flex;
+        gap: 6px;
+      }
+      .code-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+      }
+      .code-dot.red { background: #ef4444; }
+      .code-dot.yellow { background: #f59e0b; }
+      .code-dot.green { background: #10b981; }
+      .code-title {
+        font-size: 12px;
+        color: #9ca3af;
+        letter-spacing: 0.03em;
+      }
+      .code-copy-btn {
+        background: #232734;
+        border: 1px solid #374151;
+        color: #e5e7eb;
+        font-size: 11px;
+        padding: 4px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.2s;
+        font-family: inherit;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .code-copy-btn:hover {
+        background: #374151;
+      }
+      .code-content {
+        padding: 18px;
+        overflow-x: auto;
+        font-size: 13.5px;
+        line-height: 1.6;
+        max-height: 480px;
+      }
+      .code-content pre {
+        margin: 0;
+        font-family: inherit;
+      }
+
+      /* Interactive Tabs */
+      .tabs-nav {
+        display: flex;
+        gap: 6px;
+        padding: 6px;
+        background: var(--_colors--surface---surface-2, rgba(0,0,0,0.05));
+        border-radius: 10px;
+        margin-bottom: 16px;
+        overflow-x: auto;
+      }
+      body.dark-mode .tabs-nav {
+        background: #1c1c1c;
+      }
+      .tab-btn {
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 13.5px;
+        font-weight: 500;
+        border: none;
+        background: transparent;
+        color: var(--_colors--text---text-body, #555);
+        cursor: pointer;
+        transition: all 0.2s;
+        white-space: nowrap;
+      }
+      .tab-btn.active {
+        background: var(--_colors--surface---surface-1, #fff);
+        color: var(--_colors--text---text-heading, #111);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        font-weight: 600;
+      }
+      body.dark-mode .tab-btn.active {
+        background: #2a2a2a;
+        color: #fff;
+      }
+      .tab-panel {
+        display: none;
+      }
+      .tab-panel.active {
+        display: block;
+      }
+
+      /* Live API Console */
+      .console-grid {
+        display: grid;
+        grid-template-columns: 1fr 1.2fr;
+        gap: 20px;
+        align-items: start;
+      }
+      @media (max-width: 900px) {
+        .console-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .form-group {
+        margin-bottom: 14px;
+      }
+      .form-label {
+        display: block;
+        font-size: 12.5px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 6px;
+        color: var(--_colors--text---text-heading, #222);
+      }
+      .form-control {
+        width: 100%;
+        padding: 10px 14px;
+        font-size: 14px;
+        font-family: Inconsolata, ui-monospace, Menlo, monospace;
+        border: 1px solid var(--_colors--border---border-primary, rgba(0,0,0,0.15));
+        border-radius: 8px;
+        background: var(--_colors--surface---surface-1, #fff);
+        color: var(--_colors--text---text-heading, #111);
+        transition: border-color 0.2s, box-shadow 0.2s;
+        box-sizing: border-box;
+      }
+      .form-control:focus {
+        outline: none;
+        border-color: var(--bl-indigo, #4f46e5);
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+      }
+      body.dark-mode .form-control {
+        background: #1c1c1c;
+        border-color: #333;
+        color: #eee;
+      }
+      .console-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 9999px;
+        font-size: 12px;
+        font-family: Inconsolata, monospace;
+        font-weight: 700;
+      }
+      .status-200 { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+      .status-error { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+      .status-loading { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+
+      /* Method Badges */
+      .method-badge {
+        font-family: Inconsolata, monospace;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 4px;
+        text-transform: uppercase;
+        display: inline-block;
+      }
+      .method-get { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+      .method-post { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+
+      /* Endpoint Card */
+      .endpoint-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        background: var(--_colors--surface---surface-2, rgba(0,0,0,0.02));
+        border-radius: 8px;
+        font-family: Inconsolata, monospace;
+        font-size: 14px;
+        border: 1px solid var(--_colors--border---border-primary, rgba(0,0,0,0.06));
+        margin-bottom: 12px;
+      }
+      body.dark-mode .endpoint-row {
+        background: #1a1a1a;
+        border-color: #2a2a2a;
+      }
+
+      /* Table */
+      .dev-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13.5px;
+        margin-top: 12px;
+      }
+      .dev-table th {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 2px solid var(--_colors--border---border-primary, rgba(0,0,0,0.1));
+        font-weight: 600;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: var(--_colors--text---text-heading, #111);
+      }
+      .dev-table td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--_colors--border---border-primary, rgba(0,0,0,0.06));
+        vertical-align: top;
+      }
+      .dev-table code {
+        font-family: Inconsolata, monospace;
+        font-size: 12.5px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: var(--_colors--surface---surface-3, rgba(0,0,0,0.06));
+      }
+      body.dark-mode .dev-table code {
+        background: #252525;
+      }
+
+      /* Architecture Blueprint */
+      .arch-box {
+        border-left: 3px solid var(--bl-indigo, #4f46e5);
+        padding-left: 18px;
+        margin: 16px 0;
+      }
+      .arch-title {
+        font-weight: 700;
+        font-size: 16px;
+        margin-bottom: 4px;
+      }
+      .check-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 12px;
+        font-size: 14.5px;
+      }
+      .check-icon {
+        color: #10b981;
+        font-weight: bold;
+        flex-shrink: 0;
+        margin-top: 2px;
+      }
+
+      /* JSON Syntax Highlighting */
+      .token-key { color: #93c5fd; }
+      .token-string { color: #86efac; }
+      .token-number { color: #fde047; }
+      .token-boolean { color: #f472b6; }
+      .token-null { color: #9ca3af; }
+    </style>
+  </head>
+  <body id="top">
+    <div class="persistant-color-scheme-script w-embed"></div>
+    <div
+      data-wf--navbar-6--variant="sticky"
+      data-animation="default"
+      data-collapse="all"
+      data-duration="400"
+      data-easing="ease"
+      data-easing2="ease"
+      role="banner"
+      class="navbar contains-island w-nav"
+    >
+      <div class="main-container contains-nav-island">
+        <div class="nav-island">
+          <a
+            href="/"
+            class="nav-logo-link w-inline-block"
+            aria-label="Blogary home"
+            ><div class="logo bl-logo">
+              <picture>
+                <source srcset="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/logo.webp" type="image/webp" />
+                <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/logo.png" alt="Blogary" />
+              </picture>
+            </div></a
+          >
+          <div class="nav-actions">
+            <div class="nav-theme-toggle">
+              <div
+                class="color-scheme-toggle"
+                role="button"
+                tabindex="0"
+                aria-label="Switch between light and dark mode"
+              >
+                <div class="color-scheme-item light-toggle">
+                  <div class="icon color-scheme-icon w-embed">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      x="0px"
+                      y="0px"
+                      viewbox="0 0 24 24"
+                    >
+                      <path
+                        fill="currentColor"
+                        d="M 11 0 L 11 3 L 13 3 L 13 0 L 11 0 z M 4.2226562 2.8085938 L 2.8085938 4.2226562 L 4.9296875 6.34375 L 6.34375 4.9296875 L 4.2226562 2.8085938 z M 19.777344 2.8085938 L 17.65625 4.9296875 L 19.070312 6.34375 L 21.191406 4.2226562 L 19.777344 2.8085938 z M 12 5 A 7 7 0 0 0 5 12 A 7 7 0 0 0 12 19 A 7 7 0 0 0 19 12 A 7 7 0 0 0 12 5 z M 0 11 L 0 13 L 3 13 L 3 11 L 0 11 z M 21 11 L 21 13 L 24 13 L 24 11 L 21 11 z M 4.9296875 17.65625 L 2.8085938 19.777344 L 4.2226562 21.191406 L 6.34375 19.070312 L 4.9296875 17.65625 z M 19.070312 17.65625 L 17.65625 19.070312 L 19.777344 21.191406 L 21.191406 19.777344 L 19.070312 17.65625 z M 11 21 L 11 24 L 13 24 L 13 21 L 11 21 z"
+                      ></path>
+                    </svg>
+                  </div>
+                </div>
+                <div class="color-scheme-item dark-toggle">
+                  <div class="icon color-scheme-icon w-embed">
+                    <svg
+                      viewbox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M13.019 21.998C9.29 21.998 5.706 19.905 3.987 16.325C2.831 13.917 2.682 11.203 3.568 8.683C4.454 6.163 6.268 4.139 8.676 2.983C10.219 2.242 11.937 1.91 13.652 2.023L14.034 3.024C10.611 4.423 9.031 9.71 10.574 12.925C11.967 15.826 15.984 18.924 20.585 16.937L21.192 17.732C20.209 19.139 18.873 20.274 17.331 21.014C15.939 21.681 14.467 21.997 13.019 21.998Z"
+                        fill="currentColor"
+                      ></path>
+                    </svg>
+                  </div>
+                </div>
+                <div class="color-scheme-indicator"></div>
+              </div>
+            </div>
+            <div class="nav-action-button">
+              <a href="/login" class="bl-btn-login w-inline-block">Login</a>
+              <a href="/#demo" class="bl-btn-demo w-inline-block">Book a demo</a>
+            </div>
+            <div class="menu-button w-nav-button">
+              <div class="menu-button-icons-wrap">
+                <div class="menu-button-icon">
+                  <div class="icon w-embed">
+                    <svg
+                      viewbox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <rect
+                        y="5.75"
+                        width="24"
+                        height="1.5"
+                        fill="currentColor"
+                      ></rect>
+                      <rect
+                        y="11.25"
+                        width="24"
+                        height="1.5"
+                        fill="currentColor"
+                      ></rect>
+                      <rect
+                        y="16.75"
+                        width="24"
+                        height="1.5"
+                        fill="currentColor"
+                      ></rect>
+                    </svg>
+                  </div>
+                </div>
+                <div class="menu-button-icon">
+                  <div class="icon w-embed">
+                    <svg
+                      viewbox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M5.70703 4.29297L4.29297 5.70703L10.5859 12L4.29297 18.293L5.70703 19.707L12 13.4141L18.293 19.707L19.707 18.293L13.4141 12L19.707 5.70703L18.293 4.29297L12 10.5859L5.70703 4.29297Z"
+                        fill="currentColor"
+                      ></path>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <nav
+            role="navigation"
+            class="nav-menu-wrapper inside-nav-island w-nav-menu"
+          >
+            <div class="dropdown-offset below-island">
+              <div class="dropdown-wide-body">
+                <div class="dropdown-wide-layout-1">
+                  <div class="dropdown-wide-rows">
+                    <div class="dropdown-links-large">
+                      <a href="/" class="dropdown-link-large">Overview</a>
+                      <a href="/#audience" class="dropdown-link-large">Who it&#x27;s for</a>
+                      <a href="/#pricing" class="dropdown-link-large">Pricing</a>
+                      <a href="/login" class="dropdown-link-large" style="font-weight: 600;">Login &rarr;</a>
+                    </div>
+                    <div class="dropdown-menus-grid">
+                      <div class="dropdown-links-small">
+                        <div class="dropdown-links-small-title">Product</div>
+                        <a href="/#features" class="dropdown-small-link">Features</a>
+                        <a href="/#compare" class="dropdown-small-link">Why Blogary</a>
+                        <a href="/#how" class="dropdown-small-link">How it works</a>
+                        <a href="/#api" class="dropdown-small-link">API &amp; delivery</a>
+                        <a href="/developers" class="dropdown-small-link w--current" aria-current="page">Developer API</a>
+                        <a href="/#faq" class="dropdown-small-link">FAQ</a>
+                      </div>
+                      <div class="dropdown-links-small">
+                        <div class="dropdown-links-small-title">Company</div>
+                        <a
+                          href="https://jupsoft.com"
+                          class="dropdown-small-link"
+                          target="_blank"
+                          rel="noopener"
+                          >Jupsoft Systems</a
+                        ><a href="/#demo" class="dropdown-small-link">Book a demo</a>
+                        <a href="/contact" class="dropdown-small-link">Contact</a>
+                      </div>
+                    </div>
+                  </div>
+                  <a href="/#demo" class="dropdown-cta w-inline-block">
+                    <img
+                      sizes="100vw"
+                      srcset="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/landscape-17-p-500.webp 500w, https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/landscape-17-p-800.webp 800w, https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/landscape-17.webp 1536w"
+                      alt="Developer integrating Blogary CMS"
+                      src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/landscape-17.webp"
+                      class="dropdown-cta-bg"
+                    />
+                    <div class="title">
+                      <div class="text-lead">Developer Hub</div>
+                      <div class="text-lead muted-opacity">Integrate in minutes</div>
+                    </div>
+                    <div class="dropdown-cta-button-wrap">
+                      <div class="button bg-white"><div>Book a demo</div></div>
+                    </div>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </nav>
+        </div>
+      </div>
+    </div>
+
+    <!-- HERO SECTION -->
+    <section class="section" style="padding-top: 40px; padding-bottom: 30px;">
+      <div class="main-container">
+        <div class="section-content text-center">
+          <div class="dev-badge">⚡ Developer API Documentation &bull; v1 REST API</div>
+          <h1 style="font-size: clamp(2.2rem, 5vw, 3.5rem); font-weight: 700; line-height: 1.15; letter-spacing: -0.03em; margin: 0 auto 16px; max-width: 900px;">
+            Integrate Blogary CMS in under 10 minutes.
+          </h1>
+          <p class="text-lead muted-text" style="max-width: 720px; margin: 0 auto 24px; font-size: 1.15rem; line-height: 1.55;">
+            Author once in Blogary Studio. Stream live, SEO-rich articles, categories, and tags to any client application — <strong>ASP.NET C#</strong>, <strong>Next.js</strong>, <strong>React</strong>, <strong>Nuxt</strong>, or <strong>Vanilla JavaScript</strong> — with sub-50ms edge caching and zero configuration.
+          </p>
+
+          <!-- Quick Jumps -->
+          <div class="dev-pill-nav">
+            <a href="#console" class="dev-pill active">🧪 Live Interactive Console</a>
+            <a href="#quickstart" class="dev-pill">🚀 3-Minute Quickstart</a>
+            <a href="#frameworks" class="dev-pill">💻 Framework Code (ASP.NET &amp; JS)</a>
+            <a href="#reference" class="dev-pill">📚 REST API Endpoints</a>
+            <a href="#schema" class="dev-pill">📋 JSON Data Models</a>
+            <a href="#case-studies" class="dev-pill">🏢 Real-World Case Studies</a>
+            <a href="#checklist" class="dev-pill">✅ Production Checklist</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 1: LIVE INTERACTIVE CONSOLE -->
+    <section id="console" class="section" style="padding-top: 30px; padding-bottom: 50px;">
+      <div class="main-container">
+        <div class="dev-card" style="border: 2px solid rgba(79, 70, 229, 0.25);">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; border-bottom: 1px solid var(--_colors--border---border-primary, rgba(0,0,0,0.08)); padding-bottom: 16px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="method-badge method-get">GET</span>
+                <h2 style="font-size: 20px; font-weight: 700; margin: 0;">Live API Playground &amp; Tester</h2>
+              </div>
+              <p class="muted-text" style="font-size: 13.5px; margin: 4px 0 0;">
+                Test real queries directly against production endpoint <code class="bl-code">https://blogary.jupsoft.com/v1</code>.
+              </p>
+            </div>
+            <div id="console-status-wrap">
+              <span class="console-status-pill status-200" id="console-status-pill">Ready to Query</span>
+              <span id="console-latency" style="font-size: 12px; opacity: 0.7; font-family: Inconsolata, monospace; margin-left: 8px;"></span>
+            </div>
+          </div>
+
+          <div class="console-grid">
+            <!-- Left: Request Controls -->
+            <div>
+              <div class="form-group">
+                <label class="form-label" for="api-endpoint-select">API Endpoint</label>
+                <select id="api-endpoint-select" class="form-control" style="cursor: pointer;">
+                  <option value="blogs">GET /v1/blogs (List Published Blogs)</option>
+                  <option value="blogs-slug">GET /v1/blogs/:slug (Single Post Detail + SEO)</option>
+                  <option value="blogs-latest">GET /v1/blogs/latest (Latest 5 Articles)</option>
+                  <option value="blogs-popular">GET /v1/blogs/popular (Most Viewed Articles)</option>
+                  <option value="categories">GET /v1/categories (Taxonomy Categories)</option>
+                  <option value="tags">GET /v1/tags (Website Tags)</option>
+                  <option value="health">GET /v1/health (System Health Status)</option>
+                </select>
+              </div>
+
+              <div class="form-group" id="group-website">
+                <label class="form-label" for="api-website-input">Website ID (<span style="font-weight: 400; text-transform: none;">Registered Tenant Scope</span>)</label>
+                <input type="text" id="api-website-input" class="form-control" value="site-growth" placeholder="e.g. site-growth, site-pdpschool" />
+                <div style="font-size: 11.5px; opacity: 0.65; margin-top: 4px;">
+                  Pre-configured demos: <a href="javascript:void(0)" onclick="setWebsite('site-growth')" style="text-decoration: underline;">site-growth (DigifyNext)</a> &bull; <a href="javascript:void(0)" onclick="setWebsite('site-pdpschool')" style="text-decoration: underline;">site-pdpschool (PDP School)</a>
+                </div>
+              </div>
+
+              <div class="form-group" id="group-slug" style="display: none;">
+                <label class="form-label" for="api-slug-input">Article Slug</label>
+                <input type="text" id="api-slug-input" class="form-control" value="seo-trends-modern-brands-should-watch-closely" placeholder="article-slug-here" />
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;" id="group-pagination">
+                <div class="form-group">
+                  <label class="form-label" for="api-limit-input">Limit (Posts)</label>
+                  <input type="number" id="api-limit-input" class="form-control" value="3" min="1" max="50" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="api-page-input">Page</label>
+                  <input type="number" id="api-page-input" class="form-control" value="1" min="1" />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Constructed Request URL</label>
+                <div id="constructed-url" style="font-family: Inconsolata, monospace; font-size: 12px; padding: 10px 12px; border-radius: 8px; background: var(--_colors--surface---surface-3, rgba(0,0,0,0.06)); word-break: break-all;">
+                  https://blogary.jupsoft.com/v1/blogs?website=site-growth&amp;limit=3&amp;page=1
+                </div>
+              </div>
+
+              <button id="btn-run-query" class="button" style="width: 100%; border: none; cursor: pointer; padding: 12px; font-weight: 600; font-size: 14px; background: var(--bl-indigo, #4f46e5); color: #fff; border-radius: 8px; transition: opacity 0.2s;">
+                <span>🚀 Send Live API Request</span>
+              </button>
+            </div>
+
+            <!-- Right: Response JSON Terminal -->
+            <div>
+              <div class="code-window">
+                <div class="code-header">
+                  <div class="code-dots">
+                    <span class="code-dot red"></span>
+                    <span class="code-dot yellow"></span>
+                    <span class="code-dot green"></span>
+                  </div>
+                  <div class="code-title" id="response-status-title">HTTP 200 &bull; JSON Response</div>
+                  <button class="code-copy-btn" id="btn-copy-response">📋 Copy JSON</button>
+                </div>
+                <div class="code-content" style="max-height: 420px; overflow-y: auto;">
+                  <pre id="response-json-preview">Click "Send Live API Request" above to execute query.</pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: 3-MINUTE QUICKSTART & AUTHENTICATION -->
+    <section id="quickstart" class="section">
+      <div class="main-container">
+        <div class="title" style="margin-bottom: 30px;">
+          <div class="dev-badge">Architecture &amp; Security</div>
+          <h2 style="font-size: clamp(1.8rem, 3.5vw, 2.5rem); font-weight: 700; margin-bottom: 8px;">
+            Dual Authentication Architecture
+          </h2>
+          <p class="text-lead muted-text">
+            Blogary's hybrid architecture supports both zero-credential browser consumption and protected server-side integration.
+          </p>
+        </div>
+
+        <div class="dev-grid-2">
+          <!-- Auth Mode A -->
+          <div class="dev-card">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+              <span class="method-badge method-get">Frontend Mode</span>
+              <h3 style="font-size: 18px; font-weight: 700; margin: 0;">1. Zero-Key Origin Whitelist</h3>
+            </div>
+            <p style="font-size: 14px; line-height: 1.55; opacity: 0.85;">
+              <strong>Best for:</strong> Client-side JavaScript, Single Page Apps, Vanilla JS, and Static HTML (e.g., DigifyNext).
+            </p>
+            <div class="arch-box">
+              <div class="arch-title">How It Works:</div>
+              <p style="font-size: 13.5px; margin: 0 0 8px; opacity: 0.8;">
+                Your client simply passes <code class="bl-code">?website=YOUR_SITE_ID</code>. The Blogary API verifies the request's browser <code class="bl-code">Origin</code> and <code class="bl-code">Referer</code> header against your registered domain in the database.
+              </p>
+            </div>
+            <ul style="font-size: 13.5px; line-height: 1.6; padding-left: 20px; opacity: 0.85; margin: 0;">
+              <li><strong>Zero Secret Leakage:</strong> No API keys exposed in browser network devtools or source code.</li>
+              <li><strong>Automated CORS:</strong> Cross-origin requests permitted strictly for registered hostnames.</li>
+              <li><strong>Domain Lock:</strong> Scrapers cannot reuse your Website ID from unauthorized domains.</li>
+            </ul>
+          </div>
+
+          <!-- Auth Mode B -->
+          <div class="dev-card">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+              <span class="method-badge method-post">Backend Mode</span>
+              <h3 style="font-size: 18px; font-weight: 700; margin: 0;">2. Bearer Token / API Key Header</h3>
+            </div>
+            <p style="font-size: 14px; line-height: 1.55; opacity: 0.85;">
+              <strong>Best for:</strong> Server-Side Rendering (ASP.NET C#, Next.js SSR, PHP, Python, Node.js background workers).
+            </p>
+            <div class="arch-box">
+              <div class="arch-title">How It Works:</div>
+              <p style="font-size: 13.5px; margin: 0 0 8px; opacity: 0.8;">
+                Your backend server attaches an HTTP Authorization or custom header on outgoing web requests:
+              </p>
+              <div style="font-family: Inconsolata, monospace; font-size: 12.5px; background: rgba(0,0,0,0.06); padding: 6px 10px; border-radius: 6px;">
+                Authorization: Bearer YOUR_TENANT_API_KEY<br/>
+                x-api-key: YOUR_TENANT_API_KEY
+              </div>
+            </div>
+            <ul style="font-size: 13.5px; line-height: 1.6; padding-left: 20px; opacity: 0.85; margin: 0;">
+              <li><strong>Strict Tenant Isolation:</strong> The API key strictly accesses its assigned website catalog.</li>
+              <li><strong>Bypass Origin Constraints:</strong> Ideal for server-to-server calls, cron jobs, and pre-rendering.</li>
+              <li><strong>Encrypted Tokens Supported:</strong> Compatible with AES-128 decrypted tokens (PDP School pattern).</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: FRAMEWORK INTEGRATION CODE BLUEPRINTS -->
+    <section id="frameworks" class="section">
+      <div class="main-container">
+        <div class="title" style="margin-bottom: 24px;">
+          <div class="dev-badge">Production Code Examples</div>
+          <h2 style="font-size: clamp(1.8rem, 3.5vw, 2.5rem); font-weight: 700; margin-bottom: 8px;">
+            Copy-Paste Production Blueprints
+          </h2>
+          <p class="text-lead muted-text">
+            Battle-tested implementation snippets derived directly from live production deployments.
+          </p>
+        </div>
+
+        <!-- Framework Tabs Navigation -->
+        <div class="tabs-nav">
+          <button class="tab-btn active" onclick="switchTab('tab-js', this)">⚡ Vanilla JS / Fetch (DigifyNext)</button>
+          <button class="tab-btn" onclick="switchTab('tab-csharp', this)">🛡️ ASP.NET C# (PDP School)</button>
+          <button class="tab-btn" onclick="switchTab('tab-nextjs', this)">⚛️ Next.js &amp; React (App Router ISR)</button>
+          <button class="tab-btn" onclick="switchTab('tab-curl', this)">💻 cURL &amp; Terminal REST</button>
+          <button class="tab-btn" onclick="switchTab('tab-widget', this)">📦 1-Line Drop-In Embed Widget</button>
+        </div>
+
+        <!-- TAB 1: VANILLA JS (DIGIFYNEXT PATTERN) -->
+        <div id="tab-js" class="tab-panel active">
+          <div class="dev-card" style="padding: 0; overflow: hidden;">
+            <div style="padding: 20px 24px; border-bottom: 1px solid var(--_colors--border---border-primary, rgba(0,0,0,0.08));">
+              <h3 style="font-size: 17px; font-weight: 700; margin: 0 0 6px;">Vanilla JavaScript Client with Stale-While-Revalidate Caching</h3>
+              <p class="muted-text" style="font-size: 13.5px; margin: 0;">
+                Production pattern used by <strong>DigifyNext</strong>: 3000ms AbortController timeout, sessionStorage instant hydration, zero API key exposure, and automated category rendering.
+              </p>
+            </div>
+            <div class="code-window" style="border-radius: 0; border: none;">
+              <div class="code-header">
+                <span class="code-title">assets/js/cms-client.js &bull; Vanilla JS Engine</span>
+                <button class="code-copy-btn" onclick="copySnippet('code-vanilla-js')">📋 Copy JavaScript</button>
+              </div>
+              <div class="code-content">
+                <pre id="code-vanilla-js"><code class="language-javascript">/**
+ * Jupsoft Centralized CMS - Production Frontend Client
+ * - 3000ms AbortController fast-timeout (never hangs on slow networks)
+ * - In-memory &amp; SessionStorage Stale-While-Revalidate caching (0ms instant render)
+ * - Zero API Key Exposure: Origin domain whitelist authentication
+ */
+(function (global) {
+  'use strict';
+
+  var CMS = {
+    apiUrl: 'https://blogary.jupsoft.com',
+    websiteId: 'site-growth', // Replace with your Website ID from Blogary Studio
+    cacheTTL: 10 * 1000 // 10 seconds cache for immediate updates
+  };
+
+  // Safe fetch with AbortController timeout
+  function fetchWithTimeout(url, timeoutMs) {
+    timeoutMs = timeoutMs || 3000;
+    var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = null;
+
+    var fetchPromise = fetch(url, {
+      method: 'GET',
+      mode: 'cors',
+      headers: { 'Accept': 'application/json' },
+      signal: controller ? controller.signal : undefined
+    });
+
+    var timeoutPromise = new Promise(function (_, reject) {
+      timer = setTimeout(function () {
+        if (controller) controller.abort();
+        reject(new Error('CMS request timed out after ' + timeoutMs + 'ms'));
+      }, timeoutMs);
+    });
+
+    return Promise.race([fetchPromise, timeoutPromise]).finally(function () {
+      if (timer) clearTimeout(timer);
+    });
+  }
+
+  // 1. Fetch Paginated Blog List
+  CMS.fetchBlogs = function (options) {
+    options = options || {};
+    var page = options.page || 1;
+    var limit = options.limit || 12;
+    var category = options.category ? '&amp;category=' + encodeURIComponent(options.category) : '';
+    var search = options.search ? '&amp;search=' + encodeURIComponent(options.search) : '';
+    
+    var cacheKey = 'cms_blogs_' + CMS.websiteId + '_p' + page + '_l' + limit + category + search;
+    var cached = sessionStorage.getItem(cacheKey);
+
+    // Instant Hydration from Session Cache
+    if (cached &amp;&amp; typeof options.onCached === 'function') {
+      try { options.onCached(JSON.parse(cached)); } catch(e) {}
+    }
+
+    var endpoint = CMS.apiUrl + '/v1/blogs?website=' + encodeURIComponent(CMS.websiteId) +
+                   '&amp;page=' + page + '&amp;limit=' + limit + category + search;
+
+    return fetchWithTimeout(endpoint, 3500)
+      .then(function (res) {
+        if (!res.ok) throw new Error('CMS HTTP ' + res.status);
+        return res.json();
+      })
+      .then(function (payload) {
+        sessionStorage.setItem(cacheKey, JSON.stringify(payload));
+        return payload;
+      });
+  };
+
+  // 2. Fetch Single Blog Post by Slug
+  CMS.fetchBlogBySlug = function (slug) {
+    var endpoint = CMS.apiUrl + '/v1/blogs/' + encodeURIComponent(slug) +
+                   '?website=' + encodeURIComponent(CMS.websiteId);
+
+    return fetchWithTimeout(endpoint, 3500)
+      .then(function (res) {
+        if (!res.ok) throw new Error('Blog article not found');
+        return res.json();
+      });
+  };
+
+  // 3. Fetch Taxonomy Categories
+  CMS.fetchCategories = function () {
+    var endpoint = CMS.apiUrl + '/v1/categories?websiteId=' + encodeURIComponent(CMS.websiteId);
+    return fetchWithTimeout(endpoint, 3000).then(function(r) { return r.json(); });
+  };
+
+  global.BlogaryClient = CMS;
+})(window);</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: ASP.NET C# (PDP SCHOOL PATTERN) -->
+        <div id="tab-csharp" class="tab-panel">
+          <div class="dev-card" style="padding: 0; overflow: hidden;">
+            <div style="padding: 20px 24px; border-bottom: 1px solid var(--_colors--border---border-primary, rgba(0,0,0,0.08));">
+              <h3 style="font-size: 17px; font-weight: 700; margin: 0 0 6px;">ASP.NET C# Server-Side Implementation (.NET Framework / Core)</h3>
+              <p class="muted-text" style="font-size: 13.5px; margin: 0;">
+                Production pattern used by <strong>Prabhu Dayal Public School (pdpschool.com)</strong>: WebClient/HttpClient with TLS 1.2+ protocol, AES-128 token or direct Bearer key, and IIS URL Rewriting.
+              </p>
+            </div>
+            <div class="code-window" style="border-radius: 0; border: none;">
+              <div class="code-header">
+                <span class="code-title">blog.aspx.cs &bull; ASP.NET Web Forms / MVC Code-Behind</span>
+                <button class="code-copy-btn" onclick="copySnippet('code-csharp')">📋 Copy C# Code</button>
+              </div>
+              <div class="code-content">
+                <pre id="code-csharp"><code class="language-csharp">using System;
+using System.Configuration;
+using System.Net;
+using System.Text;
+using System.Web;
+using System.Web.UI;
+
+public partial class blog : System.Web.UI.Page
+{
+    public string BlogsJson = "null";
+
+    protected void Page_Load(object sender, EventArgs e)
+    {
+        if (!IsPostBack)
+        {
+            LoadBlogs();
+        }
+    }
+
+    private void LoadBlogs()
+    {
+        try
+        {
+            // Enforce modern TLS security protocol (required for HTTPS AWS / VPS APIs)
+            ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072 | SecurityProtocolType.Tls12;
+
+            string host = ConfigurationManager.AppSettings["CmsHost"] ?? "https://blogary.jupsoft.com";
+            string siteId = ConfigurationManager.AppSettings["CmsSite"] ?? "site-pdpschool";
+            string apiKey = ConfigurationManager.AppSettings["CmsApiKey"] ?? "";
+
+            string url = host.TrimEnd('/') + "/v1/blogs?website=" + siteId + "&amp;limit=50";
+
+            using (WebClient client = new WebClient())
+            {
+                client.Encoding = Encoding.UTF8;
+                client.Headers[HttpRequestHeader.UserAgent] = "BlogaryClient/1.0 (Windows NT 10.0)";
+                
+                // Attach Authorization header if server-side API key is configured
+                if (!string.IsNullOrEmpty(apiKey))
+                {
+                    client.Headers[HttpRequestHeader.Authorization] = "Bearer " + apiKey;
+                }
+
+                BlogsJson = client.DownloadString(url);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log error safely and provide empty fallback to prevent page crash
+            BlogsJson = "{\"success\":false,\"data\":[]}";
+        }
+    }
+}
+
+// ── Web.config IIS URL Rewrite Rule ─────────────────────────────
+/*
+<rewrite>
+  <rules>
+    <rule name="RewriteBlogList" stopProcessing="true">
+      <match url="^blog/?$" />
+      <action type="Rewrite" url="blog.aspx" />
+    </rule>
+    <rule name="RewriteBlogDetail" stopProcessing="true">
+      <match url="^blog/([^/]+)/?$" />
+      <action type="Rewrite" url="blog-detail.aspx?slug={R:1}" />
+    </rule>
+  </rules>
+</rewrite>
+*/</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: NEXT.JS & REACT ISR -->
+        <div id="tab-nextjs" class="tab-panel">
+          <div class="dev-card" style="padding: 0; overflow: hidden;">
+            <div style="padding: 20px 24px; border-bottom: 1px solid var(--_colors--border---border-primary, rgba(0,0,0,0.08));">
+              <h3 style="font-size: 17px; font-weight: 700; margin: 0 0 6px;">Next.js 14/15 App Router (Incremental Static Regeneration)</h3>
+              <p class="muted-text" style="font-size: 13.5px; margin: 0;">
+                Next.js Server Component pattern with <code class="bl-code">next: { revalidate: 60 }</code>, automatic dynamic OpenGraph meta tags, and Google Schema.org JSON-LD injection.
+              </p>
+            </div>
+            <div class="code-window" style="border-radius: 0; border: none;">
+              <div class="code-header">
+                <span class="code-title">app/blog/[slug]/page.tsx &bull; Next.js 14/15 Server Component</span>
+                <button class="code-copy-btn" onclick="copySnippet('code-nextjs')">📋 Copy Next.js Code</button>
+              </div>
+              <div class="code-content">
+                <pre id="code-nextjs"><code class="language-typescript">import { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+
+interface Props {
+  params: { slug: string };
+}
+
+// 1. Fetch with 60-second Incremental Static Regeneration (ISR)
+async function getArticle(slug: string) {
+  const res = await fetch(
+    `https://blogary.jupsoft.com/v1/blogs/${slug}?website=${process.env.BLOGARY_SITE_ID}`,
+    {
+      headers: {
+        'x-api-key': process.env.BLOGARY_API_KEY || '',
+      },
+      next: { revalidate: 60 }, // Sub-50ms static cache with background revalidation
+    }
+  );
+
+  if (!res.ok) return null;
+  const json = await res.json();
+  return json.data;
+}
+
+// 2. Automated SEO Metadata Generation
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const post = await getArticle(params.slug);
+  if (!post) return { title: 'Article Not Found' };
+
+  return {
+    title: post.seo?.metaTitle || post.title,
+    description: post.seo?.metaDescription || post.excerpt,
+    openGraph: {
+      title: post.seo?.ogTitle || post.title,
+      description: post.seo?.ogDescription || post.excerpt,
+      images: [post.seo?.ogImage || post.featuredImage],
+      url: post.seo?.canonicalUrl,
+    },
+  };
+}
+
+// 3. Article View Page Component
+export default async function BlogPostPage({ params }: Props) {
+  const post = await getArticle(params.slug);
+  if (!post) notFound();
+
+  return (
+    &lt;article className="max-w-4xl mx-auto px-4 py-12"&gt;
+      {/* Google Rich Snippet JSON-LD */}
+      {post.schemaJsonLd &amp;&amp; (
+        &lt;script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(post.schemaJsonLd) }}
+        /&gt;
+      )}
+
+      &lt;h1 className="text-4xl font-extrabold mb-4"&gt;{post.title}&lt;/h1&gt;
+      &lt;div className="text-gray-500 mb-8"&gt;
+        By {post.authorName} &bull; {new Date(post.publishedAt).toLocaleDateString()} &bull; {post.readTimeMinutes} min read
+      &lt;/div&gt;
+
+      {post.featuredImage &amp;&amp; (
+        &lt;img
+          src={post.featuredImage}
+          alt={post.featuredImageAlt || post.title}
+          className="w-full rounded-2xl mb-8 object-cover"
+        /&gt;
+      )}
+
+      &lt;div
+        className="prose dark:prose-invert max-w-none"
+        dangerouslySetInnerHTML={{ __html: post.content }}
+      /&gt;
+    &lt;/article&gt;
+  );
+}</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: CURL / TERMINAL -->
+        <div id="tab-curl" class="tab-panel">
+          <div class="dev-card" style="padding: 0; overflow: hidden;">
+            <div style="padding: 20px 24px; border-bottom: 1px solid var(--_colors--border---border-primary, rgba(0,0,0,0.08));">
+              <h3 style="font-size: 17px; font-weight: 700; margin: 0 0 6px;">cURL &amp; Terminal Commands</h3>
+              <p class="muted-text" style="font-size: 13.5px; margin: 0;">
+                Quickly test endpoints from terminal or integrate into CI/CD build scripts.
+              </p>
+            </div>
+            <div class="code-window" style="border-radius: 0; border: none;">
+              <div class="code-header">
+                <span class="code-title">Terminal / Bash Commands</span>
+                <button class="code-copy-btn" onclick="copySnippet('code-curl')">📋 Copy cURL</button>
+              </div>
+              <div class="code-content">
+                <pre id="code-curl"><code class="language-bash"># 1. List published blogs with pagination
+curl -s -X GET "https://blogary.jupsoft.com/v1/blogs?website=site-growth&amp;limit=10&amp;page=1" \
+     -H "Accept: application/json"
+
+# 2. Fetch full blog detail by slug with Bearer Auth
+curl -s -X GET "https://blogary.jupsoft.com/v1/blogs/seo-trends-modern-brands-should-watch-closely?website=site-growth" \
+     -H "Authorization: Bearer YOUR_TENANT_API_KEY" \
+     -H "Accept: application/json"
+
+# 3. Bypass edge cache to get real-time draft/edit preview
+curl -s -X GET "https://blogary.jupsoft.com/v1/blogs/my-article-slug?website=site-growth&amp;fresh=1" \
+     -H "Authorization: Bearer YOUR_TENANT_API_KEY"
+
+# 4. Trigger on-demand cache revalidation webhook
+curl -s -X POST "https://blogary.jupsoft.com/v1/revalidate" \
+     -H "Content-Type: application/json" \
+     -d '{"website": "site-growth", "slug": "seo-trends-modern-brands-should-watch-closely"}'
+
+# 5. Check API health &amp; Redis connectivity
+curl -s -X GET "https://blogary.jupsoft.com/v1/health"</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 5: 1-LINE EMBED WIDGET -->
+        <div id="tab-widget" class="tab-panel">
+          <div class="dev-card" style="padding: 0; overflow: hidden;">
+            <div style="padding: 20px 24px; border-bottom: 1px solid var(--_colors--border---border-primary, rgba(0,0,0,0.08));">
+              <h3 style="font-size: 17px; font-weight: 700; margin: 0 0 6px;">Universal 1-Line Drop-In Blog Widget</h3>
+              <p class="muted-text" style="font-size: 13.5px; margin: 0;">
+                Zero-code integration for WordPress, Webflow, Shopify, or plain HTML sites. Just paste this snippet anywhere on your page.
+              </p>
+            </div>
+            <div class="code-window" style="border-radius: 0; border: none;">
+              <div class="code-header">
+                <span class="code-title">Drop-in HTML Snippet</span>
+                <button class="code-copy-btn" onclick="copySnippet('code-widget')">📋 Copy Embed Snippet</button>
+              </div>
+              <div class="code-content">
+                <pre id="code-widget"><code class="language-html">&lt;!-- 1. Target container where the blog grid renders --&gt;
+&lt;div id="blogary-widget"&gt;&lt;/div&gt;
+
+&lt;!-- 2. Blogary Universal Embed Script --&gt;
+&lt;script
+  src="https://blogary.jupsoft.com/widget/blog.js"
+  data-website="site-growth"
+  data-limit="6"
+  data-theme="auto"
+  data-layout="grid"
+  defer&gt;
+&lt;/script&gt;</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 4: COMPLETE REST API REFERENCE -->
+    <section id="reference" class="section">
+      <div class="main-container">
+        <div class="title" style="margin-bottom: 24px;">
+          <div class="dev-badge">API Specification</div>
+          <h2 style="font-size: clamp(1.8rem, 3.5vw, 2.5rem); font-weight: 700; margin-bottom: 8px;">
+            REST API Endpoint Reference
+          </h2>
+          <p class="text-lead muted-text">
+            All endpoints are served over HTTPS from <code class="bl-code">https://blogary.jupsoft.com/v1</code>.
+          </p>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+          <!-- Endpoint 1 -->
+          <div class="dev-card">
+            <div class="endpoint-row">
+              <span class="method-badge method-get">GET</span>
+              <span style="font-weight: 700;">/v1/blogs</span>
+              <span style="margin-left: auto; font-size: 12px; opacity: 0.7;">List Published Articles</span>
+            </div>
+            <p style="font-size: 14px; margin-bottom: 12px;">
+              Returns a paginated list of published articles for the specified website with summary cards, cover images, and taxonomy tags.
+            </p>
+            <div style="overflow-x: auto;">
+              <table class="dev-table">
+                <thead>
+                  <tr>
+                    <th>Parameter</th>
+                    <th>Type</th>
+                    <th>Required</th>
+                    <th>Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>website</code></td>
+                    <td>string</td>
+                    <td>Yes*</td>
+                    <td>Website ID or registered domain (e.g. <code>site-growth</code> or <code>digifynext.com</code>). *Optional if Bearer key provided.</td>
+                  </tr>
+                  <tr>
+                    <td><code>page</code></td>
+                    <td>number</td>
+                    <td>No</td>
+                    <td>Page number for pagination. Default: <code>1</code>.</td>
+                  </tr>
+                  <tr>
+                    <td><code>limit</code></td>
+                    <td>number</td>
+                    <td>No</td>
+                    <td>Articles per page. Default: <code>10</code>. Max: <code>50</code>.</td>
+                  </tr>
+                  <tr>
+                    <td><code>category</code></td>
+                    <td>string</td>
+                    <td>No</td>
+                    <td>Filter by category slug (e.g. <code>seo</code>, <code>education</code>).</td>
+                  </tr>
+                  <tr>
+                    <td><code>tag</code></td>
+                    <td>string</td>
+                    <td>No</td>
+                    <td>Filter by tag slug (e.g. <code>admissions</code>).</td>
+                  </tr>
+                  <tr>
+                    <td><code>fresh</code></td>
+                    <td>string</td>
+                    <td>No</td>
+                    <td>Pass <code>1</code> to bypass edge caching and fetch live real-time database state.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Endpoint 2 -->
+          <div class="dev-card">
+            <div class="endpoint-row">
+              <span class="method-badge method-get">GET</span>
+              <span style="font-weight: 700;">/v1/blogs/:slug</span>
+              <span style="margin-left: auto; font-size: 12px; opacity: 0.7;">Single Blog Post Detail</span>
+            </div>
+            <p style="font-size: 14px; margin-bottom: 12px;">
+              Returns the full article body HTML, author biography, canonical URL, OpenGraph tags, and pre-formatted Schema.org JSON-LD markup.
+            </p>
+            <div style="overflow-x: auto;">
+              <table class="dev-table">
+                <thead>
+                  <tr>
+                    <th>Parameter</th>
+                    <th>Type</th>
+                    <th>Required</th>
+                    <th>Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>:slug</code></td>
+                    <td>string</td>
+                    <td>Yes</td>
+                    <td>The unique URL slug of the blog article (e.g. <code>seo-trends-modern-brands-should-watch-closely</code>).</td>
+                  </tr>
+                  <tr>
+                    <td><code>website</code></td>
+                    <td>string</td>
+                    <td>Yes*</td>
+                    <td>Website ID or registered domain.</td>
+                  </tr>
+                  <tr>
+                    <td><code>fresh</code></td>
+                    <td>string</td>
+                    <td>No</td>
+                    <td>Pass <code>1</code> to bypass edge caching for draft preview.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Endpoint 3 & 4 Grid -->
+          <div class="dev-grid-2">
+            <div class="dev-card">
+              <div class="endpoint-row">
+                <span class="method-badge method-get">GET</span>
+                <span style="font-weight: 700;">/v1/blogs/latest</span>
+              </div>
+              <p style="font-size: 13.5px; margin: 0 0 10px;">
+                Fetches the 5 most recently published articles. Ideal for footer widgets and sidebar "Recent Posts" carousels.
+              </p>
+              <div style="font-size: 12px; opacity: 0.75;">Parameters: <code>website</code>, <code>limit</code> (default 5).</div>
+            </div>
+            <div class="dev-card">
+              <div class="endpoint-row">
+                <span class="method-badge method-get">GET</span>
+                <span style="font-weight: 700;">/v1/blogs/popular</span>
+              </div>
+              <p style="font-size: 13.5px; margin: 0 0 10px;">
+                Retrieves the highest-viewed trending articles ranked by real-time privacy-friendly view analytics.
+              </p>
+              <div style="font-size: 12px; opacity: 0.75;">Parameters: <code>website</code>, <code>limit</code> (default 5).</div>
+            </div>
+          </div>
+
+          <!-- Endpoint 5 & 6 Grid -->
+          <div class="dev-grid-2">
+            <div class="dev-card">
+              <div class="endpoint-row">
+                <span class="method-badge method-get">GET</span>
+                <span style="font-weight: 700;">/v1/categories</span>
+              </div>
+              <p style="font-size: 13.5px; margin: 0 0 10px;">
+                Retrieves the taxonomy category list with counts and hierarchical parent-child relationships for category tabs.
+              </p>
+              <div style="font-size: 12px; opacity: 0.75;">Parameters: <code>websiteId</code>.</div>
+            </div>
+            <div class="dev-card">
+              <div class="endpoint-row">
+                <span class="method-badge method-post">POST</span>
+                <span style="font-weight: 700;">/v1/revalidate</span>
+              </div>
+              <p style="font-size: 13.5px; margin: 0 0 10px;">
+                Purges Redis edge cache instantly when an article is edited or published. Triggered automatically by Blogary webhooks.
+              </p>
+              <div style="font-size: 12px; opacity: 0.75;">Body: <code>{"website": "...", "slug": "..."}</code></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 5: JSON SCHEMA & DATA DICTIONARY -->
+    <section id="schema" class="section">
+      <div class="main-container">
+        <div class="title" style="margin-bottom: 24px;">
+          <div class="dev-badge">Data Schema</div>
+          <h2 style="font-size: clamp(1.8rem, 3.5vw, 2.5rem); font-weight: 700; margin-bottom: 8px;">
+            JSON Response Data Dictionary
+          </h2>
+          <p class="text-lead muted-text">
+            Standard field names returned by Blogary API endpoints.
+          </p>
+        </div>
+
+        <div class="dev-card">
+          <table class="dev-table">
+            <thead>
+              <tr>
+                <th>Field Name</th>
+                <th>Type</th>
+                <th>Sample Value</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>id</code></td>
+                <td>string</td>
+                <td><code>"0befbf51-ec14..."</code></td>
+                <td>Global immutable UUID for the article.</td>
+              </tr>
+              <tr>
+                <td><code>slug</code></td>
+                <td>string</td>
+                <td><code>"seo-trends-2026"</code></td>
+                <td>Clean URL slug matching your CMS article title.</td>
+              </tr>
+              <tr>
+                <td><code>title</code></td>
+                <td>string</td>
+                <td><code>"SEO Trends Modern Brands..."</code></td>
+                <td>Main headline title.</td>
+              </tr>
+              <tr>
+                <td><code>excerpt</code></td>
+                <td>string</td>
+                <td><code>"AI overviews and..."</code></td>
+                <td>Plain-text summary for blog cards and meta descriptions.</td>
+              </tr>
+              <tr>
+                <td><code>content</code></td>
+                <td>string (HTML)</td>
+                <td><code>"&lt;p&gt;Article text...&lt;/p&gt;"</code></td>
+                <td>Sanitized, semantic HTML content (present on detail endpoint).</td>
+              </tr>
+              <tr>
+                <td><code>featuredImage</code></td>
+                <td>string (URL)</td>
+                <td><code>"https://.../cover.webp"</code></td>
+                <td>CDN-optimized webp/png cover image URL.</td>
+              </tr>
+              <tr>
+                <td><code>publishedAt</code></td>
+                <td>string (ISO)</td>
+                <td><code>"2026-03-22T10:00:00Z"</code></td>
+                <td>Publication timestamp (respects authentic backdating).</td>
+              </tr>
+              <tr>
+                <td><code>readTimeMinutes</code></td>
+                <td>number</td>
+                <td><code>4</code></td>
+                <td>Calculated reading duration in minutes.</td>
+              </tr>
+              <tr>
+                <td><code>authorName</code></td>
+                <td>string</td>
+                <td><code>"Editorial Staff"</code></td>
+                <td>Author display name.</td>
+              </tr>
+              <tr>
+                <td><code>authorAvatar</code></td>
+                <td>string (URL)</td>
+                <td><code>"https://.../avatar.webp"</code></td>
+                <td>Author profile picture URL.</td>
+              </tr>
+              <tr>
+                <td><code>seo.metaTitle</code></td>
+                <td>string</td>
+                <td><code>"SEO Trends | DigifyNext"</code></td>
+                <td>SEO Title tag for &lt;title&gt;.</td>
+              </tr>
+              <tr>
+                <td><code>seo.canonicalUrl</code></td>
+                <td>string (URL)</td>
+                <td><code>"https://digifynext.com/blog/..."</code></td>
+                <td>Canonical link tag to prevent duplicate content penalties.</td>
+              </tr>
+              <tr>
+                <td><code>schemaJsonLd</code></td>
+                <td>object</td>
+                <td><code>{"@type": "BlogPosting"}</code></td>
+                <td>Full Google Schema.org structured data object.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 6: REAL-WORLD CASE STUDIES -->
+    <section id="case-studies" class="section">
+      <div class="main-container">
+        <div class="title" style="margin-bottom: 24px;">
+          <div class="dev-badge">Production Case Studies</div>
+          <h2 style="font-size: clamp(1.8rem, 3.5vw, 2.5rem); font-weight: 700; margin-bottom: 8px;">
+            How Enterprise Clients Integrate Blogary
+          </h2>
+          <p class="text-lead muted-text">
+            Comparing two completely different architectures successfully powered by the same centralized Blogary CMS.
+          </p>
+        </div>
+
+        <div class="dev-grid-2">
+          <!-- Case Study 1 -->
+          <div class="dev-card">
+            <div style="font-size: 13px; font-weight: 700; color: #10b981; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">
+              Legacy Enterprise &bull; ASP.NET Web Forms
+            </div>
+            <h3 style="font-size: 20px; font-weight: 700; margin: 0 0 10px;">
+              Prabhu Dayal Public School (pdpschool.com)
+            </h3>
+            <p style="font-size: 14px; opacity: 0.85; line-height: 1.55; margin-bottom: 16px;">
+              A high-traffic educational institution running on Windows Server IIS and ASP.NET C#.
+            </p>
+            <div style="background: var(--_colors--surface---surface-2, rgba(0,0,0,0.03)); padding: 14px 16px; border-radius: 10px; font-size: 13.5px; line-height: 1.6; margin-bottom: 16px;">
+              <strong>Architecture Highlights:</strong>
+              <ul style="margin: 6px 0 0; padding-left: 18px;">
+                <li><strong>IIS URL Rewrite:</strong> Clean URLs <code class="bl-code">/blog</code> and <code class="bl-code">/blog/{slug}</code> mapped to ASP.NET code-behind without changing legacy URLs.</li>
+                <li><strong>Server-Side Fetch:</strong> Uses .NET WebClient with TLS 1.2+ to stream articles into server memory before rendering.</li>
+                <li><strong>SEO Preservation:</strong> 100% of existing school blog rankings and backlinks preserved during CMS migration.</li>
+              </ul>
+            </div>
+            <div style="font-size: 12.5px; opacity: 0.75;">
+              Domain: <a href="https://pdpschool.com/blog" target="_blank" rel="noopener" style="text-decoration: underline;">pdpschool.com/blog</a> &bull; Website ID: <code class="bl-code">site-pdpschool</code>
+            </div>
+          </div>
+
+          <!-- Case Study 2 -->
+          <div class="dev-card">
+            <div style="font-size: 13px; font-weight: 700; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">
+              Modern Digital Agency &bull; JAMstack
+            </div>
+            <h3 style="font-size: 20px; font-weight: 700; margin: 0 0 10px;">
+              DigifyNext (digifynext.com)
+            </h3>
+            <p style="font-size: 14px; opacity: 0.85; line-height: 1.55; margin-bottom: 16px;">
+              A fast-growing performance marketing agency running static HTML, Tailwind, and Vanilla JS.
+            </p>
+            <div style="background: var(--_colors--surface---surface-2, rgba(0,0,0,0.03)); padding: 14px 16px; border-radius: 10px; font-size: 13.5px; line-height: 1.6; margin-bottom: 16px;">
+              <strong>Architecture Highlights:</strong>
+              <ul style="margin: 6px 0 0; padding-left: 18px;">
+                <li><strong>Zero API Keys Exposed:</strong> Uses Blogary's Origin Domain Scope. Zero credentials in client bundles.</li>
+                <li><strong>Stale-While-Revalidate:</strong> In-memory &amp; SessionStorage caching provides instant 0ms back/forward navigation.</li>
+                <li><strong>Fallback Grace:</strong> 3-second AbortController timeout prevents UI hangs if external assets are delayed.</li>
+              </ul>
+            </div>
+            <div style="font-size: 12.5px; opacity: 0.75;">
+              Domain: <a href="https://digifynext.com/blog" target="_blank" rel="noopener" style="text-decoration: underline;">digifynext.com/blog</a> &bull; Website ID: <code class="bl-code">site-growth</code>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 7: PRODUCTION CHECKLIST -->
+    <section id="checklist" class="section">
+      <div class="main-container">
+        <div class="dev-card">
+          <div style="margin-bottom: 20px;">
+            <div class="dev-badge">Deployment Ready</div>
+            <h2 style="font-size: 22px; font-weight: 700; margin: 0 0 6px;">
+              Production Integration Checklist
+            </h2>
+            <p class="muted-text" style="font-size: 14px; margin: 0;">
+              Before launching your Blogary integration live, verify these essential items:
+            </p>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="check-item">
+              <span class="check-icon">✓</span>
+              <div>
+                <strong>1. Whitelist Production Domain:</strong>
+                <div style="font-size: 13px; opacity: 0.75;">Ensure your exact domain (e.g., <code>https://yourdomain.com</code> and <code>www.yourdomain.com</code>) is entered in Blogary Studio under Website Settings.</div>
+              </div>
+            </div>
+            <div class="check-item">
+              <span class="check-icon">✓</span>
+              <div>
+                <strong>2. Set Fallback Featured Image:</strong>
+                <div style="font-size: 13px; opacity: 0.75;">Always provide a fallback cover image in your frontend rendering logic in case an author creates an article without a cover.</div>
+              </div>
+            </div>
+            <div class="check-item">
+              <span class="check-icon">✓</span>
+              <div>
+                <strong>3. Implement Canonical &amp; OG Tags:</strong>
+                <div style="font-size: 13px; opacity: 0.75;">Extract <code>post.seo.canonicalUrl</code> and <code>post.seo.ogImage</code> to maximize search engine indexing and social media shares.</div>
+              </div>
+            </div>
+            <div class="check-item">
+              <span class="check-icon">✓</span>
+              <div>
+                <strong>4. Add Google Schema.org JSON-LD:</strong>
+                <div style="font-size: 13px; opacity: 0.75;">Directly inject the pre-built <code>post.schemaJsonLd</code> script into your HTML head to unlock Google Rich Snippets.</div>
+              </div>
+            </div>
+            <div class="check-item">
+              <span class="check-icon">✓</span>
+              <div>
+                <strong>5. Enforce Safe Request Timeouts:</strong>
+                <div style="font-size: 13px; opacity: 0.75;">Use an AbortController with a 3000ms-4000ms threshold so your frontend renders cleanly even on flaky mobile connections.</div>
+              </div>
+            </div>
+            <div class="check-item">
+              <span class="check-icon">✓</span>
+              <div>
+                <strong>6. Cache Invalidation Webhook:</strong>
+                <div style="font-size: 13px; opacity: 0.75;">If using Static Site Generation (Next.js/Nuxt), configure Blogary Studio's Webhook URL to call your site's <code>/api/revalidate</code> endpoint.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <section class="section">
+      <div class="main-container">
+        <div class="footer-2-wrap">
+          <div class="bl-foot">
+            <div class="bl-foot-brand">
+              <a href="#top" class="logo bl-logo" aria-label="Blogary home">
+                <picture>
+                  <source srcset="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/logo.webp" type="image/webp" />
+                  <img src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/img/logo.png" alt="Blogary" style="height: 36px; width: auto; max-width: none; object-fit: contain; display: block;" />
+                </picture>
+              </a>
+              <div class="muted-text">The central content hub for teams that run more than one website.</div>
+              <a href="mailto:hello@jupsoft.com" class="bl-foot-mail">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M3 7a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-10z"/>
+                  <path d="M3 7l9 6l9 -6"/>
+                </svg>
+                <span>hello@jupsoft.com</span>
+              </a>
+            </div>
+            <div class="footer-2-menus">
+              <div class="footer-menu">
+                <div class="footer-menu-heading">Product</div>
+                <a href="/#features" class="footer-menu-link">Features</a>
+                <a href="/#how" class="footer-menu-link">How it works</a>
+                <a href="/#pricing" class="footer-menu-link">Pricing</a>
+                <a href="/developers" class="footer-menu-link" style="font-weight: 600;">Developer API</a>
+                <a href="/#faq" class="footer-menu-link">FAQ</a>
+              </div>
+              <div class="footer-menu">
+                <div class="footer-menu-heading">Company</div>
+                <a href="https://jupsoft.com" class="footer-menu-link" target="_blank" rel="noopener">Jupsoft Systems</a>
+                <a href="/#demo" class="footer-menu-link">Book a demo</a>
+                <a href="/contact" class="footer-menu-link">Contact</a>
+                <a href="/login" class="footer-menu-link">Admin Studio Login</a>
+              </div>
+            </div>
+          </div>
+          <div class="bl-foot-base">
+            <span>© 2026 Jupsoft Systems Pvt. Ltd. &bull; Blogary is a Jupsoft product.</span>
+            <div class="bl-foot-base-links">
+              <a href="https://jupsoft.com/privacy-policy" target="_blank" rel="noopener">Privacy</a>
+              <a href="https://jupsoft.com/terms-of-use" target="_blank" rel="noopener">Terms</a>
+              <a href="https://jupsoft.com" target="_blank" rel="noopener">jupsoft.com ↗</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCRIPTS -->
+    <script src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/lib/jquery.min.js" type="text/javascript"></script>
+    <script src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/js/webflow.chunk.36b8fb49256177c8.js" type="text/javascript"></script>
+    <script src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/js/webflow.chunk.654b4983dfc5cf94.js" type="text/javascript"></script>
+    <script src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/js/webflow.js" type="text/javascript"></script>
+    <script src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/lib/gsap.min.js" type="text/javascript"></script>
+    <script src="https://blogary.s3.ap-south-1.amazonaws.com/landing/assets/lib/lenis.min.js"></script>
+
+    <!-- Theme & Smooth Scroll Scripts -->
+    <script>
+      (function () {
+        var KEY = "blogary-theme", body = document.body;
+        function setIndicator(on) {
+          document.querySelectorAll(".color-scheme-indicator").forEach(function (i) {
+            i.classList.toggle("active-toggle", on);
+          });
+        }
+        try {
+          if (localStorage.getItem(KEY) === "dark") {
+            body.classList.add("dark-mode");
+            setIndicator(true);
+          }
+        } catch (e) {}
+
+        document.addEventListener("click", function (e) {
+          if (e.target.closest(".dark-toggle")) {
+            try { localStorage.setItem(KEY, "dark"); } catch (x) {}
+          } else if (e.target.closest(".light-toggle")) {
+            try { localStorage.setItem(KEY, "light"); } catch (x) {}
+          }
+        });
+
+        // Initialize Lenis smooth scroll
+        try {
+          const lenis = new Lenis({ duration: 0.7 });
+          function raf(time) {
+            lenis.raf(time);
+            requestAnimationFrame(raf);
+          }
+          requestAnimationFrame(raf);
+        } catch(e) {}
+      })();
+    </script>
+
+    <!-- Interactive Tabs & Live Console Scripts -->
+    <script>
+      // Switch Tab Function
+      function switchTab(panelId, btnEl) {
+        document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+        document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+        var target = document.getElementById(panelId);
+        if (target) target.classList.add('active');
+        if (btnEl) btnEl.classList.add('active');
+      }
+
+      // Copy Code Snippet Helper
+      function copySnippet(elementId) {
+        var el = document.getElementById(elementId);
+        if (!el) return;
+        var text = el.innerText || el.textContent;
+        navigator.clipboard.writeText(text).then(function() {
+          var btn = event.currentTarget || event.target;
+          var original = btn.innerText;
+          btn.innerText = "✓ Copied!";
+          setTimeout(function() { btn.innerText = original; }, 2000);
+        });
+      }
+
+      // Website Setter Shortcut
+      function setWebsite(siteId) {
+        var inp = document.getElementById('api-website-input');
+        if (inp) {
+          inp.value = siteId;
+          updateConstructedUrl();
+        }
+      }
+
+      // Live Console Logic
+      (function () {
+        var endpointSelect = document.getElementById('api-endpoint-select');
+        var websiteInput = document.getElementById('api-website-input');
+        var slugInput = document.getElementById('api-slug-input');
+        var limitInput = document.getElementById('api-limit-input');
+        var pageInput = document.getElementById('api-page-input');
+        var groupSlug = document.getElementById('group-slug');
+        var groupPagination = document.getElementById('group-pagination');
+        var groupWebsite = document.getElementById('group-website');
+        var constructedUrlEl = document.getElementById('constructed-url');
+        var runBtn = document.getElementById('btn-run-query');
+        var statusPill = document.getElementById('console-status-pill');
+        var latencyEl = document.getElementById('console-latency');
+        var statusTitle = document.getElementById('response-status-title');
+        var previewEl = document.getElementById('response-json-preview');
+        var copyBtn = document.getElementById('btn-copy-response');
+
+        var lastResponseJson = "";
+
+        function getFullUrl() {
+          var ep = endpointSelect.value;
+          var site = encodeURIComponent((websiteInput.value || '').trim() || 'site-growth');
+          var slug = encodeURIComponent((slugInput.value || '').trim() || 'seo-trends-modern-brands-should-watch-closely');
+          var limit = limitInput.value || '3';
+          var page = pageInput.value || '1';
+
+          var base = 'https://blogary.jupsoft.com/v1';
+
+          if (ep === 'blogs') {
+            return base + '/blogs?website=' + site + '&limit=' + limit + '&page=' + page;
+          } else if (ep === 'blogs-slug') {
+            return base + '/blogs/' + slug + '?website=' + site;
+          } else if (ep === 'blogs-latest') {
+            return base + '/blogs/latest?website=' + site + '&limit=' + limit;
+          } else if (ep === 'blogs-popular') {
+            return base + '/blogs/popular?website=' + site + '&limit=' + limit;
+          } else if (ep === 'categories') {
+            return base + '/categories?websiteId=' + site;
+          } else if (ep === 'tags') {
+            return base + '/tags?websiteId=' + site;
+          } else if (ep === 'health') {
+            return base + '/health';
+          }
+          return base + '/blogs?website=' + site;
+        }
+
+        function updateConstructedUrl() {
+          var ep = endpointSelect.value;
+          groupSlug.style.display = (ep === 'blogs-slug') ? 'block' : 'none';
+          groupPagination.style.display = (ep === 'blogs' || ep === 'blogs-latest' || ep === 'blogs-popular') ? 'grid' : 'none';
+          groupWebsite.style.display = (ep === 'health') ? 'none' : 'block';
+
+          constructedUrlEl.textContent = getFullUrl();
+        }
+
+        endpointSelect.addEventListener('change', updateConstructedUrl);
+        websiteInput.addEventListener('input', updateConstructedUrl);
+        slugInput.addEventListener('input', updateConstructedUrl);
+        limitInput.addEventListener('input', updateConstructedUrl);
+        pageInput.addEventListener('input', updateConstructedUrl);
+
+        // Execute API Call
+        async function executeCall() {
+          var targetUrl = getFullUrl();
+          runBtn.disabled = true;
+          runBtn.style.opacity = '0.7';
+          runBtn.innerText = "⏳ Executing Live Request...";
+
+          statusPill.className = "console-status-pill status-loading";
+          statusPill.textContent = "Fetching...";
+          latencyEl.textContent = "";
+
+          var startTime = performance.now();
+
+          try {
+            var response = await fetch(targetUrl, {
+              headers: { 'Accept': 'application/json' }
+            });
+
+            var duration = Math.round(performance.now() - startTime);
+            var isOk = response.ok;
+            var data = await response.json();
+
+            lastResponseJson = JSON.stringify(data, null, 2);
+
+            statusPill.className = "console-status-pill " + (isOk ? "status-200" : "status-error");
+            statusPill.textContent = "HTTP " + response.status + " " + response.statusText;
+            latencyEl.textContent = duration + " ms latency";
+            statusTitle.textContent = "HTTP " + response.status + " • " + duration + "ms";
+
+            previewEl.textContent = lastResponseJson;
+          } catch (err) {
+            var duration = Math.round(performance.now() - startTime);
+            statusPill.className = "console-status-pill status-error";
+            statusPill.textContent = "Network / CORS Error";
+            latencyEl.textContent = duration + " ms";
+            statusTitle.textContent = "Request Failed";
+            lastResponseJson = JSON.stringify({
+              error: err.message,
+              troubleshooting: [
+                "If querying from an unauthorized domain, add Bearer API key header.",
+                "Or whitelist your caller origin in Blogary Studio -> Website Settings."
+              ]
+            }, null, 2);
+            previewEl.textContent = lastResponseJson;
+          } finally {
+            runBtn.disabled = false;
+            runBtn.style.opacity = '1';
+            runBtn.innerText = "🚀 Send Live API Request";
+          }
+        }
+
+        runBtn.addEventListener('click', executeCall);
+
+        copyBtn.addEventListener('click', function() {
+          if (!lastResponseJson) return;
+          navigator.clipboard.writeText(lastResponseJson).then(function() {
+            var orig = copyBtn.innerText;
+            copyBtn.innerText = "✓ Copied!";
+            setTimeout(function() { copyBtn.innerText = orig; }, 2000);
+          });
+        });
+
+        // Initialize display and auto-run test once
+        updateConstructedUrl();
+        executeCall();
+      })();
+    </script>
+  </body>
+</html>

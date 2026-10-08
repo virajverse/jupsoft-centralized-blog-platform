@@ -128,11 +128,12 @@ export class AuthService {
     }
 
     // --- Success: Non-blocking parallel background bookkeeping (0-delay response) ---
+    const cleanIp = (ipAddress || '').replace(/^::ffff:/, '').trim();
     Promise.all([
       this.prisma.user.update({
         where: { id: user.id },
         data: {
-          lastLoginIp: ipAddress || '',
+          lastLoginIp: cleanIp,
           loginAttempts: 0,
           lockoutUntil: null,
         },
@@ -143,8 +144,8 @@ export class AuthService {
           role: user.roleAssignments[0]?.role || 'Staff Writer',
           websiteId: 'system',
           event: 'user.login',
-          ipAddress: ipAddress || '',
-          details: `User ${user.name} (${user.email}) logged in from ${ipAddress || 'unknown'}.`,
+          ipAddress: cleanIp,
+          details: `User ${user.name} (${user.email}) logged in from ${cleanIp || 'unknown'}.`,
         },
       }),
     ]).catch((err) => {
@@ -295,8 +296,9 @@ export class AuthService {
       `Google OAuth profile sync for ${email}: name="${syncName}", avatar="${syncAvatar ? syncAvatar.substring(0, 60) + '...' : 'none'}"`,
     );
 
+    const cleanIp = (ipAddress || '').replace(/^::ffff:/, '').trim();
     const updateData: any = {
-      lastLoginIp: ipAddress || '',
+      lastLoginIp: cleanIp,
       loginAttempts: 0,
       lockoutUntil: null,
     };
@@ -346,8 +348,8 @@ export class AuthService {
           role: updatedUser.roleAssignments[0]?.role || 'Staff Writer',
           websiteId: 'system',
           event: 'user.login.google',
-          ipAddress: ipAddress || '',
-          details: `User ${updatedUser.name} (${updatedUser.email}) signed in via Google OAuth from ${ipAddress || 'unknown'} (profile automatically synced).`,
+          ipAddress: cleanIp,
+          details: `User ${updatedUser.name} (${updatedUser.email}) signed in via Google OAuth from ${cleanIp || 'unknown'} (profile automatically synced).`,
         },
       }),
     ]).catch((err) => {
@@ -626,6 +628,21 @@ export class AuthService {
         return acc;
       }, {} as Record<string, string>),
     };
+  }
+
+  async syncClientIp(userId: string, rawIp: string) {
+    if (!rawIp) return { success: false, message: 'IP is required' };
+    const cleanIp = rawIp.replace(/^::ffff:/, '').trim();
+    if (!cleanIp || cleanIp === '::1') return { success: false, message: 'Invalid IP' };
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { lastLoginIp: cleanIp },
+    });
+    await this.redis.del(`auth:profile:${userId}`);
+    await this.redis.del(`auth:user:${userId}`);
+    this.logger.log(`🌐 Synced client public IP for user ${userId}: ${cleanIp}`);
+    return { success: true, ip: cleanIp };
   }
 
   async uploadAvatar(userId: string, file: Express.Multer.File, ipAddress?: string) {

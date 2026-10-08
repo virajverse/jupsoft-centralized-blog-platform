@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -15,13 +15,13 @@ import {
   RefreshCw,
   ExternalLink,
   Edit3,
-  Calendar,
-  Layers,
-  Sparkles,
   Check,
-  Clock,
-  Send,
-  Camera
+  Camera,
+  Lock,
+  Wifi,
+  KeyRound,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 const LinkedinIcon = ({ className }: { className?: string }) => (
@@ -65,20 +65,102 @@ export const ProfileView: React.FC = () => {
   // Form states for Author Identity
   const [displayName, setDisplayName] = useState(currentUser?.name || '');
   const [bio, setBio] = useState(() => {
-    return currentUser?.bio || (typeof window !== 'undefined' ? localStorage.getItem(`profile_bio_${currentUser?.id}`) : '') || 
-      'Author & content contributor crafting engaging, SEO-optimized articles and educational guides for the platform.';
+    return currentUser?.bio || (typeof window !== 'undefined' && currentUser?.id ? localStorage.getItem(`profile_bio_${currentUser.id}`) : '') || '';
   });
   const [linkedinUrl, setLinkedinUrl] = useState(() => {
-    return currentUser?.linkedinUrl || (typeof window !== 'undefined' ? localStorage.getItem(`profile_linkedin_${currentUser?.id}`) : '') || '';
+    return currentUser?.linkedinUrl || (typeof window !== 'undefined' && currentUser?.id ? localStorage.getItem(`profile_linkedin_${currentUser.id}`) : '') || '';
   });
   const [twitterUrl, setTwitterUrl] = useState(() => {
-    return currentUser?.twitterUrl || (typeof window !== 'undefined' ? localStorage.getItem(`profile_twitter_${currentUser?.id}`) : '') || '';
+    return currentUser?.twitterUrl || (typeof window !== 'undefined' && currentUser?.id ? localStorage.getItem(`profile_twitter_${currentUser.id}`) : '') || '';
   });
 
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [avatarLoadError, setAvatarLoadError] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Real Public IP Detection & Verification State
+  const [detectedPublicIp, setDetectedPublicIp] = useState<string>(() => {
+    return (typeof window !== 'undefined' ? localStorage.getItem('jupsoft_client_public_ip') : '') || '';
+  });
+  const [isFetchingIp, setIsFetchingIp] = useState(false);
+
+  // Security / Password Change State
+  const [showPasswordSection, setShowPasswordSection] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPasswords, setShowPasswords] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  // Detect and verify Real Client Public IP
+  const fetchRealPublicIp = async (manual = false) => {
+    setIsFetchingIp(true);
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch('https://api.ipify.org?format=json', { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const data = await res.json();
+        const cleanIp = (data?.ip || '').replace(/^::ffff:/, '').trim();
+        if (cleanIp) {
+          setDetectedPublicIp(cleanIp);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('jupsoft_client_public_ip', cleanIp);
+          }
+          const currentIp = currentUser?.lastLoginIp?.replace(/^::ffff:/, '').trim();
+          if (manual || !currentIp || currentIp === '127.0.0.1' || currentIp === '::1' || currentIp.startsWith('192.168.') || currentIp.startsWith('10.')) {
+            apiClient.syncClientIp(cleanIp).then(() => {
+              useBlogStore.setState((prev) => ({
+                currentUser: prev.currentUser ? { ...prev.currentUser, lastLoginIp: cleanIp } : null,
+              }));
+            }).catch(() => {});
+          }
+          if (manual) {
+            showNotification(`Real public IP verified: ${cleanIp}`, 'success');
+          }
+          return;
+        }
+      }
+    } catch {
+      // Fallback service
+      try {
+        const res2 = await fetch('https://api64.ipify.org?format=json', { signal: AbortSignal.timeout(3000) });
+        if (res2.ok) {
+          const data2 = await res2.json();
+          const cleanIp2 = (data2?.ip || '').replace(/^::ffff:/, '').trim();
+          if (cleanIp2) {
+            setDetectedPublicIp(cleanIp2);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('jupsoft_client_public_ip', cleanIp2);
+            }
+            const currentIp = currentUser?.lastLoginIp?.replace(/^::ffff:/, '').trim();
+            if (manual || !currentIp || currentIp === '127.0.0.1' || currentIp === '::1') {
+              apiClient.syncClientIp(cleanIp2).then(() => {
+                useBlogStore.setState((prev) => ({
+                  currentUser: prev.currentUser ? { ...prev.currentUser, lastLoginIp: cleanIp2 } : null,
+                }));
+              }).catch(() => {});
+            }
+            if (manual) {
+              showNotification(`Real public IP verified: ${cleanIp2}`, 'success');
+            }
+          }
+        }
+      } catch {
+        if (manual) {
+          showNotification('Could not resolve public IP (check internet connection)', 'warning');
+        }
+      }
+    } finally {
+      setIsFetchingIp(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRealPublicIp();
+  }, []);
 
   const handleAvatarFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -111,26 +193,80 @@ export const ProfileView: React.FC = () => {
   useEffect(() => {
     if (currentUser) {
       if (currentUser.name) setDisplayName(currentUser.name);
-      if (currentUser.bio !== undefined) setBio(currentUser.bio);
-      if (currentUser.linkedinUrl !== undefined) setLinkedinUrl(currentUser.linkedinUrl);
-      if (currentUser.twitterUrl !== undefined) setTwitterUrl(currentUser.twitterUrl);
+      if (currentUser.bio !== undefined) setBio(currentUser.bio || '');
+      if (currentUser.linkedinUrl !== undefined) setLinkedinUrl(currentUser.linkedinUrl || '');
+      if (currentUser.twitterUrl !== undefined) setTwitterUrl(currentUser.twitterUrl || '');
     }
   }, [currentUser]);
 
   const activeSite = websites.find((w) => w.id === activeWebsiteId) || websites[0];
   const safeAvatar = cleanAvatarUrl(currentUser?.avatar);
 
-  // Filter user articles
-  const userArticles = blogs.filter((b) => {
-    if (currentUser?.id && b.authorId === currentUser.id) return true;
-    if (b.authorName?.toLowerCase().includes(currentUser?.name?.toLowerCase() || '')) return true;
-    if (activeRole === 'Content Writer' && (b.websiteId === activeWebsiteId || activeWebsiteId === 'all')) return true;
-    return false;
-  });
+  // Compute dynamic assigned websites
+  const isGlobalAccess = useMemo(() => {
+    if (!currentUser) return false;
+    const roles = currentUser.roleAssignments || {};
+    return Boolean(roles['all']) || activeRole === 'Super Admin';
+  }, [currentUser, activeRole]);
 
-  const draftCount = userArticles.filter((b) => b.status === 'Draft').length;
-  const reviewCount = userArticles.filter((b) => b.status === 'Under Review').length;
-  const publishedCount = userArticles.filter((b) => b.status === 'Published').length;
+  const assignedWebsitesList = useMemo(() => {
+    if (!currentUser) return [];
+    if (isGlobalAccess) return websites;
+    const roles = currentUser.roleAssignments || {};
+    const assignedIds = Object.keys(roles);
+    return websites.filter((w) => assignedIds.includes(w.id));
+  }, [currentUser, isGlobalAccess, websites]);
+
+  // Dynamic IP display info (never raw ::ffff:127.0.0.1)
+  const displayIpInfo = useMemo(() => {
+    const rawLast = currentUser?.lastLoginIp ? currentUser.lastLoginIp.replace(/^::ffff:/, '').trim() : '';
+    const isLocal = !rawLast || rawLast === '127.0.0.1' || rawLast === '::1' || rawLast.startsWith('192.168.') || rawLast.startsWith('10.');
+
+    if (detectedPublicIp) {
+      return {
+        ip: detectedPublicIp,
+        badge: 'Live Public IP',
+        isLive: true,
+      };
+    }
+    if (rawLast && !isLocal) {
+      return {
+        ip: rawLast,
+        badge: 'Recorded Sign-In IP',
+        isLive: true,
+      };
+    }
+    return {
+      ip: rawLast || 'Resolving...',
+      badge: isLocal ? 'Localhost' : 'Network IP',
+      isLive: false,
+    };
+  }, [currentUser?.lastLoginIp, detectedPublicIp]);
+
+  // Filter user articles
+  const userAuthoredArticles = useMemo(() => {
+    return blogs.filter((b) => {
+      if (currentUser?.id && b.authorId === currentUser.id) return true;
+      if (currentUser?.name && b.authorName && b.authorName.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) return true;
+      return false;
+    });
+  }, [blogs, currentUser]);
+
+  const displayArticles = useMemo(() => {
+    if (userAuthoredArticles.length > 0) return userAuthoredArticles;
+    // Fallback for Admins / Editors: show scope articles if no directly authored blogs exist under this exact name
+    if (activeRole === 'Super Admin' || activeRole === 'Role Admin' || activeRole === 'Editor') {
+      return blogs.filter((b) => activeWebsiteId === 'all' || b.websiteId === activeWebsiteId);
+    }
+    return [];
+  }, [userAuthoredArticles, blogs, activeRole, activeWebsiteId]);
+
+  const isScopeFallback = userAuthoredArticles.length === 0 && displayArticles.length > 0;
+
+  const relevantArticles = userAuthoredArticles.length > 0 ? userAuthoredArticles : displayArticles;
+  const draftCount = relevantArticles.filter((b) => b.status === 'Draft').length;
+  const reviewCount = relevantArticles.filter((b) => b.status === 'Under Review').length;
+  const publishedCount = relevantArticles.filter((b) => b.status === 'Published').length;
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -174,6 +310,36 @@ export const ProfileView: React.FC = () => {
     }
   };
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPassword) {
+      showNotification('Please enter your current password', 'warning');
+      return;
+    }
+    if (newPassword.length < 8) {
+      showNotification('New password must be at least 8 characters long', 'warning');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      showNotification('New password and confirmation do not match', 'warning');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      await apiClient.changePassword(currentPassword, newPassword);
+      showNotification('Account password updated successfully!', 'success');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setShowPasswordSection(false);
+    } catch (err: unknown) {
+      showNotification(err instanceof Error ? err.message : 'Failed to change password', 'error');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-slate-50/50 dark:bg-[#090d16]">
       {/* Top Banner / Heading */}
@@ -191,7 +357,7 @@ export const ProfileView: React.FC = () => {
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 shadow-xs">
             <Globe className="w-3.5 h-3.5 text-blue-500" />
-            <span>Scope: {activeSite?.name || 'All Sites'}</span>
+            <span>Scope: {activeSite?.name || 'All Websites'}</span>
           </span>
         </div>
       </div>
@@ -243,14 +409,14 @@ export const ProfileView: React.FC = () => {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-base font-bold text-slate-900 dark:text-white truncate">
-                    {currentUser?.name || 'CMS User'}
+                    {currentUser?.name || currentUser?.email?.split('@')[0] || 'CMS User'}
                   </h2>
                   <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/60">
                     {activeRole}
                   </span>
                 </div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  {currentUser?.email || 'user@jupsoft.com'}
+                <div className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5 font-medium">
+                  {currentUser?.email || '—'}
                 </div>
                 <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 mt-1 flex items-center gap-1.5">
                   <Shield className="w-3.5 h-3.5 text-red-500" />
@@ -290,28 +456,160 @@ export const ProfileView: React.FC = () => {
             </div>
 
             {/* Metadata Chips */}
-            <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2.5 text-xs">
+            <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 text-[11px]">Account Status</span>
                 <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Active
                 </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400 text-[11px]">Assigned Site</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[160px]">
-                  {activeSite?.name || 'All Tenants'}
-                </span>
-              </div>
-              {currentUser?.lastLoginIp && (
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400 text-[11px]">Last Sign-In IP</span>
-                  <span className="font-mono text-[11px] text-slate-600 dark:text-slate-400">
-                    {currentUser.lastLoginIp}
-                  </span>
+
+              {/* Dynamic Assigned Websites */}
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-slate-400 text-[11px] shrink-0 pt-0.5">Assigned Website</span>
+                <div className="text-right flex flex-col items-end gap-1">
+                  {isGlobalAccess ? (
+                    <span className="font-semibold text-slate-700 dark:text-slate-300 text-xs">
+                      All Websites (Global Access)
+                    </span>
+                  ) : assignedWebsitesList.length > 0 ? (
+                    <div className="flex flex-wrap justify-end gap-1 max-w-[200px]">
+                      {assignedWebsitesList.map((site) => (
+                        <span
+                          key={site.id}
+                          className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 truncate max-w-[150px]"
+                          title={site.name}
+                        >
+                          {site.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="font-semibold text-slate-700 dark:text-slate-300 text-xs">
+                      {activeSite?.name || 'All Websites'}
+                    </span>
+                  )}
                 </div>
-              )}
+              </div>
+
+              {/* Real Client Public IP (Never fake ::ffff:127.0.0.1) */}
+              <div className="flex items-center justify-between pt-1 border-t border-slate-100/60 dark:border-slate-800/60">
+                <div className="flex items-center gap-1.5">
+                  <Wifi className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-slate-400 text-[11px]">Public IP</span>
+                  {displayIpInfo.isLive && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Active Connection" />
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="text-right">
+                    <span className="font-mono text-[11px] font-bold text-slate-800 dark:text-slate-200 block">
+                      {displayIpInfo.ip}
+                    </span>
+                    <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold uppercase tracking-wider block">
+                      {displayIpInfo.badge}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fetchRealPublicIp(true)}
+                    disabled={isFetchingIp}
+                    className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                    title="Verify & Refresh Public IP"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isFetchingIp ? 'animate-spin text-blue-500' : ''}`} />
+                  </button>
+                </div>
+              </div>
             </div>
+          </div>
+
+          {/* Quick Security Trigger */}
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                <h3 className="text-xs font-bold text-slate-900 dark:text-white">Security &amp; Password</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPasswordSection(!showPasswordSection)}
+                className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+              >
+                {showPasswordSection ? 'Hide' : 'Update Password'}
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Manage account authentication credentials and login password security.
+            </p>
+
+            {showPasswordSection && (
+              <form onSubmit={handleChangePassword} className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                <div>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Current Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPasswords ? 'text' : 'password'}
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 pr-8 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-red-500 font-mono text-xs"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswords(!showPasswords)}
+                      className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showPasswords ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    New Password (min 8 chars)
+                  </label>
+                  <input
+                    type={showPasswords ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-red-500 font-mono text-xs"
+                    required
+                    minLength={8}
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Confirm New Password
+                  </label>
+                  <input
+                    type={showPasswords ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-red-500 font-mono text-xs"
+                    required
+                    minLength={8}
+                  />
+                </div>
+
+                <div className="pt-1 flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isChangingPassword}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-red-600 dark:hover:bg-red-700 text-white font-semibold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {isChangingPassword ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
+                    <span>{isChangingPassword ? 'Updating...' : 'Save New Password'}</span>
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
 
@@ -345,7 +643,7 @@ export const ProfileView: React.FC = () => {
                 <div>
                   <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1 flex items-center justify-between">
                     <span>Assigned CMS Role</span>
-                    <span className="text-[10px] text-slate-400 font-normal">Only Admin can change</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Managed by Super Admin</span>
                   </label>
                   <div className="flex items-center gap-2 w-full bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-700 dark:text-slate-300 font-medium select-none">
                     <Shield className="w-3.5 h-3.5 text-red-500 shrink-0" />
@@ -459,17 +757,24 @@ export const ProfileView: React.FC = () => {
 
             {/* Recent Articles List */}
             <div className="space-y-2 pt-2">
-              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Recent Authored Articles:
+              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                <span>
+                  {isScopeFallback
+                    ? `Recent Articles (${activeSite?.name || 'Active Website Scope'}):`
+                    : 'Recent Authored Articles:'}
+                </span>
+                {isScopeFallback && (
+                  <span className="text-[10px] font-normal text-slate-400">Active Website Scope</span>
+                )}
               </h4>
 
-              {userArticles.length === 0 ? (
+              {displayArticles.length === 0 ? (
                 <div className="p-6 text-center rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 text-xs text-slate-500">
-                  No articles authored yet on this site. Click &quot;Write New Article&quot; to begin your first draft!
+                  No articles authored yet on this website. Click &quot;Write New Article&quot; to begin your first draft!
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                  {userArticles.slice(0, 5).map((article) => {
+                  {displayArticles.slice(0, 5).map((article) => {
                     const title = article.translations?.en?.title || 'Untitled Article';
                     const slug = article.translations?.en?.slug || '';
                     return (

@@ -128,7 +128,7 @@ class ApiClient {
     if (accessToken) {
       setCookie('jupsoft_auth_token', accessToken, 7); // 7 days (aligns with session lifetime)
       if (typeof window !== 'undefined') {
-        try { localStorage.setItem('jupsoft_auth_token', accessToken); } catch {}
+        try { localStorage.removeItem('jupsoft_auth_token'); } catch {}
       }
     } else {
       deleteCookie('jupsoft_auth_token');
@@ -141,7 +141,7 @@ class ApiClient {
       if (refreshToken) {
         setCookie('jupsoft_refresh_token', refreshToken, 7); // 7 days (refresh token)
         if (typeof window !== 'undefined') {
-          try { localStorage.setItem('jupsoft_refresh_token', refreshToken); } catch {}
+          try { localStorage.removeItem('jupsoft_refresh_token'); } catch {}
         }
       } else {
         deleteCookie('jupsoft_refresh_token');
@@ -167,7 +167,7 @@ class ApiClient {
 
   getToken(): string | null {
     if (!this.token && typeof window !== 'undefined') {
-      this.token = getCookie('jupsoft_auth_token') || localStorage.getItem('jupsoft_auth_token');
+      this.token = getCookie('jupsoft_auth_token');
     }
     return this.token;
   }
@@ -207,6 +207,13 @@ class ApiClient {
     const token = this.getToken();
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    if (typeof window !== 'undefined') {
+      const storedPublicIp = localStorage.getItem('jupsoft_client_public_ip');
+      if (storedPublicIp) {
+        headers.set('X-Client-Public-IP', storedPublicIp);
+      }
     }
 
     const response = await fetch(`${getApiBase()}${endpoint}`, {
@@ -314,6 +321,7 @@ class ApiClient {
   // ─── Auth (TRD §4) ────────────────────────────────────────────────────────
 
   async login(email: string, password: string) {
+    const clientPublicIp = typeof window !== 'undefined' ? localStorage.getItem('jupsoft_client_public_ip') || undefined : undefined;
     const data = await this.request<{
       accessToken: string;
       refreshToken: string;
@@ -321,7 +329,7 @@ class ApiClient {
       websites?: Website[];
     }>(
       '/admin/auth/login',
-      { method: 'POST', body: JSON.stringify({ email, password }) },
+      { method: 'POST', body: JSON.stringify({ email, password, clientPublicIp }) },
     );
     if (data.accessToken) {
       this.setTokens(data.accessToken, data.refreshToken);
@@ -330,6 +338,7 @@ class ApiClient {
   }
 
   async googleLogin(credential: string) {
+    const clientPublicIp = typeof window !== 'undefined' ? localStorage.getItem('jupsoft_client_public_ip') || undefined : undefined;
     const data = await this.request<{
       accessToken: string;
       refreshToken: string;
@@ -337,12 +346,22 @@ class ApiClient {
       websites?: Website[];
     }>(
       '/admin/auth/google',
-      { method: 'POST', body: JSON.stringify({ credential }) },
+      { method: 'POST', body: JSON.stringify({ credential, clientPublicIp }) },
     );
     if (data.accessToken) {
       this.setTokens(data.accessToken, data.refreshToken);
     }
     return data;
+  }
+
+  async syncClientIp(ip: string): Promise<{ success: boolean; ip: string }> {
+    if (typeof window !== 'undefined' && ip) {
+      localStorage.setItem('jupsoft_client_public_ip', ip);
+    }
+    return this.request('/admin/auth/sync-ip', {
+      method: 'PUT',
+      body: JSON.stringify({ ip }),
+    });
   }
 
   async refreshTokens(refreshToken: string) {

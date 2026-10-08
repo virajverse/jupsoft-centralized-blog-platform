@@ -496,10 +496,10 @@ export const AnalyticsView: React.FC = () => {
             onClick={fetchLiveAnalytics}
             disabled={loadingLive}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium text-xs transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
-            title="Sync live analytics from PostgreSQL"
+            title="Refresh analytics data"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-blue-500 ${loadingLive ? 'animate-spin' : ''}`} />
-            <span>{loadingLive ? 'Syncing...' : 'Sync DB'}</span>
+            <span>{loadingLive ? 'Syncing latest data...' : 'Refresh data'}</span>
           </button>
           <div className="flex items-center gap-1 bg-white dark:bg-[#0f172a] p-1 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
             <Calendar className="w-3.5 h-3.5 text-slate-400 ml-2 mr-1" />
@@ -610,7 +610,7 @@ export const AnalyticsView: React.FC = () => {
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-blue-500" />
-              <span>Readership &amp; Publishing Velocity Curve</span>
+              <span>Readership &amp; Publishing Views Trend</span>
             </h3>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">
               Interactive timeline generated dynamically from blog publish timestamps and view tracking events.
@@ -627,7 +627,7 @@ export const AnalyticsView: React.FC = () => {
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              Views Velocity
+              Views Trend
             </button>
             <button
               type="button"
@@ -768,7 +768,7 @@ export const AnalyticsView: React.FC = () => {
           <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <PieChartIcon className="w-4 h-4 text-emerald-500" />
-              <span>Editorial Status Breakdown</span>
+              <span>Editorial Status Summary</span>
             </h3>
             <span className="text-[10px] font-mono text-slate-400">{totalArticles} Articles Total</span>
           </div>
@@ -1038,13 +1038,13 @@ export const AnalyticsView: React.FC = () => {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 uppercase text-[10px] tracking-wider font-semibold">
-                  <th className="py-3 px-4">Tenant</th>
+                  <th className="py-3 px-4">Website</th>
                   <th className="py-3 px-4">Domain</th>
                   <th className="py-3 px-4 text-center">Total Blogs</th>
                   <th className="py-3 px-4 text-center">Published</th>
                   <th className="py-3 px-4 text-center">Under Review</th>
                   <th className="py-3 px-4 text-center">Words Authored</th>
-                  <th className="py-3 px-4 text-center">Language Completeness</th>
+                  <th className="py-3 px-4 text-center">Translated %</th>
                   <th className="py-3 px-4 text-right">Filter</th>
                 </tr>
               </thead>
@@ -1142,7 +1142,7 @@ export const AnalyticsView: React.FC = () => {
                 <th className="py-3 px-4 font-semibold text-center">Published Blogs</th>
                 <th className="py-3 px-4 font-semibold text-center">Est. Views</th>
                 <th className="py-3 px-4 font-semibold text-center">Approval Rate</th>
-                <th className="py-3 px-4 font-semibold text-right">Tier</th>
+                <th className="py-3 px-4 font-semibold text-right">Plan Level</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">

@@ -461,10 +461,10 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       return 'Official editorial desk and contributor team publishing curated educational insights and announcements.';
     }
     if (selectedAuthorId === currentUser?.id || effectiveAuthorName.includes('Sachin')) {
-      return currentUser?.bio || (typeof window !== 'undefined' ? localStorage.getItem(`profile_bio_${currentUser?.id}`) : '') || 'Author & content contributor crafting engaging, SEO-optimized articles and educational guides for the platform.';
+      return currentUser?.bio || (typeof window !== 'undefined' ? localStorage.getItem(`profile_bio_${currentUser?.id}`) : '') || '';
     }
     const matched = users.find((u) => u.id === selectedAuthorId);
-    return matched?.bio || 'Author & content contributor crafting engaging, SEO-optimized articles and educational guides for the platform.';
+    return matched?.bio || '';
   }, [authorMode, selectedAuthorId, currentUser, effectiveAuthorName, users]);
 
   const currentAuthorLinkedin = useMemo(() => {
@@ -1749,7 +1749,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                       }`}
                       title="Paragraph"
                     >
-                      Normal
+                      Paragraph
                     </button>
                     <button
                       type="button"
@@ -2150,9 +2150,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                       type="text"
                       value={activeTrans.slug}
                       onChange={(e) => updateActiveTransField('slug', slugify(e.target.value))}
-                      placeholder="article-slug"
+                      placeholder="url-ending-slug"
                       className="font-mono text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-transparent focus:outline-none max-w-[140px] sm:max-w-[180px]"
-                      title="Custom URL Slug"
+                      title="Custom URL ending (slug)"
                     />
                     <button
                       type="button"
@@ -2162,6 +2162,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                       }}
                       className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer ml-0.5"
                       title="Copy full article URL"
+                      aria-label="Copy full article URL"
                     >
                       <Copy className="w-3 h-3" />
                     </button>
@@ -2277,7 +2278,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
               {/* Lead Summary / Abstract (Article Subtitle & SERP Deck) */}
               <div className="relative pl-4 border-l-2 border-slate-200 dark:border-slate-700 focus-within:border-blue-500 transition-colors">
                 <textarea
-                  placeholder="Write a brief lead abstract or subtitle for search previews and social shares..."
+                  placeholder="Write a short subtitle or excerpt for search previews and social shares..."
                   value={activeTrans.excerpt}
                   onChange={(e) => updateActiveTransField('excerpt', e.target.value)}
                   rows={2}
@@ -2285,7 +2286,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   className="w-full bg-transparent text-sm sm:text-base text-slate-600 dark:text-slate-300 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none leading-relaxed resize-none italic transition-colors border-none p-0"
                 />
                 <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                  <span className="font-mono text-[10px] text-slate-400">Article Subtitle &amp; SERP Search Snippet</span>
+                  <span className="font-mono text-[10px] text-slate-400">Subtitle &amp; Google Search Preview</span>
                   <span className={`font-mono text-[10px] ${activeTrans.excerpt.length > 160 ? 'text-amber-500 font-semibold' : 'text-slate-400'}`}>
                     {activeTrans.excerpt.length}/160 chars {activeTrans.excerpt.length > 160 ? '(Optimal: ≤160)' : ''}
                   </span>
@@ -2677,7 +2678,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                      SERP Meta Title
+                      Google Search Title
                     </label>
                     <button
                       type="button"
@@ -2703,7 +2704,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                      SERP Meta Description
+                      Google Search Description
                     </label>
                     <span className="text-[10px] text-slate-400 font-mono">
                       {activeTrans.seo.metaDescription.length}/160 chars

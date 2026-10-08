@@ -33,6 +33,21 @@ const nextConfig: NextConfig = {
         destination: '/contact',
         permanent: true,
       },
+      {
+        source: '/developers.html',
+        destination: '/developers',
+        permanent: true,
+      },
+      {
+        source: '/api.html',
+        destination: '/developers',
+        permanent: true,
+      },
+      {
+        source: '/api',
+        destination: '/developers',
+        permanent: true,
+      },
     ];
   },
   async rewrites() {
@@ -45,6 +60,10 @@ const nextConfig: NextConfig = {
         {
           source: '/contact',
           destination: '/contact.html',
+        },
+        {
+          source: '/developers',
+          destination: '/developers.html',
         },
       ],
       afterFiles: [],

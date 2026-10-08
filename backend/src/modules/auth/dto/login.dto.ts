@@ -1,5 +1,5 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class LoginDto {
   @ApiProperty({ description: 'Registered work email address' })
@@ -11,6 +11,11 @@ export class LoginDto {
   @IsNotEmpty()
   @MinLength(6)
   password: string;
+
+  @ApiPropertyOptional({ description: 'Optional client public IP detected on browser' })
+  @IsOptional()
+  @IsString()
+  clientPublicIp?: string;
 }
 
 export class RefreshTokenDto {
@@ -44,5 +49,10 @@ export class GoogleLoginDto {
   @IsString()
   @IsNotEmpty()
   credential: string;
+
+  @ApiPropertyOptional({ description: 'Optional client public IP detected on browser' })
+  @IsOptional()
+  @IsString()
+  clientPublicIp?: string;
 }
 

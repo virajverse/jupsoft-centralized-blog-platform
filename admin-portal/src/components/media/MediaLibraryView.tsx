@@ -260,7 +260,7 @@ export const MediaLibraryView: React.FC = () => {
             title="Refresh media library from server"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoadingMedia ? 'animate-spin text-red-500' : ''}`} />
-            <span>{isLoadingMedia ? 'Syncing...' : 'Sync'}</span>
+            <span>{isLoadingMedia ? 'Syncing files...' : 'Refresh media'}</span>
           </button>
           <input
             type="file"

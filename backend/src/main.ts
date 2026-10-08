@@ -24,6 +24,49 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT') || 4000;
 
+  // Enable trust proxy so Express parses X-Forwarded-For, X-Real-IP, etc. from reverse proxies (Cloudflare, Nginx, ALB)
+  app.set('trust proxy', true);
+
+  // Real Client IP extraction middleware: prioritize Cloudflare CF-Connecting-IP, X-Real-IP, X-Client-Public-IP, X-Forwarded-For
+  // and strip ugly IPv4-mapped IPv6 ::ffff: prefixes
+  app.use((req: any, _res: any, next: any) => {
+    const cfIp = req.headers['cf-connecting-ip'];
+    const clientPublicIp = req.headers['x-client-public-ip'];
+    const realIp = req.headers['x-real-ip'];
+    const forwardedFor = req.headers['x-forwarded-for'];
+
+    let detected: string = (cfIp || realIp || clientPublicIp) as string;
+    if (!detected && forwardedFor) {
+      const list = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
+      detected = list.split(',')[0].trim();
+    }
+    if (!detected) {
+      detected = req.ip || req.socket?.remoteAddress || '127.0.0.1';
+    }
+
+    if (typeof detected === 'string') {
+      detected = detected.replace(/^::ffff:/, '').trim();
+      if (detected === '::1') detected = '127.0.0.1';
+      // If direct connection is loopback/internal but client provided public IP header
+      if ((detected === '127.0.0.1' || detected === 'localhost') && clientPublicIp && typeof clientPublicIp === 'string') {
+        const cleanClientIp = clientPublicIp.replace(/^::ffff:/, '').trim();
+        if (cleanClientIp && cleanClientIp !== '127.0.0.1' && cleanClientIp !== '::1') {
+          detected = cleanClientIp;
+        }
+      }
+      try {
+        Object.defineProperty(req, 'ip', {
+          value: detected,
+          configurable: true,
+          writable: true,
+        });
+      } catch {
+        req.ip = detected;
+      }
+    }
+    next();
+  });
+
   // 1. Static Assets — Local Media Storage (/uploads)
   const uploadsDir = join(process.cwd(), 'uploads');
   if (!fs.existsSync(uploadsDir)) {

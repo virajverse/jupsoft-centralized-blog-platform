@@ -226,7 +226,7 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
           className="p-2.5 bg-white dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 rounded-lg hover:border-blue-400 dark:hover:border-blue-500 transition-colors group block"
         >
           <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            <span>Drafts / Sched</span>
+            <span>Drafts / Scheduled</span>
             <Clock className="w-3.5 h-3.5 text-blue-500" />
           </div>
           <div className="mt-1 flex items-baseline justify-between">
@@ -472,7 +472,7 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                     className="flex items-center gap-1.5 p-2 rounded bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-[11px] transition-colors"
                   >
                     <Kanban className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Review Kanban</span>
+                    <span>In Review</span>
                   </Link>
                 )}
 
@@ -482,7 +482,7 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                     className="flex items-center gap-1.5 p-2 rounded bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-[11px] transition-colors"
                   >
                     <Radio className="w-3.5 h-3.5 text-purple-500" />
-                    <span>Taxonomy</span>
+                    <span>Categories &amp; Tags</span>
                   </Link>
                 )}
 
@@ -492,7 +492,7 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                     className="flex items-center gap-1.5 p-2 rounded bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-[11px] transition-colors"
                   >
                     <ArrowRightLeft className="w-3.5 h-3.5 text-blue-500" />
-                    <span>301 Rules</span>
+                    <span>Link Redirects</span>
                   </Link>
                 )}
 

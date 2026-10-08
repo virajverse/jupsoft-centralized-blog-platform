@@ -118,8 +118,8 @@ export const JupsoftSidebar: React.FC = () => {
       href: `/workflow${siteQuery}`,
       basePath: '/workflow',
       module: 'workflow',
-      shortLabel: 'Kanban',
-      fullLabel: 'Workflow Kanban',
+      shortLabel: 'Workflow',
+      fullLabel: 'Workflow Board',
       icon: Kanban,
       badge: underReviewCount > 0 ? underReviewCount : null,
       isActive: pathname === '/workflow',
@@ -137,8 +137,8 @@ export const JupsoftSidebar: React.FC = () => {
       href: `/taxonomy${siteQuery}`,
       basePath: '/taxonomy',
       module: 'taxonomy',
-      shortLabel: 'Taxonomy',
-      fullLabel: 'Taxonomy',
+      shortLabel: 'Categories',
+      fullLabel: 'Categories & Tags',
       icon: Tags,
       isActive: pathname === '/taxonomy',
     },
@@ -156,7 +156,7 @@ export const JupsoftSidebar: React.FC = () => {
       basePath: '/users',
       module: 'users',
       shortLabel: 'Users',
-      fullLabel: 'Team & RBAC',
+      fullLabel: 'Team Roles & Permissions',
       icon: Users,
       isActive: pathname === '/users',
     },
@@ -165,7 +165,7 @@ export const JupsoftSidebar: React.FC = () => {
       basePath: '/settings',
       module: 'settings',
       shortLabel: 'Settings',
-      fullLabel: 'Tenant Settings',
+      fullLabel: 'Website Settings',
       icon: Settings,
       isActive: pathname === '/settings',
     },
@@ -298,7 +298,7 @@ export const JupsoftSidebar: React.FC = () => {
             >
               <HelpCircle className="w-4 h-4 text-slate-400 group-hover:text-red-400 transition-colors" />
               <span className="text-[9px] font-medium tracking-tight mt-0.5 text-slate-400 group-hover:text-slate-200">
-                Help
+                Help &amp; Guide
               </span>
             </button>
             <button

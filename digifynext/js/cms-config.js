@@ -14,19 +14,20 @@
     } catch (e) {}
   }
 
-  var apiUrl = isLocal ? 'http://localhost:4000' : 'https://blogary.jupsoft.com';
+  var apiUrl = 'https://blogary.jupsoft.com';
   if (queryApi === 'local') {
     apiUrl = 'http://localhost:4000';
-  } else if (queryApi === 'production') {
-    apiUrl = 'https://blogary.jupsoft.com';
-  } else if (queryApi) {
+  } else if (queryApi && queryApi !== 'production') {
     apiUrl = queryApi.replace(/\/+$/, '');
   }
+
+  var localKey = 'digi_live_sec_growth_8821ecde71a209';
+  var apiKey = '' || (isLocal ? localKey : '');
 
   window.CMS_CONFIG = {
     apiUrl: apiUrl,
     websiteId: 'site-growth',
-    apiKey: '',
+    apiKey: apiKey,
     siteDomain: 'https://digifynext.com',
     defaultLanguage: 'en',
     defaultFeaturedImage: '/images/blog1.jpg',

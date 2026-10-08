@@ -537,6 +537,8 @@ export const JupsoftBlogListView: React.FC<JupsoftBlogListViewProps> = ({
                                 setOpenDropdownId(openDropdownId === blog.id ? null : blog.id);
                               }}
                               className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              title="More options"
+                              aria-label="More options"
                             >
                               <MoreVertical className="w-3.5 h-3.5" />
                             </button>

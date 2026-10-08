@@ -77,19 +77,20 @@ const cmsConfigContent = `/**
     } catch (e) {}
   }
 
-  var apiUrl = isLocal ? 'http://localhost:4000' : '${apiUrl}';
+  var apiUrl = '${apiUrl}';
   if (queryApi === 'local') {
     apiUrl = 'http://localhost:4000';
-  } else if (queryApi === 'production') {
-    apiUrl = '${apiUrl}';
-  } else if (queryApi) {
+  } else if (queryApi && queryApi !== 'production') {
     apiUrl = queryApi.replace(/\\/+$/, '');
   }
+
+  var localKey = 'digi_live_sec_growth_8821ecde71a209';
+  var apiKey = '${apiKey}' || (isLocal ? localKey : '');
 
   window.CMS_CONFIG = {
     apiUrl: apiUrl,
     websiteId: '${websiteId}',
-    apiKey: '${apiKey}',
+    apiKey: apiKey,
     siteDomain: '${siteDomain}',
     defaultLanguage: '${defaultLanguage}',
     defaultFeaturedImage: '/images/blog1.jpg',

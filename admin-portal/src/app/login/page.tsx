@@ -78,7 +78,7 @@ export default function LoginPage() {
 
     // Ensure jupsoft_auth_token cookie is explicitly synced in document.cookie before redirect
     const token = useBlogStore.getState().currentUser
-      ? (apiClient.getToken() || localStorage.getItem('jupsoft_auth_token'))
+      ? apiClient.getToken()
       : null;
     if (token && typeof document !== 'undefined') {
       const isHttps = window.location.protocol === 'https:';
@@ -172,7 +172,7 @@ export default function LoginPage() {
         .split('; ')
         .find((c) => c.startsWith('jupsoft_auth_token='))
         ?.split('=')[1];
-      return cookieToken || localStorage.getItem('jupsoft_auth_token');
+      return cookieToken || apiClient.getToken();
     };
 
     const token = getActiveToken();

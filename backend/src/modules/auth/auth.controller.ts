@@ -74,7 +74,8 @@ export class AuthController {
     @Ip() ip: string,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.login(dto, ip);
+    const effectiveIp = (dto.clientPublicIp || ip || '').replace(/^::ffff:/, '').trim();
+    const result = await this.authService.login(dto, effectiveIp);
     this.setAuthCookies(res, result.accessToken, result.refreshToken);
     return result;
   }
@@ -90,7 +91,8 @@ export class AuthController {
     @Ip() ip: string,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.googleLogin(dto, ip);
+    const effectiveIp = (dto.clientPublicIp || ip || '').replace(/^::ffff:/, '').trim();
+    const result = await this.authService.googleLogin(dto, effectiveIp);
     this.setAuthCookies(res, result.accessToken, result.refreshToken);
     return result;
   }
@@ -143,6 +145,17 @@ export class AuthController {
     @Body() dto: { name?: string; avatar?: string; bio?: string; linkedinUrl?: string; twitterUrl?: string },
   ) {
     return this.authService.updateProfile(userId, dto);
+  }
+
+  @Put('sync-ip')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Sync client public IP to user account' })
+  async syncClientIp(
+    @CurrentUser('id') userId: string,
+    @Body() body: { ip: string },
+  ) {
+    return this.authService.syncClientIp(userId, body.ip);
   }
 
   @Post('avatar')

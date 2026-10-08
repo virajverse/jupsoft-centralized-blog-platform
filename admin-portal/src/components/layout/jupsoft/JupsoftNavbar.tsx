@@ -146,13 +146,13 @@ export const JupsoftNavbar: React.FC = () => {
     if (pathname.startsWith('/blogs/new')) return { title: 'New Blog', path: 'Blogs / Create' };
     if (pathname.startsWith('/blogs/') && pathname !== '/blogs') return { title: 'Edit Blog', path: 'Blogs / Edit' };
     if (pathname.startsWith('/blogs')) return { title: 'Blogs', path: 'Content / Blogs' };
-    if (pathname.startsWith('/workflow')) return { title: 'Workflow', path: 'Kanban / Review' };
+    if (pathname.startsWith('/workflow')) return { title: 'Workflow Board', path: 'Review / Approval' };
     if (pathname.startsWith('/media')) return { title: 'Media Assets', path: 'Storage / CDN' };
-    if (pathname.startsWith('/taxonomy')) return { title: 'Taxonomy', path: 'Categories / Tags' };
-    if (pathname.startsWith('/redirects')) return { title: '301 Redirects', path: 'Routing / Rules' };
+    if (pathname.startsWith('/taxonomy')) return { title: 'Categories & Tags', path: 'Categories / Tags' };
+    if (pathname.startsWith('/redirects')) return { title: 'Link Redirects', path: 'Routing / Rules' };
     if (pathname.startsWith('/analytics')) return { title: 'Analytics', path: 'Reports / Traffic' };
-    if (pathname.startsWith('/users')) return { title: 'Team & RBAC', path: 'Access / Roles' };
-    if (pathname.startsWith('/settings')) return { title: 'Settings', path: 'Tenants / Domains' };
+    if (pathname.startsWith('/users')) return { title: 'Team Roles & Permissions', path: 'Access / Roles' };
+    if (pathname.startsWith('/settings')) return { title: 'Settings', path: 'Websites / Config' };
     return { title: 'Dashboard', path: 'Workspace / Overview' };
   };
 
@@ -259,7 +259,7 @@ export const JupsoftNavbar: React.FC = () => {
                     className="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
                   >
                     <ArrowRightLeft className="w-3.5 h-3.5 text-blue-500" />
-                    <span>Add 301 Redirect</span>
+                    <span>Add Link Redirect</span>
                   </Link>
                 )}
                 {canAccessModule(activeRole, 'taxonomy', currentUser?.customModules) && (
@@ -269,7 +269,7 @@ export const JupsoftNavbar: React.FC = () => {
                     className="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
                   >
                     <Tags className="w-3.5 h-3.5 text-purple-500" />
-                    <span>Manage Taxonomy</span>
+                    <span>Categories &amp; Tags</span>
                   </Link>
                 )}
               </div>
@@ -365,6 +365,8 @@ export const JupsoftNavbar: React.FC = () => {
             type="button"
             onClick={() => setUserDropdownOpen(!userDropdownOpen)}
             className="flex items-center gap-1.5 p-0.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            title="User Profile &amp; Settings"
+            aria-label="User Profile &amp; Settings"
           >
             {(() => {
               const safeAvatar = cleanAvatarUrl(currentUser?.avatar);

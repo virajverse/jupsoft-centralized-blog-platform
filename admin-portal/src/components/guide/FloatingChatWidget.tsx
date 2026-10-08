@@ -796,7 +796,11 @@ export const FloatingChatWidget: React.FC = () => {
             <div className="relative flex items-center justify-center">
               <MessageSquare className="w-5 h-5" />
               {/* Beta Pill attached to launcher */}
-              <span className="absolute -top-3.5 -right-3.5 px-1.5 py-0.5 rounded-full text-[7.5px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 border border-white dark:border-slate-900 shadow-xs">
+              <span
+                title="AI Help Assistant (Beta preview)"
+                aria-label="Beta preview"
+                className="absolute -top-3.5 -right-3.5 px-1.5 py-0.5 rounded-full text-[7.5px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 border border-white dark:border-slate-900 shadow-xs cursor-help"
+              >
                 BETA
               </span>
             </div>

@@ -318,7 +318,7 @@ export const WorkflowKanban: React.FC = () => {
             title="Refresh board from server"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>{isLoading ? 'Syncing...' : 'Refresh'}</span>
+            <span>{isLoading ? 'Updating board...' : 'Refresh board'}</span>
           </button>
 
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 shadow-xs">
