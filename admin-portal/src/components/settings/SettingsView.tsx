@@ -904,6 +904,7 @@ export const SettingsView: React.FC = () => {
               activeSite={activeSite}
               isSuperAdmin={isSuperAdmin}
               canViewApiKey={canViewActiveApiKey}
+              blogs={blogs}
             />
           </div>
         </div>
@@ -915,6 +916,7 @@ export const SettingsView: React.FC = () => {
           activeSite={activeSite}
           isSuperAdmin={isSuperAdmin}
           canViewApiKey={canViewActiveApiKey}
+          blogs={blogs}
         />
       )}
 
@@ -954,7 +956,7 @@ export const SettingsView: React.FC = () => {
                     disabled={!isSuperAdmin}
                     value={editWebhookUrl}
                     onChange={(e) => setEditWebhookUrl(e.target.value)}
-                    placeholder="e.g. https://digifynext.com/api/revalidate"
+                    placeholder="e.g. https://yourdomain.com/api/revalidate"
                     className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none focus:border-red-500 disabled:opacity-70 disabled:cursor-not-allowed"
                   />
                   {isSuperAdmin ? (

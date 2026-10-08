@@ -151,6 +151,44 @@ export class ApiKeyGuard implements CanActivate {
           }
         }
 
+        // DOMAIN-RESTRICTION LOCK: If called from a browser (Origin or Referer present), enforce that it matches website.domain or dev environments
+        const originHeader = (request.headers['origin'] as string) || '';
+        const refererHeader = (request.headers['referer'] as string) || '';
+
+        const extractHost = (val: string): string => {
+          if (!val) return '';
+          try {
+            return new URL(val).hostname.toLowerCase();
+          } catch {
+            return val.toLowerCase().replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
+          }
+        };
+
+        const callerHost = extractHost(originHeader) || extractHost(refererHeader);
+        const targetDomain = extractHost(website.domain || '');
+
+        if (callerHost) {
+          const isLocalhost =
+            callerHost === 'localhost' ||
+            callerHost === '127.0.0.1' ||
+            callerHost.startsWith('192.168.') ||
+            callerHost.startsWith('10.');
+
+          const isAuthorizedDomain =
+            Boolean(targetDomain && (callerHost === targetDomain || callerHost.endsWith('.' + targetDomain))) ||
+            (callerHost === 'jupsoft.com' || callerHost.endsWith('.jupsoft.com') || callerHost === 'test1.jupsoft.in') ||
+            isLocalhost ||
+            callerHost.endsWith('.netlify.app') ||
+            callerHost.endsWith('.vercel.app') ||
+            callerHost.endsWith('.github.io');
+
+          if (!isAuthorizedDomain) {
+            throw new ForbiddenException(
+              `Domain mismatch: API key for "${website.name}" is locked to domain "${website.domain}" and cannot be used from origin "${callerHost}".`,
+            );
+          }
+        }
+
         request.tenant = website;
         return true;
       }
