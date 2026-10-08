@@ -44,14 +44,14 @@ export const HELP_CATEGORIES: HelpCategory[] = [
         title: 'How to create a new Super Admin from the UI?',
         titleHi: 'UI se Naya Super Admin kaise banayein?',
         shortDesc: 'Create full-privilege Super Admins directly without running SQL scripts.',
-        tags: ['super admin', 'create super admin', 'users', 'rbac', 'add admin', 'invite'],
-        summary: 'Super Admins can create new Super Admin accounts directly from the Team & RBAC page without running any SQL queries.',
-        summaryHi: 'Super Admin login karke UI ke "Team & RBAC" page se seedha Super Admin bana sakte hain bina kisi SQL script ke.',
+        tags: ['super admin', 'create super admin', 'users', 'roles', 'add admin', 'invite'],
+        summary: 'Super Admins can create new Super Admin accounts directly from the Team Roles & Permissions page without running any SQL queries.',
+        summaryHi: 'Super Admin login karke UI ke "Team Roles & Permissions" page se seedha Super Admin bana sakte hain bina kisi SQL script ke.',
         steps: [
           {
             step: 1,
-            instruction: 'Log in as a Super Admin and go to Team & RBAC (/users)',
-            detail: 'Navigate to Team & RBAC from the left sidebar or the navigation bar.',
+            instruction: 'Log in as a Super Admin and go to Team Roles & Permissions (/users)',
+            detail: 'Navigate to Team Roles & Permissions from the left sidebar or the navigation bar.',
           },
           {
             step: 2,
@@ -66,12 +66,12 @@ export const HELP_CATEGORIES: HelpCategory[] = [
           {
             step: 4,
             instruction: 'In the "Assigned Role" dropdown, select "Super Admin"',
-            detail: 'The Tenant Assignment Scope will automatically set to "All Websites (Network Wide / Global)".',
+            detail: 'The Website Assignment Scope will automatically set to "All Websites (Network Wide / Global)".',
           },
           {
             step: 5,
             instruction: 'Click "Invite Team Member" to complete',
-            detail: 'The backend will automatically grant global privileges and seed permissions for all tenant websites so no 403 Forbidden errors occur.',
+            detail: 'The backend will automatically grant global privileges and seed permissions for all websites so no 403 Forbidden errors occur.',
           },
           {
             step: 6,
@@ -89,14 +89,14 @@ export const HELP_CATEGORIES: HelpCategory[] = [
         id: 'invite-team-member',
         title: 'How to invite Writers, Editors, and SEO Managers?',
         titleHi: 'Team Member (Writer, Editor, SEO Manager) kaise add karein?',
-        shortDesc: 'Invite regional writers and editors to specific tenant websites.',
-        tags: ['invite', 'writer', 'editor', 'seo manager', 'member', 'team', 'tenant'],
+        shortDesc: 'Invite regional writers and editors to specific websites.',
+        tags: ['invite', 'writer', 'editor', 'seo manager', 'member', 'team', 'website'],
         summary: 'Invite team members and assign them strictly to specific websites with designated roles.',
-        summaryHi: 'Kisi bhi website tenant ke liye Content Writer, Editor, Publisher, ya SEO Manager assign karein.',
+        summaryHi: 'Kisi bhi website ke liye Content Writer, Editor, Publisher, ya SEO Manager assign karein.',
         steps: [
           {
             step: 1,
-            instruction: 'Open Team & RBAC (/users)',
+            instruction: 'Open Team Roles & Permissions (/users)',
             detail: 'Click "Invite Team Member" at the top of the page.',
           },
           {
@@ -105,7 +105,7 @@ export const HELP_CATEGORIES: HelpCategory[] = [
           },
           {
             step: 3,
-            instruction: 'Select the Tenant Assignment Scope (e.g., Jupsoft Cloud, DigifyNext)',
+            instruction: 'Select the Website Assignment Scope (e.g., Jupsoft Cloud, DigifyNext)',
             detail: 'This isolates the user so they can only access and edit content for that specific website.',
           },
           {
@@ -156,20 +156,20 @@ export const HELP_CATEGORIES: HelpCategory[] = [
         id: 'role-hierarchy',
         title: 'What are the permissions and capabilities of each Role?',
         titleHi: 'Har Role ki kya permissions hoti hain? (Roles & Hierarchy)',
-        shortDesc: 'Understand the 7 RBAC roles from Super Admin down to Staff Writer.',
-        tags: ['roles', 'permissions', 'rbac', 'hierarchy', 'access', 'editor', 'writer'],
+        shortDesc: 'Understand the 7 team roles from Super Admin down to Staff Writer.',
+        tags: ['roles', 'permissions', 'hierarchy', 'access', 'editor', 'writer'],
         summary: 'The platform features 7 strictly segregated roles designed for enterprise editorial governance.',
         summaryHi: 'CMS me 7 granular roles hain: Super Admin, Website Admin, Role Admin, Editor, Content Writer, Publisher, aur SEO Manager.',
         steps: [
           {
             step: 1,
             instruction: 'Super Admin',
-            detail: 'Network-wide supreme authority. Manages all websites, users, RBAC, domain configurations, security tokens, and plugins.',
+            detail: 'Network-wide supreme authority. Manages all websites, users, permissions, domain configurations, security tokens, and plugins.',
           },
           {
             step: 2,
             instruction: 'Website Admin',
-            detail: 'Full administrative authority strictly over their assigned tenant website (blogs, workflow, media, categories, team invites).',
+            detail: 'Full administrative authority strictly over their assigned website (blogs, workflow, media, categories, team invites).',
           },
           {
             step: 3,
@@ -189,7 +189,7 @@ export const HELP_CATEGORIES: HelpCategory[] = [
           {
             step: 6,
             instruction: 'SEO Manager',
-            detail: 'Manages meta tags, taxonomy, focus keywords, 301 redirects, and analytics telemetry.',
+            detail: 'Manages meta tags, categories & tags, focus keywords, old link redirects, and analytics telemetry.',
           },
         ],
         actionLink: {
@@ -201,9 +201,9 @@ export const HELP_CATEGORIES: HelpCategory[] = [
         id: 'fix-403-forbidden',
         title: 'Why do users get "403 Forbidden: Access Denied" and how to fix it?',
         titleHi: 'User ko 403 Forbidden Access Denied error kyu aata hai?',
-        shortDesc: 'Resolve tenant scope mismatch when users access websites they are not assigned to.',
-        tags: ['403', 'forbidden', 'access denied', 'permission error', 'tenant mismatch'],
-        summary: 'A 403 error occurs when a user tries to access a website tenant that has not been assigned to their account in the database.',
+        shortDesc: 'Resolve website scope mismatch when users access websites they are not assigned to.',
+        tags: ['403', 'forbidden', 'access denied', 'permission error', 'website mismatch'],
+        summary: 'A 403 error occurs when a user tries to access a website that has not been assigned to their account in the database.',
         summaryHi: 'Jab user kisi aisi website ka blog view ya edit karne ki koshish karta hai jiska permission unke account me assign nahi hai, to 403 error aata hai.',
         steps: [
           {
@@ -226,7 +226,7 @@ export const HELP_CATEGORIES: HelpCategory[] = [
           },
         ],
         actionLink: {
-          label: 'Resolve in Team & RBAC (/users)',
+          label: 'Resolve in Team Roles & Permissions (/users)',
           href: '/users',
         },
       },
@@ -438,16 +438,16 @@ export const HELP_CATEGORIES: HelpCategory[] = [
     id: 'workflow-kanban',
     title: 'Editorial Workflow & Approvals',
     titleHi: 'एडिटोरियल वर्कफ़्लो और अप्रूवल',
-    description: '6-Stage sequential pipeline, drag-and-drop Kanban, and review audits.',
+    description: '6-Stage sequential pipeline, drag-and-drop Workflow Board, and review audits.',
     iconName: 'Kanban',
     badgeColor: 'emerald',
     questions: [
       {
         id: 'kanban-lifecycle',
-        title: 'How does the 6-Stage Editorial Workflow Kanban work?',
-        titleHi: '6-Stage Editorial Workflow Kanban kaise kaam karta hai?',
+        title: 'How does the 6-Stage Editorial Workflow Board work?',
+        titleHi: '6-Stage Editorial Workflow Board kaise kaam karta hai?',
         shortDesc: 'Understand the sequential path from draft authoring to live edge deployment.',
-        tags: ['kanban', 'workflow', 'stages', 'approval', 'draft', 'review', 'published'],
+        tags: ['workflow', 'stages', 'approval', 'draft', 'review', 'published'],
         summary: 'Every article progresses through a governed 6-stage lifecycle ensuring high editorial quality.',
         summaryHi: 'Content quality ensure karne ke liye har article sequential approval pipeline se guzarta hai.',
         steps: [
@@ -483,7 +483,7 @@ export const HELP_CATEGORIES: HelpCategory[] = [
           },
         ],
         actionLink: {
-          label: 'Open Workflow Kanban (/workflow)',
+          label: 'Open Workflow Board (/workflow)',
           href: '/workflow',
         },
       },
@@ -491,10 +491,10 @@ export const HELP_CATEGORIES: HelpCategory[] = [
         id: 'drag-and-drop-kanban',
         title: 'How to advance articles using Drag-and-Drop?',
         titleHi: 'Drag-and-Drop se Status kaise change karein?',
-        shortDesc: 'Move cards between columns on the visual Kanban board.',
-        tags: ['drag and drop', 'move card', 'kanban board', 'advance status'],
+        shortDesc: 'Move cards between columns on the visual Workflow board.',
+        tags: ['drag and drop', 'move card', 'workflow board', 'advance status'],
         summary: 'Simply drag an article card from one column to another to update its workflow state.',
-        summaryHi: 'Kanban board par card ko ek column se dusre column me drag karke turant status change kar sakte hain.',
+        summaryHi: 'Workflow board par card ko ek column se dusre column me drag karke turant status change kar sakte hain.',
         steps: [
           {
             step: 1,
@@ -510,11 +510,11 @@ export const HELP_CATEGORIES: HelpCategory[] = [
           },
           {
             step: 4,
-            instruction: 'Release to drop. The status updates immediately in PostgreSQL with an immutable audit log.',
+            instruction: 'Release to drop. The status updates immediately in PostgreSQL with an activity log.',
           },
         ],
         actionLink: {
-          label: 'Go to Kanban Board (/workflow)',
+          label: 'Go to Workflow Board (/workflow)',
           href: '/workflow',
         },
       },
@@ -546,9 +546,9 @@ export const HELP_CATEGORIES: HelpCategory[] = [
   },
   {
     id: 'tenants-scoping',
-    title: 'Multi-Website Tenants & Scoping',
+    title: 'Multi-Website Management & Scope',
     titleHi: 'मल्टी-वेबसाइट और डोमेन',
-    description: 'Switching website scopes, multi-tenant isolation, and live domains.',
+    description: 'Switching website scopes, website isolation, and live domains.',
     iconName: 'Globe',
     badgeColor: 'sky',
     questions: [
@@ -557,19 +557,19 @@ export const HELP_CATEGORIES: HelpCategory[] = [
         title: 'What is the difference between "All Websites" and Single Website Scope?',
         titleHi: '"All Websites" vs Single Website Scope me kya farak hai?',
         shortDesc: 'Aggregated company-wide view vs brand-isolated workspace.',
-        tags: ['scope', 'all websites', 'single website', 'tenant', 'multi-site', 'switch website'],
-        summary: 'The scope pill in the top navbar toggles between company-wide overview and tenant-specific operations.',
+        tags: ['scope', 'all websites', 'single website', 'multi-site', 'switch website'],
+        summary: 'The scope pill in the top navbar toggles between company-wide overview and website-specific operations.',
         summaryHi: 'Top navbar me Website Scope selector se aap decide karte hain ki aapko poori company ka data dekhna hai ya ek single website ka.',
         steps: [
           {
             step: 1,
             instruction: 'All Websites Scope (?site=all)',
-            detail: 'Displays aggregated metrics, total articles across all client domains, cross-site velocity, and network-wide team members.',
+            detail: 'Displays aggregated metrics, total articles across all client domains, cross-site publishing trends, and network-wide team members.',
           },
           {
             step: 2,
-            instruction: 'Tenant Scope (?site=site-cloud etc.)',
-            detail: 'Strictly isolates Articles, Categories, Tags, Media Library, and 301 Redirects to the selected website brand.',
+            instruction: 'Single Website Scope (?site=site-cloud etc.)',
+            detail: 'Strictly isolates Articles, Categories, Tags, Media Library, and Old Link Redirects to the selected website brand.',
           },
           {
             step: 3,
@@ -584,7 +584,7 @@ export const HELP_CATEGORIES: HelpCategory[] = [
         shortDesc: '1-Click external preview links for published and draft articles.',
         tags: ['live url', 'preview', 'website link', 'external link', 'view live'],
         summary: 'Click the external link icon next to any article to view it directly on the public domain.',
-        summaryHi: 'Blog list ya editor me external link icon par click karke article ko public tenant domain par dekh sakte hain.',
+        summaryHi: 'Blog list ya editor me external link icon par click karke article ko public website domain par dekh sakte hain.',
         steps: [
           {
             step: 1,
@@ -614,14 +614,14 @@ export const HELP_CATEGORIES: HelpCategory[] = [
         id: 'manage-categories-tags',
         title: 'How to create and organize Categories and Tags?',
         titleHi: 'Nayi Category aur Tag kaise banayein?',
-        shortDesc: 'Organize articles into tenant-isolated hierarchical categories and flat tags.',
-        tags: ['category', 'tags', 'taxonomy', 'add category', 'add tag', 'organize'],
+        shortDesc: 'Organize articles into website-isolated hierarchical categories and flat tags.',
+        tags: ['category', 'tags', 'categories', 'add category', 'add tag', 'organize'],
         summary: 'Categories provide structured folder-like organization while tags act as searchable index keywords.',
-        summaryHi: 'Navigation me Taxonomy (/taxonomy) par click karein aur target website ke liye categories aur tags banayein.',
+        summaryHi: 'Navigation me Categories & Tags (/taxonomy) par click karein aur target website ke liye categories aur tags banayein.',
         steps: [
           {
             step: 1,
-            instruction: 'Click "Taxonomy" (/taxonomy) in the left sidebar',
+            instruction: 'Click "Categories & Tags" (/taxonomy) in the left sidebar',
           },
           {
             step: 2,
@@ -638,7 +638,7 @@ export const HELP_CATEGORIES: HelpCategory[] = [
           },
         ],
         actionLink: {
-          label: 'Manage Taxonomy (/taxonomy)',
+          label: 'Manage Categories & Tags (/taxonomy)',
           href: '/taxonomy',
         },
       },
@@ -823,7 +823,7 @@ export const HELP_CATEGORIES: HelpCategory[] = [
           },
           {
             step: 2,
-            instruction: 'Verify Website Tenant',
+            instruction: 'Verify Website Selection',
             detail: 'Ensure the blog was authored under the intended website (e.g. site-cloud vs site-growth).',
           },
           {

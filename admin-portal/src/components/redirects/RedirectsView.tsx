@@ -228,7 +228,7 @@ export const RedirectsView: React.FC<RedirectsViewProps> = ({ embedded = false }
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400">
-                <th className="py-3 px-4 font-semibold">Tenant Domain</th>
+                <th className="py-3 px-4 font-semibold">Website Domain</th>
                 <th className="py-3 px-4 font-semibold">Old Slug (Origin)</th>
                 <th className="py-3 px-4 font-semibold text-center">Redirect</th>
                 <th className="py-3 px-4 font-semibold">New Slug (Destination)</th>

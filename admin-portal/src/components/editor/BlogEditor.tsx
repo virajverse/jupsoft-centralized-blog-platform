@@ -2671,7 +2671,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
               </div>
             )}
 
-            {/* TAB 3: METADATA & TAXONOMY */}
+            {/* TAB 3: SEO, CATEGORIES & TAGS */}
             {activeInspectorTab === 'metadata' && (
               <div className="space-y-3.5">
                 {/* Meta Title with Sync button */}

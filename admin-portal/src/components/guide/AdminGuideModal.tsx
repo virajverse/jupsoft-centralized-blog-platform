@@ -136,12 +136,12 @@ export const AdminGuideModal: React.FC = () => {
     const text = `# Jupsoft Centralized Multi-Site Content Engine — Administrator Manual
 Super Admin Operations & Architecture Reference
 
-## 1. Centralized Multi-Tenant Architecture Overview
-The Jupsoft Centralized Content Platform consolidates editorial and publishing operations across multiple tenant domains into a single unified control hub.
+## 1. Centralized Multi-Website Architecture Overview
+The Jupsoft Centralized Content Platform consolidates editorial and publishing operations across multiple websites into a single unified control hub.
 
 ### Core Architectural Principles:
 - **Single Source of Truth**: All articles, media assets, categories, and user credentials reside in a central PostgreSQL database.
-- **Connected Tenant Properties**:
+- **Connected Websites**:
   1. \`site-cloud\` -> Jupsoft Cloud & ERP (cloud.jupsoft.com)
   2. \`site-growth\` -> DigifyNext Marketing (digifynext.com)
   3. \`site-jupsoft-test\` -> Jupsoft Staging & Testing (test.jupsoft.com)
@@ -149,9 +149,9 @@ The Jupsoft Centralized Content Platform consolidates editorial and publishing o
 
 ---
 
-## 2. Multi-Tenant Scoping: Network vs. Site Scope
+## 2. Multi-Website Scoping: All Websites vs. Single Website Scope
 - **Global Network Scope (\`?site=all\`)**: Provides an aggregated view of total articles across all client domains, cross-site publishing velocity, pending reviews, and unified telemetry.
-- **Tenant Scope (\`?site=site-cloud\`)**: Filters the entire workspace context—including Articles, Taxonomy, Media Library, and 301 Permanent Redirects—strictly to the selected brand domain.
+- **Single Website Scope (\`?site=site-cloud\`)**: Filters the entire workspace context—including Articles, Categories & Tags, Media Library, and Old Link Redirects—strictly to the selected brand domain.
 
 ---
 
@@ -161,7 +161,7 @@ The Jupsoft Centralized Content Platform consolidates editorial and publishing o
 3. **SEO Optimization**: Focus keyword is assigned, and the 8-point automated audit scores the article.
 4. **Multi-Language Translations**: Content is translated and reviewed across supported locale tabs.
 5. **Editorial Review**: Writer submits draft; article transitions to "Under Review".
-6. **Editorial Approval**: Editor reviews content on Kanban board and approves for release.
+6. **Editorial Approval**: Editor reviews content on Review Board and approves for release.
 7. **Publication & Cache Purge**: Publisher triggers release; backend updates database, clears Redis cache, and fires HMAC webhook.
 8. **Instant Edge Availability**: Consumer frontend updates within sub-300ms.
 `;
@@ -633,7 +633,7 @@ The Jupsoft Centralized Content Platform consolidates editorial and publishing o
                   <span>Centralized PostgreSQL Architecture</span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  All articles, revisions, taxonomy records, and user role assignments reside in a central PostgreSQL database. Tenant websites query this central data store via secure REST endpoints and authenticated tokens.
+                  All articles, revisions, categories, tags, and user role assignments reside in a central PostgreSQL database. Connected websites query this central data store via secure REST endpoints and authenticated tokens.
                 </p>
               </div>
 
@@ -651,7 +651,7 @@ The Jupsoft Centralized Content Platform consolidates editorial and publishing o
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-3">
               <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
                 <Globe className="w-4 h-4 text-indigo-500" />
-                <span>Connected Multi-Tenant Properties</span>
+                <span>Connected Websites</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                 <div className="p-2.5 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750">
@@ -677,7 +677,7 @@ The Jupsoft Centralized Content Platform consolidates editorial and publishing o
         <div className="px-4 sm:px-6 py-2.5 border-t border-slate-200/80 dark:border-slate-800 bg-slate-50/90 dark:bg-[#0f172a] flex items-center justify-between text-xs text-slate-500 shrink-0">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[11px]">Jupsoft Multi-Tenant Content Hub v2.4</span>
+            <span className="text-[11px]">Jupsoft Multi-Website Content Hub v2.4</span>
           </div>
 
           <button

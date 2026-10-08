@@ -92,7 +92,7 @@ export const LandingBentoGrid: React.FC = () => {
                 <div>
                   <span className="text-xs font-mono text-purple-500 font-semibold uppercase tracking-wider">Governance</span>
                   <h4 className="text-xl font-bold text-slate-900 dark:text-white">
-                    Multi-Stage Editorial Kanban
+                    Multi-Stage Review Workflow Board
                   </h4>
                 </div>
               </div>

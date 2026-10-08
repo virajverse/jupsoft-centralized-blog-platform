@@ -52,13 +52,13 @@ export const LandingArchitecture: React.FC = () => {
                   Next.js Admin Portal
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Editorial authoring studio, structured content editor, Kanban workflow, and live SEO telemetry.
+                  Editorial authoring studio, structured content editor, review workflow, and live SEO telemetry.
                 </p>
               </div>
 
               <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-500">
                 <span>Protocol: REST + JWT</span>
-                <span className="text-emerald-500 font-semibold">Strict RBAC</span>
+                <span className="text-emerald-500 font-semibold">Strict Role Permissions</span>
               </div>
             </div>
 

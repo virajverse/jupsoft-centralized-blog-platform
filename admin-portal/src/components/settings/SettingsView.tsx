@@ -223,7 +223,7 @@ export const SettingsView: React.FC = () => {
   const handleRegenerateApiKey = async () => {
     if (!activeSite) return;
     if (!isSuperAdmin) {
-      showNotification('Only Super Admin can rotate tenant secret API keys', 'warning');
+      showNotification('Only Super Admin can rotate website secret API keys', 'warning');
       return;
     }
     const confirmed = window.confirm(
@@ -256,11 +256,11 @@ export const SettingsView: React.FC = () => {
 
   const handleDeleteWebsite = async (id: string, name: string) => {
     if (!isSuperAdmin) {
-      showNotification('Only Super Admin can delete website tenants', 'warning');
+      showNotification('Only Super Admin can delete websites', 'warning');
       return;
     }
     const confirmed = window.confirm(
-      `Are you sure you want to permanently delete the website "${name}"?\n\nWARNING: This will cascade and delete all associated blogs, categories, tags, media assets, and redirects for this tenant. This action cannot be undone.`
+      `Are you sure you want to permanently delete the website "${name}"?\n\nWARNING: This will cascade and delete all associated blogs, categories, tags, media assets, and redirects for this website. This action cannot be undone.`
     );
     if (!confirmed) return;
 
@@ -312,7 +312,7 @@ export const SettingsView: React.FC = () => {
       setNewSlug('');
       setNewLogoUrl('');
       setNewDescription('');
-      showNotification(`Tenant "${targetSite.name}" onboarded successfully!`, 'success');
+      showNotification(`Website "${targetSite.name}" onboarded successfully!`, 'success');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to register website';
       setOnboardError(msg);
@@ -534,7 +534,7 @@ export const SettingsView: React.FC = () => {
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400">
-                    <th className="py-3 px-4 font-semibold">Tenant Name &amp; Domain</th>
+                    <th className="py-3 px-4 font-semibold">Website Name &amp; Domain</th>
                     <th className="py-3 px-4 font-semibold">S3 Folder Prefix</th>
                     <th className="py-3 px-4 font-semibold">Status</th>
                     <th className="py-3 px-4 font-semibold">Blogs</th>
@@ -738,7 +738,7 @@ export const SettingsView: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">Tenant Status</label>
+                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">Website Status</label>
                 <div className="flex items-center gap-3">
                   {isSuperAdmin ? (
                     <button
@@ -882,7 +882,7 @@ export const SettingsView: React.FC = () => {
           {isSuperAdmin && (
             <div className="lg:col-span-2 p-5 rounded-2xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h4 className="text-sm font-bold text-rose-700 dark:text-rose-400">Danger Zone: Delete Website Tenant</h4>
+                <h4 className="text-sm font-bold text-rose-700 dark:text-rose-400">Danger Zone: Delete Website</h4>
                 <p className="text-xs text-rose-600/80 dark:text-rose-400/70 mt-0.5">
                   Permanently delete <strong>{activeSite.name}</strong> ({activeSite.domain}) and all associated blogs, categories, tags, media assets, and redirects. This action cannot be undone.
                 </p>
@@ -1111,7 +1111,7 @@ export const SettingsView: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Globe className="w-4 h-4 text-slate-700 dark:text-slate-300" />
                 <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Onboard New Website Tenant
+                  Onboard New Website
                 </h2>
               </div>
               <button
@@ -1160,7 +1160,7 @@ export const SettingsView: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Slug / Tenant Key
+                    Website Identifier (Slug)
                   </label>
                   <input
                     type="text"
@@ -1190,7 +1190,7 @@ export const SettingsView: React.FC = () => {
 
               <div>
                 <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Tenant Description
+                  Website Description
                 </label>
                 <textarea
                   rows={2}
@@ -1240,7 +1240,7 @@ export const SettingsView: React.FC = () => {
                       <span>Provisioning...</span>
                     </>
                   ) : (
-                    <span>Provision &amp; Save Tenant</span>
+                    <span>Save &amp; Create Website</span>
                   )}
                 </button>
               </div>

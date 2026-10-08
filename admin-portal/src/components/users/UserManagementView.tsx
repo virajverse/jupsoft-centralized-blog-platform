@@ -106,19 +106,19 @@ const PERMISSIONS_MATRIX: RBACPermission[] = [
   {
     id: 'blog.edit_assigned',
     label: 'Edit Any Blog',
-    description: 'Can edit blogs written by any author across tenant',
+    description: 'Can edit blogs written by any author across the website',
     allowedRoles: ['Super Admin', 'Website Admin', 'Role Admin', 'Editor'],
   },
   {
     id: 'blog.review_approve',
     label: 'Review & Approve Posts',
-    description: 'Can accept/reject drafts in workflow kanban',
+    description: 'Can accept/reject drafts in the review workflow',
     allowedRoles: ['Super Admin', 'Website Admin', 'Role Admin', 'Editor'],
   },
   {
     id: 'blog.publish_schedule',
-    label: 'Publish & Schedule to Live CDN',
-    description: 'Can trigger live publishing and dispatch ISR webhooks',
+    label: 'Publish & Schedule Posts',
+    description: 'Can publish posts live and refresh connected websites',
     allowedRoles: ['Super Admin', 'Website Admin', 'Publisher'],
   },
   {
@@ -129,14 +129,14 @@ const PERMISSIONS_MATRIX: RBACPermission[] = [
   },
   {
     id: 'site.manage',
-    label: '301 Redirects & Taxonomy',
-    description: 'Can add 301 redirects, categories, and tags',
+    label: 'Old Link Redirects, Categories & Tags',
+    description: 'Can add URL redirects, categories, and tags',
     allowedRoles: ['Super Admin', 'Website Admin', 'Publisher', 'SEO Manager'],
   },
   {
     id: 'users.manage',
-    label: 'Team & RBAC Management',
-    description: 'Can invite users, modify roles, and change tenant settings',
+    label: 'Team Roles & Permissions',
+    description: 'Can invite users, modify roles, and change website settings',
     allowedRoles: ['Super Admin', 'Website Admin', 'Role Admin'],
   },
 ];
@@ -508,7 +508,7 @@ _Please log in and update your password on your first sign-in._`;
     }
 
     if (Object.keys(editRoleAssignments).length === 0) {
-      showNotification('User must have at least one assigned website tenant.', 'warning');
+      showNotification('User must have at least one assigned website.', 'warning');
       return;
     }
 
@@ -521,7 +521,7 @@ _Please log in and update your password on your first sign-in._`;
       status: editStatus,
     });
 
-    showNotification(`Updated tenant role assignments and permissions for ${editingUser.name}`, 'success');
+    showNotification(`Updated website role assignments and permissions for ${editingUser.name}`, 'success');
     setEditingUser(null);
   };
 
@@ -1178,7 +1178,7 @@ _Please log in and update your password on your first sign-in._`;
                           <div className="flex flex-wrap gap-1.5 max-w-sm">
                             {assignedTenants.map(([siteId, role]) => {
                               const site = websites.find((w) => w.id === siteId);
-                              const siteName = siteId === 'all' ? 'All Sites' : (site?.name || siteId);
+                              const siteName = siteId === 'all' ? 'All Websites' : (site?.name || siteId);
                               const isRoleAdmin = role === 'Role Admin';
                               const defaultMods = getDefaultRoleModules(role);
                               const customUnlocked = u.customModules?.filter((m) => !defaultMods.includes(m)) || [];
@@ -1594,7 +1594,7 @@ _Please log in and update your password on your first sign-in._`;
                     Invite Organization Member
                   </h2>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Configure member account, tenant scope, and custom module access
+                    Configure member account, website access, and custom module access
                   </p>
                 </div>
               </div>
@@ -1964,7 +1964,7 @@ _Please log in and update your password on your first sign-in._`;
                     Edit Role &amp; Module Access
                   </h3>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Update tenant delegation and custom module permissions for {editingUser.name}
+                    Update website access and custom module permissions for {editingUser.name}
                   </p>
                 </div>
               </div>
@@ -2579,7 +2579,7 @@ _Please log in and update your password on your first sign-in._`;
         title="Revoke Member Access"
         itemName={deleteModalState.userName}
         itemType="user account"
-        message={`Are you sure you want to revoke access for ${deleteModalState.userName}? Their tenant role assignments will be removed and they will no longer be able to log in.`}
+        message={`Are you sure you want to revoke access for ${deleteModalState.userName}? Their website role assignments will be removed and they will no longer be able to log in.`}
         confirmText="Revoke Access"
         isLoading={Boolean(deletingUserId)}
         onConfirm={handleConfirmDeleteUser}

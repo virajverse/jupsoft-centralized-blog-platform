@@ -422,7 +422,7 @@ export const ZohoSidebar: React.FC = () => {
 
           {/* Drawer Footer Status */}
           <div className="p-2.5 border-t border-slate-200 dark:border-slate-800/80 bg-white/50 dark:bg-slate-900/50 text-[10px] text-slate-400 dark:text-slate-500 font-mono flex items-center justify-between">
-            <span className="truncate">Tenant: {isAllSites ? 'Network (All)' : (websites.find(w => w.id === activeWebsiteId)?.name || 'Custom')}</span>
+            <span className="truncate">Website: {isAllSites ? 'All Websites' : (websites.find(w => w.id === activeWebsiteId)?.name || 'Custom')}</span>
             <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Connected" />
           </div>
 

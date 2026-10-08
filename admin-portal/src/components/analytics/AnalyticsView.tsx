@@ -478,7 +478,7 @@ export const AnalyticsView: React.FC = () => {
               <button
                 onClick={() => setParam('tenant', null)}
                 className="text-xs px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 flex items-center gap-1 hover:bg-indigo-100 cursor-pointer"
-                title="Clear tenant filter"
+                title="Clear website filter"
               >
                 <span>Filtered: {activeSite?.name || 'Website'}</span>
                 <X className="w-3 h-3" />
@@ -486,7 +486,7 @@ export const AnalyticsView: React.FC = () => {
             )}
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Real-time multi-tenant traffic, content volume, and editorial performance metrics.
+            Real-time multi-website traffic, content volume, and editorial performance metrics.
           </p>
         </div>
 
@@ -903,9 +903,9 @@ export const AnalyticsView: React.FC = () => {
               </div>
 
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
-                <span>Top active taxonomy tags across published blogs</span>
+                <span>Top active tags across published blogs</span>
                 <Link href={`/taxonomy?site=${effectiveSiteId}`} className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 font-semibold">
-                  <span>Manage Taxonomy</span>
+                  <span>Manage Categories &amp; Tags</span>
                   <ArrowUpRight className="w-3 h-3" />
                 </Link>
               </div>
@@ -1029,7 +1029,7 @@ export const AnalyticsView: React.FC = () => {
           <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Building2 className="w-4 h-4 text-slate-500" />
-              <span>Multi-Tenant Domain Breakdown</span>
+              <span>Multi-Website Domain Breakdown</span>
             </h3>
             <span className="text-[10px] text-slate-400 font-mono">{websites.length} Connected Domains</span>
           </div>

@@ -124,7 +124,7 @@ export const INITIAL_MODULES: PlatformModuleConfig[] = [
   {
     id: 'dashboard',
     name: 'Executive Dashboard',
-    description: 'Cross-tenant aggregation, publishing velocity metrics, and activity streams.',
+    description: 'Cross-website overview, publishing trend metrics, and activity logs.',
     category: 'core',
     enabled: true,
     allowedRoles: ['Super Admin', 'Website Admin', 'Role Admin', 'Editor', 'Content Writer', 'SEO Manager', 'Publisher'],
@@ -149,8 +149,8 @@ export const INITIAL_MODULES: PlatformModuleConfig[] = [
   },
   {
     id: 'workflow',
-    name: 'Editorial Approval Kanban',
-    description: '6-stage lifecycle governance (Draft, Review, Approved, Scheduled, Published, Archived) with audit trail.',
+    name: 'Editorial Workflow Board',
+    description: '6-stage lifecycle governance (Draft, Review, Approved, Scheduled, Published, Archived) with activity log.',
     category: 'operations',
     enabled: true,
     allowedRoles: ['Super Admin', 'Website Admin', 'Role Admin', 'Editor', 'Publisher'],
@@ -175,7 +175,7 @@ export const INITIAL_MODULES: PlatformModuleConfig[] = [
   },
   {
     id: 'taxonomy',
-    name: 'Taxonomy & Tag Engine',
+    name: 'Categories & Tags Engine',
     description: 'Hierarchical category architecture, slug management, tag clouds, and live article counters.',
     category: 'content',
     enabled: true,
@@ -189,7 +189,7 @@ export const INITIAL_MODULES: PlatformModuleConfig[] = [
   {
     id: 'analytics',
     name: 'Search & Performance Analytics',
-    description: 'Google Search Console insights, page click-through rates, top keyword rankings, and tenant traffic comparisons.',
+    description: 'Google Search Console insights, page click-through rates, top keyword rankings, and website traffic comparisons.',
     category: 'marketing',
     enabled: true,
     allowedRoles: ['Super Admin', 'Website Admin', 'Role Admin', 'SEO Manager'],
@@ -201,8 +201,8 @@ export const INITIAL_MODULES: PlatformModuleConfig[] = [
   },
   {
     id: 'redirects',
-    name: 'SEO Continuity & 301 Redirects',
-    description: 'Automated permanent 301 redirect management on slug update, manual mapping, and broken link prevention.',
+    name: 'Old Link Redirects (301)',
+    description: 'Automated permanent redirect management on URL updates, link mapping, and broken link prevention.',
     category: 'marketing',
     enabled: true,
     allowedRoles: ['Super Admin', 'Website Admin', 'SEO Manager', 'Publisher'],
@@ -214,8 +214,8 @@ export const INITIAL_MODULES: PlatformModuleConfig[] = [
   },
   {
     id: 'users',
-    name: 'Team Governance & RBAC',
-    description: 'Tenant-scoped role delegation, multi-role user assignment, secure credential generation, and permissions matrix.',
+    name: 'Team Roles & Permissions',
+    description: 'Website role delegation, team member assignment, secure credential generation, and permissions table.',
     category: 'system',
     enabled: true,
     allowedRoles: ['Super Admin', 'Website Admin', 'Role Admin'],
@@ -227,8 +227,8 @@ export const INITIAL_MODULES: PlatformModuleConfig[] = [
   },
   {
     id: 'settings',
-    name: 'Tenant & API Configuration',
-    description: 'Multi-tenant domain mapping, API key rotation, webhook subscriptions, and S3 storage prefix management.',
+    name: 'Website & API Settings',
+    description: 'Multi-website domain mapping, API key rotation, website sync webhooks, and storage settings.',
     category: 'system',
     enabled: true,
     allowedRoles: ['Super Admin', 'Website Admin'],

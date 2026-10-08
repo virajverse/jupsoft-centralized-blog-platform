@@ -412,7 +412,7 @@ export const PluginManagerView: React.FC = () => {
                 {/* Meta details & permissions badges */}
                 <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-2">
                   <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-400 dark:text-slate-500 font-medium">Tenant Scope:</span>
+                    <span className="text-slate-400 dark:text-slate-500 font-medium">Website Scope:</span>
                     <span className="font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[150px]">
                       {mod.allowedWebsites.includes('all')
                         ? 'All Websites (Global)'
@@ -491,7 +491,7 @@ export const PluginManagerView: React.FC = () => {
                     Register Custom Feature Plugin
                   </h3>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Define an extensible modular capability with RBAC and site isolation
+                    Define an extensible modular capability with role permissions and website isolation
                   </p>
                 </div>
               </div>
@@ -645,7 +645,7 @@ export const PluginManagerView: React.FC = () => {
               {/* Tenant Scope Selection */}
               <div>
                 <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1.5">
-                  Tenant Scope
+                  Website Scope
                 </label>
                 <div className="flex flex-wrap gap-1.5">
                   <button
@@ -728,7 +728,7 @@ export const PluginManagerView: React.FC = () => {
                     Configure Access: {editingModule.name}
                   </h3>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Adjust role visibility and tenant restrictions for this module
+                    Adjust role visibility and website access for this module
                   </p>
                 </div>
               </div>
@@ -775,10 +775,10 @@ export const PluginManagerView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Tenant Scope */}
+              {/* Website Scope */}
               <div>
                 <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1.5">
-                  Tenant Scope (Websites)
+                  Website Scope
                 </label>
                 <div className="space-y-2">
                   <button

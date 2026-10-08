@@ -283,7 +283,7 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-800/80 bg-slate-50/40 dark:bg-slate-900/30 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   <th className="py-2 px-3">Title & Slug</th>
-                  {isAllSites && <th className="py-2 px-2.5">Tenant</th>}
+                  {isAllSites && <th className="py-2 px-2.5">Website</th>}
                   <th className="py-2 px-2.5">Status</th>
                   <th className="py-2 px-2.5">Author</th>
                   <th className="py-2 px-2.5">Languages</th>
@@ -409,7 +409,7 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
             <div className="bg-white dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
               <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-slate-800 text-xs">
                 <span className="font-bold text-[11px] uppercase tracking-wider text-slate-400">
-                  Connected Tenants
+                  Connected Websites
                 </span>
                 <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">
                   {visibleWebsites.length} Active
