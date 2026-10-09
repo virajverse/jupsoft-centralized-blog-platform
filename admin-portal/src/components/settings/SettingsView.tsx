@@ -33,7 +33,7 @@ import {
   Code
 } from 'lucide-react';
 import { RedirectsView } from '../redirects/RedirectsView';
-import { DeveloperIntegrationGuide } from './DeveloperIntegrationGuide';
+import { DeveloperWorkspaceV2 } from './DeveloperWorkspaceV2';
 
 export const SettingsView: React.FC = () => {
   const searchParams = useSearchParams();
@@ -904,7 +904,7 @@ export const SettingsView: React.FC = () => {
 
       {/* TAB: DEVELOPER API & INTEGRATION GUIDE */}
       {activeTab === 'developer' && activeSite && (
-        <DeveloperIntegrationGuide
+        <DeveloperWorkspaceV2
           activeSite={activeSite}
           websites={websites}
           onSelectSite={(id) => handleSelectTenant(id)}
