@@ -342,7 +342,7 @@ export const SettingsView: React.FC = () => {
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
               {activeTab === 'developer' ? 'Developer Setting' : 'Website & System Settings'}
             </h1>
-            {activeSite && (
+            {activeSite && activeTab !== 'developer' && (
               <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 truncate max-w-[150px]">
                 {activeSite.name}
               </span>
@@ -433,8 +433,8 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* Tenant Scope Selector (in All mode) */}
-      {isAllSites && (
+      {/* Tenant Scope Selector (in All mode, hidden on developer tab where Switch Website dropdown exists) */}
+      {isAllSites && activeTab !== 'developer' && (
         <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60">
           {websites.map((w) => (
             <button
