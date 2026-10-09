@@ -19,7 +19,8 @@ import {
   ChevronRight,
   RefreshCw,
   X,
-  HelpCircle
+  HelpCircle,
+  Code
 } from 'lucide-react';
 
 export const JupsoftSidebar: React.FC = () => {
@@ -171,15 +172,6 @@ export const JupsoftSidebar: React.FC = () => {
       icon: Settings,
       isActive: pathname === '/settings' && tabParam !== 'developer',
     },
-    {
-      href: `/settings?tab=developer${siteQuery ? '&' + siteQuery.slice(1) : ''}`,
-      basePath: '/settings-developer',
-      module: 'settings',
-      shortLabel: 'Developer Setting',
-      fullLabel: 'Developer Setting',
-      isActive: pathname === '/settings' && tabParam === 'developer',
-      isTextOnly: true,
-    },
   ];
 
   const visibleNavItems = navItems.filter((item) => {
@@ -274,61 +266,98 @@ export const JupsoftSidebar: React.FC = () => {
                     <span className="absolute left-0 top-1 bottom-1 w-1 bg-amber-400 animate-pulse rounded-r-sm" />
                   )}
 
-                  {item.isTextOnly ? (
-                    <div className="flex flex-col items-center justify-center w-full px-1 text-center select-none">
-                      <span
-                        className={`text-[9.5px] leading-[12px] font-semibold text-center tracking-tight transition-colors ${
-                          isActive
-                            ? 'text-white font-bold'
-                            : isPending
-                            ? 'text-amber-300 font-bold animate-pulse'
-                            : 'text-slate-400 group-hover:text-slate-200'
-                        }`}
-                      >
-                        Developer<br />Setting
+                  <div className="relative">
+                    {isPending ? (
+                      <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+                    ) : (
+                      Icon && (
+                        <Icon
+                          className={`w-4 h-4 transition-transform group-hover:scale-110 ${
+                            isActive ? 'text-red-400' : 'text-slate-400 group-hover:text-slate-200'
+                          }`}
+                        />
+                      )
+                    )}
+                    {item.badge !== undefined && item.badge !== null && item.badge > 0 && !isPending && (
+                      <span className="absolute -top-1.5 -right-2 min-w-[14px] h-3.5 px-0.5 rounded-full bg-red-500 text-white text-[9px] font-mono font-bold flex items-center justify-center leading-none">
+                        {item.badge > 99 ? '99+' : item.badge}
                       </span>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="relative">
-                        {isPending ? (
-                          <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
-                        ) : (
-                          Icon && (
-                            <Icon
-                              className={`w-4 h-4 transition-transform group-hover:scale-110 ${
-                                isActive ? 'text-red-400' : 'text-slate-400 group-hover:text-slate-200'
-                              }`}
-                            />
-                          )
-                        )}
-                        {item.badge !== undefined && item.badge !== null && item.badge > 0 && !isPending && (
-                          <span className="absolute -top-1.5 -right-2 min-w-[14px] h-3.5 px-0.5 rounded-full bg-red-500 text-white text-[9px] font-mono font-bold flex items-center justify-center leading-none">
-                            {item.badge > 99 ? '99+' : item.badge}
-                          </span>
-                        )}
-                      </div>
+                    )}
+                  </div>
 
-                      <span
-                        className={`text-[9px] tracking-tight mt-1 font-medium transition-colors ${
-                          isActive
-                            ? 'text-white font-bold'
-                            : isPending
-                            ? 'text-amber-300 font-bold animate-pulse'
-                            : 'text-slate-400 group-hover:text-slate-300'
-                        }`}
-                      >
-                        {isPending ? 'Loading...' : item.shortLabel}
-                      </span>
-                    </>
-                  )}
+                  <span
+                    className={`text-[9px] tracking-tight mt-1 font-medium transition-colors ${
+                      isActive
+                        ? 'text-white font-bold'
+                        : isPending
+                        ? 'text-amber-300 font-bold animate-pulse'
+                        : 'text-slate-400 group-hover:text-slate-300'
+                    }`}
+                  >
+                    {isPending ? 'Loading...' : item.shortLabel}
+                  </span>
                 </Link>
               );
             })}
           </nav>
 
-          {/* Bottom Actions: Help Center & Mobile Close */}
-          <div className="w-full flex flex-col items-center gap-1.5 pt-2 border-t border-slate-800/80">
+          {/* Bottom Actions: Sticky Developer Setting, Help Center & Mobile Close */}
+          <div className="w-full flex flex-col items-center gap-1 pt-1.5 border-t border-slate-800/80">
+            {canAccessModule(activeRole, 'settings', currentUser?.customModules) && (() => {
+              const isDevActive = pathname === '/settings' && tabParam === 'developer';
+              const isDevPending = navigatingTo === '/settings-developer';
+              const devHref = `/settings?tab=developer${siteQuery ? '&' + siteQuery.slice(1) : ''}`;
+              return (
+                <Link
+                  href={devHref}
+                  prefetch={false}
+                  onClick={() => {
+                    if (!isDevActive) {
+                      setNavigatingTo('/settings-developer');
+                    }
+                    handleNavClick();
+                  }}
+                  title="Developer Setting"
+                  className={`relative w-full h-[50px] flex flex-col items-center justify-center transition-all group ${
+                    isDevActive
+                      ? 'bg-slate-800/90 text-white font-bold'
+                      : isDevPending
+                      ? 'bg-slate-800/60 text-amber-300'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                  }`}
+                >
+                  {isDevActive && (
+                    <span className="absolute left-0 top-1 bottom-1 w-1 bg-red-500 rounded-r-sm" />
+                  )}
+                  {isDevPending && !isDevActive && (
+                    <span className="absolute left-0 top-1 bottom-1 w-1 bg-amber-400 animate-pulse rounded-r-sm" />
+                  )}
+                  <div className="relative">
+                    {isDevPending ? (
+                      <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+                    ) : (
+                      <Code
+                        className={`w-4 h-4 transition-transform group-hover:scale-110 ${
+                          isDevActive ? 'text-red-400' : 'text-slate-400 group-hover:text-slate-200'
+                        }`}
+                      />
+                    )}
+                  </div>
+                  <span
+                    className={`text-[9px] tracking-tight mt-1 font-medium transition-colors text-center ${
+                      isDevActive
+                        ? 'text-white font-bold'
+                        : isDevPending
+                        ? 'text-amber-300 font-bold animate-pulse'
+                        : 'text-slate-400 group-hover:text-slate-300'
+                    }`}
+                  >
+                    {isDevPending ? 'Loading...' : 'Developer'}
+                  </span>
+                </Link>
+              );
+            })()}
+
             <button
               type="button"
               onClick={() => setGuideOpen(true)}

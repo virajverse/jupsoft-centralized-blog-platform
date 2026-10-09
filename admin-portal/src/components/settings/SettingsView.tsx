@@ -334,7 +334,7 @@ export const SettingsView: React.FC = () => {
   });
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-5 sm:space-y-6">
+    <div className="w-full space-y-5 sm:space-y-6">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
@@ -916,7 +916,7 @@ export const SettingsView: React.FC = () => {
 
       {/* TAB: WEBHOOK REVALIDATION */}
       {activeTab === 'webhook' && activeSite && (
-        <div className="space-y-4 max-w-4xl font-sans">
+        <div className="w-full space-y-4 font-sans">
           <div className="bg-white dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 rounded-lg p-5 space-y-4 shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
               <div>

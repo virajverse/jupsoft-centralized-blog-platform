@@ -135,7 +135,7 @@ export const RedirectsView: React.FC<RedirectsViewProps> = ({ embedded = false }
   };
 
   return (
-    <div className={embedded ? "space-y-4" : "p-4 sm:p-5 max-w-7xl mx-auto space-y-4"}>
+    <div className={embedded ? "space-y-4" : "w-full space-y-4"}>
       {/* Header (hidden if embedded in settings tabs) */}
       {!embedded && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">

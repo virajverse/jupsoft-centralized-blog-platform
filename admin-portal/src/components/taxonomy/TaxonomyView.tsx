@@ -196,7 +196,7 @@ export const TaxonomyView: React.FC = () => {
   };
 
   return (
-    <div className="p-4 sm:p-5 max-w-7xl mx-auto space-y-4">
+    <div className="w-full space-y-4">
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 mb-1">

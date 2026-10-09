@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useBlogStore } from '../../store/useBlogStore';
 import { HELP_CATEGORIES, HelpCategory, HelpQuestion } from '../../data/helpCenterData';
 import { 
@@ -231,7 +231,11 @@ function findIntelligentMatches(query: string): {
 
 export const FloatingChatWidget: React.FC = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const setGuideOpen = useBlogStore((s) => s.setGuideOpen);
+
+  const tab = searchParams?.get('tab');
+  if (tab === 'developer') return null;
 
   const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState('');
