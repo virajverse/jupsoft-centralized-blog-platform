@@ -906,6 +906,8 @@ export const SettingsView: React.FC = () => {
       {activeTab === 'developer' && activeSite && (
         <DeveloperIntegrationGuide
           activeSite={activeSite}
+          websites={websites}
+          onSelectSite={(id) => handleSelectTenant(id)}
           isSuperAdmin={isSuperAdmin}
           canViewApiKey={canViewActiveApiKey}
           blogs={blogs}

@@ -26,11 +26,20 @@ import {
   HelpCircle,
   FileText,
   Lock,
-  ArrowRight
+  ArrowRight,
+  ArrowLeft,
+  Eye,
+  EyeOff,
+  Search,
+  Clock,
+  CheckCircle,
+  ChevronRight
 } from 'lucide-react';
 
 interface DeveloperIntegrationGuideProps {
   activeSite: Website;
+  websites?: Website[];
+  onSelectSite?: (siteId: string) => void;
   isSuperAdmin?: boolean;
   canViewApiKey?: boolean;
   blogs?: Blog[];
@@ -44,6 +53,8 @@ type ReactSubTab = 'hook' | 'detail';
 
 export const DeveloperIntegrationGuide: React.FC<DeveloperIntegrationGuideProps> = ({
   activeSite,
+  websites = [],
+  onSelectSite,
   isSuperAdmin = false,
   canViewApiKey = true,
   blogs = [],
@@ -57,6 +68,15 @@ export const DeveloperIntegrationGuide: React.FC<DeveloperIntegrationGuideProps>
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [encryptedCmsToken, setEncryptedCmsToken] = useState<string>('idF9Vzz2az9eisdgl6ifp4yGSxi5cGjt7NJ8LxNhw8YZGBOP8jBnp49lqpunfjsl');
 
+  // New Workspace State
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [activeStep, setActiveStep] = useState<number | 'all'>('all');
+  const [lastTestedTime, setLastTestedTime] = useState<string | null>(null);
+  const [codeSearchQuery, setCodeSearchQuery] = useState('');
+  const [faqSearchQuery, setFaqSearchQuery] = useState('');
+  const [faqCategoryFilter, setFaqCategoryFilter] = useState<'all' | '401' | '404' | 'cors' | 'cache'>('all');
+  const [isSchemaOpen, setIsSchemaOpen] = useState(false);
+
   // Live Console State
   const [testEndpoint, setTestEndpoint] = useState<'blogs' | 'detail' | 'latest' | 'popular' | 'categories' | 'health'>('blogs');
   const [testSlug, setTestSlug] = useState('');
@@ -66,7 +86,7 @@ export const DeveloperIntegrationGuide: React.FC<DeveloperIntegrationGuideProps>
   const [testLatency, setTestLatency] = useState<number | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
   const [bypassCacheTest, setBypassCacheTest] = useState(false);
-  const [isConsoleOpen, setIsConsoleOpen] = useState(false);
+  const [isConsoleOpen, setIsConsoleOpen] = useState(true);
 
   // FAQ Accordion State
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -180,14 +200,19 @@ export const DeveloperIntegrationGuide: React.FC<DeveloperIntegrationGuideProps>
       const latency = Math.round(performance.now() - startTime);
       setTestLatency(latency);
       setTestStatus(res.status);
+      setLastTestedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
 
       const json = await res.json();
       setTestResult(json);
+      if (!res.ok) {
+        setTestError(json.error || json.message || `HTTP ${res.status}: Request could not be fulfilled.`);
+      }
     } catch (err: any) {
       const latency = Math.round(performance.now() - startTime);
       setTestLatency(latency);
       setTestStatus(500);
-      setTestError(err.message || 'Request failed. Check network or CORS settings.');
+      setLastTestedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      setTestError(err.message || 'Request failed. Check network, CORS or domain permissions.');
     } finally {
       setIsTesting(false);
     }
@@ -1676,35 +1701,168 @@ Accept: application/json
 `;
   }, [activeSite?.name, websiteId, siteDomain, apiBaseUrl, apiKey]);
 
+  // Code Lines & Search Gutter Helper
+  const codeLines = useMemo(() => currentDisplayedCode.split('\n'), [currentDisplayedCode]);
+  const matchingLineIndices = useMemo(() => {
+    if (!codeSearchQuery.trim()) return null;
+    const q = codeSearchQuery.toLowerCase();
+    const indices: number[] = [];
+    codeLines.forEach((line, idx) => {
+      if (line.toLowerCase().includes(q)) indices.push(idx);
+    });
+    return indices;
+  }, [codeLines, codeSearchQuery]);
+
+  // Structured FAQ Items for Search & Filtering
+  const faqItems = useMemo(() => [
+    {
+      id: 1,
+      category: '401',
+      question: "1. Why did I get a 401 error when testing the URL in Chrome's address bar?",
+      tags: ['401', 'security', 'origin', 'browser', 'address bar'],
+      answer: `Direct browser address bar visits do not send an Origin or Referer header, so the API security guard blocks them with "401 Direct browser access denied". When your frontend JavaScript runs on your website (${siteDomain}) or on localhost, the browser automatically provides the Origin header, allowing public reads with zero plaintext key leakage.`
+    },
+    {
+      id: 2,
+      category: '404',
+      question: "2. Why does clicking a blog link give a 404 error on my static website?",
+      tags: ['404', 'routing', 'iis', 'apache', 'web.config', 'rewrite'],
+      answer: `Static web servers look for a physical folder matching the slug path (such as /blog/sample-slug/index.html). With URL Rewrites configured (IIS web.config or Apache .htaccess from Step 3), requests to /blog/{slug} are rewritten internally to blog-detail.shtml?slug={slug} without modifying the address bar URL.`
+    },
+    {
+      id: 3,
+      category: 'cors',
+      question: "3. Can I test on localhost before deploying to production without CORS errors?",
+      tags: ['cors', 'localhost', 'dev', '127.0.0.1', 'local'],
+      answer: `Yes, absolutely! localhost, 127.0.0.1, *.vercel.app, and *.netlify.app are permanently whitelisted origins in the Centralized CMS API gateway for local developer workflows. You do not need to configure custom CORS rules for local testing.`
+    },
+    {
+      id: 4,
+      category: 'cache',
+      question: "4. How do I see new blog updates immediately without waiting for edge cache?",
+      tags: ['cache', 'redis', 'fresh', 'instant', 'purge'],
+      answer: `Append &fresh=1 to your query URL (e.g. ${apiBaseUrl}/blogs?website=${websiteId}&fresh=1). This instructs the Redis cache to query live PostgreSQL database records immediately, bypassing cache TTL.`
+    },
+    {
+      id: 5,
+      category: '401',
+      question: "5. Is it safe to store the Client API Key in my client-side JavaScript?",
+      tags: ['key', 'security', 'domain-lock', 'safe', 'whitelist'],
+      answer: `Yes! The Client API Key is cryptographically locked to your registered domain (${siteDomain}) and localhost. Even if visitors view source code or inspect network requests, the key cannot be hijacked or used on any other domain. The backend rejects mismatched origins with 403 Forbidden.`
+    },
+    {
+      id: 6,
+      category: 'cors',
+      question: "6. How does the ASP.NET C# Zero-Leak architecture work?",
+      tags: ['c#', 'asp.net', 'aes', 'zero-leak', 'server-side'],
+      answer: `In ASP.NET / C#, your Web.config stores an AES-128-CBC cipher token. The code-behind decrypts the token in server memory and queries the CMS API server-to-server. The page serves pre-rendered HTML or embedded JSON (<%= BlogsJson %>). Inspecting HTML source code (Ctrl+U) reveals 0% API keys and 0% tokens.`
+    }
+  ], [siteDomain, websiteId, apiBaseUrl]);
+
+  const filteredFaqs = useMemo(() => {
+    return faqItems.filter(item => {
+      const matchesCategory = faqCategoryFilter === 'all' || item.category === faqCategoryFilter;
+      if (!matchesCategory) return false;
+      if (!faqSearchQuery.trim()) return true;
+      const q = faqSearchQuery.toLowerCase();
+      return (
+        item.question.toLowerCase().includes(q) ||
+        item.answer.toLowerCase().includes(q) ||
+        item.tags.some(t => t.toLowerCase().includes(q))
+      );
+    });
+  }, [faqItems, faqCategoryFilter, faqSearchQuery]);
+
+  const jumpToFaq = (faqId: number) => {
+    setActiveStep('all');
+    setOpenFaq(faqId);
+    setTimeout(() => {
+      const el = document.getElementById(`faq-item-${faqId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+  };
+
   return (
     <div className="space-y-6">
-      {/* ── TOP HEADER CARD & CREDENTIALS ── */}
-      <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-xs space-y-4">
+      {/* ── 1. PROMINENT WEBSITE CONFIGURATION & SELECTOR CARD ── */}
+      <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-bold font-mono tracking-wider uppercase border border-slate-200 dark:border-slate-700">
-                <Code className="w-3 h-3 text-blue-600" />
-                <span>Developer API &amp; Integration Hub</span>
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold font-mono tracking-wider uppercase border border-indigo-200 dark:border-indigo-900">
+                <Code className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                <span>Developer Integration Workspace</span>
               </span>
               <span className="text-xs text-slate-400 font-mono">•</span>
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                {activeSite?.name}
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 text-[11px] font-semibold">
+                <span className={`w-1.5 h-1.5 rounded-full ${isTesting ? 'bg-amber-500 animate-ping' : 'bg-emerald-500 animate-pulse'}`} />
+                <span>{isTesting ? 'Testing Connectivity...' : (testStatus && testStatus !== 200 ? 'Status Checked' : 'Connected')}</span>
               </span>
-              <span className="text-[11px] font-mono text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-900">
-                {siteDomain}
+              <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                Production Gateway (v1)
               </span>
             </div>
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-              Client Libraries &amp; REST Integration
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-2xl leading-relaxed">
-              Tailored frontend client code, server-side decryptors, and rewrite rules for <strong>{siteDomain}</strong>. Zero plain-text key leakage in public page source.
+            
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                {activeSite?.name || 'Configured Website'}
+              </h2>
+              <a 
+                href={`https://${siteDomain}`} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-1 bg-indigo-50/60 dark:bg-indigo-950/40 px-2 py-0.5 rounded-md border border-indigo-200/60 dark:border-indigo-900/40"
+              >
+                <span>{siteDomain}</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">
+              Tailored credentials, frontend clients, server-side decryptors, and rewrite rules for <strong>{siteDomain}</strong>. Zero plain-text key exposure in public page source.
             </p>
           </div>
 
-          {/* Quick Handover Toolbar */}
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {/* Prominent Website Selector Dropdown */}
+          {websites && websites.length > 0 && onSelectSite && (
+            <div className="shrink-0 bg-slate-50 dark:bg-slate-900/80 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 min-w-[280px] shadow-2xs">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Target Website</span>
+                </label>
+                <span className="text-[10px] font-mono text-slate-400">
+                  {websites.length} Available
+                </span>
+              </div>
+              <select
+                value={activeSite.id}
+                onChange={(e) => onSelectSite(e.target.value)}
+                className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer transition-colors shadow-2xs"
+              >
+                {websites.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} ({w.domain})
+                  </option>
+                ))}
+              </select>
+              <div className="text-[10px] text-slate-400 mt-1.5 flex items-center justify-between">
+                <span>{publishedBlogs.length} articles published</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  Active
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Quick Handover & Export Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-1">Download Packs:</span>
             <button
               onClick={() => {
                 downloadFile(jsClientCode, 'cms-client.js');
@@ -1716,7 +1874,7 @@ Accept: application/json
               title="Download all 4 frontend integration files at once"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Download SHTML Pack</span>
+              <span>SHTML Pack (4 Files)</span>
             </button>
             <button
               onClick={() => downloadFile(handoverMarkdown, `${websiteId}-developer-handover-guide.md`, 'text/markdown')}
@@ -1724,7 +1882,7 @@ Accept: application/json
               title="Download complete handover documentation as Markdown file"
             >
               <FileText className="w-3.5 h-3.5 text-slate-500" />
-              <span>Handover Guide (.MD)</span>
+              <span>Handover Guide (.md)</span>
             </button>
             <button
               onClick={() => downloadFile(postmanCollectionJson, `${websiteId}-postman-collection.json`, 'application/json')}
@@ -1735,118 +1893,917 @@ Accept: application/json
               <span>Postman Collection</span>
             </button>
           </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => jumpToFaq(1)}
+              className="text-[11px] font-medium text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1"
+            >
+              <HelpCircle className="w-3 h-3" />
+              <span>Integration FAQ</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 2. INTEGRATION SETUP STEPPER ── */}
+      <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2.5 border-b border-slate-100 dark:border-slate-800">
+          <div>
+            <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+              <span>Integration Setup Stepper</span>
+              <span className="text-[10px] text-slate-400 font-mono font-normal">
+                (4 Sequential Stages)
+              </span>
+            </h3>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+              Follow these 4 stages in order to configure and deploy the centralized blog on {siteDomain}.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-1.5 text-xs">
+            <button
+              onClick={() => setActiveStep('all')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                activeStep === 'all'
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              Show All Stages
+            </button>
+          </div>
         </div>
 
-        {/* Credentials Bar */}
-        <div className="flex flex-wrap items-center gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800/80 text-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Credentials:</span>
-          
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          {/* Step 1 Pill */}
           <button
-            onClick={() => copyToClipboard(websiteId, 'top-site-id')}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-mono text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-            title="Click to copy Website ID"
+            onClick={() => setActiveStep(1)}
+            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+              activeStep === 1
+                ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-600 ring-2 ring-indigo-500/20'
+                : 'bg-slate-50/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+            }`}
           >
-            <span className="text-slate-400 font-sans">Website ID:</span>
-            <span className="font-semibold text-slate-900 dark:text-white">{websiteId}</span>
-            {copiedKey === 'top-site-id' ? <Check className="w-3 h-3 text-emerald-500 ml-0.5" /> : <Copy className="w-3 h-3 text-slate-400 ml-0.5" />}
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-bold font-mono uppercase text-indigo-600 dark:text-indigo-400">Step 1</span>
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                <Check className="w-2.5 h-2.5" />
+                <span>Configured</span>
+              </span>
+            </div>
+            <div className="text-xs font-bold text-slate-900 dark:text-white">Credentials</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">Website ID &amp; Client Key</div>
           </button>
 
+          {/* Step 2 Pill */}
           <button
-            onClick={() => copyToClipboard(apiKey, 'top-api-key')}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-mono text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-            title="Click to copy Client API Key"
+            onClick={() => setActiveStep(2)}
+            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+              activeStep === 2
+                ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-600 ring-2 ring-indigo-500/20'
+                : 'bg-slate-50/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+            }`}
           >
-            <span className="text-slate-400 font-sans">Client Key:</span>
-            <span className="font-semibold text-slate-900 dark:text-white">{apiKey ? `${apiKey.slice(0, 12)}...` : 'Not Set'}</span>
-            {copiedKey === 'top-api-key' ? <Check className="w-3 h-3 text-emerald-500 ml-0.5" /> : <Copy className="w-3 h-3 text-slate-400 ml-0.5" />}
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-bold font-mono uppercase text-indigo-600 dark:text-indigo-400">Step 2</span>
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                <span>Code Ready</span>
+              </span>
+            </div>
+            <div className="text-xs font-bold text-slate-900 dark:text-white">Install Client</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">Framework code &amp; libraries</div>
           </button>
 
+          {/* Step 3 Pill */}
           <button
-            onClick={() => copyToClipboard(apiBaseUrl, 'top-api-url')}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-mono text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-            title="Click to copy Base API URL"
+            onClick={() => setActiveStep(3)}
+            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+              activeStep === 3
+                ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-600 ring-2 ring-indigo-500/20'
+                : 'bg-slate-50/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+            }`}
           >
-            <span className="text-slate-400 font-sans">Base API:</span>
-            <span className="font-semibold text-blue-600 dark:text-blue-400">{apiBaseUrl}</span>
-            {copiedKey === 'top-api-url' ? <Check className="w-3 h-3 text-emerald-500 ml-0.5" /> : <Copy className="w-3 h-3 text-slate-400 ml-0.5" />}
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-bold font-mono uppercase text-indigo-600 dark:text-indigo-400">Step 3</span>
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                <span>Rules Ready</span>
+              </span>
+            </div>
+            <div className="text-xs font-bold text-slate-900 dark:text-white">Configure URLs</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">IIS &amp; Apache (No 404)</div>
+          </button>
+
+          {/* Step 4 Pill */}
+          <button
+            onClick={() => setActiveStep(4)}
+            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+              activeStep === 4
+                ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-600 ring-2 ring-indigo-500/20'
+                : 'bg-slate-50/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-bold font-mono uppercase text-indigo-600 dark:text-indigo-400">Step 4</span>
+              <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
+                testStatus === 200
+                  ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+              }`}>
+                {testStatus === 200 ? <Check className="w-2.5 h-2.5" /> : null}
+                <span>{testStatus === 200 ? 'Verified' : 'Live Test'}</span>
+              </span>
+            </div>
+            <div className="text-xs font-bold text-slate-900 dark:text-white">Verify Integration</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">Live API ping &amp; latency</div>
           </button>
         </div>
       </div>
 
-      {/* ── LIVE API TESTER & CONSOLE (COLLAPSIBLE) ── */}
-      <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs transition-all overflow-hidden">
-        {/* Accordion / Toggle Header */}
-        <div 
-          onClick={() => setIsConsoleOpen(!isConsoleOpen)}
-          className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer hover:bg-slate-50/70 dark:hover:bg-slate-900/40 transition-colors select-none"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-              <Play className="w-3.5 h-3.5 fill-emerald-600 dark:fill-emerald-400" />
-            </div>
+      {/* ── STEP 1: CREDENTIALS PANEL ── */}
+      {(activeStep === 'all' || activeStep === 1) && (
+        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                  Live API Endpoint Tester
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold font-mono">1</span>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Website Credentials &amp; API Gateway Configuration
                 </h3>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-                  {isConsoleOpen ? 'Open Console' : 'Click to Expand'}
-                </span>
               </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                Execute live HTTP calls against production database to verify CORS &amp; latency.
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Use these three parameters in your frontend script or backend code to query articles for {activeSite?.name}.
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800 shrink-0">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Domain-Locked Authentication</span>
+            </span>
+          </div>
+
+          {/* Credentials Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
+            {/* Website ID */}
+            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                  Website ID
+                </span>
+                <button
+                  onClick={() => copyToClipboard(websiteId, 'step1-site-id')}
+                  className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer flex items-center gap-1"
+                >
+                  {copiedKey === 'step1-site-id' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedKey === 'step1-site-id' ? 'Copied!' : 'Copy'}</span>
+                </button>
+              </div>
+              <input
+                type="text"
+                readOnly
+                value={websiteId}
+                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-slate-900 dark:text-white font-mono text-xs cursor-pointer select-all"
+                onClick={() => copyToClipboard(websiteId, 'step1-site-id')}
+              />
+              <p className="text-[10.5px] text-slate-500 dark:text-slate-400">
+                Used in query parameters: <code className="font-mono text-indigo-600 dark:text-indigo-400">?website={websiteId}</code>
+              </p>
+            </div>
+
+            {/* Base API URL */}
+            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                  Base API URL
+                </span>
+                <button
+                  onClick={() => copyToClipboard(apiBaseUrl, 'step1-api-url')}
+                  className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer flex items-center gap-1"
+                >
+                  {copiedKey === 'step1-api-url' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedKey === 'step1-api-url' ? 'Copied!' : 'Copy'}</span>
+                </button>
+              </div>
+              <input
+                type="text"
+                readOnly
+                value={apiBaseUrl}
+                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-blue-600 dark:text-blue-400 font-mono text-xs cursor-pointer select-all font-semibold"
+                onClick={() => copyToClipboard(apiBaseUrl, 'step1-api-url')}
+              />
+              <p className="text-[10.5px] text-slate-500 dark:text-slate-400">
+                Centralized edge gateway powered by Cloudflare &amp; Redis cache.
+              </p>
+            </div>
+
+            {/* Client API Key (Masked with Reveal) */}
+            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                  Client API Key
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="text-[11px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold cursor-pointer flex items-center gap-1"
+                    title={showApiKey ? 'Mask Key' : 'Reveal Key'}
+                  >
+                    {showApiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    <span>{showApiKey ? 'Hide' : 'Reveal'}</span>
+                  </button>
+                  <button
+                    onClick={() => copyToClipboard(apiKey, 'step1-api-key')}
+                    className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    {copiedKey === 'step1-api-key' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedKey === 'step1-api-key' ? 'Copied!' : 'Copy'}</span>
+                  </button>
+                </div>
+              </div>
+              <div className="relative">
+                <input
+                  type={showApiKey ? 'text' : 'password'}
+                  readOnly
+                  value={apiKey}
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-slate-900 dark:text-white font-mono text-xs select-all"
+                  onClick={() => copyToClipboard(apiKey, 'step1-api-key')}
+                />
+              </div>
+              <p className="text-[10.5px] text-slate-500 dark:text-slate-400 truncate">
+                Locked to <code className="font-mono text-emerald-600 dark:text-emerald-400">{siteDomain}</code> + <code className="font-mono">localhost</code>.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0" onClick={(e) => e.stopPropagation()}>
-            {testStatus && (
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold ${
-                testStatus === 200
-                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
-                  : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
-              }`}>
-                {testStatus === 200 ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
-                <span>HTTP {testStatus}</span>
-                {testLatency && <span>• {testLatency}ms</span>}
-              </span>
-            )}
+          {/* Security Notice & Contextual Link */}
+          <div className="p-3.5 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/60 rounded-xl text-xs text-blue-900 dark:text-blue-300 flex items-start gap-2.5">
+            <ShieldCheck className="w-4 h-4 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
+            <div className="leading-relaxed flex-1">
+              <strong>Domain-Origin Whitelisting Architecture:</strong> This Client Key is pre-configured to only respond when requests originate from <strong>{siteDomain}</strong>, <strong>localhost</strong>, or <strong>127.0.0.1</strong>. Even if third parties view your HTML source, they cannot use your key on other domains.
+              <button
+                onClick={() => jumpToFaq(1)}
+                className="ml-2 font-bold underline hover:text-blue-700 dark:hover:text-blue-200 cursor-pointer inline-flex items-center gap-0.5"
+              >
+                <span>Why browser address bar tests give 401?</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+
+          {/* Stepper Navigation Next */}
+          {activeStep === 1 && (
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setActiveStep(2)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              >
+                <span>Next Stage: Install Client Library</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── STEP 2: INSTALL CLIENT LIBRARY & MULTI-FRAMEWORK CODE BLUEPRINTS ── */}
+      {(activeStep === 'all' || activeStep === 2) && (
+        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold font-mono">2</span>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Install Client Library &amp; Frontend Code (Pre-filled for {activeSite?.name})
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Complete, production-tested templates with responsive CSS, skeleton loaders, error boundaries, and URL rewrites.
+              </p>
+            </div>
+
+            <button
+              onClick={() => downloadFile(currentDisplayedCode, currentDisplayedFilename)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Download {currentDisplayedFilename}</span>
+            </button>
+          </div>
+
+          {/* Framework Stack Switcher */}
+          <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto scrollbar-none">
+            <button
+              onClick={() => setActiveStack('js')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeStack === 'js'
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5" />
+              <span>SHTML / HTML / JavaScript</span>
+            </button>
+            <button
+              onClick={() => setActiveStack('nextjs')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeStack === 'nextjs'
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'
+              }`}
+            >
+              <FileCode2 className="w-3.5 h-3.5" />
+              <span>Next.js / TypeScript</span>
+            </button>
+            <button
+              onClick={() => setActiveStack('csharp')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeStack === 'csharp'
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'
+              }`}
+            >
+              <Server className="w-3.5 h-3.5" />
+              <span>ASP.NET / C# (Zero-Leak)</span>
+            </button>
+            <button
+              onClick={() => setActiveStack('react')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeStack === 'react'
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>React / Vue (SPA)</span>
+            </button>
+            <button
+              onClick={() => setActiveStack('widget')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeStack === 'widget'
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>HTML Embed Widget</span>
+            </button>
+            <button
+              onClick={() => setActiveStack('curl')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeStack === 'curl'
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'
+              }`}
+            >
+              <Terminal className="w-3.5 h-3.5" />
+              <span>cURL &amp; Postman API</span>
+            </button>
+          </div>
+
+          {/* Sub-File Selector Bar */}
+          {activeStack === 'js' && (
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-2.5 text-xs">
+              <span className="text-slate-400 font-semibold mr-1">Select File:</span>
+              <button
+                onClick={() => setActiveJsTab('client')}
+                className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                  activeJsTab === 'client'
+                    ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                }`}
+              >
+                1. assets/js/cms-client.js
+              </button>
+              <button
+                onClick={() => setActiveJsTab('list')}
+                className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                  activeJsTab === 'list'
+                    ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                }`}
+              >
+                2. blog.shtml / blog.html (List Page)
+              </button>
+              <button
+                onClick={() => setActiveJsTab('detail')}
+                className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                  activeJsTab === 'detail'
+                    ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                }`}
+              >
+                3. blog-detail.shtml / blog-detail.html (Article Page)
+              </button>
+              <button
+                onClick={() => setActiveJsTab('iis')}
+                className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                  activeJsTab === 'iis'
+                    ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                }`}
+              >
+                4. web.config (IIS Rewrite)
+              </button>
+              <button
+                onClick={() => setActiveJsTab('htaccess')}
+                className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                  activeJsTab === 'htaccess'
+                    ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                }`}
+              >
+                5. .htaccess (Apache Rewrite)
+              </button>
+            </div>
+          )}
+
+          {activeStack === 'nextjs' && (
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-2.5 text-xs">
+              <span className="text-slate-400 font-semibold mr-1">Select File:</span>
+              <button
+                onClick={() => setActiveNextTab('list')}
+                className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                  activeNextTab === 'list'
+                    ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                }`}
+              >
+                app/blog/page.tsx
+              </button>
+              <button
+                onClick={() => setActiveNextTab('detail')}
+                className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                  activeNextTab === 'detail'
+                    ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                }`}
+              >
+                app/blog/[slug]/page.tsx
+              </button>
+              <button
+                onClick={() => setActiveNextTab('webhook')}
+                className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                  activeNextTab === 'webhook'
+                    ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                }`}
+              >
+                app/api/revalidate/route.ts
+              </button>
+              <button
+                onClick={() => setActiveNextTab('nextconfig')}
+                className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                  activeNextTab === 'nextconfig'
+                    ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                }`}
+              >
+                next.config.js
+              </button>
+            </div>
+          )}
+
+          {activeStack === 'csharp' && (
+            <div className="space-y-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  <span className="text-slate-400 font-semibold mr-1">Select File:</span>
+                  <button
+                    onClick={() => setActiveCSharpTab('webconfig')}
+                    className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                      activeCSharpTab === 'webconfig'
+                        ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                    }`}
+                  >
+                    1. Web.config (AES Encrypted Token)
+                  </button>
+                  <button
+                    onClick={() => setActiveCSharpTab('list')}
+                    className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                      activeCSharpTab === 'list'
+                        ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                    }`}
+                  >
+                    2. blog.aspx.cs (Server Decryptor)
+                  </button>
+                  <button
+                    onClick={() => setActiveCSharpTab('detail')}
+                    className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                      activeCSharpTab === 'detail'
+                        ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                    }`}
+                  >
+                    3. blog-detail.aspx.cs (Article Detail)
+                  </button>
+                  <button
+                    onClick={() => setActiveCSharpTab('aspx')}
+                    className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                      activeCSharpTab === 'aspx'
+                        ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                    }`}
+                  >
+                    4. blog.aspx (Zero-Key HTML Markup)
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => {
+                    downloadFile(csharpWebConfigCode, 'Web.config', 'application/xml');
+                    setTimeout(() => downloadFile(csharpListCode, 'blog.aspx.cs'), 200);
+                    setTimeout(() => downloadFile(csharpDetailCode, 'blog-detail.aspx.cs'), 400);
+                    setTimeout(() => downloadFile(csharpAspxCode, 'blog.aspx', 'text/html'), 600);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                  title="Download all 4 ASP.NET C# integration files at once"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download C# Pack (4 Files)</span>
+                </button>
+              </div>
+
+              {/* Zero-Leak Security Architecture Banner */}
+              <div className="flex items-start gap-2.5 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300 text-xs">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <div className="font-semibold flex items-center gap-1.5">
+                    <span>100% Zero-Leak Architecture: Plaintext API Key Never Exposed in Frontend</span>
+                    <span className="px-1.5 py-0.2 bg-emerald-100 dark:bg-emerald-900/60 rounded text-[10px] font-mono uppercase font-bold text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-700">AES-128 Active</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed opacity-90">
+                    Your <code>Web.config</code> holds an AES-128-CBC cipher (<code>{encryptedCmsToken ? `${encryptedCmsToken.slice(0, 24)}...` : 'Computing...'}</code>). The C# code-behind decrypts it directly in server RAM during page execution, and serves pure JSON via <code>&lt;%= BlogsJson %&gt;</code>. Inspecting HTML source code (<code>Ctrl+U</code>) reveals <strong>zero API keys and zero tokens</strong>.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeStack === 'react' && (
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-2.5 text-xs">
+              <span className="text-slate-400 font-semibold mr-1">Select File:</span>
+              <button
+                onClick={() => setActiveReactTab('hook')}
+                className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                  activeReactTab === 'hook'
+                    ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                }`}
+              >
+                src/hooks/useBlogs.ts
+              </button>
+              <button
+                onClick={() => setActiveReactTab('detail')}
+                className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                  activeReactTab === 'detail'
+                    ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                }`}
+              >
+                src/pages/BlogDetailPage.tsx
+              </button>
+            </div>
+          )}
+
+          {/* ── ENHANCED CODE VIEWER WITH LINE NUMBERS, SEARCH, AND STICKY TOOLBAR ── */}
+          <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-[#0f1117] text-slate-200 font-mono text-xs shadow-md">
+            {/* Sticky Editor Header Toolbar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-[#171b26] border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
+                <span className="text-slate-300 text-xs ml-2 font-mono font-medium">
+                  {currentDisplayedFilename}
+                </span>
+                <span className="text-[11px] text-slate-500 font-mono">
+                  ({codeLines.length} lines)
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Search Input inside Code */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input
+                    type="text"
+                    value={codeSearchQuery}
+                    onChange={(e) => setCodeSearchQuery(e.target.value)}
+                    placeholder="Find in code..."
+                    className="pl-8 pr-6 py-1 bg-slate-900 border border-slate-700 rounded text-slate-200 text-[11px] font-mono focus:outline-none focus:border-indigo-500 w-36 sm:w-48 placeholder:text-slate-500"
+                  />
+                  {codeSearchQuery && (
+                    <button
+                      onClick={() => setCodeSearchQuery('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-xs cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                {matchingLineIndices !== null && (
+                  <span className="text-[10px] text-indigo-400 font-mono bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-900">
+                    {matchingLineIndices.length} {matchingLineIndices.length === 1 ? 'match' : 'matches'}
+                  </span>
+                )}
+
+                {/* Download Button */}
+                <button
+                  onClick={() => downloadFile(currentDisplayedCode, currentDisplayedFilename)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-sans font-medium transition-colors cursor-pointer border border-slate-700"
+                  title={`Download ${currentDisplayedFilename}`}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download</span>
+                </button>
+
+                {/* Copy Snippet Button */}
+                <button
+                  onClick={() => copyToClipboard(currentDisplayedCode, 'tab-code')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-sans font-semibold transition-colors cursor-pointer shadow-xs"
+                  title="Copy snippet to clipboard"
+                >
+                  {copiedKey === 'tab-code' ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedKey === 'tab-code' ? 'Copied to Clipboard!' : 'Copy Code'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable Code Viewport with Sticky Line Numbers */}
+            <div className="flex font-mono text-[11.5px] leading-relaxed max-h-[460px] overflow-y-auto overflow-x-auto bg-[#0a0c10]">
+              {/* Line numbers gutter */}
+              <div className="select-none px-3 py-3 text-slate-600 border-r border-slate-800 text-right font-mono text-[11px] bg-[#0d0f15] shrink-0 sticky left-0 z-10">
+                {codeLines.map((_, i) => {
+                  const isMatch = matchingLineIndices && matchingLineIndices.includes(i);
+                  return (
+                    <div 
+                      key={i} 
+                      className={`leading-relaxed px-1 ${isMatch ? 'text-indigo-400 font-bold bg-indigo-950/60' : ''}`}
+                    >
+                      {i + 1}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Code lines */}
+              <pre className="p-3 pl-4 flex-1 text-slate-200 leading-relaxed font-mono">
+                {codeLines.map((line, i) => {
+                  const isMatch = matchingLineIndices && matchingLineIndices.includes(i);
+                  return (
+                    <div 
+                      key={i} 
+                      className={`whitespace-pre leading-relaxed px-1 rounded-xs ${
+                        isMatch ? 'bg-indigo-950/70 text-indigo-200 font-semibold' : ''
+                      }`}
+                    >
+                      {line || ' '}
+                    </div>
+                  );
+                })}
+              </pre>
+            </div>
+          </div>
+
+          {/* Stepper Navigation Buttons */}
+          {activeStep === 2 && (
+            <div className="pt-2 flex items-center justify-between">
+              <button
+                onClick={() => setActiveStep(1)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Previous: Credentials</span>
+              </button>
+              <button
+                onClick={() => setActiveStep(3)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              >
+                <span>Next Stage: Configure URL Rewrites</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── STEP 3: SERVER ROUTING & REWRITE BLUEPRINTS ── */}
+      {(activeStep === 'all' || activeStep === 3) && (
+        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold font-mono">3</span>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Web Server URL Rewrites (Prevent 404 on Blog Links)
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                When users click clean links like <code className="text-indigo-600 dark:text-indigo-400 font-mono font-semibold">/blog/post-slug</code>, static hosts look for a directory named <code className="font-mono">/blog/post-slug/index.html</code> which triggers a 404. Configure your web server using the rules below:
+              </p>
+            </div>
+            <button
+              onClick={() => jumpToFaq(2)}
+              className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1 shrink-0"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+              <span>Why do blog links 404?</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            {/* IIS web.config */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-900/40 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <FileCode2 className="w-4 h-4 text-blue-500" />
+                  Microsoft IIS (web.config)
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => downloadFile(iisRewriteCode, 'web.config', 'application/xml')}
+                    className="text-[11px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold cursor-pointer flex items-center gap-1"
+                  >
+                    <Download className="w-3 h-3" />
+                    <span>Download</span>
+                  </button>
+                  <button
+                    onClick={() => copyToClipboard(iisRewriteCode, 'copy-iis')}
+                    className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    {copiedKey === 'copy-iis' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedKey === 'copy-iis' ? 'Copied' : 'Copy'}</span>
+                  </button>
+                </div>
+              </div>
+              <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
+                Place in the root directory of your IIS website. Requires <strong>IIS URL Rewrite Module</strong>.
+              </p>
+              <pre className="p-3 bg-slate-900 text-slate-200 rounded-lg text-[11px] overflow-x-auto max-h-36 font-mono leading-relaxed">
+                {`<rewrite>
+  <rules>
+    <rule name="BlogDetail" stopProcessing="true">
+      <match url="^blog/([a-zA-Z0-9\\-_]+)/?$" />
+      <action type="Rewrite" url="blog-detail.shtml?slug={R:1}" />
+    </rule>
+  </rules>
+</rewrite>`}
+              </pre>
+            </div>
+
+            {/* Apache .htaccess */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-900/40 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <FileCode2 className="w-4 h-4 text-amber-500" />
+                  Apache HTTP Server (.htaccess)
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => downloadFile(htaccessCode, '.htaccess', 'text/plain')}
+                    className="text-[11px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold cursor-pointer flex items-center gap-1"
+                  >
+                    <Download className="w-3 h-3" />
+                    <span>Download</span>
+                  </button>
+                  <button
+                    onClick={() => copyToClipboard(htaccessCode, 'copy-apache')}
+                    className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    {copiedKey === 'copy-apache' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedKey === 'copy-apache' ? 'Copied' : 'Copy'}</span>
+                  </button>
+                </div>
+              </div>
+              <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
+                Place in <code className="font-mono">public_html</code> or website root directory. Requires <strong>mod_rewrite</strong>.
+              </p>
+              <pre className="p-3 bg-slate-900 text-slate-200 rounded-lg text-[11px] overflow-x-auto max-h-36 font-mono leading-relaxed">
+                {`RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`}
+              </pre>
+            </div>
+          </div>
+
+          {/* Zero-Server Fallback Notice */}
+          <div className="p-3.5 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/60 rounded-xl text-xs text-blue-900 dark:text-blue-300 leading-relaxed">
+            <strong>Zero Server Module Fallback:</strong> If your web hosting environment cannot install URL rewrite modules, modify the link href in <code className="font-mono font-bold">cms-client.js</code> to <code className="font-mono">/blog-detail.shtml?slug=&#123;slug&#125;</code>. The client script automatically supports query parameter slugs out of the box!
+          </div>
+
+          {/* Stepper Navigation Buttons */}
+          {activeStep === 3 && (
+            <div className="pt-2 flex items-center justify-between">
+              <button
+                onClick={() => setActiveStep(2)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Previous: Install Client</span>
+              </button>
+              <button
+                onClick={() => setActiveStep(4)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              >
+                <span>Next Stage: Verify Integration</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── STEP 4: LIVE API ENDPOINT TESTER & VERIFICATION ── */}
+      {(activeStep === 'all' || activeStep === 4) && (
+        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold font-mono">4</span>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Live API Endpoint Tester &amp; Latency Verification
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Execute live HTTP calls against production database to verify CORS origin whitelisting, latency, and data schema.
+              </p>
+            </div>
+
             <button
               onClick={runLiveTest}
               disabled={isTesting}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
-              title="Test connection immediately and view response"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50 shrink-0"
             >
-              <RefreshCw className={`w-3 h-3 ${isTesting ? 'animate-spin' : ''}`} />
-              <span>{isTesting ? 'Testing...' : 'Execute Ping'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsConsoleOpen(!isConsoleOpen)}
-              className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              title={isConsoleOpen ? 'Collapse console' : 'Expand console'}
-            >
-              {isConsoleOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              <RefreshCw className={`w-3.5 h-3.5 ${isTesting ? 'animate-spin' : ''}`} />
+              <span>{isTesting ? 'Executing Ping...' : 'Execute API Ping'}</span>
             </button>
           </div>
-        </div>
 
-        {/* Collapsible Body Content */}
-        {isConsoleOpen && (
-          <div className="p-5 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-4 bg-slate-50/30 dark:bg-slate-900/20">
-            {/* Console Controls */}
+          {/* 4-Item Live Status & Diagnostic Metric Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            {/* 1. HTTP Status */}
+            <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">HTTP Status</span>
+              {testStatus !== null ? (
+                <span className={`inline-flex items-center gap-1.5 font-bold font-mono text-xs ${
+                  testStatus === 200 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                }`}>
+                  {testStatus === 200 ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                  <span>{testStatus === 200 ? '200 OK' : `HTTP ${testStatus}`}</span>
+                </span>
+              ) : (
+                <span className="text-slate-500 font-mono text-xs">Pending Test</span>
+              )}
+            </div>
+
+            {/* 2. Latency */}
+            <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Response Time</span>
+              <span className="inline-flex items-center gap-1.5 font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+                <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                <span>{testLatency !== null ? `${testLatency} ms` : '— ms'}</span>
+                {testLatency !== null && (
+                  <span className={`text-[10px] font-sans font-medium ml-1 ${testLatency < 300 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-500'}`}>
+                    ({testLatency < 300 ? 'Fast' : 'Moderate'})
+                  </span>
+                )}
+              </span>
+            </div>
+
+            {/* 3. API & DB Health */}
+            <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">API &amp; DB Health</span>
+              <span className="inline-flex items-center gap-1.5 font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+                <span className={`w-2 h-2 rounded-full ${testStatus === 200 ? 'bg-emerald-500' : (testStatus ? 'bg-rose-500' : 'bg-slate-400')}`} />
+                <span>{testStatus === 200 ? 'Operational' : (testStatus ? 'Check Error' : 'Ready')}</span>
+              </span>
+            </div>
+
+            {/* 4. Last Checked */}
+            <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Last Verified</span>
+              <span className="font-mono text-xs text-slate-700 dark:text-slate-300">
+                {lastTestedTime || 'Never'}
+              </span>
+            </div>
+          </div>
+
+          {/* Tester Controls Bar */}
+          <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/20 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
               <div>
                 <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">Target Endpoint</label>
                 <select
                   value={testEndpoint}
                   onChange={(e: any) => setTestEndpoint(e.target.value)}
-                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none"
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                 >
                   <option value="blogs">GET /v1/blogs (Paginated Listing)</option>
-                  <option value="detail">GET /v1/blogs/:slug (Full Article Detail)</option>
-                  <option value="latest">GET /v1/blogs/latest (Latest 3 Posts)</option>
-                  <option value="popular">GET /v1/blogs/popular (Most Viewed Posts)</option>
+                  <option value="detail">GET /v1/blogs/:slug (Article Detail)</option>
+                  <option value="latest">GET /v1/blogs/latest (Latest Posts)</option>
+                  <option value="popular">GET /v1/blogs/popular (Popular Posts)</option>
                   <option value="categories">GET /v1/categories (Taxonomy Tree)</option>
                   <option value="health">GET /v1/health (System Health)</option>
                 </select>
@@ -1858,13 +2815,13 @@ Accept: application/json
                   type="text"
                   readOnly
                   value={websiteId}
-                  className="w-full bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-600 dark:text-slate-400 font-mono text-xs cursor-not-allowed"
+                  className="w-full bg-slate-100 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-600 dark:text-slate-400 font-mono text-xs cursor-not-allowed"
                 />
               </div>
 
               <div>
                 <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">
-                  {testEndpoint === 'detail' ? 'Select Published Blog Slug' : 'Options'}
+                  {testEndpoint === 'detail' ? 'Select Published Blog Slug' : 'Edge Cache Control'}
                 </label>
                 {testEndpoint === 'detail' ? (
                   <div className="space-y-1">
@@ -1872,7 +2829,7 @@ Accept: application/json
                       <select
                         value={testSlug}
                         onChange={(e) => setTestSlug(e.target.value)}
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none truncate"
+                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 truncate"
                       >
                         {publishedBlogs.map((b) => {
                           const lang = activeSite.defaultLanguage || 'en';
@@ -1890,7 +2847,7 @@ Accept: application/json
                         value={testSlug}
                         onChange={(e) => setTestSlug(e.target.value)}
                         placeholder="enter-custom-slug"
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none"
+                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none"
                       />
                     )}
                   </div>
@@ -1902,596 +2859,300 @@ Accept: application/json
                       onChange={(e) => setBypassCacheTest(e.target.checked)}
                       className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                     />
-                    <span>Bypass Cache (<code className="text-indigo-600 font-mono">&amp;fresh=1</code>)</span>
+                    <span>Bypass Edge Cache (<code className="text-indigo-600 font-mono">&amp;fresh=1</code>)</span>
                   </label>
                 )}
               </div>
             </div>
+          </div>
 
-            {/* Gotcha Callout Banner */}
-            <div className="p-3.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2.5">
-              <HelpCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
-              <div className="leading-relaxed">
-                <strong>Important Developer Gotcha (Browser Address Bar 401):</strong> If you copy the API URL and paste it directly into your Chrome/Edge address bar, you will receive <code className="font-mono font-bold">401 Direct browser access denied</code> because browser address bars do not send an <code className="font-mono">Origin</code> header.
-                When your frontend JavaScript runs on <strong>{siteDomain}</strong> (or <strong>localhost</strong>), the browser automatically supplies the Origin, connecting instantly with <strong>zero API keys</strong>.
+          {/* Failure Alert & Retry Callout */}
+          {testError && (
+            <div className="p-4 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/70 dark:bg-rose-950/30 text-rose-800 dark:text-rose-300 text-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 font-bold">
+                  <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                  <span>Connection Diagnostic Error (HTTP {testStatus || 500})</span>
+                </div>
+                <button
+                  onClick={runLiveTest}
+                  disabled={isTesting}
+                  className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md text-[11px] font-semibold cursor-pointer transition"
+                >
+                  Retry Ping
+                </button>
+              </div>
+              <p className="leading-relaxed font-mono text-[11.5px]">
+                {testError}
+              </p>
+              <div className="text-[11px] text-rose-700 dark:text-rose-400">
+                Tip: Direct browser address bar visits without Origin headers are intentionally blocked with 401. Make sure requests originate from your registered frontend domain ({siteDomain}) or localhost.
               </div>
             </div>
+          )}
 
-            {/* Live Response Box */}
-            {(testResult || testError) && (
-              <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-[#0f1117] text-slate-200 text-xs font-mono">
-                <div className="px-3.5 py-2 bg-[#171b26] border-b border-slate-800 flex items-center justify-between">
-                  <span className="text-slate-400 text-[11px]">Live Database Response Output</span>
-                  <button
-                    onClick={() => copyToClipboard(JSON.stringify(testResult || testError, null, 2), 'console-json')}
-                    className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
-                  >
-                    {copiedKey === 'console-json' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                    <span>{copiedKey === 'console-json' ? 'Copied' : 'Copy JSON'}</span>
-                  </button>
-                </div>
-                <pre className="p-3.5 max-h-56 overflow-y-auto overflow-x-auto text-[11.5px] leading-relaxed text-emerald-300">
-                  {testResult ? JSON.stringify(testResult, null, 2) : testError}
-                </pre>
+          {/* Live Response Payload Box */}
+          {(testResult || testError) && (
+            <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-[#0f1117] text-slate-200 text-xs font-mono shadow-md">
+              <div className="px-3.5 py-2 bg-[#171b26] border-b border-slate-800 flex items-center justify-between">
+                <span className="text-slate-400 text-[11px] flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full ${testStatus === 200 ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                  <span>Live Database Response Payload ({testLatency}ms)</span>
+                </span>
+                <button
+                  onClick={() => copyToClipboard(JSON.stringify(testResult || testError, null, 2), 'console-json')}
+                  className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  {copiedKey === 'console-json' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedKey === 'console-json' ? 'Copied' : 'Copy JSON'}</span>
+                </button>
               </div>
-            )}
+              <pre className="p-3.5 max-h-56 overflow-y-auto overflow-x-auto text-[11.5px] leading-relaxed text-emerald-300">
+                {testResult ? JSON.stringify(testResult, null, 2) : testError}
+              </pre>
+            </div>
+          )}
+
+          {/* Stepper Navigation Buttons */}
+          {activeStep === 4 && (
+            <div className="pt-2 flex items-center justify-between">
+              <button
+                onClick={() => setActiveStep(3)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Previous: Configure URLs</span>
+              </button>
+              <button
+                onClick={() => setActiveStep('all')}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              >
+                <span>View Full Workspace Overview</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── 5. COLLAPSIBLE JSON SCHEMA DICTIONARY ── */}
+      <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs transition-all overflow-hidden">
+        <button
+          onClick={() => setIsSchemaOpen(!isSchemaOpen)}
+          className="w-full p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50/70 dark:hover:bg-slate-900/40 transition-colors select-none text-left"
+        >
+          <div className="flex items-center gap-2.5">
+            <BookOpen className="w-4 h-4 text-indigo-500" />
+            <div>
+              <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                API Response Schema Reference (JSON Dictionary)
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Standard fields returned for articles across all /v1/blogs endpoints.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+              {isSchemaOpen ? 'Collapse' : 'Expand Schema'}
+            </span>
+            {isSchemaOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+          </div>
+        </button>
+
+        {isSchemaOpen && (
+          <div className="p-4 pt-0 border-t border-slate-100 dark:border-slate-800 space-y-3">
+            <div className="overflow-x-auto pt-3">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400">
+                    <th className="py-2 px-3 font-semibold">Field</th>
+                    <th className="py-2 px-3 font-semibold">Type</th>
+                    <th className="py-2 px-3 font-semibold">Description</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-mono text-[11.5px]">
+                  <tr>
+                    <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">slug</td>
+                    <td className="py-2 px-3 text-slate-500">string</td>
+                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Unique URL path identifier (e.g. <code>/blog/cloud-benefits</code>)</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">title</td>
+                    <td className="py-2 px-3 text-slate-500">string</td>
+                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Main headline title</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">excerpt</td>
+                    <td className="py-2 px-3 text-slate-500">string</td>
+                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Short summary for post cards and meta description</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">content</td>
+                    <td className="py-2 px-3 text-slate-500">HTML string</td>
+                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Full sanitized blog article body (detail endpoint)</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">featuredImage</td>
+                    <td className="py-2 px-3 text-slate-500">URL string</td>
+                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">CDN cover image URL. Fallback provided automatically</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">publishedAt</td>
+                    <td className="py-2 px-3 text-slate-500">ISO string</td>
+                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Publication timestamp for sorting &amp; date badge</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">readTimeMinutes</td>
+                    <td className="py-2 px-3 text-slate-500">number</td>
+                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Estimated reading time in minutes</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">authorName</td>
+                    <td className="py-2 px-3 text-slate-500">string</td>
+                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Author display name</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">seo</td>
+                    <td className="py-2 px-3 text-slate-500">object</td>
+                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300"><code>metaTitle</code>, <code>metaDescription</code>, <code>canonicalUrl</code>, <code>ogImage</code></td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">schemaJsonLd</td>
+                    <td className="py-2 px-3 text-slate-500">object</td>
+                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Google Schema.org structured data ready for injection</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
 
-      {/* ── STEP 2: MULTI-FRAMEWORK PRODUCTION CODE BLUEPRINTS ── */}
+      {/* ── 6. SEARCHABLE & CONTEXTUAL DEVELOPER FAQS ── */}
       <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Code className="w-4 h-4 text-indigo-500" />
-              <span>Step 2: Copy Ready-to-Use Frontend Code (Pre-filled for {activeSite?.name})</span>
+              <HelpCircle className="w-4 h-4 text-indigo-500" />
+              <span>Developer Troubleshooting &amp; FAQ</span>
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Complete, production-tested templates with responsive CSS, skeleton loaders, error boundaries, and URL rewrites.
+              Quick solutions for common integration roadblocks (HTTP 401, 404, CORS, cache invalidation).
             </p>
           </div>
-
-          <button
-            onClick={() => downloadFile(currentDisplayedCode, currentDisplayedFilename)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Download {currentDisplayedFilename}</span>
-          </button>
+          <span className="text-[11px] font-mono text-slate-400">
+            {filteredFaqs.length} of {faqItems.length} topics
+          </span>
         </div>
 
-        {/* Stack Tab Buttons */}
-        <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto scrollbar-none">
-          <button
-            onClick={() => setActiveStack('js')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-              activeStack === 'js'
-                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'
-            }`}
-          >
-            <Zap className="w-3.5 h-3.5" />
-            <span>SHTML / HTML / JavaScript</span>
-          </button>
-          <button
-            onClick={() => setActiveStack('nextjs')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-              activeStack === 'nextjs'
-                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'
-            }`}
-          >
-            <FileCode2 className="w-3.5 h-3.5" />
-            <span>Next.js / TypeScript</span>
-          </button>
-          <button
-            onClick={() => setActiveStack('csharp')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-              activeStack === 'csharp'
-                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'
-            }`}
-          >
-            <Server className="w-3.5 h-3.5" />
-            <span>ASP.NET / C# (Zero-Leak)</span>
-          </button>
-          <button
-            onClick={() => setActiveStack('react')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-              activeStack === 'react'
-                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>React / Vue (SPA)</span>
-          </button>
-          <button
-            onClick={() => setActiveStack('widget')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-              activeStack === 'widget'
-                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'
-            }`}
-          >
-            <Globe className="w-3.5 h-3.5" />
-            <span>HTML Embed Widget</span>
-          </button>
-          <button
-            onClick={() => setActiveStack('curl')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-              activeStack === 'curl'
-                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'
-            }`}
-          >
-            <Terminal className="w-3.5 h-3.5" />
-            <span>cURL &amp; Postman API</span>
-          </button>
-        </div>
-
-        {/* Sub-File Selector Bar */}
-        {activeStack === 'js' && (
-          <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-2.5 text-xs">
-            <span className="text-slate-400 font-semibold mr-1">Select File:</span>
-            <button
-              onClick={() => setActiveJsTab('client')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
-                activeJsTab === 'client'
-                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-              }`}
-            >
-              1. assets/js/cms-client.js
-            </button>
-            <button
-              onClick={() => setActiveJsTab('list')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
-                activeJsTab === 'list'
-                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-              }`}
-            >
-              2. blog.shtml / blog.html (List Page)
-            </button>
-            <button
-              onClick={() => setActiveJsTab('detail')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
-                activeJsTab === 'detail'
-                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-              }`}
-            >
-              3. blog-detail.shtml / blog-detail.html (Article Page)
-            </button>
-            <button
-              onClick={() => setActiveJsTab('iis')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
-                activeJsTab === 'iis'
-                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-              }`}
-            >
-              4. web.config (IIS Rewrite)
-            </button>
-            <button
-              onClick={() => setActiveJsTab('htaccess')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
-                activeJsTab === 'htaccess'
-                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-              }`}
-            >
-              5. .htaccess (Apache Rewrite)
-            </button>
-          </div>
-        )}
-
-        {activeStack === 'nextjs' && (
-          <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-2.5 text-xs">
-            <span className="text-slate-400 font-semibold mr-1">Select File:</span>
-            <button
-              onClick={() => setActiveNextTab('list')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
-                activeNextTab === 'list'
-                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-              }`}
-            >
-              app/blog/page.tsx
-            </button>
-            <button
-              onClick={() => setActiveNextTab('detail')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
-                activeNextTab === 'detail'
-                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-              }`}
-            >
-              app/blog/[slug]/page.tsx
-            </button>
-            <button
-              onClick={() => setActiveNextTab('webhook')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
-                activeNextTab === 'webhook'
-                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-              }`}
-            >
-              app/api/revalidate/route.ts
-            </button>
-            <button
-              onClick={() => setActiveNextTab('nextconfig')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
-                activeNextTab === 'nextconfig'
-                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-              }`}
-            >
-              next.config.js
-            </button>
-          </div>
-        )}
-
-        {activeStack === 'csharp' && (
-          <div className="space-y-3 border-b border-slate-200 dark:border-slate-800 pb-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                <span className="text-slate-400 font-semibold mr-1">Select File:</span>
-                <button
-                  onClick={() => setActiveCSharpTab('webconfig')}
-                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
-                    activeCSharpTab === 'webconfig'
-                      ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                  }`}
-                >
-                  1. Web.config (AES Encrypted Token)
-                </button>
-                <button
-                  onClick={() => setActiveCSharpTab('list')}
-                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
-                    activeCSharpTab === 'list'
-                      ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                  }`}
-                >
-                  2. blog.aspx.cs (Server Decryptor)
-                </button>
-                <button
-                  onClick={() => setActiveCSharpTab('detail')}
-                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
-                    activeCSharpTab === 'detail'
-                      ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                  }`}
-                >
-                  3. blog-detail.aspx.cs (Article Detail)
-                </button>
-                <button
-                  onClick={() => setActiveCSharpTab('aspx')}
-                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
-                    activeCSharpTab === 'aspx'
-                      ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                  }`}
-                >
-                  4. blog.aspx (Zero-Key HTML Markup)
-                </button>
-              </div>
-
+        {/* Search & Category Filter Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100 dark:border-slate-800">
+          {/* Search Input */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={faqSearchQuery}
+              onChange={(e) => setFaqSearchQuery(e.target.value)}
+              placeholder="Search FAQs (e.g. 401, 404, CORS, cache)..."
+              className="w-full pl-8 pr-7 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            />
+            {faqSearchQuery && (
               <button
-                onClick={() => {
-                  downloadFile(csharpWebConfigCode, 'Web.config', 'application/xml');
-                  setTimeout(() => downloadFile(csharpListCode, 'blog.aspx.cs'), 200);
-                  setTimeout(() => downloadFile(csharpDetailCode, 'blog-detail.aspx.cs'), 400);
-                  setTimeout(() => downloadFile(csharpAspxCode, 'blog.aspx', 'text/html'), 600);
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-                title="Download all 4 ASP.NET C# integration files at once"
+                onClick={() => setFaqSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs cursor-pointer"
               >
-                <Download className="w-3.5 h-3.5" />
-                <span>Download C# Zero-Leak Pack (4 Files)</span>
+                ✕
               </button>
-            </div>
-
-            {/* Zero-Leak Security Architecture Banner */}
-            <div className="flex items-start gap-2.5 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300 text-xs">
-              <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <div className="font-semibold flex items-center gap-1.5">
-                  <span>100% Zero-Leak Architecture: Plaintext API Key Never Exposed in Frontend</span>
-                  <span className="px-1.5 py-0.2 bg-emerald-100 dark:bg-emerald-900/60 rounded text-[10px] font-mono uppercase font-bold text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-700">AES-128 Active</span>
-                </div>
-                <p className="text-[11px] leading-relaxed opacity-90">
-                  Your <code>Web.config</code> holds an AES-128-CBC cipher (<code>{encryptedCmsToken ? `${encryptedCmsToken.slice(0, 24)}...` : 'Computing...'}</code>). The C# code-behind decrypts it directly in server RAM during page execution, and serves pure JSON via <code>&lt;%= BlogsJson %&gt;</code>. Inspecting HTML source code (<code>Ctrl+U</code>) or DevTools Network tabs reveals <strong>zero API keys and zero tokens</strong>.
-                </p>
-              </div>
-            </div>
+            )}
           </div>
-        )}
 
-        {activeStack === 'react' && (
-          <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-2.5 text-xs">
-            <span className="text-slate-400 font-semibold mr-1">Select File:</span>
+          {/* Category Chips */}
+          <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
             <button
-              onClick={() => setActiveReactTab('hook')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
-                activeReactTab === 'hook'
-                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+              onClick={() => setFaqCategoryFilter('all')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition cursor-pointer ${
+                faqCategoryFilter === 'all'
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              src/hooks/useBlogs.ts
+              All
             </button>
             <button
-              onClick={() => setActiveReactTab('detail')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
-                activeReactTab === 'detail'
-                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+              onClick={() => setFaqCategoryFilter('401')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition cursor-pointer ${
+                faqCategoryFilter === '401'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              src/pages/BlogDetailPage.tsx
+              401 Auth
+            </button>
+            <button
+              onClick={() => setFaqCategoryFilter('404')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition cursor-pointer ${
+                faqCategoryFilter === '404'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              404 Routing
+            </button>
+            <button
+              onClick={() => setFaqCategoryFilter('cors')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition cursor-pointer ${
+                faqCategoryFilter === 'cors'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Localhost / CORS
+            </button>
+            <button
+              onClick={() => setFaqCategoryFilter('cache')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition cursor-pointer ${
+                faqCategoryFilter === 'cache'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Edge Cache
             </button>
           </div>
-        )}
-
-        {/* Code Container */}
-        <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-[#0f1117] text-slate-200 font-mono text-xs">
-          <div className="px-4 py-2.5 bg-[#171b26] border-b border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
-              <span className="text-slate-400 text-xs ml-2 font-sans font-medium">
-                {currentDisplayedFilename}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => downloadFile(currentDisplayedCode, currentDisplayedFilename)}
-                className="inline-flex items-center gap-1 text-[11px] font-sans font-medium text-slate-400 hover:text-white transition-colors cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Save</span>
-              </button>
-              <button
-                onClick={() => copyToClipboard(currentDisplayedCode, 'tab-code')}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-white text-xs font-sans font-semibold transition-colors cursor-pointer border border-slate-700"
-              >
-                {copiedKey === 'tab-code' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedKey === 'tab-code' ? 'Copied to Clipboard!' : 'Copy Snippet'}</span>
-              </button>
-            </div>
-          </div>
-          <div className="p-4 max-h-[500px] overflow-y-auto overflow-x-auto text-[12px] leading-relaxed">
-            <pre>{currentDisplayedCode}</pre>
-          </div>
-        </div>
-      </div>
-
-      {/* ── STEP 3: SERVER ROUTING & REWRITE BLUEPRINTS ── */}
-      <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
-        <div>
-          <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Server className="w-4 h-4 text-indigo-500" />
-            <span>Step 3: Web Server URL Rewrites (Fixing the 404 Blog Link Error)</span>
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            When users click a link like <code className="text-indigo-600 font-mono">/blog/top-erp-features</code>, static hosts look for a directory named <code className="font-mono">/blog/top-erp-features/index.html</code> which causes a 404. Configure your web server with the rules below:
-          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-          <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-900/40 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                <FileCode2 className="w-4 h-4 text-blue-500" />
-                Microsoft IIS (web.config)
-              </span>
-              <button
-                onClick={() => copyToClipboard(iisRewriteCode, 'copy-iis')}
-                className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer flex items-center gap-1"
-              >
-                {copiedKey === 'copy-iis' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                <span>{copiedKey === 'copy-iis' ? 'Copied' : 'Copy'}</span>
-              </button>
-            </div>
-            <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
-              Place in the root directory of your IIS website. Requires <strong>IIS URL Rewrite Module</strong>.
-            </p>
-            <pre className="p-2.5 bg-slate-900 text-slate-200 rounded-lg text-[11px] overflow-x-auto max-h-36">
-              {`<rewrite>
-  <rules>
-    <rule name="BlogDetail" stopProcessing="true">
-      <match url="^blog/([a-zA-Z0-9\-_]+)/?$" />
-      <action type="Rewrite" url="blog-detail.html?slug={R:1}" />
-    </rule>
-  </rules>
-</rewrite>`}
-            </pre>
-          </div>
-
-          <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-900/40 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                <FileCode2 className="w-4 h-4 text-amber-500" />
-                Apache HTTP Server (.htaccess)
-              </span>
-              <button
-                onClick={() => copyToClipboard(htaccessCode, 'copy-apache')}
-                className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer flex items-center gap-1"
-              >
-                {copiedKey === 'copy-apache' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                <span>{copiedKey === 'copy-apache' ? 'Copied' : 'Copy'}</span>
-              </button>
-            </div>
-            <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
-              Place in the public_html or root directory. Requires <strong>mod_rewrite</strong>.
-            </p>
-            <pre className="p-2.5 bg-slate-900 text-slate-200 rounded-lg text-[11px] overflow-x-auto max-h-36">
-              {`RewriteEngine On
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^blog/([a-zA-Z0-9\-_]+)/?$ blog-detail.html?slug=$1 [L,QSA]`}
-            </pre>
-          </div>
-        </div>
-
-        {/* Fallback Note */}
-        <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl text-xs text-blue-800 dark:text-blue-300">
-          <strong>Zero Server Configuration Fallback:</strong> If your web hosting cannot install rewrite modules, change the link href in <code className="font-mono">cms-client.js</code> to <code className="font-mono">/blog-detail.html?slug=&#123;slug&#125;</code>. The client script already supports query strings out of the box!
-        </div>
-      </div>
-
-      {/* ── STEP 4: JSON SCHEMA DICTIONARY ── */}
-      <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
-        <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-slate-500" />
-          <span>Step 4: Response Fields Reference (JSON Schema)</span>
-        </h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Standard fields returned for articles across all <code className="font-mono text-indigo-600 dark:text-indigo-400">/v1/blogs</code> endpoints:
-        </p>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400">
-                <th className="py-2 px-3 font-semibold">Field</th>
-                <th className="py-2 px-3 font-semibold">Type</th>
-                <th className="py-2 px-3 font-semibold">Description</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-mono text-[11.5px]">
-              <tr>
-                <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">slug</td>
-                <td className="py-2 px-3 text-slate-500">string</td>
-                <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Unique URL path identifier (e.g. <code>/blog/cloud-benefits</code>)</td>
-              </tr>
-              <tr>
-                <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">title</td>
-                <td className="py-2 px-3 text-slate-500">string</td>
-                <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Main headline title</td>
-              </tr>
-              <tr>
-                <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">excerpt</td>
-                <td className="py-2 px-3 text-slate-500">string</td>
-                <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Short summary for post cards and meta description</td>
-              </tr>
-              <tr>
-                <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">content</td>
-                <td className="py-2 px-3 text-slate-500">HTML string</td>
-                <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Full sanitized blog article body (detail endpoint)</td>
-              </tr>
-              <tr>
-                <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">featuredImage</td>
-                <td className="py-2 px-3 text-slate-500">URL string</td>
-                <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">CDN cover image URL. Fallback provided automatically</td>
-              </tr>
-              <tr>
-                <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">publishedAt</td>
-                <td className="py-2 px-3 text-slate-500">ISO string</td>
-                <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Publication timestamp for sorting &amp; date badge</td>
-              </tr>
-              <tr>
-                <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">readTimeMinutes</td>
-                <td className="py-2 px-3 text-slate-500">number</td>
-                <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Estimated reading time in minutes</td>
-              </tr>
-              <tr>
-                <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">authorName</td>
-                <td className="py-2 px-3 text-slate-500">string</td>
-                <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Author display name</td>
-              </tr>
-              <tr>
-                <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">seo</td>
-                <td className="py-2 px-3 text-slate-500">object</td>
-                <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300"><code>metaTitle</code>, <code>metaDescription</code>, <code>canonicalUrl</code>, <code>ogImage</code></td>
-              </tr>
-              <tr>
-                <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">schemaJsonLd</td>
-                <td className="py-2 px-3 text-slate-500">object</td>
-                <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Google Schema.org structured data ready for injection</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ── STEP 5: DEVELOPER TROUBLESHOOTING DOCTOR ── */}
-      <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
-        <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-slate-500" />
-          <span>Step 5: Frontend Developer Self-Diagnosis &amp; FAQ</span>
-        </h3>
-
+        {/* Dynamic FAQ Accordion List */}
         <div className="space-y-2 text-xs">
-          {/* FAQ 1 */}
-          <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
-            <button
-              onClick={() => setOpenFaq(openFaq === 1 ? null : 1)}
-              className="w-full p-3 text-left font-semibold text-slate-800 dark:text-slate-200 bg-slate-50/70 dark:bg-slate-900/40 flex items-center justify-between cursor-pointer"
-            >
-              <span>1. Why did I get a 401 error when testing the URL in Chrome's address bar?</span>
-              {openFaq === 1 ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-            </button>
-            {openFaq === 1 && (
-              <div className="p-3 text-slate-600 dark:text-slate-400 bg-white dark:bg-[#0f172a] border-t border-slate-200 dark:border-slate-800 leading-relaxed">
-                Direct browser address bar visits do not send an <code className="font-mono">Origin</code> or <code className="font-mono">Referer</code> header, so the security guard blocks them. In your web application code, the browser automatically sends the origin of your website (e.g. <code>{siteDomain}</code> or <code>localhost</code>), which allows public reads without requiring any API keys!
-              </div>
-            )}
-          </div>
-
-          {/* FAQ 2 */}
-          <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
-            <button
-              onClick={() => setOpenFaq(openFaq === 2 ? null : 2)}
-              className="w-full p-3 text-left font-semibold text-slate-800 dark:text-slate-200 bg-slate-50/70 dark:bg-slate-900/40 flex items-center justify-between cursor-pointer"
-            >
-              <span>2. Why does clicking a blog link give a 404 error on my static website?</span>
-              {openFaq === 2 ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-            </button>
-            {openFaq === 2 && (
-              <div className="p-3 text-slate-600 dark:text-slate-400 bg-white dark:bg-[#0f172a] border-t border-slate-200 dark:border-slate-800 leading-relaxed">
-                Your IIS or Apache server is attempting to locate a real directory matching the slug name. You must install the URL Rewrite rules provided in Step 3 above (<code className="font-mono">web.config</code> or <code className="font-mono">.htaccess</code>) so that clean URLs are internally rewritten to <code className="font-mono">blog-detail.html?slug=...</code>.
-              </div>
-            )}
-          </div>
-
-          {/* FAQ 3 */}
-          <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
-            <button
-              onClick={() => setOpenFaq(openFaq === 3 ? null : 3)}
-              className="w-full p-3 text-left font-semibold text-slate-800 dark:text-slate-200 bg-slate-50/70 dark:bg-slate-900/40 flex items-center justify-between cursor-pointer"
-            >
-              <span>3. Can I test on localhost before deploying to production?</span>
-              {openFaq === 3 ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-            </button>
-            {openFaq === 3 && (
-              <div className="p-3 text-slate-600 dark:text-slate-400 bg-white dark:bg-[#0f172a] border-t border-slate-200 dark:border-slate-800 leading-relaxed">
-                <strong>Yes, absolutely!</strong> <code className="font-mono">localhost</code>, <code className="font-mono">127.0.0.1</code>, <code className="font-mono">*.vercel.app</code>, and <code className="font-mono">*.netlify.app</code> are automatically whitelisted for local development. You do not need to alter your domain configuration while developing locally.
-              </div>
-            )}
-          </div>
-
-          {/* FAQ 4 */}
-          <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
-            <button
-              onClick={() => setOpenFaq(openFaq === 4 ? null : 4)}
-              className="w-full p-3 text-left font-semibold text-slate-800 dark:text-slate-200 bg-slate-50/70 dark:bg-slate-900/40 flex items-center justify-between cursor-pointer"
-            >
-              <span>4. How do I see new blog updates immediately without waiting for edge cache?</span>
-              {openFaq === 4 ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-            </button>
-            {openFaq === 4 && (
-              <div className="p-3 text-slate-600 dark:text-slate-400 bg-white dark:bg-[#0f172a] border-t border-slate-200 dark:border-slate-800 leading-relaxed">
-                Append <code className="font-mono text-indigo-600 dark:text-indigo-400">&amp;fresh=1</code> to your query URL (e.g. <code className="font-mono">/v1/blogs?website={websiteId}&amp;fresh=1</code>). This instructs the Redis cache to query live PostgreSQL state immediately.
-              </div>
-            )}
-          </div>
+          {filteredFaqs.length === 0 ? (
+            <div className="p-6 text-center text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+              No FAQs match your search &quot;{faqSearchQuery}&quot;. Try searching for <strong>401</strong>, <strong>404</strong>, <strong>CORS</strong>, or <strong>cache</strong>.
+            </div>
+          ) : (
+            filteredFaqs.map((item) => {
+              const isOpen = openFaq === item.id;
+              return (
+                <div
+                  key={item.id}
+                  id={`faq-item-${item.id}`}
+                  className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden transition-all"
+                >
+                  <button
+                    onClick={() => setOpenFaq(isOpen ? null : item.id)}
+                    className="w-full p-3.5 text-left font-semibold text-slate-800 dark:text-slate-200 bg-slate-50/70 dark:bg-slate-900/40 flex items-center justify-between cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-850 transition-colors"
+                  >
+                    <span className="pr-4">{item.question}</span>
+                    {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />}
+                  </button>
+                  {isOpen && (
+                    <div className="p-3.5 text-slate-600 dark:text-slate-400 bg-white dark:bg-[#0f172a] border-t border-slate-200 dark:border-slate-800 leading-relaxed space-y-2">
+                      <p>{item.answer}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
     </div>

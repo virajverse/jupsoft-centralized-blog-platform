@@ -7,6 +7,7 @@ import { useBlogStore } from '../../store/useBlogStore';
 import { useShallow } from 'zustand/react/shallow';
 import { canAccessModule, AppModule } from '../../utils/permissions';
 import { ShieldAlert } from 'lucide-react';
+import { apiClient } from '../../services/apiClient';
 
 const emptySubscribe = () => () => {};
 
