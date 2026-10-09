@@ -226,14 +226,19 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
     var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var timer = null;
 
+    var headers = {
+      'Accept': 'application/json',
+      'x-website-id': config.websiteId,
+      'x-cms-token': config.cmsToken
+    };
+    if (config.apiKey) {
+      headers['x-api-key'] = config.apiKey;
+    }
+
     var fetchPromise = fetch(url, {
       method: 'GET',
       mode: 'cors',
-      headers: {
-        'Accept': 'application/json',
-        'x-cms-token': config.cmsToken,
-        'x-website-id': config.websiteId
-      },
+      headers: headers,
       signal: controller ? controller.signal : undefined
     }).then(function (res) {
       return res.json().then(function (data) {
@@ -247,8 +252,9 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
         var responsePayload = {
           success: true,
           status: res.status,
-          data: data.data || data,
-          pagination: data.pagination || null
+          data: data.data !== undefined ? data.data : data,
+          meta: data.meta || data.pagination || null,
+          pagination: data.pagination || data.meta || null
         };
         // Store in session cache
         if (config.enableCache && typeof sessionStorage !== 'undefined') {
@@ -350,23 +356,44 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
       return request('/categories', { websiteId: config.websiteId });
     },
 
-    // 6. Optional Head SEO Tag Helper (pure <head> injection, no body UI)
+    // 6. Get Tag Taxonomy List
+    getTags: function () {
+      return request('/tags', { websiteId: config.websiteId });
+    },
+
+    // 7. Full-text Search Published Articles
+    search: function (query, options) {
+      options = options || {};
+      return request('/search', {
+        q: query || '',
+        limit: options.limit || 10,
+        lang: options.lang || undefined
+      });
+    },
+
+    // 8. Head SEO Tag Helper (pure <head> injection, no UI intrusion)
     applySeo: function (article) {
       if (!article || typeof document === 'undefined') return;
-      if (article.title) document.title = article.title;
-      if (article.excerpt) {
+      var title = (article.seo && article.seo.metaTitle) || article.title;
+      if (title) document.title = title;
+      var desc = (article.seo && article.seo.metaDescription) || article.excerpt;
+      if (desc) {
         var metaDesc = document.querySelector('meta[name="description"]');
         if (!metaDesc) {
           metaDesc = document.createElement('meta');
           metaDesc.setAttribute('name', 'description');
           document.head.appendChild(metaDesc);
         }
-        metaDesc.setAttribute('content', article.excerpt);
+        metaDesc.setAttribute('content', desc);
       }
-      if (article.schemaJsonLd) {
+      var schema = article.schemaJsonLd || (article.seo && article.seo.schemaJsonLd);
+      if (schema) {
+        var existingScript = document.getElementById('jupsoft-schema-ld');
+        if (existingScript) existingScript.remove();
         var script = document.createElement('script');
+        script.id = 'jupsoft-schema-ld';
         script.type = 'application/ld+json';
-        script.text = JSON.stringify(article.schemaJsonLd);
+        script.text = JSON.stringify(schema);
         document.head.appendChild(script);
       }
     }
@@ -466,6 +493,7 @@ interface BlogPost {
   excerpt: string;
   featuredImage?: string;
   publishedAt: string;
+  readTimeMinutes?: number;
   readingTimeMinutes?: number;
 }
 
@@ -488,7 +516,7 @@ async function getBlogs(): Promise<BlogPost[]> {
   }
 
   const json = await res.json();
-  return json.data || json;
+  return json.data || json || [];
 }
 
 export default async function BlogListPage() {
@@ -525,7 +553,9 @@ JUPSOFT_API_KEY="${apiKey}"
 JUPSOFT_API_URL="${apiBaseUrl}"
 
 # 2. Add app/blog/page.tsx into your Next.js App Router project
-# 3. Run: npm run dev`,
+# 3. For Single Article Detail (app/blog/[slug]/page.tsx):
+#    fetch(\`\${apiUrl}/blogs/\${params.slug}?website=\${websiteId}\`)
+# 4. Run: npm run dev`,
       },
       node: {
         id: 'node',
@@ -564,14 +594,18 @@ async function fetchCms(endpoint, params = {}) {
   return {
     success: true,
     data: json.data || json,
-    pagination: json.pagination || null
+    meta: json.meta || json.pagination || null,
+    pagination: json.pagination || json.meta || null
   };
 }
 
 module.exports = {
   getBlogs: (page = 1, limit = 10) => fetchCms('/blogs', { page, limit }),
   getBlogBySlug: (slug) => fetchCms(\`/blogs/\${encodeURIComponent(slug)}\`),
+  getLatest: (limit = 5) => fetchCms('/blogs/latest', { limit }),
+  getPopular: (limit = 5) => fetchCms('/blogs/popular', { limit }),
   getCategories: () => fetchCms('/categories', { websiteId: WEBSITE_ID }),
+  search: (query, limit = 10) => fetchCms('/search', { q: query, limit }),
 };`,
         quickUsageTitle: 'Express.js Usage Example:',
         quickUsageCode: `// In your Express server.js:
@@ -597,6 +631,8 @@ app.get('/api/articles', async (req, res) => {
         code: `package com.company.blog.service;
 
 import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -608,7 +644,6 @@ import java.time.Duration;
  */
 public class JupsoftCmsService {
 
-    // Standard Java uppercase environment variable conventions
     private static final String API_URL = System.getenv("JUPSOFT_API_URL") != null 
         ? System.getenv("JUPSOFT_API_URL") : "${apiBaseUrl}";
         
@@ -632,7 +667,7 @@ public class JupsoftCmsService {
      */
     public String getBlogs(int page, int limit) throws Exception {
         String endpoint = String.format("%s/blogs?website=%s&page=%d&limit=%d",
-            API_URL, WEBSITE_ID, page, limit);
+            API_URL, URLEncoder.encode(WEBSITE_ID, StandardCharsets.UTF_8), page, limit);
 
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(endpoint))
@@ -654,7 +689,51 @@ public class JupsoftCmsService {
      */
     public String getBlogBySlug(String slug) throws Exception {
         String endpoint = String.format("%s/blogs/%s?website=%s",
-            API_URL, slug, WEBSITE_ID);
+            API_URL, URLEncoder.encode(slug, StandardCharsets.UTF_8), URLEncoder.encode(WEBSITE_ID, StandardCharsets.UTF_8));
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(endpoint))
+            .header("Accept", "application/json")
+            .header("x-api-key", API_KEY)
+            .timeout(Duration.ofSeconds(10))
+            .GET()
+            .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("Jupsoft CMS API Error HTTP " + response.statusCode() + ": " + response.body());
+        }
+        return response.body();
+    }
+
+    /**
+     * Fetch categories taxonomy tree
+     */
+    public String getCategories() throws Exception {
+        String endpoint = String.format("%s/categories?websiteId=%s",
+            API_URL, URLEncoder.encode(WEBSITE_ID, StandardCharsets.UTF_8));
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(endpoint))
+            .header("Accept", "application/json")
+            .header("x-api-key", API_KEY)
+            .timeout(Duration.ofSeconds(10))
+            .GET()
+            .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("Jupsoft CMS API Error HTTP " + response.statusCode() + ": " + response.body());
+        }
+        return response.body();
+    }
+
+    /**
+     * Search published articles
+     */
+    public String search(String query, int limit) throws Exception {
+        String endpoint = String.format("%s/search?website=%s&q=%s&limit=%d",
+            API_URL, URLEncoder.encode(WEBSITE_ID, StandardCharsets.UTF_8), URLEncoder.encode(query, StandardCharsets.UTF_8), limit);
 
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(endpoint))
@@ -710,32 +789,50 @@ namespace Company.Blog.Services
     {
         private static readonly HttpClient _httpClient = new HttpClient();
 
-        // Uppercase environment variable conventions (or Web.config AppSettings)
         private readonly string _apiUrl = Environment.GetEnvironmentVariable("JUPSOFT_API_URL") ?? "${apiBaseUrl}";
         private readonly string _websiteId = Environment.GetEnvironmentVariable("JUPSOFT_WEBSITE_ID") ?? "${websiteId}";
         private readonly string _apiKey = Environment.GetEnvironmentVariable("JUPSOFT_API_KEY") ?? "${apiKey}";
 
-        public JupsoftCmsService()
+        private HttpRequestMessage CreateRequest(HttpMethod method, string url)
         {
-            if (!_httpClient.DefaultRequestHeaders.Contains("x-api-key"))
-            {
-                _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
-                _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
-            }
+            var request = new HttpRequestMessage(method, url);
+            request.Headers.Add("Accept", "application/json");
+            request.Headers.Add("x-api-key", _apiKey);
+            return request;
         }
 
         public async Task<string> GetBlogsAsync(int page = 1, int limit = 10)
         {
-            var url = $"{_apiUrl}/blogs?website={_websiteId}&page={page}&limit={limit}";
-            var response = await _httpClient.GetAsync(url);
+            var url = $"{_apiUrl}/blogs?website={Uri.EscapeDataString(_websiteId)}&page={page}&limit={limit}";
+            using var request = CreateRequest(HttpMethod.Get, url);
+            using var response = await _httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();
             return await response.Content.ReadAsStringAsync();
         }
 
         public async Task<string> GetBlogBySlugAsync(string slug)
         {
-            var url = $"{_apiUrl}/blogs/{slug}?website={_websiteId}";
-            var response = await _httpClient.GetAsync(url);
+            var url = $"{_apiUrl}/blogs/{Uri.EscapeDataString(slug)}?website={Uri.EscapeDataString(_websiteId)}";
+            using var request = CreateRequest(HttpMethod.Get, url);
+            using var response = await _httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadAsStringAsync();
+        }
+
+        public async Task<string> GetCategoriesAsync()
+        {
+            var url = $"{_apiUrl}/categories?websiteId={Uri.EscapeDataString(_websiteId)}";
+            using var request = CreateRequest(HttpMethod.Get, url);
+            using var response = await _httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadAsStringAsync();
+        }
+
+        public async Task<string> SearchAsync(string query, int limit = 10)
+        {
+            var url = $"{_apiUrl}/search?website={Uri.EscapeDataString(_websiteId)}&q={Uri.EscapeDataString(query)}&limit={limit}";
+            using var request = CreateRequest(HttpMethod.Get, url);
+            using var response = await _httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();
             return await response.Content.ReadAsStringAsync();
         }
@@ -799,10 +896,12 @@ class JupsoftCms {
         curl_close($ch);
 
         $data = json_decode($response, true);
+        $data = is_array($data) ? $data : [];
         return [
             'status' => $httpCode,
             'success' => $httpCode >= 200 && $httpCode < 300,
-            'data' => $data['data'] ?? $data
+            'data' => $data['data'] ?? $data,
+            'meta' => $data['meta'] ?? $data['pagination'] ?? null
         ];
     }
 
@@ -812,6 +911,14 @@ class JupsoftCms {
 
     public function getBlogBySlug($slug) {
         return $this->request('/blogs/' . urlencode($slug));
+    }
+
+    public function getCategories() {
+        return $this->request('/categories', ['websiteId' => $this->websiteId]);
+    }
+
+    public function search($query, $limit = 10) {
+        return $this->request('/search', ['q' => $query, 'limit' => $limit]);
     }
 }`,
         quickUsageTitle: 'PHP Template Usage Example:',
@@ -842,6 +949,7 @@ Website: ${activeSite?.name || 'Website'} (${websiteId})
 Requires: requests (pip install requests)
 """
 import os
+import urllib.parse
 import requests
 
 API_URL = os.getenv("JUPSOFT_API_URL", "${apiBaseUrl}")
@@ -861,8 +969,16 @@ def get_blogs(page: int = 1, limit: int = 10):
     return res.json()
 
 def get_blog_by_slug(slug: str):
-    url = f"{API_URL}/blogs/{slug}"
+    encoded_slug = urllib.parse.quote(slug)
+    url = f"{API_URL}/blogs/{encoded_slug}"
     params = {"website": WEBSITE_ID}
+    res = requests.get(url, headers=HEADERS, params=params, timeout=10)
+    res.raise_for_status()
+    return res.json()
+
+def get_latest(limit: int = 5):
+    url = f"{API_URL}/blogs/latest"
+    params = {"website": WEBSITE_ID, "limit": limit}
     res = requests.get(url, headers=HEADERS, params=params, timeout=10)
     res.raise_for_status()
     return res.json()
@@ -870,6 +986,13 @@ def get_blog_by_slug(slug: str):
 def get_categories():
     url = f"{API_URL}/categories"
     params = {"websiteId": WEBSITE_ID}
+    res = requests.get(url, headers=HEADERS, params=params, timeout=10)
+    res.raise_for_status()
+    return res.json()
+
+def search(query: str, limit: int = 10):
+    url = f"{API_URL}/search"
+    params = {"website": WEBSITE_ID, "q": query, "limit": limit}
     res = requests.get(url, headers=HEADERS, params=params, timeout=10)
     res.raise_for_status()
     return res.json()`,
@@ -1733,6 +1856,31 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
                     <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">content</td>
                     <td className="py-2 px-3 text-slate-500">HTML string</td>
                     <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Full sanitized blog article body (Detail page container)</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">readTimeMinutes</td>
+                    <td className="py-2 px-3 text-slate-500">number</td>
+                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Estimated read time (e.g. <code>{'{'}readTimeMinutes{'}'} min read</code>)</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">authorName</td>
+                    <td className="py-2 px-3 text-slate-500">string</td>
+                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Author signature name (e.g. <code>By {'{'}authorName{'}'}</code>)</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">primaryCategory</td>
+                    <td className="py-2 px-3 text-slate-500">string</td>
+                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Category badge pill (e.g. <code>&lt;span&gt;{'{'}primaryCategory{'}'}&lt;/span&gt;</code>)</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">seo</td>
+                    <td className="py-2 px-3 text-slate-500">object</td>
+                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Canonical URL, <code>metaTitle</code>, and <code>metaDescription</code> for <code>&lt;head&gt;</code></td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 text-indigo-600 dark:text-indigo-400 font-bold">schemaJsonLd</td>
+                    <td className="py-2 px-3 text-slate-500">object</td>
+                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Schema.org <code>BlogPosting</code> JSON-LD for Google rich snippets</td>
                   </tr>
                 </tbody>
               </table>
