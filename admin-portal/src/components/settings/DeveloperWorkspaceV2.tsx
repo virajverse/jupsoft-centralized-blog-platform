@@ -26,7 +26,8 @@ import {
   Clock, 
   KeyRound,
   Zap,
-  BookOpen
+  BookOpen,
+  Terminal
 } from 'lucide-react';
 
 export interface DeveloperWorkspaceV2Props {
@@ -38,6 +39,8 @@ export interface DeveloperWorkspaceV2Props {
   blogs?: Blog[];
 }
 
+export type TargetLanguage = 'html' | 'nextjs' | 'node' | 'java' | 'csharp' | 'php' | 'python' | 'curl';
+
 export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
   activeSite,
   websites = [],
@@ -48,6 +51,7 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
 }) => {
   // Navigation & View State
   const [activeTab, setActiveTab] = useState<'js' | 'env' | 'server' | 'tester'>('js');
+  const [selectedLanguage, setSelectedLanguage] = useState<TargetLanguage>('html');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
   const [showCmsToken, setShowCmsToken] = useState(false);
@@ -394,6 +398,524 @@ JUPSOFT_API_KEY="${apiKey}"
   }, [activeSite?.name, siteDomain, websiteId, encryptedCmsToken, apiBaseUrl, apiKey]);
 
   // ──────────────────────────────────────────────────────────────────────────
+  // 2.5 MULTI-LANGUAGE CODE SNIPPETS & STACK CONFIGURATIONS
+  // Tailored integrations for HTML/SHTML, Next.js, Node, Java, C#, PHP, Python, cURL
+  // ──────────────────────────────────────────────────────────────────────────
+  interface LanguageConfig {
+    id: TargetLanguage;
+    name: string;
+    badge: string;
+    fileName: string;
+    downloadFileName: string;
+    mimeType: string;
+    description: string;
+    code: string;
+    quickUsageTitle: string;
+    quickUsageCode: string;
+  }
+
+  const languageConfigs: Record<TargetLanguage, LanguageConfig> = useMemo(() => {
+    return {
+      html: {
+        id: 'html',
+        name: 'HTML / SHTML',
+        badge: 'Vanilla JS SDK',
+        fileName: 'cms-client.js',
+        downloadFileName: 'cms-client.js',
+        mimeType: 'application/javascript',
+        description: 'Lightweight (~2.8 KB) headless client script. Pure data-fetching engine with zero DOM/CSS. Designed for any HTML/SHTML website designer.',
+        code: pureJsClientCode,
+        quickUsageTitle: 'Quick Usage for Frontend Developers (In your HTML / SHTML / JS):',
+        quickUsageCode: `<!-- 1. Include the client script -->
+<script src="/js/cms-client.js"></script>
+
+<script>
+  // 2. Fetch Blog List
+  JupsoftCMS.getBlogs({ page: 1, limit: 9 }).then(function(res) {
+    if (res.success) {
+      console.log('Articles:', res.data); // Array of blogs
+      // Your designer loops through res.data and fills their custom HTML cards
+    }
+  });
+
+  // 3. Fetch Single Article Detail
+  JupsoftCMS.getBlogBySlug().then(function(res) {
+    if (res.success) {
+      console.log('Article Detail:', res.data);
+      // Optional: automatically set browser title and SEO meta
+      JupsoftCMS.applySeo(res.data);
+    }
+  });
+</script>`,
+      },
+      nextjs: {
+        id: 'nextjs',
+        name: 'Next.js / React',
+        badge: 'App Router / ISR',
+        fileName: 'app/blog/page.tsx',
+        downloadFileName: 'page.tsx',
+        mimeType: 'text/typescript',
+        description: 'Server Component with 60-second Incremental Static Regeneration (ISR). Renders blog listings directly on the server without leaking private keys to the client.',
+        code: `// app/blog/page.tsx (Next.js 14+ App Router Server Component)
+import React from 'react';
+
+interface BlogPost {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string;
+  featuredImage?: string;
+  publishedAt: string;
+  readingTimeMinutes?: number;
+}
+
+async function getBlogs(): Promise<BlogPost[]> {
+  const websiteId = process.env.JUPSOFT_WEBSITE_ID || '${websiteId}';
+  const apiKey = process.env.JUPSOFT_API_KEY || '${apiKey}';
+  const apiUrl = process.env.JUPSOFT_API_URL || '${apiBaseUrl}';
+
+  const res = await fetch(\`\${apiUrl}/blogs?website=\${websiteId}&limit=9\`, {
+    headers: {
+      'Accept': 'application/json',
+      'x-api-key': apiKey,
+    },
+    next: { revalidate: 60 }, // ISR: Cache revalidates every 60 seconds
+  });
+
+  if (!res.ok) {
+    console.error('Failed to fetch blogs:', res.status);
+    return [];
+  }
+
+  const json = await res.json();
+  return json.data || json;
+}
+
+export default async function BlogListPage() {
+  const blogs = await getBlogs();
+
+  return (
+    <main className="max-w-6xl mx-auto px-4 py-12">
+      <h1 className="text-3xl font-bold mb-8">Latest Articles</h1>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {blogs.map((post) => (
+          <article key={post.id} className="border border-gray-200 rounded-xl p-5 hover:shadow-md transition">
+            {post.featuredImage && (
+              <img 
+                src={post.featuredImage} 
+                alt={post.title} 
+                className="w-full h-48 object-cover rounded-lg mb-4" 
+              />
+            )}
+            <h2 className="text-xl font-semibold mb-2">{post.title}</h2>
+            <p className="text-gray-600 text-sm line-clamp-3 mb-4">{post.excerpt}</p>
+            <a href={\`/blog/\${post.slug}\`} className="text-indigo-600 font-semibold hover:underline">
+              Read article →
+            </a>
+          </article>
+        ))}
+      </div>
+    </main>
+  );
+}`,
+        quickUsageTitle: 'Next.js Setup Instructions:',
+        quickUsageCode: `# 1. Place credentials in .env.local:
+JUPSOFT_WEBSITE_ID="${websiteId}"
+JUPSOFT_API_KEY="${apiKey}"
+JUPSOFT_API_URL="${apiBaseUrl}"
+
+# 2. Add app/blog/page.tsx into your Next.js App Router project
+# 3. Run: npm run dev`,
+      },
+      node: {
+        id: 'node',
+        name: 'Node.js',
+        badge: 'Express / Backend',
+        fileName: 'services/jupsoftCms.js',
+        downloadFileName: 'jupsoftCms.js',
+        mimeType: 'application/javascript',
+        description: 'Backend Node.js service module. Keeps your master API key securely in process.env and exposes async fetch methods.',
+        code: `// services/jupsoftCms.js
+// npm install dotenv (for .env loading)
+require('dotenv').config();
+
+const API_URL = process.env.JUPSOFT_API_URL || '${apiBaseUrl}';
+const WEBSITE_ID = process.env.JUPSOFT_WEBSITE_ID || '${websiteId}';
+const API_KEY = process.env.JUPSOFT_API_KEY || '${apiKey}';
+
+async function fetchCms(endpoint, params = {}) {
+  const query = new URLSearchParams({ website: WEBSITE_ID, ...params });
+  const url = \`\${API_URL}\${endpoint}?\${query.toString()}\`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'x-api-key': API_KEY,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(\`Jupsoft CMS API Error [HTTP \${response.status}]: \${errorText}\`);
+  }
+
+  const json = await response.json();
+  return {
+    success: true,
+    data: json.data || json,
+    pagination: json.pagination || null
+  };
+}
+
+module.exports = {
+  getBlogs: (page = 1, limit = 10) => fetchCms('/blogs', { page, limit }),
+  getBlogBySlug: (slug) => fetchCms(\`/blogs/\${encodeURIComponent(slug)}\`),
+  getCategories: () => fetchCms('/categories', { websiteId: WEBSITE_ID }),
+};`,
+        quickUsageTitle: 'Express.js Usage Example:',
+        quickUsageCode: `// In your Express server.js:
+const JupsoftCMS = require('./services/jupsoftCms');
+
+app.get('/api/articles', async (req, res) => {
+  try {
+    const result = await JupsoftCMS.getBlogs(req.query.page || 1, 10);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});`,
+      },
+      java: {
+        id: 'java',
+        name: 'Java',
+        badge: 'Spring Boot / JSP',
+        fileName: 'JupsoftCmsService.java',
+        downloadFileName: 'JupsoftCmsService.java',
+        mimeType: 'text/x-java-source',
+        description: 'High-performance Java 11+ HttpClient service with uppercase environment variable conventions (JUPSOFT_API_KEY, JUPSOFT_WEBSITE_ID).',
+        code: `package com.company.blog.service;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+
+/**
+ * Jupsoft Centralized Blog Platform — Java Service Client
+ * Website: ${activeSite?.name || 'Website'} (${websiteId})
+ */
+public class JupsoftCmsService {
+
+    // Standard Java uppercase environment variable conventions
+    private static final String API_URL = System.getenv("JUPSOFT_API_URL") != null 
+        ? System.getenv("JUPSOFT_API_URL") : "${apiBaseUrl}";
+        
+    private static final String WEBSITE_ID = System.getenv("JUPSOFT_WEBSITE_ID") != null 
+        ? System.getenv("JUPSOFT_WEBSITE_ID") : "${websiteId}";
+        
+    private static final String API_KEY = System.getenv("JUPSOFT_API_KEY") != null 
+        ? System.getenv("JUPSOFT_API_KEY") : "${apiKey}";
+
+    private final HttpClient httpClient;
+
+    public JupsoftCmsService() {
+        this.httpClient = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_2)
+            .connectTimeout(Duration.ofSeconds(5))
+            .build();
+    }
+
+    /**
+     * Fetch paginated articles list as JSON string
+     */
+    public String getBlogs(int page, int limit) throws Exception {
+        String endpoint = String.format("%s/blogs?website=%s&page=%d&limit=%d",
+            API_URL, WEBSITE_ID, page, limit);
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(endpoint))
+            .header("Accept", "application/json")
+            .header("x-api-key", API_KEY)
+            .timeout(Duration.ofSeconds(10))
+            .GET()
+            .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("Jupsoft CMS API Error HTTP " + response.statusCode() + ": " + response.body());
+        }
+        return response.body();
+    }
+
+    /**
+     * Fetch article detail by slug
+     */
+    public String getBlogBySlug(String slug) throws Exception {
+        String endpoint = String.format("%s/blogs/%s?website=%s",
+            API_URL, slug, WEBSITE_ID);
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(endpoint))
+            .header("Accept", "application/json")
+            .header("x-api-key", API_KEY)
+            .timeout(Duration.ofSeconds(10))
+            .GET()
+            .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("Jupsoft CMS API Error HTTP " + response.statusCode() + ": " + response.body());
+        }
+        return response.body();
+    }
+}`,
+        quickUsageTitle: 'Spring Boot Controller Example:',
+        quickUsageCode: `// In your Spring Boot Controller:
+@RestController
+@RequestMapping("/api/blog")
+public class BlogController {
+    private final JupsoftCmsService cmsService = new JupsoftCmsService();
+
+    @GetMapping
+    public ResponseEntity<String> listBlogs(@RequestParam(defaultValue = "1") int page) {
+        try {
+            return ResponseEntity.ok(cmsService.getBlogs(page, 10));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("{\\"error\\": \\"" + e.getMessage() + "\\"}");
+        }
+    }
+}`,
+      },
+      csharp: {
+        id: 'csharp',
+        name: 'C# / .NET',
+        badge: 'ASP.NET Core',
+        fileName: 'JupsoftCmsService.cs',
+        downloadFileName: 'JupsoftCmsService.cs',
+        mimeType: 'text/plain',
+        description: 'Thread-safe C# HttpClient service for ASP.NET Core or classic .NET Framework with Web.config/Environment support.',
+        code: `using System;
+using System.Net.Http;
+using System.Threading.Tasks;
+
+namespace Company.Blog.Services
+{
+    /// <summary>
+    /// Jupsoft Centralized Blog Platform — C# .NET Client Service
+    /// Website: ${activeSite?.name || 'Website'} (${websiteId})
+    /// </summary>
+    public class JupsoftCmsService
+    {
+        private static readonly HttpClient _httpClient = new HttpClient();
+
+        // Uppercase environment variable conventions (or Web.config AppSettings)
+        private readonly string _apiUrl = Environment.GetEnvironmentVariable("JUPSOFT_API_URL") ?? "${apiBaseUrl}";
+        private readonly string _websiteId = Environment.GetEnvironmentVariable("JUPSOFT_WEBSITE_ID") ?? "${websiteId}";
+        private readonly string _apiKey = Environment.GetEnvironmentVariable("JUPSOFT_API_KEY") ?? "${apiKey}";
+
+        public JupsoftCmsService()
+        {
+            if (!_httpClient.DefaultRequestHeaders.Contains("x-api-key"))
+            {
+                _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
+                _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+            }
+        }
+
+        public async Task<string> GetBlogsAsync(int page = 1, int limit = 10)
+        {
+            var url = $"{_apiUrl}/blogs?website={_websiteId}&page={page}&limit={limit}";
+            var response = await _httpClient.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadAsStringAsync();
+        }
+
+        public async Task<string> GetBlogBySlugAsync(string slug)
+        {
+            var url = $"{_apiUrl}/blogs/{slug}?website={_websiteId}";
+            var response = await _httpClient.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadAsStringAsync();
+        }
+    }
+}`,
+        quickUsageTitle: 'ASP.NET Core Controller Example:',
+        quickUsageCode: `// In your ASP.NET Core Controller:
+[ApiController]
+[Route("api/[controller]")]
+public class BlogController : ControllerBase
+{
+    private readonly JupsoftCmsService _cms = new JupsoftCmsService();
+
+    [HttpGet]
+    public async Task<IActionResult> GetBlogs([FromQuery] int page = 1)
+    {
+        var json = await _cms.GetBlogsAsync(page, 10);
+        return Content(json, "application/json");
+    }
+}`,
+      },
+      php: {
+        id: 'php',
+        name: 'PHP',
+        badge: 'Laravel / Core PHP',
+        fileName: 'JupsoftCms.php',
+        downloadFileName: 'JupsoftCms.php',
+        mimeType: 'text/x-php',
+        description: 'Lightweight PHP cURL helper class compatible with PHP 7.4 through PHP 8.3, Laravel, WordPress, and Vanilla PHP.',
+        code: `<?php
+/**
+ * Jupsoft Centralized Blog Platform — PHP Client Helper
+ * Website: ${activeSite?.name || 'Website'} (${websiteId})
+ */
+class JupsoftCms {
+    private $apiUrl;
+    private $websiteId;
+    private $apiKey;
+
+    public function __construct() {
+        $this->apiUrl = getenv('JUPSOFT_API_URL') ?: '${apiBaseUrl}';
+        $this->websiteId = getenv('JUPSOFT_WEBSITE_ID') ?: '${websiteId}';
+        $this->apiKey = getenv('JUPSOFT_API_KEY') ?: '${apiKey}';
+    }
+
+    private function request($endpoint, $params = []) {
+        $params['website'] = $this->websiteId;
+        $url = $this->apiUrl . $endpoint . '?' . http_build_query($params);
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Accept: application/json',
+            'x-api-key: ' . $this->apiKey
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        $data = json_decode($response, true);
+        return [
+            'status' => $httpCode,
+            'success' => $httpCode >= 200 && $httpCode < 300,
+            'data' => $data['data'] ?? $data
+        ];
+    }
+
+    public function getBlogs($page = 1, $limit = 10) {
+        return $this->request('/blogs', ['page' => $page, 'limit' => $limit]);
+    }
+
+    public function getBlogBySlug($slug) {
+        return $this->request('/blogs/' . urlencode($slug));
+    }
+}`,
+        quickUsageTitle: 'PHP Template Usage Example:',
+        quickUsageCode: `<?php
+// Example in index.php:
+require_once 'JupsoftCms.php';
+$cms = new JupsoftCms();
+$blogs = $cms->getBlogs(1, 9);
+
+if ($blogs['success']) {
+    foreach ($blogs['data'] as $post) {
+        echo '<h2>' . htmlspecialchars($post['title']) . '</h2>';
+    }
+}
+?>`,
+      },
+      python: {
+        id: 'python',
+        name: 'Python',
+        badge: 'Django / FastAPI',
+        fileName: 'jupsoft_cms.py',
+        downloadFileName: 'jupsoft_cms.py',
+        mimeType: 'text/x-python',
+        description: 'Clean Python requests client for Django, FastAPI, Flask or standalone automation scripts.',
+        code: `"""
+Jupsoft Centralized Blog Platform — Python Client
+Website: ${activeSite?.name || 'Website'} (${websiteId})
+Requires: requests (pip install requests)
+"""
+import os
+import requests
+
+API_URL = os.getenv("JUPSOFT_API_URL", "${apiBaseUrl}")
+WEBSITE_ID = os.getenv("JUPSOFT_WEBSITE_ID", "${websiteId}")
+API_KEY = os.getenv("JUPSOFT_API_KEY", "${apiKey}")
+
+HEADERS = {
+    "Accept": "application/json",
+    "x-api-key": API_KEY,
+}
+
+def get_blogs(page: int = 1, limit: int = 10):
+    url = f"{API_URL}/blogs"
+    params = {"website": WEBSITE_ID, "page": page, "limit": limit}
+    res = requests.get(url, headers=HEADERS, params=params, timeout=10)
+    res.raise_for_status()
+    return res.json()
+
+def get_blog_by_slug(slug: str):
+    url = f"{API_URL}/blogs/{slug}"
+    params = {"website": WEBSITE_ID}
+    res = requests.get(url, headers=HEADERS, params=params, timeout=10)
+    res.raise_for_status()
+    return res.json()
+
+def get_categories():
+    url = f"{API_URL}/categories"
+    params = {"websiteId": WEBSITE_ID}
+    res = requests.get(url, headers=HEADERS, params=params, timeout=10)
+    res.raise_for_status()
+    return res.json()`,
+        quickUsageTitle: 'FastAPI / Django Usage Example:',
+        quickUsageCode: `# In your FastAPI router or Django view:
+from jupsoft_cms import get_blogs
+
+@app.get("/api/blogs")
+def read_blogs(page: int = 1):
+    return get_blogs(page=page, limit=10)`,
+      },
+      curl: {
+        id: 'curl',
+        name: 'cURL / REST',
+        badge: 'Terminal CLI',
+        fileName: 'curl_commands.sh',
+        downloadFileName: 'curl_commands.sh',
+        mimeType: 'text/plain',
+        description: 'Direct terminal cURL requests for testing endpoints, debugging headers, or writing automated CI/CD shell scripts.',
+        code: `# 1. Fetch Paginated Blog Articles
+curl -X GET "${apiBaseUrl}/blogs?website=${websiteId}&page=1&limit=10" \\
+  -H "Accept: application/json" \\
+  -H "x-api-key: ${apiKey}"
+
+# 2. Fetch Single Article By Slug
+curl -X GET "${apiBaseUrl}/blogs/${defaultRealSlug}?website=${websiteId}" \\
+  -H "Accept: application/json" \\
+  -H "x-api-key: ${apiKey}"
+
+# 3. Bypass Edge Cache (&fresh=1)
+curl -X GET "${apiBaseUrl}/blogs?website=${websiteId}&fresh=1" \\
+  -H "Accept: application/json" \\
+  -H "x-api-key: ${apiKey}"
+
+# 4. Fetch Taxonomy Categories
+curl -X GET "${apiBaseUrl}/categories?websiteId=${websiteId}" \\
+  -H "Accept: application/json" \\
+  -H "x-api-key: ${apiKey}"`,
+        quickUsageTitle: 'Terminal Execution:',
+        quickUsageCode: `# Execute directly in any bash or terminal shell:
+curl -s "${apiBaseUrl}/blogs?website=${websiteId}&limit=1" -H "x-api-key: ${apiKey}" | jq .`,
+      },
+    };
+  }, [activeSite?.name, websiteId, siteDomain, encryptedCmsToken, apiBaseUrl, apiKey, defaultRealSlug, pureJsClientCode]);
+
+  // ──────────────────────────────────────────────────────────────────────────
   // 3. SERVER REWRITE RULES (IIS web.config & Apache .htaccess)
   // ──────────────────────────────────────────────────────────────────────────
   const iisRewriteCode = useMemo(() => {
@@ -512,6 +1034,8 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
   }, [faqItems, faqSearchQuery]);
 
   const jsCodeLines = useMemo(() => pureJsClientCode.split('\n'), [pureJsClientCode]);
+  const activeLanguageConfig = languageConfigs[selectedLanguage] || languageConfigs.html;
+  const activeCodeLines = useMemo(() => activeLanguageConfig.code.split('\n'), [activeLanguageConfig.code]);
 
   return (
     <div className="space-y-6 font-sans">
@@ -608,10 +1132,20 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
               <Download className="w-3.5 h-3.5 text-slate-500" />
               <span>Download .env</span>
             </button>
+            {selectedLanguage !== 'html' && (
+              <button
+                onClick={() => downloadFile(activeLanguageConfig.code, activeLanguageConfig.downloadFileName, activeLanguageConfig.mimeType)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                title={`Download ${activeLanguageConfig.downloadFileName}`}
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Download {activeLanguageConfig.downloadFileName}</span>
+              </button>
+            )}
           </div>
 
           <span className="text-[11px] text-slate-400 font-mono">
-            Pure Data SDK • No UI Dependencies
+            Active Stack: <strong className="text-indigo-600 dark:text-indigo-400">{activeLanguageConfig.name}</strong> • Pure Data SDK
           </span>
         </div>
       </div>
@@ -755,7 +1289,7 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
             }`}
           >
             <Zap className="w-3.5 h-3.5" />
-            <span>1. JavaScript SDK (cms-client.js)</span>
+            <span>1. Code &amp; SDKs ({activeLanguageConfig.name})</span>
           </button>
           <button
             onClick={() => setActiveTab('env')}
@@ -792,84 +1326,129 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
           </button>
         </div>
 
-        {/* TAB 1: JAVASCRIPT SDK & SIMPLE USAGE GUIDE */}
+        {/* TAB 1: FRAMEWORK & SDK INTEGRATION CODE */}
         {activeTab === 'js' && (
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* ── PROMINENT LANGUAGE & TECH STACK SELECTOR BAR ── */}
+            <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Code className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Choose Your Framework / Language Stack:</span>
+                </span>
+                <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-200/60 dark:bg-slate-800 px-2 py-0.5 rounded">
+                  8 Stacks Supported
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+                {(Object.keys(languageConfigs) as TargetLanguage[]).map((langKey) => {
+                  const cfg = languageConfigs[langKey];
+                  const isSelected = selectedLanguage === langKey;
+                  return (
+                    <button
+                      key={langKey}
+                      onClick={() => setSelectedLanguage(langKey)}
+                      className={`flex flex-col items-start p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                      }`}
+                    >
+                      <span className={`text-xs font-bold leading-tight ${isSelected ? 'text-white' : 'text-slate-900 dark:text-white'}`}>
+                        {cfg.name}
+                      </span>
+                      <span className={`text-[10px] font-mono mt-0.5 ${isSelected ? 'text-indigo-100' : 'text-slate-400'}`}>
+                        {cfg.badge}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Language Header & Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
               <div>
-                <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Headless JavaScript Client SDK (Zero UI Dependencies)
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <span>{activeLanguageConfig.name} Integration</span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                    {activeLanguageConfig.fileName}
+                  </span>
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Lightweight (~2.8 KB) script that fetches blog data and hands clean JSON to your frontend designer.
+                  {activeLanguageConfig.description}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <button
-                  onClick={() => downloadFile(pureJsClientCode, 'cms-client.js', 'application/javascript')}
+                  onClick={() => downloadFile(activeLanguageConfig.code, activeLanguageConfig.downloadFileName, activeLanguageConfig.mimeType)}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download cms-client.js</span>
+                  <span>Download {activeLanguageConfig.downloadFileName}</span>
                 </button>
+
+                {selectedLanguage !== 'html' && (
+                  <>
+                    <button
+                      onClick={() => downloadFile(envFileContent, '.env', 'text/plain')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer"
+                      title="Download .env with standard uppercase variables"
+                    >
+                      <Download className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Download .env</span>
+                    </button>
+                    <button
+                      onClick={() => downloadFile(pureJsClientCode, 'cms-client.js', 'application/javascript')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer"
+                      title="Download frontend cms-client.js"
+                    >
+                      <Download className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Download cms-client.js</span>
+                    </button>
+                  </>
+                )}
+
                 <button
-                  onClick={() => copyToClipboard(pureJsClientCode, 'copy-js-sdk')}
+                  onClick={() => copyToClipboard(activeLanguageConfig.code, `copy-${selectedLanguage}`)}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer"
                 >
-                  {copiedKey === 'copy-js-sdk' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedKey === 'copy-js-sdk' ? 'Copied SDK!' : 'Copy SDK Code'}</span>
+                  {copiedKey === `copy-${selectedLanguage}` ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedKey === `copy-${selectedLanguage}` ? 'Copied Code!' : 'Copy Code'}</span>
                 </button>
               </div>
             </div>
 
-            {/* Simple 5-Line Usage Example for Frontend Developer */}
+            {/* Quick Usage Box */}
             <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 space-y-2 text-xs">
               <span className="font-bold text-slate-900 dark:text-white block uppercase tracking-wider text-[11px]">
-                Quick Usage for Frontend Developers (In your HTML / SHTML / JS):
+                {activeLanguageConfig.quickUsageTitle}
               </span>
               <pre className="p-3 bg-[#0f1117] text-slate-200 rounded-lg font-mono text-[11.5px] leading-relaxed overflow-x-auto">
-{`<!-- 1. Include the client script -->
-<script src="/js/cms-client.js"></script>
-
-<script>
-  // 2. Fetch Blog List
-  JupsoftCMS.getBlogs({ page: 1, limit: 9 }).then(function(res) {
-    if (res.success) {
-      console.log('Articles:', res.data); // Array of blogs
-      // Your designer loops through res.data and fills their custom HTML cards
-    }
-  });
-
-  // 3. Fetch Single Article Detail
-  JupsoftCMS.getBlogBySlug().then(function(res) {
-    if (res.success) {
-      console.log('Article Detail:', res.data);
-      // Optional: automatically set browser title and SEO meta
-      JupsoftCMS.applySeo(res.data);
-    }
-  });
-</script>`}
+                {activeLanguageConfig.quickUsageCode}
               </pre>
             </div>
 
-            {/* SDK Code Viewport */}
+            {/* Code Viewport with Line Numbers */}
             <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-[#0f1117] text-slate-200 font-mono text-xs shadow-md">
               <div className="px-4 py-2 bg-[#171b26] border-b border-slate-800 flex items-center justify-between">
                 <span className="text-slate-300 text-xs font-mono">
-                  cms-client.js ({jsCodeLines.length} lines)
+                  {activeLanguageConfig.fileName} ({activeCodeLines.length} lines)
                 </span>
                 <span className="text-[11px] text-slate-500 font-sans">
-                  Ready to drop into /js/ or /assets/js/
+                  Tailored for {activeSite?.name || 'Website'} ({siteDomain})
                 </span>
               </div>
-              <div className="flex font-mono text-[11.5px] leading-relaxed max-h-[380px] overflow-y-auto overflow-x-auto bg-[#0a0c10]">
+              <div className="flex font-mono text-[11.5px] leading-relaxed max-h-[420px] overflow-y-auto overflow-x-auto bg-[#0a0c10]">
                 <div className="select-none px-3 py-3 text-slate-600 border-r border-slate-800 text-right font-mono text-[11px] bg-[#0d0f15] shrink-0 sticky left-0 z-10">
-                  {jsCodeLines.map((_, i) => (
+                  {activeCodeLines.map((_, i) => (
                     <div key={i} className="leading-relaxed px-1">{i + 1}</div>
                   ))}
                 </div>
                 <pre className="p-3 pl-4 flex-1 text-slate-200 leading-relaxed font-mono">
-                  {pureJsClientCode}
+                  {activeLanguageConfig.code}
                 </pre>
               </div>
             </div>
