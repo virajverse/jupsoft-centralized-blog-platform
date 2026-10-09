@@ -235,7 +235,6 @@ export const FloatingChatWidget: React.FC = () => {
   const setGuideOpen = useBlogStore((s) => s.setGuideOpen);
 
   const tab = searchParams?.get('tab');
-  if (tab === 'developer') return null;
 
   const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -416,6 +415,11 @@ export const FloatingChatWidget: React.FC = () => {
     setIsOpen(false);
     router.push(href);
   };
+
+  // Do not render floating chat widget on developer setting tab
+  if (tab === 'developer') {
+    return null;
+  }
 
   return (
     <aside 
