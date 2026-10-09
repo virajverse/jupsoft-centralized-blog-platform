@@ -56,3 +56,40 @@ export class GoogleLoginDto {
   clientPublicIp?: string;
 }
 
+export class ForgotPasswordDto {
+  @ApiProperty({ description: 'Registered work email address to request password reset' })
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
+
+  @ApiPropertyOptional({ description: 'Optional client public IP detected on browser' })
+  @IsOptional()
+  @IsString()
+  clientPublicIp?: string;
+}
+
+export class ResetPasswordDto {
+  @ApiProperty({ description: 'Cryptographic password reset token received via email' })
+  @IsString()
+  @IsNotEmpty()
+  token: string;
+
+  @ApiProperty({ description: 'New account password (min 8 characters)' })
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(8)
+  newPassword: string;
+
+  @ApiPropertyOptional({ description: 'Optional client public IP detected on browser' })
+  @IsOptional()
+  @IsString()
+  clientPublicIp?: string;
+}
+
+export class ValidateResetTokenDto {
+  @ApiProperty({ description: 'Cryptographic password reset token to validate' })
+  @IsString()
+  @IsNotEmpty()
+  token: string;
+}
+

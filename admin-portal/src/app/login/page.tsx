@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Script from 'next/script';
 import { useBlogStore } from '../../store/useBlogStore';
 import { apiClient } from '../../services/apiClient';
@@ -306,9 +307,17 @@ export default function LoginPage() {
 
               {/* Password Field */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Password
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Password
+                  </label>
+                  <Link
+                    href="/forgot-password"
+                    className="text-[11px] font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
                 <div className="relative">
                   <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input

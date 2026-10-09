@@ -103,6 +103,16 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ onNavigate }) => {
             <ExternalLink className="w-3 h-3 text-slate-400" />
           </a>
 
+          <a
+            href="https://jupsoft.com/contact-us"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-xs"
+          >
+            <span>Book a Demo</span>
+            <ExternalLink className="w-3 h-3 text-slate-400" />
+          </a>
+
           <Link
             href="/dashboard"
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 dark:bg-indigo-600 text-white font-medium text-sm hover:bg-slate-800 dark:hover:bg-indigo-500 shadow-md shadow-indigo-500/15 transition-all duration-150 active:scale-95"

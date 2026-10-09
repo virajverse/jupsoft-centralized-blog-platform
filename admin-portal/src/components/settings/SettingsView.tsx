@@ -900,14 +900,27 @@ export const SettingsView: React.FC = () => {
           )}
           </div>
 
-          {/* Dynamic Developer Integration Guide (Pre-filled for active tenant) */}
-          <div className="pt-2">
-            <DeveloperIntegrationGuide
-              activeSite={activeSite}
-              isSuperAdmin={isSuperAdmin}
-              canViewApiKey={canViewActiveApiKey}
-              blogs={blogs}
-            />
+          {/* Clean Lightweight Developer Hub Shortcut Banner */}
+          <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <Code className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="font-semibold text-slate-900 dark:text-white">Looking for Code Blueprints & Integration Docs?</span>
+                <p className="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">
+                  Complete client code, SHTML, Next.js, C#, React hooks, and live API tester have their own dedicated tab.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleTabChange('developer')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs transition-colors shrink-0 cursor-pointer shadow-2xs"
+            >
+              <span>Open Developer API Hub</span>
+              <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+            </button>
           </div>
         </div>
       )}

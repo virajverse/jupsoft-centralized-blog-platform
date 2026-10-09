@@ -30,6 +30,7 @@ const mockConfig = { get: jest.fn((key: string) => {
 const mockRedis = {
   get: jest.fn(() => null),
   set: jest.fn(),
+  del: jest.fn(),
 };
 
 const makeUser = (overrides: any = {}) => ({
@@ -222,6 +223,97 @@ describe('AuthService', () => {
         currentPassword: 'WrongPass!',
         newPassword: 'NewPass456!',
       }, '127.0.0.1')).rejects.toThrow('incorrect');
+    });
+  });
+
+  // ── PHASE 4.11: Reset Password Flow ─────────────────────────────────────
+  describe('forgotPassword()', () => {
+    it('should return uniform success message and store token in Redis when user exists', async () => {
+      const user = makeUser();
+      mockPrisma.user.findUnique.mockResolvedValue(user);
+      mockRedis.get.mockResolvedValue(null); // No rate limit hits
+
+      const res = await service.forgotPassword({ email: 'admin@test.com' }, '127.0.0.1');
+      expect(res.success).toBe(true);
+      expect(res.message).toContain('password reset instructions have been sent');
+      expect(mockRedis.set).toHaveBeenCalled();
+    });
+
+    it('should return uniform success message when user does not exist (enumeration protected)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockRedis.get.mockResolvedValue(null);
+
+      const res = await service.forgotPassword({ email: 'unknown@test.com' }, '127.0.0.1');
+      expect(res.success).toBe(true);
+      expect(res.message).toContain('password reset instructions have been sent');
+    });
+
+    it('should enforce rate limit of max 3 requests per 15 minutes', async () => {
+      mockRedis.get.mockResolvedValue(3); // Already 3 attempts
+
+      await expect(service.forgotPassword({ email: 'admin@test.com' }, '127.0.0.1'))
+        .rejects.toThrow('Too many password reset attempts');
+    });
+  });
+
+  describe('validateResetToken()', () => {
+    it('should return valid: false if token is missing or not in Redis', async () => {
+      mockRedis.get.mockResolvedValue(null);
+      const res = await service.validateResetToken({ token: 'invalid-token' });
+      expect(res.valid).toBe(false);
+    });
+
+    it('should return valid: true when token is active in Redis', async () => {
+      mockRedis.get.mockResolvedValue({ userId: 'user-uuid-1', email: 'admin@test.com' });
+      const res = await service.validateResetToken({ token: 'active-token-123' });
+      expect(res.valid).toBe(true);
+    });
+  });
+
+  describe('resetPassword()', () => {
+    it('should throw BadRequestException if token is expired or invalid', async () => {
+      mockRedis.get.mockResolvedValue(null);
+      await expect(service.resetPassword({ token: 'expired-token', newPassword: 'ValidPassword123!' }, '127.0.0.1'))
+        .rejects.toThrow('invalid or has expired');
+    });
+
+    it('should reject passwords shorter than 8 characters', async () => {
+      await expect(service.resetPassword({ token: 'some-token', newPassword: 'Short1!' }, '127.0.0.1'))
+        .rejects.toThrow('at least 8 characters');
+    });
+
+    it('should reject passwords without complexity (e.g. no uppercase or numbers)', async () => {
+      await expect(service.resetPassword({ token: 'some-token', newPassword: 'alllowercaseletters' }, '127.0.0.1'))
+        .rejects.toThrow('uppercase letter');
+    });
+
+    it('should reject if new password is identical to current password', async () => {
+      mockRedis.get.mockResolvedValue({ userId: 'user-uuid-1', email: 'admin@test.com' });
+      mockPrisma.user.findUnique.mockResolvedValue(makeUser());
+      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never); // same password
+
+      await expect(service.resetPassword({ token: 'valid-token', newPassword: 'OldPassword123!' }, '127.0.0.1'))
+        .rejects.toThrow('cannot be the same');
+    });
+
+    it('should successfully update password, unlock account, and destroy token on valid reset', async () => {
+      mockRedis.get.mockResolvedValue({ userId: 'user-uuid-1', email: 'admin@test.com' });
+      mockPrisma.user.findUnique.mockResolvedValue(makeUser());
+      jest.spyOn(bcrypt, 'compare').mockResolvedValue(false as never); // different
+      jest.spyOn(bcrypt, 'hash').mockResolvedValue('$2b$10$brandnewhashedpassword' as never);
+      mockPrisma.user.update.mockResolvedValue(makeUser());
+      mockPrisma.systemAuditLog.create.mockResolvedValue({});
+
+      const res = await service.resetPassword({ token: 'valid-token-32b', newPassword: 'BrandNewSecurePass123!' }, '127.0.0.1');
+      expect(res.success).toBe(true);
+      expect(res.message).toContain('Your password has been reset successfully');
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          loginAttempts: 0,
+          lockoutUntil: null,
+          passwordHash: '$2b$10$brandnewhashedpassword',
+        }),
+      }));
     });
   });
 });

@@ -77,6 +77,16 @@ export const LandingHero: React.FC = () => {
             </Link>
 
             <a
+              href="https://jupsoft.com/contact-us"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl border border-indigo-200 dark:border-indigo-800/60 bg-indigo-50/50 dark:bg-indigo-950/30 hover:bg-indigo-100/60 dark:hover:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-semibold text-base transition-all duration-200"
+            >
+              <Globe className="w-4 h-4 text-indigo-500" />
+              <span>Book a Demo</span>
+            </a>
+
+            <a
               href="#architecture"
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl border border-slate-300 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-800 dark:text-slate-200 font-medium text-base transition-all duration-200"
             >

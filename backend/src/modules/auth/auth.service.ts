@@ -4,12 +4,23 @@ import {
   BadRequestException,
   ForbiddenException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
-import { LoginDto, RefreshTokenDto, ChangePasswordDto, LogoutDto, GoogleLoginDto } from './dto/login.dto';
+import {
+  LoginDto,
+  RefreshTokenDto,
+  ChangePasswordDto,
+  LogoutDto,
+  GoogleLoginDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  ValidateResetTokenDto,
+} from './dto/login.dto';
 import { RedisProvider } from '../../common/providers/redis.provider';
+import { EmailService } from '../email/email.service';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
@@ -31,6 +42,7 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private redis: RedisProvider,
+    @Optional() private emailService?: EmailService,
   ) {}
 
   private get jwtSecret(): string {
@@ -776,6 +788,242 @@ export class AuthService {
         avatar: avatarUrl,
         status: updated.status,
       },
+    };
+  }
+
+  /**
+   * Secure Forgot Password Flow — Token Generation & Delivery (TRD §15 Security)
+   *
+   * Features:
+   * - Prevents user enumeration attacks: returns uniform generic response
+   * - Rate limiting via Redis (max 3 reset requests per 15 min per email)
+   * - Cryptographically secure random 32-byte hex token
+   * - SHA-256 token hashing for storage in Redis
+   * - 15-minute TTL expiration
+   * - Transactional email notification via EmailService
+   * - System audit log trace
+   */
+  async forgotPassword(
+    dto: ForgotPasswordDto,
+    clientIp: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const email = dto.email.trim().toLowerCase();
+    const genericResponse = {
+      success: true,
+      message: 'If that email address is registered, password reset instructions have been sent.',
+    };
+
+    // 1. Rate Limiting: Max 3 requests per 15 minutes per email
+    const rateLimitKey = `auth:pwd_reset_rate:${email}`;
+    const recentAttempts = (await this.redis.get<number>(rateLimitKey)) || 0;
+    if (recentAttempts >= 3) {
+      this.logger.warn(`[Forgot Password] Rate limit exceeded for email: ${email} from IP: ${clientIp}`);
+      throw new BadRequestException('Too many password reset attempts. Please wait 15 minutes before trying again.');
+    }
+    await this.redis.set(rateLimitKey, recentAttempts + 1, 900);
+
+    // 2. Lookup user (case-insensitive)
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      include: { roleAssignments: true },
+    });
+
+    if (!user || user.status !== 'active') {
+      this.logger.log(`[Forgot Password] Reset requested for non-existent or inactive email: ${email}`);
+      return genericResponse;
+    }
+
+    // 3. Cryptographically secure random token generation (32 bytes hex = 64 chars)
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const expiresInMinutes = 15;
+    const ttlSeconds = expiresInMinutes * 60;
+
+    // 4. Store hashed token in Redis with user metadata & 15m TTL
+    const resetKey = `auth:pwd_reset:${tokenHash}`;
+    await this.redis.set(
+      resetKey,
+      {
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        createdAt: new Date().toISOString(),
+      },
+      ttlSeconds,
+    );
+
+    // Invalidate any previous reset token for this user
+    const userPreviousTokenKey = `auth:pwd_reset_user:${user.id}`;
+    const previousTokenHash = await this.redis.get<string>(userPreviousTokenKey);
+    if (previousTokenHash) {
+      await this.redis.del(`auth:pwd_reset:${previousTokenHash}`);
+    }
+    await this.redis.set(userPreviousTokenKey, tokenHash, ttlSeconds);
+
+    // 5. Construct secure reset URL
+    const baseUrl = (
+      this.configService.get<string>('FRONTEND_URL') ||
+      this.configService.get<string>('PLATFORM_BASE_URL') ||
+      'https://blogary.jupsoft.com'
+    ).replace(/\/+$/, '');
+    const resetUrl = `${baseUrl}/reset-password?token=${rawToken}`;
+
+    // 6. Send transactional email
+    if (this.emailService) {
+      await this.emailService.sendPasswordResetEmail({
+        toEmail: user.email,
+        toName: user.name,
+        resetUrl,
+        expiresInMinutes,
+      });
+    } else {
+      this.logger.log(`[DEV EMAIL] Password reset URL for ${user.email}: ${resetUrl}`);
+    }
+
+    // 7. Audit log event
+    try {
+      await this.prisma.systemAuditLog.create({
+        data: {
+          userName: user.name,
+          role: user.roleAssignments[0]?.role || 'Staff',
+          websiteId: 'system',
+          event: 'auth.password_reset_requested',
+          ipAddress: clientIp || '',
+          details: `Password reset requested for ${user.email}. Token issued with ${expiresInMinutes}m expiry.`,
+        },
+      });
+    } catch (e: any) {
+      this.logger.warn(`Failed to write audit log for password reset request: ${e.message}`);
+    }
+
+    return genericResponse;
+  }
+
+  /**
+   * Validate Password Reset Token — Pre-flight check for UI form
+   */
+  async validateResetToken(
+    dto: ValidateResetTokenDto,
+  ): Promise<{ valid: boolean; message?: string }> {
+    if (!dto.token || !dto.token.trim()) {
+      return { valid: false, message: 'Password reset token is missing.' };
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(dto.token.trim()).digest('hex');
+    const record = await this.redis.get<{ userId: string; email: string }>(`auth:pwd_reset:${tokenHash}`);
+
+    if (!record) {
+      return { valid: false, message: 'Password reset link is invalid or has expired.' };
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Secure Password Update Validation & Reset Execution
+   *
+   * Validations:
+   * 1. Token validation: must match valid unexpired hash in Redis
+   * 2. Password complexity: min 8 chars, uppercase, lowercase, numeric/symbol
+   * 3. Account active status verification
+   * 4. History check: new password cannot equal existing password
+   * 5. Token consumption: immediately destroyed upon successful update (single-use)
+   * 6. Account unlock: resets loginAttempts to 0 and clears lockoutUntil
+   * 7. Cache eviction: invalidates cached user session and profile in Redis
+   */
+  async resetPassword(
+    dto: ResetPasswordDto,
+    clientIp: string,
+  ): Promise<{ success: boolean; message: string }> {
+    if (!dto.token || !dto.token.trim()) {
+      throw new BadRequestException('Reset token is required.');
+    }
+
+    // 1. Password Complexity Validation
+    const password = dto.newPassword;
+    if (!password || password.length < 8) {
+      throw new BadRequestException('New password must be at least 8 characters long.');
+    }
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasDigitOrSpecial = /[\d!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password);
+    if (!hasUpperCase || !hasLowerCase || !hasDigitOrSpecial) {
+      throw new BadRequestException(
+        'Password must contain at least one uppercase letter, one lowercase letter, and one number or special character.',
+      );
+    }
+
+    // 2. Validate Token in Redis
+    const tokenHash = crypto.createHash('sha256').update(dto.token.trim()).digest('hex');
+    const resetKey = `auth:pwd_reset:${tokenHash}`;
+    const record = await this.redis.get<{ userId: string; email: string; name: string }>(resetKey);
+
+    if (!record || !record.userId) {
+      throw new BadRequestException('Password reset link is invalid or has expired. Please request a new one.');
+    }
+
+    // 3. User verification
+    const user = await this.prisma.user.findUnique({
+      where: { id: record.userId },
+      include: { roleAssignments: true },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User account no longer exists.');
+    }
+
+    if (user.status !== 'active') {
+      throw new ForbiddenException('This account has been suspended. Please contact your system administrator.');
+    }
+
+    // 4. Same Password Check (Bcrypt comparison against current hash)
+    const isSamePassword = await bcrypt.compare(password, user.passwordHash);
+    if (isSamePassword) {
+      throw new BadRequestException('New password cannot be the same as your current password. Please choose a new password.');
+    }
+
+    // 5. Hash new password with 10 salt rounds
+    const newPasswordHash = await bcrypt.hash(password, 10);
+
+    // 6. Update user password and clear any lockout status
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash: newPasswordHash,
+        loginAttempts: 0,
+        lockoutUntil: null,
+      },
+    });
+
+    // 7. Single-use: Destroy token immediately from Redis
+    await this.redis.del(resetKey);
+    await this.redis.del(`auth:pwd_reset_user:${user.id}`);
+
+    // 8. Invalidate cached profile / session in Redis
+    await this.redis.del(`auth:user:${user.id}`);
+    await this.redis.del(`auth:profile:${user.id}`);
+
+    // 9. Audit Log
+    try {
+      await this.prisma.systemAuditLog.create({
+        data: {
+          userName: updated.name,
+          role: user.roleAssignments[0]?.role || 'Staff',
+          websiteId: 'system',
+          event: 'auth.password_reset_completed',
+          ipAddress: clientIp || '',
+          details: `Password reset successfully completed for user ${updated.email} (${updated.id}).`,
+        },
+      });
+    } catch (e: any) {
+      this.logger.warn(`Failed to write audit log for password reset completion: ${e.message}`);
+    }
+
+    this.logger.log(`🔑 Password successfully reset for user ${updated.email} (${updated.id})`);
+
+    return {
+      success: true,
+      message: 'Your password has been reset successfully. You can now log in with your new password.',
     };
   }
 

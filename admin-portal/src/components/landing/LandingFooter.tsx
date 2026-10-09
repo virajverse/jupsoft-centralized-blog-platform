@@ -25,12 +25,21 @@ export const LandingFooter: React.FC = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
-            <Link
-              href="/dashboard"
+            <a
+              href="https://jupsoft.com/contact-us"
+              target="_blank"
+              rel="noopener noreferrer"
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-white text-slate-900 hover:bg-slate-100 font-bold text-sm shadow-lg transition-all active:scale-95 whitespace-nowrap"
             >
-              <span>Launch Studio</span>
+              <span>Book a Demo</span>
               <ArrowRight className="w-4 h-4" />
+            </a>
+
+            <Link
+              href="/dashboard"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl border border-indigo-400/30 bg-indigo-950/50 hover:bg-indigo-900/50 text-white font-medium text-sm transition-all whitespace-nowrap"
+            >
+              <span>Launch Studio</span>
             </Link>
 
             <a

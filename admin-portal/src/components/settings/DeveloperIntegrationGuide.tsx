@@ -1679,147 +1679,134 @@ Accept: application/json
   return (
     <div className="space-y-6">
       {/* ── TOP HEADER CARD & CREDENTIALS ── */}
-      <div className="bg-gradient-to-br from-indigo-900/10 via-slate-900/5 to-purple-900/10 dark:from-indigo-950/40 dark:via-slate-900/60 dark:to-purple-950/30 border border-indigo-200/60 dark:border-indigo-800/40 rounded-2xl p-6 shadow-xs space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-xs space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-[11px] font-bold font-mono tracking-wider uppercase mb-2">
-              <Sparkles className="w-3 h-3 text-indigo-500" />
-              <span>Self-Serve Frontend Developer Hub</span>
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-bold font-mono tracking-wider uppercase border border-slate-200 dark:border-slate-700">
+                <Code className="w-3 h-3 text-blue-600" />
+                <span>Developer API &amp; Integration Hub</span>
+              </span>
+              <span className="text-xs text-slate-400 font-mono">•</span>
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                {activeSite?.name}
+              </span>
+              <span className="text-[11px] font-mono text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-900">
+                {siteDomain}
+              </span>
             </div>
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <span>Dynamic Blog Connection: {activeSite?.name}</span>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              Client Libraries &amp; REST Integration
             </h2>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-2xl leading-relaxed">
-              Connect your frontend website to Blogary CMS in under 10 minutes. Zero backend back-and-forth: all files, rewrite rules, and endpoints are automatically tailored for <strong>{siteDomain}</strong>.
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-2xl leading-relaxed">
+              Tailored frontend client code, server-side decryptors, and rewrite rules for <strong>{siteDomain}</strong>. Zero plain-text key leakage in public page source.
             </p>
           </div>
 
-          <div className="flex flex-col xl:flex-row xl:items-center gap-3">
-            {/* Credentials Row */}
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => copyToClipboard(websiteId, 'top-site-id')}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-semibold text-slate-800 dark:text-slate-200 shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer"
-                title="Click to copy Website ID"
-              >
-                {copiedKey === 'top-site-id' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
-                <span>ID: {websiteId}</span>
-              </button>
-              <button
-                onClick={() => copyToClipboard(apiKey, 'top-api-key')}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-semibold text-slate-800 dark:text-slate-200 shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer"
-                title="Click to copy Client API Key"
-              >
-                {copiedKey === 'top-api-key' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
-                <span>Key: {apiKey ? `${apiKey.slice(0, 14)}...` : 'Not Set'}</span>
-              </button>
-              <button
-                onClick={() => copyToClipboard(apiBaseUrl, 'top-api-url')}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-semibold text-slate-800 dark:text-slate-200 shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer"
-                title="Click to copy Base API URL"
-              >
-                {copiedKey === 'top-api-url' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
-                <span>API: {apiBaseUrl}</span>
-              </button>
-            </div>
-
-            {/* Quick Handover Toolbar */}
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => {
-                  downloadFile(jsClientCode, 'cms-client.js');
-                  setTimeout(() => downloadFile(htmlBlogListCode, 'blog.shtml'), 200);
-                  setTimeout(() => downloadFile(htmlBlogDetailCode, 'blog-detail.shtml'), 400);
-                  setTimeout(() => downloadFile(iisRewriteCode, 'web.config', 'application/xml'), 600);
-                }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-                title="Download all 4 frontend integration files at once"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Download SHTML Pack</span>
-              </button>
-              <button
-                onClick={() => downloadFile(handoverMarkdown, `${websiteId}-developer-handover-guide.md`, 'text/markdown')}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800/80 hover:bg-slate-50 border border-emerald-500/50 text-emerald-700 dark:text-emerald-400 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-                title="Download complete handover documentation as Markdown file"
-              >
-                <FileText className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Handover Guide (.MD)</span>
-              </button>
-              <button
-                onClick={() => downloadFile(postmanCollectionJson, `${websiteId}-postman-collection.json`, 'application/json')}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800/80 hover:bg-slate-50 border border-indigo-500/50 text-indigo-700 dark:text-indigo-400 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-                title="Download Postman Collection v2.1"
-              >
-                <Download className="w-3.5 h-3.5 text-indigo-500" />
-                <span>Postman Collection</span>
-              </button>
-            </div>
+          {/* Quick Handover Toolbar */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              onClick={() => {
+                downloadFile(jsClientCode, 'cms-client.js');
+                setTimeout(() => downloadFile(htmlBlogListCode, 'blog.shtml'), 200);
+                setTimeout(() => downloadFile(htmlBlogDetailCode, 'blog-detail.shtml'), 400);
+                setTimeout(() => downloadFile(iisRewriteCode, 'web.config', 'application/xml'), 600);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              title="Download all 4 frontend integration files at once"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Download SHTML Pack</span>
+            </button>
+            <button
+              onClick={() => downloadFile(handoverMarkdown, `${websiteId}-developer-handover-guide.md`, 'text/markdown')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+              title="Download complete handover documentation as Markdown file"
+            >
+              <FileText className="w-3.5 h-3.5 text-slate-500" />
+              <span>Handover Guide (.MD)</span>
+            </button>
+            <button
+              onClick={() => downloadFile(postmanCollectionJson, `${websiteId}-postman-collection.json`, 'application/json')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+              title="Download Postman Collection v2.1"
+            >
+              <Download className="w-3.5 h-3.5 text-slate-500" />
+              <span>Postman Collection</span>
+            </button>
           </div>
         </div>
 
-        {/* 3 Steps Overview Chips */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-indigo-100/60 dark:border-indigo-900/40">
-          <div className="flex items-start gap-2.5 bg-white/70 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200/80 dark:border-slate-800">
-            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">1</span>
-            <div>
-              <div className="text-xs font-bold text-slate-900 dark:text-white">Domain-Locked Client API Key</div>
-              <div className="text-[11px] text-slate-500 mt-0.5">
-                Key locked strictly to: <code className="font-mono text-indigo-600 dark:text-indigo-400">{siteDomain}</code>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-start gap-2.5 bg-white/70 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200/80 dark:border-slate-800">
-            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">2</span>
-            <div>
-              <div className="text-xs font-bold text-slate-900 dark:text-white">Drop-in Production Files</div>
-              <div className="text-[11px] text-slate-500 mt-0.5">Static SHTML, IIS web.config, Next.js, or React</div>
-            </div>
-          </div>
-          <div className="flex items-start gap-2.5 bg-white/70 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200/80 dark:border-slate-800">
-            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">3</span>
-            <div>
-              <div className="text-xs font-bold text-slate-900 dark:text-white">Live In-Portal Testing</div>
-              <div className="text-[11px] text-slate-500 mt-0.5">Test real database blogs with sub-100ms latency</div>
-            </div>
-          </div>
+        {/* Credentials Bar */}
+        <div className="flex flex-wrap items-center gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800/80 text-xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Credentials:</span>
+          
+          <button
+            onClick={() => copyToClipboard(websiteId, 'top-site-id')}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-mono text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+            title="Click to copy Website ID"
+          >
+            <span className="text-slate-400 font-sans">Website ID:</span>
+            <span className="font-semibold text-slate-900 dark:text-white">{websiteId}</span>
+            {copiedKey === 'top-site-id' ? <Check className="w-3 h-3 text-emerald-500 ml-0.5" /> : <Copy className="w-3 h-3 text-slate-400 ml-0.5" />}
+          </button>
+
+          <button
+            onClick={() => copyToClipboard(apiKey, 'top-api-key')}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-mono text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+            title="Click to copy Client API Key"
+          >
+            <span className="text-slate-400 font-sans">Client Key:</span>
+            <span className="font-semibold text-slate-900 dark:text-white">{apiKey ? `${apiKey.slice(0, 12)}...` : 'Not Set'}</span>
+            {copiedKey === 'top-api-key' ? <Check className="w-3 h-3 text-emerald-500 ml-0.5" /> : <Copy className="w-3 h-3 text-slate-400 ml-0.5" />}
+          </button>
+
+          <button
+            onClick={() => copyToClipboard(apiBaseUrl, 'top-api-url')}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-mono text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+            title="Click to copy Base API URL"
+          >
+            <span className="text-slate-400 font-sans">Base API:</span>
+            <span className="font-semibold text-blue-600 dark:text-blue-400">{apiBaseUrl}</span>
+            {copiedKey === 'top-api-url' ? <Check className="w-3 h-3 text-emerald-500 ml-0.5" /> : <Copy className="w-3 h-3 text-slate-400 ml-0.5" />}
+          </button>
         </div>
       </div>
 
-      {/* ── STEP 1: INTERACTIVE LIVE API CONSOLE (COLLAPSIBLE) ── */}
-      <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs transition-all overflow-hidden">
+      {/* ── LIVE API TESTER & CONSOLE (COLLAPSIBLE) ── */}
+      <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs transition-all overflow-hidden">
         {/* Accordion / Toggle Header */}
         <div 
           onClick={() => setIsConsoleOpen(!isConsoleOpen)}
-          className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer hover:bg-slate-50/70 dark:hover:bg-slate-900/40 transition-colors select-none"
+          className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer hover:bg-slate-50/70 dark:hover:bg-slate-900/40 transition-colors select-none"
         >
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-              <Play className="w-4 h-4 fill-emerald-600 dark:fill-emerald-400" />
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <Play className="w-3.5 h-3.5 fill-emerald-600 dark:fill-emerald-400" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Step 1: Test Live API Connection &amp; Slugs for {activeSite?.name}
+                <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                  Live API Endpoint Tester
                 </h3>
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-                  {isConsoleOpen ? 'Active Console' : 'Click to Expand Tester'}
+                  {isConsoleOpen ? 'Open Console' : 'Click to Expand'}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Execute live HTTP requests against the production database to verify latency &amp; CORS before deploying code.
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Execute live HTTP calls against production database to verify CORS &amp; latency.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 self-end sm:self-auto shrink-0" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0" onClick={(e) => e.stopPropagation()}>
             {testStatus && (
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono font-bold ${
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold ${
                 testStatus === 200
                   ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
                   : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
               }`}>
-                {testStatus === 200 ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                {testStatus === 200 ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
                 <span>HTTP {testStatus}</span>
                 {testLatency && <span>• {testLatency}ms</span>}
               </span>
@@ -1827,11 +1814,11 @@ Accept: application/json
             <button
               onClick={runLiveTest}
               disabled={isTesting}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
               title="Test connection immediately and view response"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isTesting ? 'animate-spin' : ''}`} />
-              <span>{isTesting ? 'Testing...' : 'Execute Live Ping'}</span>
+              <RefreshCw className={`w-3 h-3 ${isTesting ? 'animate-spin' : ''}`} />
+              <span>{isTesting ? 'Testing...' : 'Execute Ping'}</span>
             </button>
             <button
               type="button"
@@ -1980,8 +1967,8 @@ Accept: application/json
             onClick={() => setActiveStack('js')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
               activeStack === 'js'
-                ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-2xs font-bold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'
             }`}
           >
             <Zap className="w-3.5 h-3.5" />
@@ -1991,8 +1978,8 @@ Accept: application/json
             onClick={() => setActiveStack('nextjs')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
               activeStack === 'nextjs'
-                ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-2xs font-bold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'
             }`}
           >
             <FileCode2 className="w-3.5 h-3.5" />
@@ -2002,8 +1989,8 @@ Accept: application/json
             onClick={() => setActiveStack('csharp')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
               activeStack === 'csharp'
-                ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-2xs font-bold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'
             }`}
           >
             <Server className="w-3.5 h-3.5" />
@@ -2013,8 +2000,8 @@ Accept: application/json
             onClick={() => setActiveStack('react')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
               activeStack === 'react'
-                ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-2xs font-bold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
@@ -2024,8 +2011,8 @@ Accept: application/json
             onClick={() => setActiveStack('widget')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
               activeStack === 'widget'
-                ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-2xs font-bold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'
             }`}
           >
             <Globe className="w-3.5 h-3.5" />
@@ -2035,8 +2022,8 @@ Accept: application/json
             onClick={() => setActiveStack('curl')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
               activeStack === 'curl'
-                ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-2xs font-bold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'
             }`}
           >
             <Terminal className="w-3.5 h-3.5" />
@@ -2046,35 +2033,55 @@ Accept: application/json
 
         {/* Sub-File Selector Bar */}
         {activeStack === 'js' && (
-          <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 text-xs">
-            <span className="text-slate-500 font-semibold">Select File:</span>
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-2.5 text-xs">
+            <span className="text-slate-400 font-semibold mr-1">Select File:</span>
             <button
               onClick={() => setActiveJsTab('client')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${activeJsTab === 'client' ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'}`}
+              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                activeJsTab === 'client'
+                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+              }`}
             >
               1. assets/js/cms-client.js
             </button>
             <button
               onClick={() => setActiveJsTab('list')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${activeJsTab === 'list' ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'}`}
+              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                activeJsTab === 'list'
+                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+              }`}
             >
               2. blog.shtml / blog.html (List Page)
             </button>
             <button
               onClick={() => setActiveJsTab('detail')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${activeJsTab === 'detail' ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'}`}
+              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                activeJsTab === 'detail'
+                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+              }`}
             >
               3. blog-detail.shtml / blog-detail.html (Article Page)
             </button>
             <button
               onClick={() => setActiveJsTab('iis')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${activeJsTab === 'iis' ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'}`}
+              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                activeJsTab === 'iis'
+                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+              }`}
             >
               4. web.config (IIS Rewrite)
             </button>
             <button
               onClick={() => setActiveJsTab('htaccess')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${activeJsTab === 'htaccess' ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'}`}
+              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                activeJsTab === 'htaccess'
+                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+              }`}
             >
               5. .htaccess (Apache Rewrite)
             </button>
@@ -2082,29 +2089,45 @@ Accept: application/json
         )}
 
         {activeStack === 'nextjs' && (
-          <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 text-xs">
-            <span className="text-slate-500 font-semibold">Select File:</span>
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-2.5 text-xs">
+            <span className="text-slate-400 font-semibold mr-1">Select File:</span>
             <button
               onClick={() => setActiveNextTab('list')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${activeNextTab === 'list' ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'}`}
+              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                activeNextTab === 'list'
+                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+              }`}
             >
               app/blog/page.tsx
             </button>
             <button
               onClick={() => setActiveNextTab('detail')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${activeNextTab === 'detail' ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'}`}
+              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                activeNextTab === 'detail'
+                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+              }`}
             >
               app/blog/[slug]/page.tsx
             </button>
             <button
               onClick={() => setActiveNextTab('webhook')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${activeNextTab === 'webhook' ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'}`}
+              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                activeNextTab === 'webhook'
+                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+              }`}
             >
               app/api/revalidate/route.ts
             </button>
             <button
               onClick={() => setActiveNextTab('nextconfig')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${activeNextTab === 'nextconfig' ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'}`}
+              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                activeNextTab === 'nextconfig'
+                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+              }`}
             >
               next.config.js
             </button>
@@ -2114,29 +2137,45 @@ Accept: application/json
         {activeStack === 'csharp' && (
           <div className="space-y-3 border-b border-slate-200 dark:border-slate-800 pb-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-slate-500 font-semibold">Select File:</span>
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="text-slate-400 font-semibold mr-1">Select File:</span>
                 <button
                   onClick={() => setActiveCSharpTab('webconfig')}
-                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${activeCSharpTab === 'webconfig' ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'}`}
+                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                    activeCSharpTab === 'webconfig'
+                      ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                  }`}
                 >
                   1. Web.config (AES Encrypted Token)
                 </button>
                 <button
                   onClick={() => setActiveCSharpTab('list')}
-                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${activeCSharpTab === 'list' ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'}`}
+                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                    activeCSharpTab === 'list'
+                      ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                  }`}
                 >
                   2. blog.aspx.cs (Server Decryptor)
                 </button>
                 <button
                   onClick={() => setActiveCSharpTab('detail')}
-                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${activeCSharpTab === 'detail' ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'}`}
+                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                    activeCSharpTab === 'detail'
+                      ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                  }`}
                 >
                   3. blog-detail.aspx.cs (Article Detail)
                 </button>
                 <button
                   onClick={() => setActiveCSharpTab('aspx')}
-                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${activeCSharpTab === 'aspx' ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'}`}
+                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                    activeCSharpTab === 'aspx'
+                      ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                  }`}
                 >
                   4. blog.aspx (Zero-Key HTML Markup)
                 </button>
@@ -2149,7 +2188,7 @@ Accept: application/json
                   setTimeout(() => downloadFile(csharpDetailCode, 'blog-detail.aspx.cs'), 400);
                   setTimeout(() => downloadFile(csharpAspxCode, 'blog.aspx', 'text/html'), 600);
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
                 title="Download all 4 ASP.NET C# integration files at once"
               >
                 <Download className="w-3.5 h-3.5" />
@@ -2158,12 +2197,12 @@ Accept: application/json
             </div>
 
             {/* Zero-Leak Security Architecture Banner */}
-            <div className="flex items-start gap-2.5 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs">
-              <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2.5 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300 text-xs">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <div className="font-semibold flex items-center gap-1.5">
                   <span>100% Zero-Leak Architecture: Plaintext API Key Never Exposed in Frontend</span>
-                  <span className="px-1.5 py-0.2 bg-emerald-500/20 rounded text-[10px] font-mono uppercase font-bold text-emerald-700 dark:text-emerald-200">AES-128 Cipher Active</span>
+                  <span className="px-1.5 py-0.2 bg-emerald-100 dark:bg-emerald-900/60 rounded text-[10px] font-mono uppercase font-bold text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-700">AES-128 Active</span>
                 </div>
                 <p className="text-[11px] leading-relaxed opacity-90">
                   Your <code>Web.config</code> holds an AES-128-CBC cipher (<code>{encryptedCmsToken ? `${encryptedCmsToken.slice(0, 24)}...` : 'Computing...'}</code>). The C# code-behind decrypts it directly in server RAM during page execution, and serves pure JSON via <code>&lt;%= BlogsJson %&gt;</code>. Inspecting HTML source code (<code>Ctrl+U</code>) or DevTools Network tabs reveals <strong>zero API keys and zero tokens</strong>.
@@ -2174,17 +2213,25 @@ Accept: application/json
         )}
 
         {activeStack === 'react' && (
-          <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 text-xs">
-            <span className="text-slate-500 font-semibold">Select File:</span>
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-2.5 text-xs">
+            <span className="text-slate-400 font-semibold mr-1">Select File:</span>
             <button
               onClick={() => setActiveReactTab('hook')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${activeReactTab === 'hook' ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'}`}
+              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                activeReactTab === 'hook'
+                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+              }`}
             >
               src/hooks/useBlogs.ts
             </button>
             <button
               onClick={() => setActiveReactTab('detail')}
-              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${activeReactTab === 'detail' ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'}`}
+              className={`px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                activeReactTab === 'detail'
+                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+              }`}
             >
               src/pages/BlogDetailPage.tsx
             </button>

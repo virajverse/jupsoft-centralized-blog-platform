@@ -92,6 +92,7 @@ export const ProfileView: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPasswords, setShowPasswords] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
   // Detect and verify Real Client Public IP
   const fetchRealPublicIp = async (manual = false) => {
@@ -340,6 +341,22 @@ export const ProfileView: React.FC = () => {
     }
   };
 
+  const handleSendResetEmail = async () => {
+    if (!currentUser?.email) {
+      showNotification('User email address not found', 'warning');
+      return;
+    }
+    setIsSendingReset(true);
+    try {
+      await apiClient.forgotPassword(currentUser.email);
+      showNotification(`Password reset link sent to ${currentUser.email}`, 'info');
+    } catch (err: unknown) {
+      showNotification(err instanceof Error ? err.message : 'Failed to send reset link', 'error');
+    } finally {
+      setIsSendingReset(false);
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-slate-50/50 dark:bg-[#090d16]">
       {/* Top Banner / Heading */}
@@ -546,9 +563,19 @@ export const ProfileView: React.FC = () => {
             {showPasswordSection && (
               <form onSubmit={handleChangePassword} className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                    Current Password
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 block">
+                      Current Password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleSendResetEmail}
+                      disabled={isSendingReset}
+                      className="text-[11px] font-medium text-red-600 hover:text-red-500 dark:text-red-400 hover:underline cursor-pointer disabled:opacity-50"
+                    >
+                      {isSendingReset ? 'Sending link...' : 'Forgot current password?'}
+                    </button>
+                  </div>
                   <div className="relative">
                     <input
                       type={showPasswords ? 'text' : 'password'}

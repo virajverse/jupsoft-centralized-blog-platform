@@ -28,6 +28,13 @@ export interface WorkflowEmailPayload {
   notes?: string;
 }
 
+export interface PasswordResetEmailPayload {
+  toEmail: string;
+  toName: string;
+  resetUrl: string;
+  expiresInMinutes: number;
+}
+
 // Map status transitions to email subjects and human-readable messages
 const EMAIL_TEMPLATES: Record<string, { subject: string; headline: string; bodyLine: string }> = {
   'Under Review': {
@@ -65,9 +72,18 @@ export class EmailService {
   private isEnabled: boolean;
 
   constructor(private config: ConfigService) {
-    const accessKeyId = this.config.get<string>('AWS_ACCESS_KEY_ID') || '';
-    const secretAccessKey = this.config.get<string>('AWS_SECRET_ACCESS_KEY') || '';
-    const region = this.config.get<string>('AWS_REGION') || 'ap-south-1';
+    const accessKeyId =
+      this.config.get<string>('AWS_SES_ACCESS_KEY_ID') ||
+      this.config.get<string>('AWS_ACCESS_KEY_ID') ||
+      '';
+    const secretAccessKey =
+      this.config.get<string>('AWS_SES_SECRET_ACCESS_KEY') ||
+      this.config.get<string>('AWS_SECRET_ACCESS_KEY') ||
+      '';
+    const region =
+      this.config.get<string>('AWS_SES_REGION') ||
+      this.config.get<string>('AWS_REGION') ||
+      'ap-south-1';
     this.fromAddress =
       this.config.get<string>('SES_FROM_EMAIL') || 'noreply@jupsoft.com';
 
@@ -138,6 +154,44 @@ export class EmailService {
     }
   }
 
+  /**
+   * Send a secure password reset link email.
+   * Gracefully logs in dev mode if SES is not configured.
+   */
+  async sendPasswordResetEmail(payload: PasswordResetEmailPayload): Promise<void> {
+    const subject = '🔒 Reset Your Blogary CMS Password';
+    const htmlBody = this.buildPasswordResetHtml(payload);
+    const textBody = this.buildPasswordResetText(payload);
+
+    if (!this.isEnabled || !this.sesClient) {
+      this.logger.log(
+        `[DEV EMAIL] Password reset email for ${payload.toEmail} (${payload.toName}) | URL: ${payload.resetUrl} (expires in ${payload.expiresInMinutes}m)`,
+      );
+      return;
+    }
+
+    try {
+      const command = new SendEmailCommand({
+        Source: `Jupsoft CMS <${this.fromAddress}>`,
+        Destination: { ToAddresses: [payload.toEmail] },
+        Message: {
+          Subject: { Data: subject, Charset: 'UTF-8' },
+          Body: {
+            Html: { Data: htmlBody, Charset: 'UTF-8' },
+            Text: { Data: textBody, Charset: 'UTF-8' },
+          },
+        },
+      });
+
+      await this.sesClient.send(command);
+      this.logger.log(`✅ Password reset email sent via SES → ${payload.toEmail}`);
+    } catch (err) {
+      this.logger.error(
+        `❌ SES password reset email delivery failed to ${payload.toEmail}: ${(err as Error).message}`,
+      );
+    }
+  }
+
   // ─── HTML email template ──────────────────────────────────────────────────
 
   private buildHtmlEmail(
@@ -204,6 +258,92 @@ export class EmailService {
     ]
       .filter((l) => l !== undefined)
       .join('\n');
+  }
+
+  // ─── Password Reset Email Templates ──────────────────────────────────────
+
+  private buildPasswordResetHtml(payload: PasswordResetEmailPayload): string {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Your Password — Blogary CMS</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #090d16; margin: 0; padding: 24px; color: #f1f5f9;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 560px; margin: 0 auto; background-color: #0f172a; border-radius: 16px; border: 1px solid #1e293b; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);">
+    <tr>
+      <td style="padding: 36px 32px;">
+        <!-- Brand Header -->
+        <div style="border-bottom: 1px solid #1e293b; padding-bottom: 20px; margin-bottom: 24px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td>
+                <span style="font-size: 20px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px;">Blogary <span style="font-size: 11px; padding: 2px 6px; background-color: rgba(99, 102, 241, 0.2); color: #818cf8; border-radius: 4px; border: 1px solid rgba(99, 102, 241, 0.3); font-weight: 600; margin-left: 6px;">CMS</span></span>
+              </td>
+              <td align="right">
+                <span style="font-size: 11px; color: #94a3b8; font-family: monospace;">Security Service</span>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Headline -->
+        <h1 style="color: #ffffff; font-size: 22px; font-weight: 700; margin: 0 0 12px; letter-spacing: -0.3px;">Password Reset Request</h1>
+        <p style="color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0 0 20px;">
+          Hello <strong style="color: #e2e8f0;">${this.escapeHtml(payload.toName || 'Team Member')}</strong>, we received a request to reset your password for your Blogary CMS account (<strong style="color: #e2e8f0;">${this.escapeHtml(payload.toEmail)}</strong>).
+        </p>
+
+        <!-- CTA Button Box -->
+        <div style="text-align: center; margin: 32px 0;">
+          <a href="${payload.resetUrl}" style="display: inline-block; background-color: #6366f1; color: #ffffff; font-size: 14px; font-weight: 600; text-decoration: none; padding: 14px 28px; border-radius: 10px; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);">
+            Reset My Password &rarr;
+          </a>
+        </div>
+
+        <!-- Expiration Alert -->
+        <div style="background-color: #1e293b; border-radius: 8px; padding: 14px 16px; margin-bottom: 24px; border-left: 3px solid #6366f1;">
+          <p style="color: #cbd5e1; font-size: 12px; margin: 0; line-height: 1.5;">
+            ⏰ This reset link is single-use and will expire in <strong style="color: #ffffff;">${payload.expiresInMinutes} minutes</strong>.
+          </p>
+        </div>
+
+        <!-- Fallback Link -->
+        <p style="color: #64748b; font-size: 11px; line-height: 1.5; margin: 0 0 24px; word-break: break-all;">
+          If the button above does not work, copy and paste this URL into your browser:<br>
+          <a href="${payload.resetUrl}" style="color: #818cf8; text-decoration: underline;">${payload.resetUrl}</a>
+        </p>
+
+        <!-- Security Disclaimer -->
+        <div style="border-top: 1px solid #1e293b; padding-top: 20px;">
+          <p style="color: #64748b; font-size: 11px; line-height: 1.5; margin: 0;">
+            🛡️ If you did not request this password reset, you can safely ignore this email. Your current password remains secure and no changes were made.
+          </p>
+        </div>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+  }
+
+  private buildPasswordResetText(payload: PasswordResetEmailPayload): string {
+    return [
+      `Blogary CMS — Password Reset Request`,
+      ``,
+      `Hello ${payload.toName || 'Team Member'},`,
+      ``,
+      `We received a request to reset your password for your Blogary CMS account (${payload.toEmail}).`,
+      ``,
+      `To set a new password, click or visit the following link:`,
+      payload.resetUrl,
+      ``,
+      `This link will expire in ${payload.expiresInMinutes} minutes and can only be used once.`,
+      ``,
+      `If you did not request this password reset, please ignore this email. Your account remains secure.`,
+      ``,
+      `— Jupsoft CMS Security Team`,
+    ].join('\n');
   }
 
   private escapeHtml(str: string): string {

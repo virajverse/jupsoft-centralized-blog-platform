@@ -14,12 +14,22 @@ import {
   Res,
   HttpCode,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { LoginDto, RefreshTokenDto, ChangePasswordDto, LogoutDto, GoogleLoginDto } from './dto/login.dto';
+import {
+  LoginDto,
+  RefreshTokenDto,
+  ChangePasswordDto,
+  LogoutDto,
+  GoogleLoginDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  ValidateResetTokenDto,
+} from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -192,6 +202,39 @@ export class AuthController {
     @Ip() ip: string,
   ) {
     return this.authService.changePassword(userId, dto, ip);
+  }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request password reset token link sent to user email (enumeration protected)' })
+  @ApiResponse({ status: 200, description: 'Reset instructions dispatched if account exists' })
+  @ApiResponse({ status: 400, description: 'Rate limit exceeded or invalid email' })
+  async forgotPassword(
+    @Body() dto: ForgotPasswordDto,
+    @Ip() ip: string,
+  ) {
+    const effectiveIp = (dto.clientPublicIp || ip || '').replace(/^::ffff:/, '').trim();
+    return this.authService.forgotPassword(dto, effectiveIp);
+  }
+
+  @Get('validate-reset-token')
+  @ApiOperation({ summary: 'Validate that a password reset token is active and unexpired' })
+  @ApiResponse({ status: 200, description: 'Token validity check result' })
+  async validateResetToken(@Query('token') token: string) {
+    return this.authService.validateResetToken({ token });
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset account password using valid cryptographic reset token' })
+  @ApiResponse({ status: 200, description: 'Password reset successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid/expired token or password policy violation' })
+  async resetPassword(
+    @Body() dto: ResetPasswordDto,
+    @Ip() ip: string,
+  ) {
+    const effectiveIp = (dto.clientPublicIp || ip || '').replace(/^::ffff:/, '').trim();
+    return this.authService.resetPassword(dto, effectiveIp);
   }
 }
 

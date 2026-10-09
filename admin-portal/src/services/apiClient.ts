@@ -224,8 +224,13 @@ class ApiClient {
 
     if (response.status === 204) return undefined as unknown as T;
 
-    // --- 401 Auto-Refresh Logic (skip for auth login/refresh endpoints) ---
-    const isAuthEndpoint = endpoint.includes('/admin/auth/login') || endpoint.includes('/admin/auth/refresh');
+    // --- 401 Auto-Refresh Logic (skip for auth login/refresh/reset endpoints) ---
+    const isAuthEndpoint =
+      endpoint.includes('/admin/auth/login') ||
+      endpoint.includes('/admin/auth/refresh') ||
+      endpoint.includes('/admin/auth/forgot-password') ||
+      endpoint.includes('/admin/auth/reset-password') ||
+      endpoint.includes('/admin/auth/validate-reset-token');
     if (response.status === 401 && !isAuthEndpoint) {
       if (this.isRefreshing) {
         // Queue this request until refresh completes
@@ -352,6 +357,29 @@ class ApiClient {
       this.setTokens(data.accessToken, data.refreshToken);
     }
     return data;
+  }
+
+  async forgotPassword(email: string): Promise<{ success: boolean; message: string }> {
+    const clientPublicIp = typeof window !== 'undefined' ? localStorage.getItem('jupsoft_client_public_ip') || undefined : undefined;
+    return this.request<{ success: boolean; message: string }>(
+      '/admin/auth/forgot-password',
+      { method: 'POST', body: JSON.stringify({ email, clientPublicIp }) },
+    );
+  }
+
+  async validateResetToken(token: string): Promise<{ valid: boolean; message?: string }> {
+    return this.request<{ valid: boolean; message?: string }>(
+      `/admin/auth/validate-reset-token?token=${encodeURIComponent(token)}`,
+      { method: 'GET' },
+    );
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    const clientPublicIp = typeof window !== 'undefined' ? localStorage.getItem('jupsoft_client_public_ip') || undefined : undefined;
+    return this.request<{ success: boolean; message: string }>(
+      '/admin/auth/reset-password',
+      { method: 'POST', body: JSON.stringify({ token, newPassword, clientPublicIp }) },
+    );
   }
 
   async syncClientIp(ip: string): Promise<{ success: boolean; ip: string }> {

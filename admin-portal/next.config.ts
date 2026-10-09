@@ -30,7 +30,12 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/contact.html',
-        destination: '/contact',
+        destination: 'https://jupsoft.com/contact-us',
+        permanent: true,
+      },
+      {
+        source: '/contact',
+        destination: 'https://jupsoft.com/contact-us',
         permanent: true,
       },
       {
@@ -56,10 +61,6 @@ const nextConfig: NextConfig = {
         {
           source: '/',
           destination: '/landing.html',
-        },
-        {
-          source: '/contact',
-          destination: '/contact.html',
         },
         {
           source: '/developers',
