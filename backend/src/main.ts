@@ -116,7 +116,7 @@ async function bootstrap() {
   const staticAllowedOrigins = new Set(
     (
       rawAllowedOrigins ||
-      'http://localhost:3000,http://localhost:4000,http://localhost:4010,https://blogary.jupsoft.com,http://blogary.jupsoft.com,https://cms.jupsoft.com,https://api.cms.jupsoft.com,https://cloud.jupsoft.com,https://jupsoft.com,https://digifynext.com,https://www.digifynext.com,https://schoolerp.in'
+      'https://blogary.jupsoft.com,http://blogary.jupsoft.com,https://cms.jupsoft.com,https://api.cms.jupsoft.com,https://cloud.jupsoft.com,https://jupsoft.com,https://digifynext.com,https://www.digifynext.com,https://schoolerp.in'
     )
       .split(',')
       .map((o) => o.trim().toLowerCase().replace(/\/+$/, '')),
@@ -164,11 +164,6 @@ async function bootstrap() {
     origin: async (origin, callback) => {
       // 1. Allow non-browser requests (cURL, server-to-server, SSR/ISR, webhooks) or wildcard
       if (!origin || allowAllOrigins) return callback(null, true);
-
-      // 2. Permit localhost / 127.0.0.1 / private LAN origins in all envs
-      if (/^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$/.test(origin)) {
-        return callback(null, true);
-      }
 
       const normalizedOrigin = origin.toLowerCase().replace(/\/+$/, '');
 

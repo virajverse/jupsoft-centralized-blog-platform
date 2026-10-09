@@ -168,19 +168,11 @@ export class ApiKeyGuard implements CanActivate {
         const targetDomain = extractHost(website.domain || '');
 
         if (callerHost) {
-          const isLocalhost =
-            callerHost === 'localhost' ||
-            callerHost === '127.0.0.1' ||
-            callerHost.startsWith('192.168.') ||
-            callerHost.startsWith('10.');
-
           const isAuthorizedDomain =
             Boolean(targetDomain && (callerHost === targetDomain || callerHost.endsWith('.' + targetDomain))) ||
             (callerHost === 'jupsoft.com' || callerHost.endsWith('.jupsoft.com') || callerHost === 'test1.jupsoft.in') ||
-            isLocalhost ||
             callerHost.endsWith('.netlify.app') ||
-            callerHost.endsWith('.vercel.app') ||
-            callerHost.endsWith('.github.io');
+            callerHost.endsWith('.vercel.app');
 
           if (!isAuthorizedDomain) {
             throw new ForbiddenException(
@@ -320,15 +312,11 @@ export class ApiKeyGuard implements CanActivate {
       const callerHost = extractHost(originHeader) || extractHost(refererHeader);
       const targetDomain = extractHost(website.domain || '');
 
-      const isLocalhost = callerHost === 'localhost' || callerHost === '127.0.0.1' || callerHost.startsWith('192.168.') || callerHost.startsWith('10.');
-
       const isAuthorizedDomain =
         Boolean(callerHost && targetDomain && (callerHost === targetDomain || callerHost.endsWith('.' + targetDomain))) ||
         (Boolean(callerHost) && (callerHost === 'jupsoft.com' || callerHost.endsWith('.jupsoft.com') || callerHost === 'test1.jupsoft.in')) ||
-        isLocalhost ||
         callerHost.endsWith('.netlify.app') ||
-        callerHost.endsWith('.vercel.app') ||
-        callerHost.endsWith('.github.io');
+        callerHost.endsWith('.vercel.app');
 
       if (!isAuthorizedDomain) {
         throw new UnauthorizedException(

@@ -416,11 +416,6 @@ describe('Pipeline Durability & High Availability', () => {
     function evaluateOrigin(origin: string | undefined): boolean {
       if (!origin) return true; // Server-to-server / curl
 
-      // Localhost / private LAN
-      if (/^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$/.test(origin)) {
-        return true;
-      }
-
       let hostname = '';
       try {
         hostname = new URL(origin).hostname.toLowerCase();
@@ -428,12 +423,14 @@ describe('Pipeline Durability & High Availability', () => {
         hostname = origin.toLowerCase().replace(/^https?:\/\//, '');
       }
 
-      // Platform host / subdomains / trusted CDNs
+      // Platform host / subdomains / trusted CDNs / Staging
       if (
         hostname === platformHost ||
         hostname.endsWith(`.${platformHost}`) ||
         hostname.endsWith('.jupsoft.com') ||
-        hostname === 'jupsoft.com'
+        hostname === 'jupsoft.com' ||
+        hostname.endsWith('.vercel.app') ||
+        hostname.endsWith('.netlify.app')
       ) {
         return true;
       }
@@ -458,13 +455,15 @@ describe('Pipeline Durability & High Availability', () => {
       expect(evaluateOrigin('https://customclient.org')).toBe(true);
     });
 
-    it('should permit local development origins across ports', () => {
-      expect(evaluateOrigin('http://localhost:3000')).toBe(true);
-      expect(evaluateOrigin('http://localhost:4010')).toBe(true);
-      expect(evaluateOrigin('http://127.0.0.1:5173')).toBe(true);
+    it('should permit staging and preview deployments (vercel & netlify)', () => {
+      expect(evaluateOrigin('https://my-preview.vercel.app')).toBe(true);
+      expect(evaluateOrigin('https://site-staging.netlify.app')).toBe(true);
     });
 
-    it('should reject unauthorized malicious external origins', () => {
+    it('should reject localhost and unauthorized malicious external origins', () => {
+      expect(evaluateOrigin('http://localhost:3000')).toBe(false);
+      expect(evaluateOrigin('http://localhost:4010')).toBe(false);
+      expect(evaluateOrigin('http://127.0.0.1:5173')).toBe(false);
       expect(evaluateOrigin('https://evil-phishing-site.com')).toBe(false);
       expect(evaluateOrigin('https://fake-jupsoft-stealer.xyz')).toBe(false);
       expect(evaluateOrigin('http://hacker-server.net')).toBe(false);

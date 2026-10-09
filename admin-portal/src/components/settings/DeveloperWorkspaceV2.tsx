@@ -27,6 +27,7 @@ import {
   KeyRound,
   Zap,
   BookOpen,
+  Sparkles,
   Terminal
 } from 'lucide-react';
 
@@ -54,19 +55,19 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
   const [selectedLanguage, setSelectedLanguage] = useState<TargetLanguage>('html');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
-  const [showCmsToken, setShowCmsToken] = useState(false);
-  const [encryptedCmsToken, setEncryptedCmsToken] = useState<string>(
-    'idF9Vzz2az9eisdgl6ifp4yGSxi5cGjt7NJ8LxNhw8YZGBOP8jBnp49lqpunfjsl'
-  );
+  const [gatewayHealth, setGatewayHealth] = useState<'checking' | 'online' | 'offline'>('checking');
 
-  // Live Console Tester State
+  // Diagnostic Console State
   const [testEndpoint, setTestEndpoint] = useState<'blogs' | 'detail' | 'latest' | 'popular' | 'categories' | 'health'>('blogs');
   const [testSlug, setTestSlug] = useState('');
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
   const [testStatus, setTestStatus] = useState<number | null>(null);
+  const [testStatusText, setTestStatusText] = useState<string | null>(null);
   const [testLatency, setTestLatency] = useState<number | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
+  const [testErrorCategory, setTestErrorCategory] = useState<'network' | 'auth' | 'not_found' | 'server' | 'parse' | null>(null);
+  const [testResponseHeaders, setTestResponseHeaders] = useState<Record<string, string>>({});
   const [bypassCacheTest, setBypassCacheTest] = useState(false);
   const [lastTestedTime, setLastTestedTime] = useState<string | null>(null);
 
@@ -80,6 +81,26 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
   const siteDomain = activeSite?.domain || 'yourdomain.com';
   const apiKey = (canViewApiKey && activeSite?.apiKey) ? activeSite.apiKey : 'jup_live_sec_your_api_key';
   const apiBaseUrl = 'https://blogary.jupsoft.com/v1';
+
+  // Gateway Connection Health Verification
+  useEffect(() => {
+    let active = true;
+    fetch(`${apiBaseUrl}/health`)
+      .then((res) => {
+        if (!active) return;
+        if (res.ok) {
+          setGatewayHealth('online');
+        } else {
+          setGatewayHealth('offline');
+        }
+      })
+      .catch(() => {
+        if (active) setGatewayHealth('offline');
+      });
+    return () => {
+      active = false;
+    };
+  }, [apiBaseUrl]);
 
   // Published Blogs for Slug Testing
   const publishedBlogs = useMemo(() => {
@@ -101,41 +122,31 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
     }
   }, [defaultRealSlug]);
 
-  // Dynamically compute AES-128-CBC encrypted cipher token for CMS_TOKEN
-  useEffect(() => {
-    async function computeAesCipher() {
-      if (!apiKey || apiKey.includes('your_api_key')) return;
-      try {
-        if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
-          const keyBytes = new Uint8Array([0x50, 0x64, 0x70, 0x53, 0x63, 0x68, 0x6F, 0x6F, 0x6C, 0x32, 0x30, 0x32, 0x36, 0x21, 0x40, 0x23]);
-          const ivBytes = new Uint8Array([0x4A, 0x75, 0x70, 0x73, 0x6F, 0x66, 0x74, 0x43, 0x6D, 0x73, 0x53, 0x65, 0x63, 0x75, 0x72, 0x65]);
-          const cryptoKey = await window.crypto.subtle.importKey(
-            'raw',
-            keyBytes,
-            { name: 'AES-CBC' },
-            false,
-            ['encrypt']
-          );
-          const encoded = new TextEncoder().encode(apiKey);
-          const encrypted = await window.crypto.subtle.encrypt(
-            { name: 'AES-CBC', iv: ivBytes },
-            cryptoKey,
-            encoded
-          );
-          const base64 = btoa(String.fromCharCode(...new Uint8Array(encrypted)));
-          setEncryptedCmsToken(base64);
+  const copyToClipboard = async (text: string, id: string) => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        setCopiedKey(id);
+        setTimeout(() => setCopiedKey(null), 2000);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        textarea.style.top = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        const success = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        if (success) {
+          setCopiedKey(id);
+          setTimeout(() => setCopiedKey(null), 2000);
         }
-      } catch (err) {
-        // Fallback keep existing
       }
+    } catch (err) {
+      console.warn('Clipboard copy failed:', err);
     }
-    computeAesCipher();
-  }, [apiKey]);
-
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(id);
-    setTimeout(() => setCopiedKey(null), 2000);
   };
 
   const downloadFile = (content: string, filename: string, mimeType = 'text/plain') => {
@@ -180,7 +191,6 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
 
   var config = {
     websiteId: '${websiteId}',
-    cmsToken: '${encryptedCmsToken}',
     apiUrl: '${apiBaseUrl}',
     timeoutMs: 5000,
     enableCache: true
@@ -228,8 +238,7 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
 
     var headers = {
       'Accept': 'application/json',
-      'x-website-id': config.websiteId,
-      'x-cms-token': config.cmsToken
+      'x-website-id': config.websiteId
     };
     if (config.apiKey) {
       headers['x-api-key'] = config.apiKey;
@@ -270,20 +279,25 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
     }).catch(function (err) {
       return {
         success: false,
-        status: err.name === 'AbortError' ? 504 : 500,
-        error: err.message || 'Network request failed'
+        status: err.name === 'AbortError' ? 408 : 500,
+        error: err.name === 'AbortError' ? 'Request timed out after ' + config.timeoutMs + 'ms' : (err.message || 'Network request failed')
       };
     });
 
-    var timeoutPromise = new Promise(function (_, reject) {
+    var timeoutPromise = new Promise(function (resolve) {
       timer = setTimeout(function () {
         if (controller) controller.abort();
-        reject(new Error('Jupsoft CMS request timed out after ' + config.timeoutMs + 'ms'));
+        resolve({
+          success: false,
+          status: 408,
+          error: 'Jupsoft CMS request timed out after ' + config.timeoutMs + 'ms'
+        });
       }, config.timeoutMs);
     });
 
-    return Promise.race([fetchPromise, timeoutPromise]).finally(function () {
+    return Promise.race([fetchPromise, timeoutPromise]).then(function (result) {
       if (timer) clearTimeout(timer);
+      return result;
     });
   }
 
@@ -402,7 +416,7 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
   return SDK;
 }));
 `;
-  }, [activeSite?.name, websiteId, siteDomain, encryptedCmsToken, apiBaseUrl]);
+  }, [activeSite?.name, websiteId, siteDomain, apiBaseUrl]);
 
   // ──────────────────────────────────────────────────────────────────────────
   // 2. PRE-CONFIGURED .ENV FILE
@@ -416,13 +430,12 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
 
 # Public Frontend Variables (Safe for browser / client scripts)
 JUPSOFT_WEBSITE_ID="${websiteId}"
-JUPSOFT_CMS_TOKEN="${encryptedCmsToken}"
 JUPSOFT_API_URL="${apiBaseUrl}"
 
 # Server Master Secret Key (Keep private, never expose in public HTML / client JS)
 JUPSOFT_API_KEY="${apiKey}"
 `;
-  }, [activeSite?.name, siteDomain, websiteId, encryptedCmsToken, apiBaseUrl, apiKey]);
+  }, [activeSite?.name, siteDomain, websiteId, apiBaseUrl, apiKey]);
 
   // ──────────────────────────────────────────────────────────────────────────
   // 2.5 MULTI-LANGUAGE CODE SNIPPETS & STACK CONFIGURATIONS
@@ -452,26 +465,67 @@ JUPSOFT_API_KEY="${apiKey}"
         mimeType: 'application/javascript',
         description: 'HTML / SHTML integration example',
         code: pureJsClientCode,
-        quickUsageTitle: 'Quick Usage for Frontend Developers (In your HTML / SHTML / JS):',
-        quickUsageCode: `<!-- 1. Include the client script -->
+        quickUsageTitle: 'Frontend Quick Start: Listing & Detail Page Integration (HTML / SHTML):',
+        quickUsageCode: `<!-- ========================================== -->
+<!-- 1. BLOG LISTING PAGE (blog.html / blog.shtml) -->
+<!-- ========================================== -->
+<div class="row" id="blogGrid">
+  <p>Loading blogs...</p>
+</div>
+
 <script src="/js/cms-client.js"></script>
-
 <script>
-  // 2. Fetch Blog List
-  JupsoftCMS.getBlogs({ page: 1, limit: 9 }).then(function(res) {
-    if (res.success) {
-      console.log('Articles:', res.data); // Array of blogs
-      // Your designer loops through res.data and fills their custom HTML cards
+  // Saare blogs fetch karke HTML card mein render karo
+  JupsoftCMS.getBlogs({ limit: 12 }).then(function(res) {
+    var grid = document.getElementById('blogGrid');
+    if (!grid || !res.data || res.data.length === 0) {
+      if (grid) grid.innerHTML = '<p>Abhi koi blog nahi hai.</p>';
+      return;
     }
-  });
 
-  // 3. Fetch Single Article Detail
+    // Apne HTML card design mein map chala kar fit karo
+    grid.innerHTML = res.data.map(function(blog) {
+      var dateStr = blog.publishedAt ? new Date(blog.publishedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+      var img = blog.featuredImage || '/images/default-blog.jpg';
+      var cat = blog.primaryCategory || (blog.categories && blog.categories[0] && blog.categories[0].name) || 'Blog';
+      var link = '/blog/' + encodeURIComponent(blog.slug);
+
+      return '<div class="col-lg-4 col-md-6 mb-4">' +
+        '<div class="blog-card">' +
+          '<a href="' + link + '"><img src="' + img + '" alt="' + (blog.title || '') + '" loading="lazy" /></a>' +
+          '<span class="badge">' + cat + '</span>' +
+          '<h3><a href="' + link + '">' + (blog.title || 'Untitled') + '</a></h3>' +
+          '<p>' + (blog.excerpt || '') + '</p>' +
+          '<span>' + dateStr + '</span>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  });
+</script>
+
+<!-- ========================================== -->
+<!-- 2. BLOG DETAIL PAGE (blogdetail.shtml)       -->
+<!-- ========================================== -->
+<!-- HTML elements par IDs laga do: id="postTitle", id="postContent", id="postFeaturedImage" -->
+<script src="/js/cms-client.js"></script>
+<script>
+  // Slug pass karne ki zarurat nahi, ye URL se slug khud nikal lega
   JupsoftCMS.getBlogBySlug().then(function(res) {
-    if (res.success) {
-      console.log('Article Detail:', res.data);
-      // Optional: automatically set browser title and SEO meta
-      JupsoftCMS.applySeo(res.data);
+    var blog = res && res.data;
+    if (!blog) {
+      document.getElementById('postTitle').innerText = 'Article Not Found (404)';
+      return;
     }
+
+    document.title = blog.title + ' | MyWebsite';
+    document.getElementById('postTitle').innerText = blog.title;
+    // API strips script tags & XSS. Defense-in-depth: DOMPurify.sanitize(blog.content)
+    document.getElementById('postContent').innerHTML = blog.content;
+    var img = document.getElementById('postFeaturedImage');
+    if (img && blog.featuredImage) img.src = blog.featuredImage;
+
+    // Head meta description aur schema auto-inject
+    JupsoftCMS.applySeo(blog);
   });
 </script>`,
       },
@@ -546,16 +600,46 @@ export default async function BlogListPage() {
     </main>
   );
 }`,
-        quickUsageTitle: 'Next.js Setup Instructions:',
-        quickUsageCode: `# 1. Place credentials in .env.local:
-JUPSOFT_WEBSITE_ID="${websiteId}"
-JUPSOFT_API_KEY="${apiKey}"
-JUPSOFT_API_URL="${apiBaseUrl}"
+        quickUsageTitle: 'Next.js App Router: Listing & Detail Integration:',
+        quickUsageCode: `// 1. All Blogs Listing: app/blog/page.tsx
+export default async function BlogListPage() {
+  const res = await fetch(\`\${process.env.JUPSOFT_API_URL}/blogs?website=\${process.env.JUPSOFT_WEBSITE_ID}&limit=9\`, {
+    headers: { 'x-api-key': process.env.JUPSOFT_API_KEY! },
+    next: { revalidate: 60 }
+  });
+  const { data: blogs } = await res.json();
 
-# 2. Add app/blog/page.tsx into your Next.js App Router project
-# 3. For Single Article Detail (app/blog/[slug]/page.tsx):
-#    fetch(\`\${apiUrl}/blogs/\${params.slug}?website=\${websiteId}\`)
-# 4. Run: npm run dev`,
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {blogs?.map((post: any) => (
+        <a key={post.id} href={\`/blog/\${post.slug}\`} className="border p-4 rounded-xl">
+          <img src={post.featuredImage} alt={post.title} className="w-full h-48 object-cover rounded-lg mb-2" />
+          <h3 className="font-bold">{post.title}</h3>
+          <p className="text-sm text-gray-600">{post.excerpt}</p>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+// 2. Single Article Detail: app/blog/[slug]/page.tsx
+export default async function BlogDetailPage({ params }: { params: { slug: string } }) {
+  const res = await fetch(\`\${process.env.JUPSOFT_API_URL}/blogs/\${params.slug}?website=\${process.env.JUPSOFT_WEBSITE_ID}\`, {
+    headers: { 'x-api-key': process.env.JUPSOFT_API_KEY! },
+    next: { revalidate: 60 }
+  });
+  const { data: post } = await res.json();
+  if (!post) return <h1>Article Not Found</h1>;
+
+  return (
+    <article className="max-w-3xl mx-auto py-10">
+      <h1 className="text-3xl font-bold mb-4">{post.title}</h1>
+      <img src={post.featuredImage} alt={post.title} className="w-full rounded-xl mb-6" />
+      {/* API sanitizes HTML. Defense-in-depth: DOMPurify.sanitize(post.content) */}
+      <div dangerouslySetInnerHTML={{ __html: post.content }} />
+    </article>
+  );
+}`,
       },
       node: {
         id: 'node',
@@ -607,13 +691,23 @@ module.exports = {
   getCategories: () => fetchCms('/categories', { websiteId: WEBSITE_ID }),
   search: (query, limit = 10) => fetchCms('/search', { q: query, limit }),
 };`,
-        quickUsageTitle: 'Express.js Usage Example:',
-        quickUsageCode: `// In your Express server.js:
-const JupsoftCMS = require('./services/jupsoftCms');
+        quickUsageTitle: 'Express.js: Listing & Detail Routes:',
+        quickUsageCode: `const JupsoftCMS = require('./services/jupsoftCms');
 
-app.get('/api/articles', async (req, res) => {
+// 1. All Blogs Listing Route
+app.get('/api/blogs', async (req, res) => {
   try {
     const result = await JupsoftCMS.getBlogs(req.query.page || 1, 10);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Single Article Detail Route by Slug
+app.get('/api/blogs/:slug', async (req, res) => {
+  try {
+    const result = await JupsoftCMS.getBlogBySlug(req.params.slug);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -750,19 +844,30 @@ public class JupsoftCmsService {
         return response.body();
     }
 }`,
-        quickUsageTitle: 'Spring Boot Controller Example:',
-        quickUsageCode: `// In your Spring Boot Controller:
+        quickUsageTitle: 'Spring Boot: Listing & Detail Controller (BlogController.java):',
+        quickUsageCode: `// BlogController.java - Spring Boot REST Controller
 @RestController
-@RequestMapping("/api/blog")
+@RequestMapping("/api/blogs")
 public class BlogController {
     private final JupsoftCmsService cmsService = new JupsoftCmsService();
 
+    // 1. Saare blogs fetch karne ka endpoint
     @GetMapping
     public ResponseEntity<String> listBlogs(@RequestParam(defaultValue = "1") int page) {
         try {
             return ResponseEntity.ok(cmsService.getBlogs(page, 10));
         } catch (Exception e) {
             return ResponseEntity.status(500).body("{\\"error\\": \\"" + e.getMessage() + "\\"}");
+        }
+    }
+
+    // 2. Slug se single article detail fetch karne ka endpoint
+    @GetMapping("/{slug}")
+    public ResponseEntity<String> getBlogDetail(@PathVariable String slug) {
+        try {
+            return ResponseEntity.ok(cmsService.getBlogBySlug(slug));
+        } catch (Exception e) {
+            return ResponseEntity.status(404).body("{\\"error\\": \\"Article not found\\"}");
         }
     }
 }`,
@@ -838,18 +943,30 @@ namespace Company.Blog.Services
         }
     }
 }`,
-        quickUsageTitle: 'ASP.NET Core Controller Example:',
-        quickUsageCode: `// In your ASP.NET Core Controller:
+        quickUsageTitle: 'ASP.NET Core: Listing & Detail Actions (BlogController.cs):',
+        quickUsageCode: `using Microsoft.AspNetCore.Mvc;
+using System.Threading.Tasks;
+using Company.Blog.Services;
+
 [ApiController]
 [Route("api/[controller]")]
 public class BlogController : ControllerBase
 {
     private readonly JupsoftCmsService _cms = new JupsoftCmsService();
 
+    // 1. Saare blogs fetch karne ka action
     [HttpGet]
     public async Task<IActionResult> GetBlogs([FromQuery] int page = 1)
     {
         var json = await _cms.GetBlogsAsync(page, 10);
+        return Content(json, "application/json");
+    }
+
+    // 2. Slug se single article detail fetch karne ka action
+    [HttpGet("{slug}")]
+    public async Task<IActionResult> GetBlogDetail(string slug)
+    {
+        var json = await _cms.GetBlogBySlugAsync(slug);
         return Content(json, "application/json");
     }
 }`,
@@ -921,17 +1038,44 @@ class JupsoftCms {
         return $this->request('/search', ['q' => $query, 'limit' => $limit]);
     }
 }`,
-        quickUsageTitle: 'PHP Template Usage Example:',
+        quickUsageTitle: 'PHP: Listing & Detail Integration (blog.php & blog-detail.php):',
         quickUsageCode: `<?php
-// Example in index.php:
 require_once 'JupsoftCms.php';
 $cms = new JupsoftCms();
-$blogs = $cms->getBlogs(1, 9);
 
-if ($blogs['success']) {
-    foreach ($blogs['data'] as $post) {
-        echo '<h2>' . htmlspecialchars($post['title']) . '</h2>';
+// ==========================================
+// 1. BLOG LISTING (blog.php)
+// ==========================================
+$result = $cms->getBlogs(1, 12);
+if ($result['success'] && !empty($result['data'])) {
+    foreach ($result['data'] as $post) {
+        $link = '/blog/' . urlencode($post['slug']);
+        $img = htmlspecialchars($post['featuredImage'] ?? '/images/default.jpg');
+        $title = htmlspecialchars($post['title'] ?? 'Untitled');
+        echo '<div class="blog-card">';
+        echo '  <a href="' . $link . '"><img src="' . $img . '" alt="' . $title . '" /></a>';
+        echo '  <h3><a href="' . $link . '">' . $title . '</a></h3>';
+        echo '  <p>' . htmlspecialchars($post['excerpt'] ?? '') . '</p>';
+        echo '</div>';
     }
+}
+
+// ==========================================
+// 2. BLOG DETAIL (blog-detail.php)
+// ==========================================
+$slug = $_GET['slug'] ?? '';
+$response = $cms->getBlogBySlug($slug);
+$article = $response['data'] ?? null;
+
+if ($article) {
+    echo '<h1>' . htmlspecialchars($article['title']) . '</h1>';
+    if (!empty($article['featuredImage'])) {
+        echo '<img src="' . htmlspecialchars($article['featuredImage']) . '" />';
+    }
+    // Sanitized article HTML body
+    echo '<div class="content">' . $article['content'] . '</div>';
+} else {
+    echo '<h1>Article Not Found (404)</h1>';
 }
 ?>`,
       },
@@ -996,13 +1140,24 @@ def search(query: str, limit: int = 10):
     res = requests.get(url, headers=HEADERS, params=params, timeout=10)
     res.raise_for_status()
     return res.json()`,
-        quickUsageTitle: 'FastAPI / Django Usage Example:',
-        quickUsageCode: `# In your FastAPI router or Django view:
-from jupsoft_cms import get_blogs
+        quickUsageTitle: 'FastAPI: Listing & Detail Endpoints (main.py):',
+        quickUsageCode: `from fastapi import FastAPI, HTTPException
+from jupsoft_cms import get_blogs, get_blog_by_slug
 
+app = FastAPI()
+
+# 1. Saare blogs fetch karne ka endpoint
 @app.get("/api/blogs")
-def read_blogs(page: int = 1):
-    return get_blogs(page=page, limit=10)`,
+def read_blogs(page: int = 1, limit: int = 10):
+    return get_blogs(page=page, limit=limit)
+
+# 2. Slug se single article detail fetch karne ka endpoint
+@app.get("/api/blogs/{slug}")
+def read_blog_detail(slug: str):
+    try:
+        return get_blog_by_slug(slug)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Article not found")`,
       },
       curl: {
         id: 'curl',
@@ -1031,12 +1186,19 @@ curl -X GET "${apiBaseUrl}/blogs?website=${websiteId}&fresh=1" \\
 curl -X GET "${apiBaseUrl}/categories?websiteId=${websiteId}" \\
   -H "Accept: application/json" \\
   -H "x-api-key: ${apiKey}"`,
-        quickUsageTitle: 'Terminal Execution:',
-        quickUsageCode: `# Execute directly in any bash or terminal shell:
-curl -s "${apiBaseUrl}/blogs?website=${websiteId}&limit=1" -H "x-api-key: ${apiKey}" | jq .`,
+        quickUsageTitle: 'cURL CLI: Listing & Detail Requests:',
+        quickUsageCode: `# 1. Saare blogs ki list fetch karo (page & limit)
+curl -s "${apiBaseUrl}/blogs?website=${websiteId}&page=1&limit=10" \\
+  -H "Accept: application/json" \\
+  -H "x-api-key: ${apiKey}" | jq .
+
+# 2. Slug ke through single article fetch karo
+curl -s "${apiBaseUrl}/blogs/${defaultRealSlug}?website=${websiteId}" \\
+  -H "Accept: application/json" \\
+  -H "x-api-key: ${apiKey}" | jq .`,
       },
     };
-  }, [activeSite?.name, websiteId, siteDomain, encryptedCmsToken, apiBaseUrl, apiKey, defaultRealSlug, pureJsClientCode]);
+  }, [activeSite?.name, websiteId, siteDomain, apiBaseUrl, apiKey, defaultRealSlug, pureJsClientCode]);
 
   // ──────────────────────────────────────────────────────────────────────────
   // 3. SERVER REWRITE RULES (IIS web.config & Apache .htaccess)
@@ -1065,14 +1227,17 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
   }, []);
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 4. LIVE API TEST RUNNER
+  // 4. LIVE API TEST RUNNER & DIAGNOSTIC CONSOLE
   // ──────────────────────────────────────────────────────────────────────────
   const runLiveTest = async () => {
     setIsTesting(true);
     setTestError(null);
+    setTestErrorCategory(null);
     setTestResult(null);
     setTestStatus(null);
+    setTestStatusText(null);
     setTestLatency(null);
+    setTestResponseHeaders({});
 
     const freshParam = bypassCacheTest ? '&fresh=1' : '';
     let url = `${apiBaseUrl}/blogs?website=${encodeURIComponent(websiteId)}&limit=2${freshParam}`;
@@ -1101,19 +1266,53 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
       const latency = Math.round(performance.now() - startTime);
       setTestLatency(latency);
       setTestStatus(res.status);
+      setTestStatusText(res.statusText || (res.ok ? 'OK' : 'Error'));
       setLastTestedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
 
-      const json = await res.json();
-      setTestResult(json);
+      // Capture HTTP headers
+      const captured: Record<string, string> = {};
+      ['cache-control', 'content-type', 'x-powered-by', 'age'].forEach((h) => {
+        const val = res.headers.get(h);
+        if (val) captured[h] = val;
+      });
+      setTestResponseHeaders(captured);
+
+      const rawText = await res.text();
+      let parsedJson: any = null;
+      try {
+        parsedJson = JSON.parse(rawText);
+        setTestResult(parsedJson);
+      } catch {
+        setTestResult(rawText);
+        if (!res.ok) {
+          setTestErrorCategory('parse');
+          setTestError(`Non-JSON response (HTTP ${res.status}): ${rawText.slice(0, 300)}`);
+          return;
+        }
+      }
+
       if (!res.ok) {
-        setTestError(json.error || json.message || `HTTP ${res.status}: Request could not be fulfilled.`);
+        if (res.status === 401 || res.status === 403) {
+          setTestErrorCategory('auth');
+          setTestError(parsedJson?.message || parsedJson?.error || `HTTP ${res.status}: Access denied. Origin or API key not authorized for this tenant.`);
+        } else if (res.status === 404) {
+          setTestErrorCategory('not_found');
+          setTestError(parsedJson?.message || parsedJson?.error || `HTTP 404: Endpoint or article slug not found.`);
+        } else if (res.status >= 500) {
+          setTestErrorCategory('server');
+          setTestError(parsedJson?.message || parsedJson?.error || `HTTP ${res.status}: Backend server error.`);
+        } else {
+          setTestError(parsedJson?.message || parsedJson?.error || `HTTP ${res.status}: Request could not be fulfilled.`);
+        }
       }
     } catch (err: any) {
       const latency = Math.round(performance.now() - startTime);
       setTestLatency(latency);
-      setTestStatus(500);
+      setTestStatus(null);
+      setTestStatusText('Network / CORS Blocked');
+      setTestErrorCategory('network');
       setLastTestedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-      setTestError(err.message || 'Request failed. Check network, CORS or domain permissions.');
+      setTestError(err.message || 'Request failed. Network disconnected, endpoint unreachable, or browser CORS blocked.');
     } finally {
       setIsTesting(false);
     }
@@ -1126,7 +1325,7 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
     {
       id: 1,
       question: "Why am I getting a 401 error?",
-      answer: `Direct browser address bar visits do not send an Origin or Referer header, so the security guard blocks them with "401 Direct browser access denied". When your frontend JavaScript runs on your website (${siteDomain}) or on localhost, the browser automatically provides the Origin header, allowing public reads with zero plaintext key leakage.`
+      answer: `Direct browser address bar visits do not send an Origin or Referer header, so the security guard blocks them with "401 Direct browser access denied". When your frontend JavaScript runs on your registered website (${siteDomain}) or preview domains (*.vercel.app, *.netlify.app), the browser automatically provides the Origin header, allowing public reads with zero plaintext key leakage.`
     },
     {
       id: 2,
@@ -1135,13 +1334,13 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
     },
     {
       id: 3,
-      question: "How do I test locally with CORS?",
-      answer: `Yes, absolutely! localhost, 127.0.0.1, *.vercel.app, and *.netlify.app are permanently whitelisted origins in the Centralized CMS API gateway for local developer workflows. You do not need to configure custom CORS rules for local testing.`
+      question: "How do I test with Vercel or Netlify staging?",
+      answer: `*.vercel.app and *.netlify.app are whitelisted in the Centralized CMS API gateway for staging & preview deployments. For production, requests must originate from your registered domain (${siteDomain}) or include a valid x-api-key header.`
     },
     {
       id: 4,
-      question: "CMS_TOKEN vs API_KEY",
-      answer: `CMS_TOKEN is an AES-encrypted, public-safe client token designed to be used in frontend JavaScript (or SHTML/HTML). API_KEY is your master server secret key intended strictly for server-side environments (Node.js, C#, Java, Python, .env) and must never be committed into public client code.`
+      question: "Public Client vs Master API_KEY",
+      answer: `Public client scripts (HTML, SHTML, Next.js client components) do not need secret keys in the browser; requests are authenticated via registered website domain (${siteDomain}). The master API_KEY is confidential and reserved strictly for backend server calls (.env, Node.js, Python, PHP, C#, Java).`
     },
     {
       id: 5,
@@ -1169,15 +1368,28 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
             <div className="flex items-center gap-2 flex-wrap">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold font-mono tracking-wider uppercase border border-indigo-200 dark:border-indigo-900">
                 <Code className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                <span>Integration</span>
+                <span>Developer Workspace</span>
               </span>
               <span className="text-xs text-slate-400 font-mono">•</span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 text-[11px] font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Connected &amp; Active</span>
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
+                activeSite?.status === 'active' 
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                  : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${activeSite?.status === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                <span>{activeSite?.status === 'active' ? 'Tenant Active' : 'Tenant Inactive'}</span>
               </span>
-              <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
-                Production Gateway (v1)
+              <span className={`text-[11px] font-mono px-2 py-0.5 rounded border flex items-center gap-1.5 ${
+                gatewayHealth === 'online'
+                  ? 'bg-emerald-50/60 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900'
+                  : gatewayHealth === 'checking'
+                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                  : 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  gatewayHealth === 'online' ? 'bg-emerald-500' : gatewayHealth === 'checking' ? 'bg-amber-500 animate-pulse' : 'bg-rose-500'
+                }`} />
+                <span>Gateway v1 ({gatewayHealth === 'online' ? 'Online' : gatewayHealth === 'checking' ? 'Checking' : 'Offline'})</span>
               </span>
             </div>
 
@@ -1224,7 +1436,7 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
                 <span>{publishedBlogs.length} articles published</span>
                 <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  Whitelisted
+                  Whitelisted Origin
                 </span>
               </div>
             </div>
@@ -1269,25 +1481,30 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
         </div>
       </div>
 
-      {/* ── 2. CREDENTIALS CARD (WEBSITE ID, CMS_TOKEN & API_KEY) ── */}
+      {/* ── 2. CREDENTIALS CARD (WEBSITE ID & MASTER API KEY) ── */}
       <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
         <div>
           <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <KeyRound className="w-4 h-4 text-indigo-500" />
-            <span>Credentials</span>
+            <span>API Credentials</span>
           </h3>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
-          {/* 1. Website ID */}
-          <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 space-y-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
+          {/* 1. Website ID (Browser Safe) */}
+          <div className="p-3.5 rounded-xl border border-emerald-200/80 dark:border-emerald-900/60 bg-emerald-50/20 dark:bg-emerald-950/20 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                Website ID
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">
+                  WEBSITE_ID
+                </span>
+                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-mono">
+                  Browser Safe
+                </span>
+              </div>
               <button
                 onClick={() => copyToClipboard(websiteId, 'cred-site-id')}
-                className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer flex items-center gap-1"
+                className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold hover:underline cursor-pointer flex items-center gap-1"
               >
                 {copiedKey === 'cred-site-id' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                 <span>{copiedKey === 'cred-site-id' ? 'Copied!' : 'Copy'}</span>
@@ -1299,95 +1516,62 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
               value={websiteId}
               className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-slate-900 dark:text-white font-mono text-xs select-all"
             />
-            <p className="text-[10.5px] text-slate-500 dark:text-slate-400">
-              Identifier for multi-tenant isolation and queries.
+            <p className="text-[10.5px] text-emerald-800/80 dark:text-emerald-400">
+              Safe for public HTML, SHTML &amp; React client scripts. Authenticated via origin domain whitelist.
             </p>
           </div>
 
-          {/* 2. CMS_TOKEN (Frontend Safe) */}
-          <div className="p-3.5 rounded-xl border border-emerald-200/80 dark:border-emerald-900/60 bg-emerald-50/30 dark:bg-emerald-950/20 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
-                  CMS_TOKEN
-                </span>
-                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-mono">
-                  Frontend Safe
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowCmsToken(!showCmsToken)}
-                  className="text-[11px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold cursor-pointer flex items-center gap-1"
-                >
-                  {showCmsToken ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                  <span>{showCmsToken ? 'Hide' : 'Reveal'}</span>
-                </button>
-                <button
-                  onClick={() => copyToClipboard(encryptedCmsToken, 'cred-cms-token')}
-                  className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold hover:underline cursor-pointer flex items-center gap-1"
-                >
-                  {copiedKey === 'cred-cms-token' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                  <span>{copiedKey === 'cred-cms-token' ? 'Copied!' : 'Copy'}</span>
-                </button>
-              </div>
-            </div>
-            <input
-              type={showCmsToken ? 'text' : 'password'}
-              readOnly
-              value={encryptedCmsToken}
-              className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-slate-900 dark:text-white font-mono text-xs select-all"
-            />
-            <p className="text-[10.5px] text-emerald-800 dark:text-emerald-400">
-              AES-128 ciphertext token safe for public HTML / JS.
-            </p>
-          </div>
-
-          {/* 3. API_KEY (Backend Master Secret) */}
+          {/* 2. API_KEY (Backend Master Secret) */}
           <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                   API_KEY
                 </span>
                 <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono">
-                  Server Only
+                  Server-Side Only
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className="text-[11px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold cursor-pointer flex items-center gap-1"
-                >
-                  {showApiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                  <span>{showApiKey ? 'Hide' : 'Reveal'}</span>
-                </button>
-                <button
-                  onClick={() => copyToClipboard(apiKey, 'cred-api-key')}
-                  className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer flex items-center gap-1"
-                >
-                  {copiedKey === 'cred-api-key' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                  <span>{copiedKey === 'cred-api-key' ? 'Copied!' : 'Copy'}</span>
-                </button>
+                {canViewApiKey ? (
+                  <>
+                    <button
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="text-[11px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold cursor-pointer flex items-center gap-1"
+                    >
+                      {showApiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      <span>{showApiKey ? 'Hide' : 'Reveal'}</span>
+                    </button>
+                    <button
+                      onClick={() => copyToClipboard(apiKey, 'cred-api-key')}
+                      className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      {copiedKey === 'cred-api-key' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedKey === 'cred-api-key' ? 'Copied!' : 'Copy'}</span>
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-[10px] text-slate-400 italic">Admin role required</span>
+                )}
               </div>
             </div>
             <input
-              type={showApiKey ? 'text' : 'password'}
+              type={showApiKey && canViewApiKey ? 'text' : 'password'}
               readOnly
-              value={apiKey}
+              value={canViewApiKey ? apiKey : '••••••••••••••••••••••••••••••••'}
               className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-slate-900 dark:text-white font-mono text-xs select-all"
             />
             <p className="text-[10.5px] text-slate-500 dark:text-slate-400">
-              Master API key for server-side .env, Node, C#, Java, PHP.
+              Master secret for server-side environments (.env, Node, C#, Java, Python, PHP). Keep confidential.
             </p>
           </div>
         </div>
 
-        {/* Security Note */}
+        {/* Security Architecture Note */}
         <div className="p-3 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/60 rounded-xl text-xs text-blue-900 dark:text-blue-300 flex items-start gap-2.5">
           <ShieldCheck className="w-4 h-4 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
           <div className="leading-relaxed">
-            <strong>Security note:</strong> Use <code className="font-mono">CMS_TOKEN</code> in the frontend only if it is designed for public client access and restricted to the authorized website. Keep <code className="font-mono">API_KEY</code> server-side. Never expose secret keys in public code.
+            <strong>Security architecture:</strong> Public frontend scripts (HTML / SHTML / React) authenticate securely via the authorized origin domain (<strong>{siteDomain}</strong>) with zero secret key leakage. Keep <code>API_KEY</code> private on backend servers only.
           </div>
         </div>
       </div>
@@ -1405,7 +1589,7 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
             }`}
           >
             <Zap className="w-3.5 h-3.5" />
-            <span>1. Code &amp; SDKs ({activeLanguageConfig.name})</span>
+            <span>1. Code &amp; Integration ({activeLanguageConfig.name})</span>
           </button>
           <button
             onClick={() => setActiveTab('env')}
@@ -1598,6 +1782,14 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
               </div>
             </div>
 
+            {/* Security Advisory Callout */}
+            <div className="p-3.5 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-xl text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+              <div className="leading-relaxed">
+                <strong>Security Advisory:</strong> This configuration includes confidential <code className="font-mono font-bold">JUPSOFT_API_KEY</code>. Use it exclusively on backend servers (Node, Next.js SSR, Python, PHP, Java, C#) or deployment secret managers (e.g. Vercel, AWS, Netlify). Never commit <code className="font-mono">.env</code> files to public Git repositories or expose them in client-side browser bundles.
+              </div>
+            </div>
+
             <pre className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-[#0f1117] text-slate-200 font-mono text-xs leading-relaxed overflow-x-auto">
               {envFileContent}
             </pre>
@@ -1666,93 +1858,129 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
           </div>
         )}
 
-        {/* TAB 4: LIVE API ENDPOINT TESTER */}
+        {/* TAB 4: LIVE API DIAGNOSTIC CONSOLE */}
         {activeTab === 'tester' && (
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Live API Endpoint Tester &amp; Diagnostic Ping
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Terminal className="w-4 h-4 text-emerald-500" />
+                  <span>API Diagnostic Console</span>
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Execute live requests to verify latency, origin whitelist, and response data structure.
+                  Execute live requests to verify latency, origin whitelist, response headers, and JSON structure.
                 </p>
               </div>
               <button
                 onClick={runLiveTest}
                 disabled={isTesting}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs cursor-pointer disabled:opacity-50 transition-colors"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isTesting ? 'animate-spin' : ''}`} />
-                <span>{isTesting ? 'Testing...' : 'Execute API Ping'}</span>
+                <span>{isTesting ? 'Running Diagnostic...' : 'Execute Diagnostic Ping'}</span>
               </button>
             </div>
 
-            {/* Metrics Bar */}
+            {/* Diagnostic Metrics Bar */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              {/* HTTP Status */}
               <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">HTTP Status</span>
                 {testStatus !== null ? (
                   <span className={`inline-flex items-center gap-1.5 font-bold font-mono text-xs ${
-                    testStatus === 200 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                    testStatus === 200 
+                      ? 'text-emerald-600 dark:text-emerald-400' 
+                      : (testStatus === 401 || testStatus === 403)
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : testStatus === 404
+                      ? 'text-blue-600 dark:text-blue-400'
+                      : 'text-rose-600 dark:text-rose-400'
                   }`}>
                     {testStatus === 200 ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
-                    <span>{testStatus === 200 ? '200 OK' : `HTTP ${testStatus}`}</span>
+                    <span>{testStatus} {testStatusText || ''}</span>
+                  </span>
+                ) : testStatusText ? (
+                  <span className="inline-flex items-center gap-1.5 font-bold font-mono text-xs text-rose-600 dark:text-rose-400">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    <span>{testStatusText}</span>
                   </span>
                 ) : (
-                  <span className="text-slate-500 font-mono text-xs">Pending Test</span>
+                  <span className="text-slate-500 font-mono text-xs">Ready</span>
                 )}
               </div>
 
+              {/* Latency */}
               <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Latency</span>
-                <span className="inline-flex items-center gap-1.5 font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+                <span className={`inline-flex items-center gap-1.5 font-mono text-xs font-bold ${
+                  testLatency === null
+                    ? 'text-slate-500'
+                    : testLatency < 300
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : testLatency < 800
+                    ? 'text-indigo-600 dark:text-indigo-400'
+                    : 'text-amber-600 dark:text-amber-400'
+                }`}>
                   <Clock className="w-3.5 h-3.5 text-indigo-500" />
                   <span>{testLatency !== null ? `${testLatency} ms` : '— ms'}</span>
                 </span>
               </div>
 
+              {/* Target */}
               <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Health</span>
-                <span className="inline-flex items-center gap-1.5 font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
-                  <span className={`w-2 h-2 rounded-full ${testStatus === 200 ? 'bg-emerald-500' : (testStatus ? 'bg-rose-500' : 'bg-slate-400')}`} />
-                  <span>{testStatus === 200 ? 'Operational' : (testStatus ? 'Check Error' : 'Ready')}</span>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Target Endpoint</span>
+                <span className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold text-slate-700 dark:text-slate-300 truncate">
+                  <span className="text-indigo-600 dark:text-indigo-400 font-bold">GET</span>
+                  <span>/v1/{testEndpoint}</span>
                 </span>
               </div>
 
+              {/* Edge Cache & Timestamp */}
               <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Last Checked</span>
-                <span className="font-mono text-xs text-slate-700 dark:text-slate-300">
-                  {lastTestedTime || 'Never'}
+                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Cache / Timestamp</span>
+                <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300 block truncate">
+                  {bypassCacheTest ? 'Cache Bypassed' : (testResponseHeaders['cache-control'] ? 'Edge Cached' : (lastTestedTime || 'Ready'))}
                 </span>
               </div>
             </div>
 
-            {/* Controls */}
+            {/* Diagnostic Configuration Controls */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
               <div>
                 <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">Endpoint</label>
                 <select
                   value={testEndpoint}
                   onChange={(e: any) => setTestEndpoint(e.target.value)}
-                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none"
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none cursor-pointer"
                 >
                   <option value="blogs">GET /v1/blogs (Listing)</option>
                   <option value="detail">GET /v1/blogs/:slug (Detail)</option>
                   <option value="latest">GET /v1/blogs/latest</option>
+                  <option value="popular">GET /v1/blogs/popular</option>
                   <option value="categories">GET /v1/categories</option>
                   <option value="health">GET /v1/health</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">Target Slug</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-700 dark:text-slate-300 font-semibold">Target Slug</label>
+                  {defaultRealSlug && defaultRealSlug !== 'sample-post-slug' && (
+                    <button
+                      onClick={() => setTestSlug(defaultRealSlug)}
+                      className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                    >
+                      Use published slug
+                    </button>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={testSlug}
                   onChange={(e) => setTestSlug(e.target.value)}
                   placeholder="article-slug"
-                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none"
+                  disabled={testEndpoint !== 'detail'}
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none disabled:opacity-40"
                 />
               </div>
 
@@ -1764,28 +1992,68 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
                     onChange={(e) => setBypassCacheTest(e.target.checked)}
                     className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                   />
-                  <span>Bypass Cache (<code className="text-indigo-600 font-mono">&amp;fresh=1</code>)</span>
+                  <span>Bypass Cache (<code className="text-indigo-600 dark:text-indigo-400 font-mono">&amp;fresh=1</code>)</span>
                 </label>
               </div>
             </div>
+
+            {/* Error Diagnostics Explanation Card */}
+            {testError && (
+              <div className={`p-3.5 rounded-xl border text-xs flex items-start gap-2.5 ${
+                testErrorCategory === 'auth'
+                  ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200'
+                  : testErrorCategory === 'not_found'
+                  ? 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900/60 text-blue-900 dark:text-blue-200'
+                  : 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60 text-rose-900 dark:text-rose-200'
+              }`}>
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-current" />
+                <div className="space-y-1">
+                  <span className="font-bold uppercase tracking-wider text-[10.5px] block">
+                    {testErrorCategory === 'auth'
+                      ? 'Authentication / Origin Domain Check'
+                      : testErrorCategory === 'not_found'
+                      ? 'Resource Not Found'
+                      : testErrorCategory === 'network'
+                      ? 'Network / CORS Connectivity'
+                      : testErrorCategory === 'parse'
+                      ? 'Invalid Payload Format'
+                      : 'Server Error'}
+                  </span>
+                  <p className="leading-relaxed">{testError}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Captured Response Headers */}
+            {Object.keys(testResponseHeaders).length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 text-[10.5px] font-mono">
+                <span className="text-slate-400 font-sans font-medium">Response Headers:</span>
+                {Object.entries(testResponseHeaders).map(([key, val]) => (
+                  <span key={key} className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                    <span className="text-slate-400">{key}: </span>{val}
+                  </span>
+                ))}
+              </div>
+            )}
 
             {/* Live Response Output */}
             {(testResult || testError) && (
               <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-[#0f1117] text-slate-200 text-xs font-mono shadow-md">
                 <div className="px-3.5 py-2 bg-[#171b26] border-b border-slate-800 flex items-center justify-between">
-                  <span className="text-slate-400 text-[11px]">
-                    Response Payload ({testLatency}ms)
+                  <span className="text-slate-400 text-[11px] flex items-center gap-2">
+                    <span>Response Payload</span>
+                    {testLatency !== null && <span className="text-slate-500 font-mono">• {testLatency}ms</span>}
                   </span>
                   <button
-                    onClick={() => copyToClipboard(JSON.stringify(testResult || testError, null, 2), 'tester-json')}
+                    onClick={() => copyToClipboard(typeof testResult === 'object' ? JSON.stringify(testResult, null, 2) : String(testResult || testError), 'tester-json')}
                     className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
                   >
                     {copiedKey === 'tester-json' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     <span>{copiedKey === 'tester-json' ? 'Copied' : 'Copy JSON'}</span>
                   </button>
                 </div>
-                <pre className="p-3.5 max-h-52 overflow-y-auto overflow-x-auto text-[11.5px] leading-relaxed text-emerald-300">
-                  {testResult ? JSON.stringify(testResult, null, 2) : testError}
+                <pre className="p-3.5 max-h-56 overflow-y-auto overflow-x-auto text-[11.5px] leading-relaxed text-emerald-300">
+                  {typeof testResult === 'object' ? JSON.stringify(testResult, null, 2) : (testResult || testError)}
                 </pre>
               </div>
             )}
