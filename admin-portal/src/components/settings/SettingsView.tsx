@@ -348,11 +348,7 @@ export const SettingsView: React.FC = () => {
               </span>
             )}
           </div>
-          {activeTab === 'developer' ? (
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              API keys, integration blueprints (C#, SHTML, Next.js), live testing console, and documentation.
-            </p>
-          ) : (
+          {activeTab !== 'developer' && (
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Manage website identity, production domains, 301 redirects, and publishing webhooks.
             </p>
@@ -440,7 +436,6 @@ export const SettingsView: React.FC = () => {
       {/* Tenant Scope Selector (in All mode) */}
       {isAllSites && (
         <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60">
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold px-2">Configuring Website:</span>
           {websites.map((w) => (
             <button
               key={w.id}

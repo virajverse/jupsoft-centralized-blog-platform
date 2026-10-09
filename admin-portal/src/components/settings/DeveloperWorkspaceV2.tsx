@@ -423,7 +423,7 @@ JUPSOFT_API_KEY="${apiKey}"
         fileName: 'cms-client.js',
         downloadFileName: 'cms-client.js',
         mimeType: 'application/javascript',
-        description: 'Lightweight (~2.8 KB) headless client script. Pure data-fetching engine with zero DOM/CSS. Designed for any HTML/SHTML website designer.',
+        description: 'HTML / SHTML integration example',
         code: pureJsClientCode,
         quickUsageTitle: 'Quick Usage for Frontend Developers (In your HTML / SHTML / JS):',
         quickUsageCode: `<!-- 1. Include the client script -->
@@ -455,7 +455,7 @@ JUPSOFT_API_KEY="${apiKey}"
         fileName: 'app/blog/page.tsx',
         downloadFileName: 'page.tsx',
         mimeType: 'text/typescript',
-        description: 'Server Component with 60-second Incremental Static Regeneration (ISR). Renders blog listings directly on the server without leaking private keys to the client.',
+        description: 'Next.js App Router integration example',
         code: `// app/blog/page.tsx (Next.js 14+ App Router Server Component)
 import React from 'react';
 
@@ -534,7 +534,7 @@ JUPSOFT_API_URL="${apiBaseUrl}"
         fileName: 'services/jupsoftCms.js',
         downloadFileName: 'jupsoftCms.js',
         mimeType: 'application/javascript',
-        description: 'Backend Node.js service module. Keeps your master API key securely in process.env and exposes async fetch methods.',
+        description: 'Node.js integration example',
         code: `// services/jupsoftCms.js
 // npm install dotenv (for .env loading)
 require('dotenv').config();
@@ -593,7 +593,7 @@ app.get('/api/articles', async (req, res) => {
         fileName: 'JupsoftCmsService.java',
         downloadFileName: 'JupsoftCmsService.java',
         mimeType: 'text/x-java-source',
-        description: 'High-performance Java 11+ HttpClient service with uppercase environment variable conventions (JUPSOFT_API_KEY, JUPSOFT_WEBSITE_ID).',
+        description: 'Java Spring Boot integration example',
         code: `package com.company.blog.service;
 
 import java.net.URI;
@@ -695,7 +695,7 @@ public class BlogController {
         fileName: 'JupsoftCmsService.cs',
         downloadFileName: 'JupsoftCmsService.cs',
         mimeType: 'text/plain',
-        description: 'Thread-safe C# HttpClient service for ASP.NET Core or classic .NET Framework with Web.config/Environment support.',
+        description: 'ASP.NET Core integration example',
         code: `using System;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -764,7 +764,7 @@ public class BlogController : ControllerBase
         fileName: 'JupsoftCms.php',
         downloadFileName: 'JupsoftCms.php',
         mimeType: 'text/x-php',
-        description: 'Lightweight PHP cURL helper class compatible with PHP 7.4 through PHP 8.3, Laravel, WordPress, and Vanilla PHP.',
+        description: 'PHP integration example',
         code: `<?php
 /**
  * Jupsoft Centralized Blog Platform — PHP Client Helper
@@ -835,7 +835,7 @@ if ($blogs['success']) {
         fileName: 'jupsoft_cms.py',
         downloadFileName: 'jupsoft_cms.py',
         mimeType: 'text/x-python',
-        description: 'Clean Python requests client for Django, FastAPI, Flask or standalone automation scripts.',
+        description: 'Python integration example',
         code: `"""
 Jupsoft Centralized Blog Platform — Python Client
 Website: ${activeSite?.name || 'Website'} (${websiteId})
@@ -888,7 +888,7 @@ def read_blogs(page: int = 1):
         fileName: 'curl_commands.sh',
         downloadFileName: 'curl_commands.sh',
         mimeType: 'text/plain',
-        description: 'Direct terminal cURL requests for testing endpoints, debugging headers, or writing automated CI/CD shell scripts.',
+        description: 'cURL CLI example',
         code: `# 1. Fetch Paginated Blog Articles
 curl -X GET "${apiBaseUrl}/blogs?website=${websiteId}&page=1&limit=10" \\
   -H "Accept: application/json" \\
@@ -1002,27 +1002,27 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
   const faqItems = useMemo(() => [
     {
       id: 1,
-      question: "1. Why did I get a 401 error when testing the URL in Chrome's address bar?",
+      question: "Why am I getting a 401 error?",
       answer: `Direct browser address bar visits do not send an Origin or Referer header, so the security guard blocks them with "401 Direct browser access denied". When your frontend JavaScript runs on your website (${siteDomain}) or on localhost, the browser automatically provides the Origin header, allowing public reads with zero plaintext key leakage.`
     },
     {
       id: 2,
-      question: "2. Why does clicking a blog link give a 404 error on my static website?",
+      question: "Why do blog links return 404?",
       answer: `Static web servers look for a physical folder matching the slug path (such as /blog/sample-slug/index.html). With URL Rewrites configured (IIS web.config or Apache .htaccess), requests to /blog/{slug} are rewritten internally to blog-detail.shtml?slug={slug} without modifying the address bar URL.`
     },
     {
       id: 3,
-      question: "3. Can I test on localhost before deploying to production without CORS errors?",
+      question: "How do I test locally with CORS?",
       answer: `Yes, absolutely! localhost, 127.0.0.1, *.vercel.app, and *.netlify.app are permanently whitelisted origins in the Centralized CMS API gateway for local developer workflows. You do not need to configure custom CORS rules for local testing.`
     },
     {
       id: 4,
-      question: "4. What is the difference between CMS_TOKEN and API_KEY?",
+      question: "CMS_TOKEN vs API_KEY",
       answer: `CMS_TOKEN is an AES-encrypted, public-safe client token designed to be used in frontend JavaScript (or SHTML/HTML). API_KEY is your master server secret key intended strictly for server-side environments (Node.js, C#, Java, Python, .env) and must never be committed into public client code.`
     },
     {
       id: 5,
-      question: "5. How do I see new blog updates immediately without waiting for edge cache?",
+      question: "How do I refresh cached blog content?",
       answer: `Append &fresh=1 to your query URL (e.g. ${apiBaseUrl}/blogs?website=${websiteId}&fresh=1), or pass { fresh: true } into JupsoftCMS.getBlogs({ fresh: true }). This instructs Redis cache to bypass cached payloads and query live PostgreSQL records immediately.`
     }
   ], [siteDomain, websiteId, apiBaseUrl]);
@@ -1045,8 +1045,8 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold font-mono tracking-wider uppercase border border-indigo-200 dark:border-indigo-900">
-                <Code className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-                <span>Developer Integration Hub</span>
+                <Code className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>Integration</span>
               </span>
               <span className="text-xs text-slate-400 font-mono">•</span>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 text-[11px] font-semibold">
@@ -1072,10 +1072,6 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
                 <ExternalLink className="w-3 h-3" />
               </a>
             </div>
-
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">
-              Tailored credentials, lightweight headless JavaScript SDK, and server rewrites for <strong>{siteDomain}</strong>. Zero plain-text key exposure in public page source.
-            </p>
           </div>
 
           {/* Website Dropdown Switcher */}
@@ -1115,7 +1111,7 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
         {/* Dynamic Download Action Bar */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 text-xs">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-1">Direct Downloads:</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-1">Downloads:</span>
             <button
               onClick={() => downloadFile(pureJsClientCode, 'cms-client.js', 'application/javascript')}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
@@ -1155,11 +1151,8 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
         <div>
           <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <KeyRound className="w-4 h-4 text-indigo-500" />
-            <span>Target Credentials &amp; Tokens</span>
+            <span>Credentials</span>
           </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Use <code className="font-mono text-indigo-600 dark:text-indigo-400 font-semibold">CMS_TOKEN</code> in public frontend code. Keep <code className="font-mono text-rose-600 dark:text-rose-400 font-semibold">API_KEY</code> strictly in private server environments.
-          </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
@@ -1267,11 +1260,11 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
           </div>
         </div>
 
-        {/* Security Whitelist Guarantee */}
+        {/* Security Note */}
         <div className="p-3 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/60 rounded-xl text-xs text-blue-900 dark:text-blue-300 flex items-start gap-2.5">
           <ShieldCheck className="w-4 h-4 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
           <div className="leading-relaxed">
-            <strong>Zero Plaintext Key Leakage Guarantee:</strong> Public web pages never need your master <code className="font-mono">API_KEY</code>. Use the pre-configured <code className="font-mono">cms-client.js</code> with <code className="font-mono">CMS_TOKEN</code>, which is cryptographically locked to <strong>{siteDomain}</strong> and <strong>localhost</strong>.
+            <strong>Security note:</strong> Use <code className="font-mono">CMS_TOKEN</code> in the frontend only if it is designed for public client access and restricted to the authorized website. Keep <code className="font-mono">API_KEY</code> server-side. Never expose secret keys in public code.
           </div>
         </div>
       </div>
@@ -1334,10 +1327,7 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                   <Code className="w-3.5 h-3.5 text-indigo-500" />
-                  <span>Choose Your Framework / Language Stack:</span>
-                </span>
-                <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-200/60 dark:bg-slate-800 px-2 py-0.5 rounded">
-                  8 Stacks Supported
+                  <span>Choose your stack</span>
                 </span>
               </div>
 
@@ -1690,11 +1680,8 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
             <BookOpen className="w-4 h-4 text-indigo-500" />
             <div>
               <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                Field Schema Reference for Frontend Designers (JSON Dictionary)
+                API Response Schema
               </h3>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                Standard fields returned in article objects for your templates.
-              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -1760,11 +1747,8 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <HelpCircle className="w-4 h-4 text-indigo-500" />
-              <span>Developer Troubleshooting FAQ</span>
+              <span>Troubleshooting</span>
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Quick answers to common questions (401 direct browser access, 404 routing, CORS, cache).
-            </p>
           </div>
           {/* FAQ Search */}
           <div className="relative w-full sm:w-64">
