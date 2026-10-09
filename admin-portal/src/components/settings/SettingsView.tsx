@@ -340,7 +340,7 @@ export const SettingsView: React.FC = () => {
         <div>
           <div className="flex flex-wrap items-center gap-2 mb-1">
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-              {activeTab === 'developer' ? 'Developer API Settings' : 'Website & System Settings'}
+              {activeTab === 'developer' ? 'Developer Setting' : 'Website & System Settings'}
             </h1>
             {activeSite && (
               <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 truncate max-w-[150px]">
@@ -348,10 +348,19 @@ export const SettingsView: React.FC = () => {
               </span>
             )}
           </div>
+          {activeTab === 'developer' ? (
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              API keys, integration blueprints (C#, SHTML, Next.js), live testing console, and documentation.
+            </p>
+          ) : (
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Manage website identity, production domains, 301 redirects, and publishing webhooks.
+            </p>
+          )}
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-          {isSuperAdmin && (
+          {isSuperAdmin && activeTab !== 'developer' && (
             <button
               onClick={() => setIsOnboardOpen(true)}
               className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
@@ -450,72 +459,63 @@ export const SettingsView: React.FC = () => {
       )}
 
       {/* Section Tabs - Zoho Enterprise Styling */}
-      <div className="flex items-center gap-1 bg-white dark:bg-[#0c1322] p-1 rounded-lg border border-slate-200 dark:border-slate-800 shadow-2xs overflow-x-auto scrollbar-none w-full sm:w-fit max-w-full">
-        {isSuperAdmin && (
+      {activeTab !== 'developer' && (
+        <div className="flex items-center gap-1 bg-white dark:bg-[#0c1322] p-1 rounded-lg border border-slate-200 dark:border-slate-800 shadow-2xs overflow-x-auto scrollbar-none w-full sm:w-fit max-w-full">
+          {isSuperAdmin && (
+            <button
+              onClick={() => handleTabChange('all')}
+              className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                activeTab === 'all'
+                  ? 'bg-red-600 text-white font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              All Websites
+            </button>
+          )}
           <button
-            onClick={() => handleTabChange('all')}
+            onClick={() => handleTabChange('general')}
             className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-              activeTab === 'all'
+              activeTab === 'general'
                 ? 'bg-red-600 text-white font-bold shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            All Websites
+            Identity &amp; API Key
           </button>
-        )}
-        <button
-          onClick={() => handleTabChange('general')}
-          className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-            activeTab === 'general'
-              ? 'bg-red-600 text-white font-bold shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          Identity &amp; API Key
-        </button>
-        <button
-          onClick={() => handleTabChange('developer')}
-          className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
-            activeTab === 'developer'
-              ? 'bg-red-600 text-white font-bold shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <Code className="w-3.5 h-3.5" />
-          <span>Developer API &amp; Integration</span>
-        </button>
-        <button
-          onClick={() => handleTabChange('redirects')}
-          className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
-            activeTab === 'redirects'
-              ? 'bg-red-600 text-white font-bold shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <ArrowRightLeft className="w-3.5 h-3.5" />
-          <span>Old Link Redirects (301)</span>
-        </button>
-        <button
-          onClick={() => handleTabChange('webhook')}
-          className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-            activeTab === 'webhook'
-              ? 'bg-red-600 text-white font-bold shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          Website Refresh &amp; Sync
-        </button>
-        <button
-          onClick={() => handleTabChange('audit')}
-          className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-            activeTab === 'audit'
-              ? 'bg-red-600 text-white font-bold shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          Activity Log ({auditLogs.length})
-        </button>
-      </div>
+          <button
+            onClick={() => handleTabChange('redirects')}
+            className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+              activeTab === 'redirects'
+                ? 'bg-red-600 text-white font-bold shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <ArrowRightLeft className="w-3.5 h-3.5" />
+            <span>Old Link Redirects (301)</span>
+          </button>
+          <button
+            onClick={() => handleTabChange('webhook')}
+            className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'webhook'
+                ? 'bg-red-600 text-white font-bold shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            Website Refresh &amp; Sync
+          </button>
+          <button
+            onClick={() => handleTabChange('audit')}
+            className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'audit'
+                ? 'bg-red-600 text-white font-bold shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            Activity Log ({auditLogs.length})
+          </button>
+        </div>
+      )}
 
       {/* TAB: ALL TENANTS OVERVIEW */}
       {activeTab === 'all' && (
@@ -898,29 +898,6 @@ export const SettingsView: React.FC = () => {
               </button>
             </div>
           )}
-          </div>
-
-          {/* Clean Lightweight Developer Hub Shortcut Banner */}
-          <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-                <Code className="w-4 h-4" />
-              </div>
-              <div>
-                <span className="font-semibold text-slate-900 dark:text-white">Looking for Code Blueprints & Integration Docs?</span>
-                <p className="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">
-                  Complete client code, SHTML, Next.js, C#, React hooks, and live API tester have their own dedicated tab.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => handleTabChange('developer')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs transition-colors shrink-0 cursor-pointer shadow-2xs"
-            >
-              <span>Open Developer API Hub</span>
-              <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-            </button>
           </div>
         </div>
       )}
