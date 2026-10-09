@@ -86,6 +86,7 @@ export const ZohoSidebar: React.FC = () => {
   const scheduledCount = displayedBlogs.filter((b) => b.status === 'Scheduled').length;
 
   const siteQuery = `?site=${activeWebsiteId}`;
+  const tabParam = searchParams.get('tab');
 
   // Primary Navigation Modules for Tier 1 Icon Rail
   const navItems: {
@@ -94,9 +95,10 @@ export const ZohoSidebar: React.FC = () => {
     module: AppModule;
     shortLabel: string;
     fullLabel: string;
-    icon: React.ComponentType<{ className?: string }>;
+    icon?: React.ComponentType<{ className?: string }>;
     badge?: number | null;
     isActive: boolean;
+    isTextOnly?: boolean;
   }[] = [
     {
       href: `/dashboard${siteQuery}`,
@@ -170,7 +172,16 @@ export const ZohoSidebar: React.FC = () => {
       shortLabel: 'Settings',
       fullLabel: 'Website Settings',
       icon: Settings,
-      isActive: pathname === '/settings',
+      isActive: pathname === '/settings' && tabParam !== 'developer',
+    },
+    {
+      href: `/settings?tab=developer${siteQuery ? '&' + siteQuery.slice(1) : ''}`,
+      basePath: '/settings-developer',
+      module: 'settings',
+      shortLabel: 'Developer Setting',
+      fullLabel: 'Developer Setting',
+      isActive: pathname === '/settings' && tabParam === 'developer',
+      isTextOnly: true,
     },
   ];
 
@@ -265,26 +276,54 @@ export const ZohoSidebar: React.FC = () => {
                     <span className="absolute left-0 top-1 bottom-1 w-1 bg-amber-400 animate-pulse rounded-r-sm" />
                   )}
 
-                  <div className="relative">
-                    {isPending ? (
-                      <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
-                    ) : (
-                      <Icon className={`w-4 h-4 transition-transform group-hover:scale-110 ${
-                        isActive ? 'text-red-400' : 'text-slate-400 group-hover:text-slate-200'
-                      }`} />
-                    )}
-                    {item.badge !== undefined && item.badge !== null && item.badge > 0 && !isPending && (
-                      <span className="absolute -top-1.5 -right-2 min-w-[14px] h-3.5 px-0.5 rounded-full bg-red-500 text-white text-[9px] font-mono font-bold flex items-center justify-center leading-none">
-                        {item.badge > 99 ? '99+' : item.badge}
+                  {item.isTextOnly ? (
+                    <div className="flex flex-col items-center justify-center w-full px-1 text-center select-none">
+                      <span
+                        className={`text-[9.5px] leading-[12px] font-semibold text-center tracking-tight transition-colors ${
+                          isActive
+                            ? 'text-white font-bold'
+                            : isPending
+                            ? 'text-amber-300 font-bold animate-pulse'
+                            : 'text-slate-400 group-hover:text-slate-200'
+                        }`}
+                      >
+                        Developer<br />Setting
                       </span>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="relative">
+                        {isPending ? (
+                          <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+                        ) : (
+                          Icon && (
+                            <Icon
+                              className={`w-4 h-4 transition-transform group-hover:scale-110 ${
+                                isActive ? 'text-red-400' : 'text-slate-400 group-hover:text-slate-200'
+                              }`}
+                            />
+                          )
+                        )}
+                        {item.badge !== undefined && item.badge !== null && item.badge > 0 && !isPending && (
+                          <span className="absolute -top-1.5 -right-2 min-w-[14px] h-3.5 px-0.5 rounded-full bg-red-500 text-white text-[9px] font-mono font-bold flex items-center justify-center leading-none">
+                            {item.badge > 99 ? '99+' : item.badge}
+                          </span>
+                        )}
+                      </div>
 
-                  <span className={`text-[9px] tracking-tight mt-1 font-medium transition-colors ${
-                    isActive ? 'text-white font-bold' : isPending ? 'text-amber-300 font-bold animate-pulse' : 'text-slate-400 group-hover:text-slate-300'
-                  }`}>
-                    {isPending ? 'Loading...' : item.shortLabel}
-                  </span>
+                      <span
+                        className={`text-[9px] tracking-tight mt-1 font-medium transition-colors ${
+                          isActive
+                            ? 'text-white font-bold'
+                            : isPending
+                            ? 'text-amber-300 font-bold animate-pulse'
+                            : 'text-slate-400 group-hover:text-slate-300'
+                        }`}
+                      >
+                        {isPending ? 'Loading...' : item.shortLabel}
+                      </span>
+                    </>
+                  )}
                 </Link>
               );
             })}
