@@ -566,20 +566,29 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
             </div>
           </div>
 
-          {/* Visual Progress Bar */}
-          <div className="w-full h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden relative">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                targetMetrics.percentage >= 100
-                  ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
-                  : targetMetrics.status === 'CRITICAL'
-                  ? 'bg-gradient-to-r from-rose-500 to-red-600'
-                  : targetMetrics.status === 'BEHIND'
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-500'
-                  : 'bg-gradient-to-r from-red-600 to-rose-500'
-              }`}
-              style={{ width: `${targetMetrics.percentage}%` }}
-            />
+          {/* Visual Progress Bar - Multi-Segment (Published: Green, In Review: Orange) */}
+          <div className="w-full h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden flex">
+            {targetMetrics.targetCount > 0 && targetMetrics.publishedThisMonth > 0 && (
+              <div
+                className="h-full bg-emerald-500 dark:bg-emerald-400 transition-all duration-500"
+                style={{
+                  width: `${Math.min(100, (targetMetrics.publishedThisMonth / targetMetrics.targetCount) * 100)}%`,
+                }}
+                title={`Published: ${targetMetrics.publishedThisMonth}`}
+              />
+            )}
+            {targetMetrics.targetCount > 0 && targetMetrics.inReviewCount > 0 && (
+              <div
+                className="h-full bg-amber-500 dark:bg-amber-400 transition-all duration-500"
+                style={{
+                  width: `${Math.min(
+                    Math.max(0, 100 - (targetMetrics.publishedThisMonth / targetMetrics.targetCount) * 100),
+                    (targetMetrics.inReviewCount / targetMetrics.targetCount) * 100
+                  )}%`,
+                }}
+                title={`In Review: ${targetMetrics.inReviewCount}`}
+              />
+            )}
           </div>
         </div>
 
@@ -777,13 +786,13 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
               {/* Micro Legend */}
               <div className="hidden sm:flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400 font-medium">
                 <span className="inline-flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-xs bg-gradient-to-t from-blue-600 to-indigo-500" />
+                  <span className="w-2 h-2 rounded-xs bg-gradient-to-t from-emerald-600 to-teal-500" />
                   Published
                 </span>
                 {totalPipelineInPeriod > 0 && (
                   <span className="inline-flex items-center gap-1">
                     <span className="w-2 h-2 rounded-xs bg-amber-400" />
-                    Pipeline
+                    Workflow
                   </span>
                 )}
               </div>
@@ -884,7 +893,7 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
             <div className="px-3 py-2 sm:px-4 sm:py-2.5 flex flex-col md:flex-row items-center justify-between gap-3 md:gap-6 rounded-b-lg">
               {/* Left: 12-Month Cadence - Tight grouping with NO awkward gaps */}
               <div className="w-full md:max-w-xl lg:max-w-2xl">
-                <div className="flex items-end justify-between gap-1 sm:gap-1.5 h-14">
+                <div className="flex items-end justify-between gap-1 sm:gap-1.5 h-28">
                   {monthlyTrajectory.map((month, idx) => {
                     const isHovered = hoveredMonthKey === month.key;
                     const total = month.totalCount;
@@ -918,13 +927,13 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                             <div className="font-bold border-b border-slate-700 dark:border-slate-200 pb-0.5 mb-1">
                               {month.fullLabel}
                             </div>
-                            <div className="flex items-center justify-between gap-2 text-blue-400 dark:text-blue-600">
+                            <div className="flex items-center justify-between gap-2 text-emerald-400 dark:text-emerald-600">
                               <span>Published:</span>
                               <span className="font-mono font-bold">{published}</span>
                             </div>
                             {pipeline > 0 && (
                               <div className="flex items-center justify-between gap-2 text-amber-400 dark:text-amber-600">
-                                <span>Pipeline:</span>
+                                <span>Workflow:</span>
                                 <span className="font-mono font-bold">{pipeline}</span>
                               </div>
                             )}
@@ -936,12 +945,12 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                         )}
 
                         {/* Monospace count above bar */}
-                        <div className="h-3.5 flex items-center justify-center">
+                        <div className="h-4 flex items-center justify-center">
                           {total > 0 && (
                             <span
                               className={`text-[10px] font-mono font-bold leading-none transition-colors ${
                                 isHovered
-                                  ? 'text-blue-600 dark:text-blue-400 scale-110'
+                                  ? 'text-emerald-600 dark:text-emerald-400 scale-110'
                                   : 'text-slate-700 dark:text-slate-300'
                               }`}
                             >
@@ -951,11 +960,11 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                         </div>
 
                         {/* The Bar Track */}
-                        <div className="w-full h-8 flex flex-col justify-end">
+                        <div className="w-full h-20 flex flex-col justify-end">
                           {total > 0 ? (
                             <div
                               className={`w-full max-w-[24px] sm:max-w-[28px] mx-auto flex flex-col justify-end rounded-t-sm overflow-hidden transition-all duration-300 ${
-                                isHovered ? 'ring-2 ring-blue-500/60 shadow-xs' : ''
+                                isHovered ? 'ring-2 ring-emerald-500/60 shadow-xs' : ''
                               }`}
                               style={{ height: `${totalHeightPct}%` }}
                             >
@@ -967,7 +976,7 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                               )}
                               {published > 0 && (
                                 <div
-                                  className="w-full bg-gradient-to-t from-blue-600 to-indigo-500 dark:from-blue-500 dark:to-indigo-400 transition-all duration-300"
+                                  className="w-full bg-gradient-to-t from-emerald-600 to-teal-500 dark:from-emerald-500 dark:to-teal-400 transition-all duration-300"
                                   style={{ height: `${publishedSharePct}%` }}
                                 />
                               )}
@@ -985,11 +994,11 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                         </div>
 
                         {/* Month Label */}
-                        <div className="mt-1 text-center select-none leading-none">
+                        <div className="mt-1.5 text-center select-none leading-none">
                           <span
                             className={`text-[9px] uppercase font-bold tracking-tight block ${
                               isHovered
-                                ? 'text-blue-600 dark:text-blue-400 font-black'
+                                ? 'text-emerald-600 dark:text-emerald-400 font-black'
                                 : total > 0
                                 ? 'text-slate-800 dark:text-slate-200'
                                 : 'text-slate-400 dark:text-slate-500'
@@ -1011,7 +1020,7 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                   <div className="px-2.5 py-1 rounded-md bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800">
                     <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">In Period</div>
                     <div className="flex items-baseline gap-1">
-                      <span className="text-base font-black text-blue-600 dark:text-blue-400 font-mono">
+                      <span className="text-base font-black text-emerald-600 dark:text-emerald-400 font-mono">
                         {totalPublishedInPeriod}
                       </span>
                       <span className="text-[10px] text-slate-400">posts</span>
