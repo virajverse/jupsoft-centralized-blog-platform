@@ -944,23 +944,8 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                           </div>
                         )}
 
-                        {/* Monospace count above bar */}
-                        <div className="h-4 flex items-center justify-center">
-                          {total > 0 && (
-                            <span
-                              className={`text-[10px] font-mono font-bold leading-none transition-colors ${
-                                isHovered
-                                  ? 'text-emerald-600 dark:text-emerald-400 scale-110'
-                                  : 'text-slate-700 dark:text-slate-300'
-                              }`}
-                            >
-                              {total}
-                            </span>
-                          )}
-                        </div>
-
                         {/* The Bar Track */}
-                        <div className="w-full h-20 flex flex-col justify-end">
+                        <div className="w-full flex-1 flex flex-col justify-end">
                           {total > 0 ? (
                             <div
                               className={`w-full max-w-[24px] sm:max-w-[28px] mx-auto flex flex-col justify-end rounded-t-sm overflow-hidden transition-all duration-300 ${
