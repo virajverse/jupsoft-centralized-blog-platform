@@ -893,15 +893,15 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
             <div className="px-3 py-2 sm:px-4 sm:py-2.5 flex flex-col md:flex-row items-center justify-between gap-3 md:gap-6 rounded-b-lg">
               {/* Left: 12-Month Cadence - Tight grouping with NO awkward gaps */}
               <div className="w-full md:max-w-xl lg:max-w-2xl">
-                <div className="flex items-end justify-between gap-1 sm:gap-1.5 h-40">
+                <div className="flex items-end justify-between gap-1 sm:gap-1.5 h-48">
                   {monthlyTrajectory.map((month, idx) => {
                     const isHovered = hoveredMonthKey === month.key;
                     const total = month.totalCount;
                     const published = month.publishedCount;
                     const pipeline = month.pipelineCount;
 
-                    // Height percentage (scale max 100%, min 20% if total > 0)
-                    const totalHeightPct = total > 0 ? Math.max(20, Math.round((total / maxTrajectoryCount) * 100)) : 0;
+                    // Height percentage (scale max 100%, min 35% if total > 0)
+                    const totalHeightPct = total > 0 ? Math.max(35, Math.round((total / maxTrajectoryCount) * 100)) : 0;
                     const publishedSharePct = total > 0 ? (published / total) * 100 : 0;
                     const pipelineSharePct = total > 0 ? (pipeline / total) * 100 : 0;
 
@@ -945,10 +945,10 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                         )}
 
                         {/* The Bar Track */}
-                        <div className="w-full flex-1 flex flex-col justify-end">
+                        <div className="w-full h-40 flex flex-col justify-end">
                           {total > 0 ? (
                             <div
-                              className={`w-full max-w-[24px] sm:max-w-[28px] mx-auto flex flex-col justify-end rounded-t-sm overflow-hidden transition-all duration-300 ${
+                              className={`w-full max-w-[26px] sm:max-w-[32px] mx-auto flex flex-col justify-end rounded-t-sm overflow-hidden transition-all duration-300 ${
                                 isHovered ? 'ring-2 ring-emerald-500/60 shadow-xs' : ''
                               }`}
                               style={{ height: `${totalHeightPct}%` }}
@@ -969,7 +969,7 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                           ) : (
                             /* Clean subtle baseline tick for months with 0 posts */
                             <div
-                              className={`w-full max-w-[24px] sm:max-w-[28px] mx-auto h-[3px] rounded-full transition-all duration-200 ${
+                              className={`w-full max-w-[26px] sm:max-w-[32px] mx-auto h-[3px] rounded-full transition-all duration-200 ${
                                 isHovered
                                   ? 'bg-slate-400 dark:bg-slate-600 h-[4px]'
                                   : 'bg-slate-200 dark:bg-slate-850'
@@ -1002,20 +1002,20 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
               <div className="w-full md:w-auto md:border-l md:border-slate-200 md:dark:border-slate-800 md:pl-5 flex items-center justify-between md:justify-end gap-2.5 sm:gap-3 shrink-0">
                 <div className="flex items-center gap-2 sm:gap-2.5">
                   {/* Metric 1: In Period */}
-                  <div className="px-2.5 py-1 rounded-md bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800">
-                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">In Period</div>
-                    <div className="flex items-baseline gap-1">
+                  <div className="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">In Period</div>
+                    <div className="flex items-baseline gap-1 mt-0.5">
                       <span className="text-base font-black text-emerald-600 dark:text-emerald-400 font-mono">
                         {totalPublishedInPeriod}
                       </span>
-                      <span className="text-[10px] text-slate-400">posts</span>
+                      <span className="text-[10px] text-slate-400 font-medium">posts</span>
                     </div>
                   </div>
 
                   {/* Metric 2: Peak Month */}
-                  <div className="px-2.5 py-1 rounded-md bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800">
-                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Peak Month</div>
-                    <div className="flex items-baseline gap-1">
+                  <div className="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Peak Month</div>
+                    <div className="flex items-baseline gap-1 mt-0.5">
                       <span className="text-sm font-bold text-slate-800 dark:text-slate-200 font-mono">
                         {peakMonth && peakMonth.publishedCount > 0 ? `${peakMonth.label} (${peakMonth.publishedCount})` : 'None'}
                       </span>
@@ -1023,13 +1023,13 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                   </div>
 
                   {/* Metric 3: Monthly Average */}
-                  <div className="px-2.5 py-1 rounded-md bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800">
-                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Avg Rate</div>
-                    <div className="flex items-baseline gap-1">
+                  <div className="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avg Rate</div>
+                    <div className="flex items-baseline gap-1 mt-0.5">
                       <span className="text-sm font-bold text-slate-800 dark:text-slate-200 font-mono">
                         {avgMonthlyPublished}
                       </span>
-                      <span className="text-[10px] text-slate-400">/mo</span>
+                      <span className="text-[10px] text-slate-400 font-medium">/mo</span>
                     </div>
                   </div>
                 </div>
@@ -1037,10 +1037,10 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                 {/* Quick Action Link */}
                 <Link
                   href={`/blogs${siteQuery}&status=Published`}
-                  className="hidden xl:inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-100 hover:bg-blue-50 dark:bg-slate-800 dark:hover:bg-blue-950/60 text-slate-700 hover:text-blue-600 dark:text-slate-300 dark:hover:text-blue-400 text-[10px] font-bold transition-colors shrink-0"
+                  className="hidden xl:inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-slate-100 hover:bg-emerald-50 dark:bg-slate-800 dark:hover:bg-emerald-950/60 text-slate-700 hover:text-emerald-600 dark:text-slate-300 dark:hover:text-emerald-400 text-[10px] font-bold transition-colors shrink-0 shadow-2xs"
                 >
                   <span>Browse</span>
-                  <ChevronRight className="w-3 h-3" />
+                  <ChevronRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
             </div>
@@ -1063,9 +1063,9 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
       )}
 
       {/* Main Split-Screen Data Grid (Recent Editorial Pipeline + Multi-Tenant Infrastructure) */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-2.5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5 items-start">
         {/* Left 2 Cols: Compact Spreadsheet Recent Blogs Table */}
-        <div className="xl:col-span-2 bg-white dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+        <div className="lg:col-span-2 bg-white dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
           <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-900/60">
             <div className="flex items-center gap-2">
               <FileText className="w-3.5 h-3.5 text-red-500" />
