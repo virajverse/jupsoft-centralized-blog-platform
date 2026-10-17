@@ -544,6 +544,10 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
+    if (user.status !== 'active') {
+      throw new UnauthorizedException('User account is suspended or inactive');
+    }
+
     const profile = {
       id: user.id,
       name: user.name,

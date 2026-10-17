@@ -67,6 +67,7 @@ export class PublicV1Controller {
   }
 
   @Post('revalidate')
+  @UseGuards(ApiKeyGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'On-demand cache revalidation endpoint (TRD §13 & §15)' })
   async revalidateCache(
@@ -80,7 +81,7 @@ export class PublicV1Controller {
     const payload = body || {};
     const event = payload.event || xEvent || 'test';
     const slug = payload.slug || 'all';
-    const websiteDomainOrId = payload.website || queryWebsite || req.headers?.['x-website-id'] || 'all';
+    const websiteDomainOrId = req.tenant?.id || payload.website || queryWebsite || req.headers?.['x-website-id'] || 'all';
 
     // Invalidate Redis caches for published blogs and search
     await this.publicV1Service.invalidateBlogCache(websiteDomainOrId, slug);

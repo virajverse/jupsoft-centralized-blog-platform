@@ -41,7 +41,16 @@ function isValidAdminJwt(token: string, secret: string): boolean {
   }
 }
 
+const MAX_TENANT_CACHE_SIZE = 1000;
 const tenantCache = new Map<string, { website: any; expiresAt: number }>();
+
+function setTenantCache(key: string, value: { website: any; expiresAt: number }): void {
+  if (tenantCache.size >= MAX_TENANT_CACHE_SIZE) {
+    const oldestKey = tenantCache.keys().next().value;
+    if (oldestKey) tenantCache.delete(oldestKey);
+  }
+  tenantCache.set(key, value);
+}
 
 export function clearTenantCache(): void {
   tenantCache.clear();
@@ -105,7 +114,7 @@ export class ApiKeyGuard implements CanActivate {
           where: { apiKey: tokenValue },
         });
         if (website) {
-          tenantCache.set(cacheKey, { website, expiresAt: now + 300_000 });
+          setTenantCache(cacheKey, { website, expiresAt: now + 300_000 });
         }
       }
 
@@ -224,7 +233,7 @@ export class ApiKeyGuard implements CanActivate {
               },
             });
             if (matchedSite) {
-              tenantCache.set(siteCacheKey, { website: matchedSite, expiresAt: now + 300_000 });
+              setTenantCache(siteCacheKey, { website: matchedSite, expiresAt: now + 300_000 });
             }
           }
 
@@ -298,7 +307,7 @@ export class ApiKeyGuard implements CanActivate {
         }
 
         if (website) {
-          tenantCache.set(siteCacheKey, { website, expiresAt: now + 300_000 });
+          setTenantCache(siteCacheKey, { website, expiresAt: now + 300_000 });
         }
       }
 

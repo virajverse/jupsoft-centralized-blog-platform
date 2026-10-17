@@ -342,4 +342,8 @@ async function bootstrap() {
   logger.log('Public V1 API: http://localhost:' + port + '/v1');
 }
 
-bootstrap();
+bootstrap().catch((err) => {
+  const logger = new Logger('JupsoftCmsFatal');
+  logger.error('Fatal bootstrap failure:', err);
+  process.exit(1);
+});
