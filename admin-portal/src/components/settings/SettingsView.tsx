@@ -1,0 +1,1567 @@
+'use client';
+
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useBlogStore } from '../../store/useBlogStore';
+import { useShallow } from 'zustand/react/shallow';
+import { useQueryState } from '../../hooks/useQueryState';
+import { Website, LanguageCode } from '../../types';
+import { apiClient } from '../../services/apiClient';
+import { resolveMediaUrl } from '../../utils/mediaUtils';
+import { 
+  Globe, 
+  Copy, 
+  Check, 
+  RefreshCw, 
+  Zap,
+  Plus,
+  ShieldCheck,
+  Layers,
+  CheckCircle2,
+  XCircle,
+  History,
+  Search,
+  Eye,
+  EyeOff,
+  ExternalLink,
+  Send,
+  AlertCircle,
+  Trash2,
+  Settings,
+  ArrowRightLeft,
+  KeyRound,
+  Lock,
+  Code,
+  UploadCloud,
+  Upload,
+  Image as ImageIcon,
+  X,
+  Target
+} from 'lucide-react';
+import { RedirectsView } from '../redirects/RedirectsView';
+import { DeveloperWorkspaceV2 } from './DeveloperWorkspaceV2';
+
+export const SettingsView: React.FC = () => {
+  const searchParams = useSearchParams();
+  const { setParam } = useQueryState();
+
+  const { 
+    websites, 
+    activeWebsiteId, 
+    activeRole,
+    fetchWebsites,
+    fetchBlogs,
+    updateWebsite, 
+    addWebsite,
+    deleteWebsite,
+    blogs,
+    auditLogs,
+    fetchAuditLogs,
+    showNotification,
+    setActiveWebsite,
+    currentUser,
+    media,
+    fetchMedia,
+  } = useBlogStore(
+    useShallow((s) => ({
+      websites: s.websites,
+      activeWebsiteId: s.activeWebsiteId,
+      activeRole: s.activeRole,
+      fetchWebsites: s.fetchWebsites,
+      fetchBlogs: s.fetchBlogs,
+      updateWebsite: s.updateWebsite,
+      addWebsite: s.addWebsite,
+      deleteWebsite: s.deleteWebsite,
+      blogs: s.blogs,
+      auditLogs: s.auditLogs,
+      fetchAuditLogs: s.fetchAuditLogs,
+      showNotification: s.showNotification,
+      setActiveWebsite: s.setActiveWebsite,
+      currentUser: s.currentUser,
+      media: s.media,
+      fetchMedia: s.fetchMedia,
+    }))
+  );
+
+  const siteParam = searchParams.get('site');
+  const effectiveSiteId = siteParam && (siteParam === 'all' || websites.some((w) => w.id === siteParam))
+    ? siteParam
+    : activeWebsiteId;
+
+  const isSuperAdmin = activeRole === 'Super Admin' || currentUser?.roleAssignments?.['all'] === 'Super Admin';
+
+  const canViewApiKeyForTenant = (siteId: string) => {
+    if (isSuperAdmin) return true;
+    if (currentUser?.roleAssignments?.[siteId] === 'Website Admin') return true;
+    if (currentUser?.roleAssignments?.['all'] === 'Website Admin') return true;
+    if (activeWebsiteId === siteId && activeRole === 'Website Admin') return true;
+    return false;
+  };
+
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    queueMicrotask(() => {
+      if (active) setIsLoadingSettings(true);
+    });
+    Promise.all([
+      fetchWebsites(),
+      fetchBlogs()
+    ]).finally(() => {
+      if (active) setIsLoadingSettings(false);
+    });
+    return () => { active = false; };
+  }, [fetchWebsites, fetchBlogs]);
+
+  useEffect(() => {
+    if (siteParam && siteParam !== activeWebsiteId && (siteParam === 'all' || websites.some((w) => w.id === siteParam))) {
+      queueMicrotask(() => setActiveWebsite(siteParam));
+    }
+    fetchAuditLogs(effectiveSiteId === 'all' ? undefined : effectiveSiteId);
+  }, [siteParam, effectiveSiteId, activeWebsiteId, websites, setActiveWebsite, fetchAuditLogs]);
+
+  const isAllSites = effectiveSiteId === 'all';
+
+  // URL state
+  type SettingsTab = 'all' | 'general' | 'developer' | 'redirects' | 'webhook' | 'audit';
+  const tenantParam = searchParams.get('tenant');
+  const rawTabParam = searchParams.get('tab') as SettingsTab;
+  const activeTab: SettingsTab = (rawTabParam && ['all', 'general', 'developer', 'redirects', 'webhook', 'audit'].includes(rawTabParam))
+    ? ((!isSuperAdmin && rawTabParam === 'all') ? 'general' : rawTabParam)
+    : (isSuperAdmin ? 'all' : 'general');
+
+  // Derive target site directly from URL state
+  const targetSiteId = (tenantParam && websites.some((w) => w.id === tenantParam))
+    ? tenantParam
+    : (isAllSites ? websites[0]?.id : effectiveSiteId);
+
+  // Onboard modal state
+  const [isOnboardOpen, setIsOnboardOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newDomain, setNewDomain] = useState('');
+  const [newSlug, setNewSlug] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [newLang, setNewLang] = useState<LanguageCode>('en');
+  const [isOnboardSubmitting, setIsOnboardSubmitting] = useState(false);
+  const [onboardError, setOnboardError] = useState<string | null>(null);
+
+  // Copy API key state
+  const [copiedKey, setCopiedKey] = useState(false);
+
+  // Audit filter state
+  const [auditFilter, setAuditFilter] = useState('');
+
+  const handleSelectTenant = (id: string) => {
+    setParam('tenant', id);
+  };
+
+  const handleTabChange = (tab: SettingsTab) => {
+    setParam('tab', tab === (isSuperAdmin ? 'all' : 'general') ? null : tab);
+  };
+
+  const activeSite = websites.find((w) => w.id === targetSiteId) || websites[0];
+  const canViewActiveApiKey = activeSite ? canViewApiKeyForTenant(activeSite.id) : false;
+
+  // Editable local states for active tenant settings with adjust-during-render pattern
+  const [prevSiteId, setPrevSiteId] = useState(activeSite?.id);
+  const [editName, setEditName] = useState(activeSite?.name || '');
+  const [editDomain, setEditDomain] = useState(activeSite?.domain || '');
+  const [editWebhookUrl, setEditWebhookUrl] = useState(activeSite?.revalidateWebhookUrl || '');
+  const [editOwnerName, setEditOwnerName] = useState(activeSite?.ownerName || '');
+  const [editOwnerEmail, setEditOwnerEmail] = useState(activeSite?.ownerEmail || '');
+  const [editNotificationEmails, setEditNotificationEmails] = useState((activeSite?.notificationEmails || []).join(', '));
+  const [editMonthlyTarget, setEditMonthlyTarget] = useState<number>(activeSite?.monthlyBlogTarget ?? 15);
+  const [editTargetCadence, setEditTargetCadence] = useState<string>(activeSite?.targetCadence || 'monthly');
+  const [editTargetAlertEnabled, setEditTargetAlertEnabled] = useState<boolean>(activeSite?.targetAlertEnabled ?? true);
+  const [editTargetAlertDays, setEditTargetAlertDays] = useState<string>((activeSite?.targetAlertDays || [15, 25]).join(', '));
+  const [editTargetAlertSchedule, setEditTargetAlertSchedule] = useState<string>(activeSite?.targetAlertSchedule || 'weekly_monday');
+  const [editDigestSchedule, setEditDigestSchedule] = useState<string>(activeSite?.digestSchedule || 'first_of_month');
+  const [editRecipientScope, setEditRecipientScope] = useState<string>(activeSite?.recipientScope || 'all_stakeholders');
+  const [targetPreset, setTargetPreset] = useState<string>(
+    [5, 10, 15, 20, 30].includes(activeSite?.monthlyBlogTarget ?? 15) ? String(activeSite?.monthlyBlogTarget ?? 15) : 'custom'
+  );
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingSiteId, setDeletingSiteId] = useState<string | null>(null);
+  const [togglingSiteStatusId, setTogglingSiteStatusId] = useState<string | null>(null);
+
+  const siteMedia = useMemo(() => {
+    return media.filter((m) => m.websiteId === activeSite?.id);
+  }, [media, activeSite?.id]);
+
+  if (activeSite && activeSite.id !== prevSiteId) {
+    setPrevSiteId(activeSite.id);
+    setEditName(activeSite.name || '');
+    setEditDomain(activeSite.domain || '');
+    setEditWebhookUrl(activeSite.revalidateWebhookUrl || '');
+    setEditOwnerName(activeSite.ownerName || '');
+    setEditOwnerEmail(activeSite.ownerEmail || '');
+    setEditNotificationEmails((activeSite.notificationEmails || []).join(', '));
+    setEditMonthlyTarget(activeSite.monthlyBlogTarget ?? 15);
+    setEditTargetCadence(activeSite.targetCadence || 'monthly');
+    setEditTargetAlertEnabled(activeSite.targetAlertEnabled ?? true);
+    setEditTargetAlertDays((activeSite.targetAlertDays || [15, 25]).join(', '));
+    setEditTargetAlertSchedule(activeSite.targetAlertSchedule || 'weekly_monday');
+    setEditDigestSchedule(activeSite.digestSchedule || 'first_of_month');
+    setEditRecipientScope(activeSite.recipientScope || 'all_stakeholders');
+    setTargetPreset(
+      [5, 10, 15, 20, 30].includes(activeSite.monthlyBlogTarget ?? 15)
+        ? String(activeSite.monthlyBlogTarget ?? 15)
+        : 'custom'
+    );
+  }
+
+  const handleSaveProfile = async () => {
+    if (!activeSite) return;
+    if (!isSuperAdmin) {
+      showNotification('Super Admin privileges required to modify website settings', 'warning');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await updateWebsite(activeSite.id, {
+        name: editName.trim(),
+        domain: editDomain.trim(),
+        logoUrl: activeSite.logoUrl || '',
+        ownerName: editOwnerName.trim(),
+        ownerEmail: editOwnerEmail.trim(),
+        notificationEmails: editNotificationEmails
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+        monthlyBlogTarget: Number(editMonthlyTarget) || 15,
+        targetCadence: editTargetCadence,
+        targetAlertEnabled: editTargetAlertEnabled,
+        targetAlertDays: editTargetAlertDays
+          .split(',')
+          .map((s) => parseInt(s.trim(), 10))
+          .filter((n) => !isNaN(n) && n >= 1 && n <= 31),
+        targetAlertSchedule: editTargetAlertSchedule,
+        digestSchedule: editDigestSchedule,
+        recipientScope: editRecipientScope,
+        defaultCoverUrl: activeSite.defaultCoverUrl || '',
+      });
+      showNotification('Website profile & publishing cadence saved to database!', 'success');
+    } catch (err: unknown) {
+      showNotification(err instanceof Error ? err.message : 'Failed to update website', 'warning');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveWebhook = async () => {
+    if (!activeSite) return;
+    if (!isSuperAdmin) {
+      showNotification('Super Admin privileges required to modify webhook configuration', 'warning');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await updateWebsite(activeSite.id, {
+        revalidateWebhookUrl: editWebhookUrl.trim(),
+      });
+      showNotification('Webhook endpoint saved to database!', 'success');
+    } catch (err: unknown) {
+      showNotification(err instanceof Error ? err.message : 'Failed to update webhook URL', 'warning');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [isRegeneratingKey, setIsRegeneratingKey] = useState(false);
+
+  const copyApiKey = () => {
+    if (!activeSite || !canViewActiveApiKey) return;
+    navigator.clipboard.writeText(activeSite.apiKey);
+    setCopiedKey(true);
+    setTimeout(() => setCopiedKey(false), 2000);
+  };
+
+  const handleRegenerateApiKey = async () => {
+    if (!activeSite) return;
+    if (!isSuperAdmin) {
+      showNotification('Only Super Admin can rotate website secret API keys', 'warning');
+      return;
+    }
+    const confirmed = window.confirm(
+      `⚠️ Warning: Regenerating the API key for "${activeSite.name}" will immediately invalidate the existing key.\n\nAny client website using this key will need to update its .env.local to continue fetching blogs.\n\nDo you want to proceed?`
+    );
+    if (!confirmed) return;
+
+    setIsRegeneratingKey(true);
+    try {
+      const cleanSlug = activeSite.id.replace(/^site-/, '');
+      const randomHex = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 6);
+      const newKey = `jup_live_sec_${cleanSlug}_${randomHex}`;
+      await updateWebsite(activeSite.id, { apiKey: newKey });
+      showNotification(`New API key generated successfully for ${activeSite.name}!`, 'success');
+      setShowApiKey(true);
+    } catch (err: unknown) {
+      showNotification(err instanceof Error ? err.message : 'Failed to rotate API key', 'warning');
+    } finally {
+      setIsRegeneratingKey(false);
+    }
+  };
+
+  // Auto-fill slug from name in onboarding modal
+  const handleNameChange = (val: string) => {
+    setNewName(val);
+    if (!newSlug || newSlug === val.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, -1)) {
+      setNewSlug(val.toLowerCase().replace(/[^a-z0-9]/g, '-'));
+    }
+  };
+
+  const handleDeleteWebsite = async (id: string, name: string) => {
+    if (!isSuperAdmin || deletingSiteId) {
+      if (!isSuperAdmin) showNotification('Only Super Admin can delete websites', 'warning');
+      return;
+    }
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete the website "${name}"?\n\nWARNING: This will cascade and delete all associated blogs, categories, tags, media assets, and redirects for this website. This action cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeletingSiteId(id);
+    try {
+      await deleteWebsite(id);
+      if (targetSiteId === id) {
+        const remaining = websites.filter((w) => w.id !== id);
+        setParam('tenant', remaining[0]?.id || null);
+      }
+      showNotification(`Website "${name}" deleted successfully.`, 'info');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete website';
+      showNotification(msg, 'error');
+    } finally {
+      setDeletingSiteId(null);
+    }
+  };
+
+  const handleToggleWebsiteStatus = async (site: Website) => {
+    if (!isSuperAdmin || togglingSiteStatusId) {
+      if (!isSuperAdmin) showNotification('Only Super Admin can change website status', 'warning');
+      return;
+    }
+    setTogglingSiteStatusId(site.id);
+    try {
+      const nextStatus = site.status === 'active' ? 'inactive' : 'active';
+      await updateWebsite(site.id, { status: nextStatus });
+      showNotification(`Website "${site.name}" status changed to ${nextStatus}`, 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update status';
+      showNotification(msg, 'error');
+    } finally {
+      setTogglingSiteStatusId(null);
+    }
+  };
+
+  const handleCreateWebsite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim() || !newDomain.trim()) {
+      showNotification('Please provide both a website name and domain.', 'warning');
+      return;
+    }
+
+    const cleanSlug = (newSlug.trim() || newName.toLowerCase().replace(/[^a-z0-9]/g, '-')).replace(/^-+|-+$/g, '');
+    const cleanDomain = newDomain
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\//, '')
+      .replace(/\/+$/, '')
+      .split('/')[0]
+      .trim();
+    const newSiteId = `site-${cleanSlug}`;
+
+    const newWebsite = {
+      id: newSiteId,
+      name: newName.trim(),
+      domain: cleanDomain,
+      logoUrl: '',
+      description: newDescription.trim() || `${newName.trim()} content network.`,
+      defaultLanguage: newLang,
+      supportedLanguages: ['en', 'hi', 'fr', 'ar'] as LanguageCode[],
+      revalidateWebhookUrl: `https://${cleanDomain}/api/revalidate`,
+    };
+
+    setIsOnboardSubmitting(true);
+    setOnboardError(null);
+
+    try {
+      const created = await addWebsite(newWebsite);
+      const targetSite = (created as Website) || newWebsite;
+      setParam('tenant', targetSite.id);
+      setIsOnboardOpen(false);
+      setNewName('');
+      setNewDomain('');
+      setNewSlug('');
+      setNewDescription('');
+      showNotification(`Website "${targetSite.name}" onboarded successfully!`, 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to register website';
+      setOnboardError(msg);
+      showNotification(`❌ ${msg}`, 'warning');
+    } finally {
+      setIsOnboardSubmitting(false);
+    }
+  };
+
+  const filteredAuditLogs = auditLogs.filter((log) => {
+    if (!auditFilter) return true;
+    const q = auditFilter.toLowerCase();
+    return (
+      log.event.toLowerCase().includes(q) ||
+      log.userName.toLowerCase().includes(q) ||
+      log.details.toLowerCase().includes(q) ||
+      log.websiteId.toLowerCase().includes(q)
+    );
+  });
+
+  return (
+    <div className="w-full space-y-5 sm:space-y-6">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div>
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+              {activeTab === 'developer' ? 'Developer Setting' : 'Website & System Settings'}
+            </h1>
+            {activeSite && activeTab !== 'developer' && (
+              <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 truncate max-w-[150px]">
+                {activeSite.name}
+              </span>
+            )}
+          </div>
+          {activeTab !== 'developer' && (
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Manage website identity, production domains, 301 redirects, and publishing webhooks.
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+          {isSuperAdmin && activeTab !== 'developer' && (
+            <button
+              onClick={() => setIsOnboardOpen(true)}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Onboard Website</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Non-Super Admin Read-Only Notice */}
+      {!isSuperAdmin && (
+        <div className="p-3.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 flex items-center justify-between gap-3 text-xs text-amber-800 dark:text-amber-300 shadow-2xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center shrink-0 text-amber-600 dark:text-amber-400">
+              <Lock className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <span className="font-bold">Read-Only Mode: </span>
+              <span className="text-amber-700 dark:text-amber-400">
+                Website configuration, production domains, API keys, and webhooks are strictly locked. Only a <strong>Super Admin</strong> can save or modify these settings.
+              </span>
+            </div>
+          </div>
+          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-200/70 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 shrink-0">
+            View Only
+          </span>
+        </div>
+      )}
+
+      {/* Quick Metrics Bar - hidden on developer tab to maximize vertical workspace */}
+      {activeTab !== 'developer' && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="p-3.5 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
+              <Globe className="w-3.5 h-3.5 text-blue-500" />
+              Configured Websites
+            </div>
+            <div className="text-lg font-bold text-slate-900 dark:text-white font-mono">
+              {websites.length}
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+              Active Websites
+            </div>
+            <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+              {websites.filter((w) => w.status === 'active').length}
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-indigo-500" />
+              Total Blogs
+            </div>
+            <div className="text-lg font-bold text-slate-900 dark:text-white font-mono">
+              {blogs.length}
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
+              <History className="w-3.5 h-3.5 text-amber-500" />
+              Activity Logs
+            </div>
+            <div className="text-lg font-bold text-slate-900 dark:text-white font-mono">
+              {auditLogs.length}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tenant Scope Selector (in All mode, hidden on developer tab where Switch Website dropdown exists) */}
+      {isAllSites && activeTab !== 'developer' && (
+        <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60">
+          {websites.map((w) => (
+            <button
+              key={w.id}
+              onClick={() => handleSelectTenant(w.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                targetSiteId === w.id
+                  ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-xs border border-slate-200 dark:border-slate-700'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${w.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+              <span>{w.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Section Tabs - Zoho Enterprise Styling */}
+      {activeTab !== 'developer' && (
+        <div className="flex items-center gap-1 bg-white dark:bg-[#0c1322] p-1 rounded-lg border border-slate-200 dark:border-slate-800 shadow-2xs overflow-x-auto scrollbar-none w-full sm:w-fit max-w-full">
+          {isSuperAdmin && (
+            <button
+              onClick={() => handleTabChange('all')}
+              className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                activeTab === 'all'
+                  ? 'bg-red-600 text-white font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              All Websites
+            </button>
+          )}
+          <button
+            onClick={() => handleTabChange('general')}
+            className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'general'
+                ? 'bg-red-600 text-white font-bold shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            Identity &amp; API Key
+          </button>
+          <button
+            onClick={() => handleTabChange('redirects')}
+            className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+              activeTab === 'redirects'
+                ? 'bg-red-600 text-white font-bold shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <ArrowRightLeft className="w-3.5 h-3.5" />
+            <span>Old Link Redirects (301)</span>
+          </button>
+          <button
+            onClick={() => handleTabChange('webhook')}
+            className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'webhook'
+                ? 'bg-red-600 text-white font-bold shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            Website Refresh &amp; Sync
+          </button>
+          <button
+            onClick={() => handleTabChange('audit')}
+            className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'audit'
+                ? 'bg-red-600 text-white font-bold shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            Activity Log ({auditLogs.length})
+          </button>
+        </div>
+      )}
+
+      {/* TAB: ALL TENANTS OVERVIEW */}
+      {activeTab === 'all' && (
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Websites Registry
+                </h3>
+              </div>
+              <span className="text-xs font-mono font-medium text-slate-500 dark:text-slate-400">
+                {websites.length} Websites Configured
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400">
+                    <th className="py-3 px-4 font-semibold">Website Name &amp; Domain</th>
+                    <th className="py-3 px-4 font-semibold">S3 Folder Prefix</th>
+                    <th className="py-3 px-4 font-semibold">Status</th>
+                    <th className="py-3 px-4 font-semibold">Blogs</th>
+                    <th className="py-3 px-4 font-semibold">API Key Identifier</th>
+                    <th className="py-3 px-4 font-semibold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                  {isLoadingSettings ? (
+                    [...Array(3)].map((_, i) => (
+                      <tr key={i} className="animate-pulse">
+                        <td className="py-3 px-4">
+                          <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-28 mb-1" />
+                          <div className="h-2.5 bg-slate-100 dark:bg-slate-850 rounded w-36" />
+                        </td>
+                        <td className="py-3 px-4"><div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-20" /></td>
+                        <td className="py-3 px-4"><div className="h-5 bg-slate-200 dark:bg-slate-800 rounded w-16" /></td>
+                        <td className="py-3 px-4"><div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-10" /></td>
+                        <td className="py-3 px-4"><div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-24" /></td>
+                        <td className="py-3 px-4 text-right"><div className="h-6 bg-slate-200 dark:bg-slate-800 rounded w-12 ml-auto" /></td>
+                      </tr>
+                    ))
+                  ) : websites.map((w) => {
+                    const blogCount = blogs.filter((b) => b.websiteId === w.id).length;
+                    const isSelected = w.id === targetSiteId;
+                    return (
+                      <tr 
+                        key={w.id} 
+                        className={`hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors ${
+                          isSelected ? 'bg-blue-50/30 dark:bg-blue-950/10' : ''
+                        }`}
+                      >
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${w.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                            <span>{w.name}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+                            {w.domain}
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-4 font-mono text-slate-600 dark:text-slate-300">
+                          {w.s3Prefix}
+                        </td>
+
+                        <td className="py-3 px-4">
+                          {isSuperAdmin ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextStatus = w.status === 'active' ? 'inactive' : 'active';
+                                updateWebsite(w.id, { status: nextStatus });
+                              }}
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-semibold cursor-pointer border text-[11px] transition-colors ${
+                                w.status === 'active'
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
+                                  : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                              }`}
+                            >
+                              {w.status === 'active' ? (
+                                <>
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>Active</span>
+                                </>
+                              ) : (
+                                <>
+                                  <XCircle className="w-3 h-3" />
+                                  <span>Inactive</span>
+                                </>
+                              )}
+                            </button>
+                          ) : (
+                            <div
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-semibold border text-[11px] select-none ${
+                                w.status === 'active'
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
+                                  : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                              }`}
+                            >
+                              {w.status === 'active' ? (
+                                <>
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>Active</span>
+                                </>
+                              ) : (
+                                <>
+                                  <XCircle className="w-3 h-3" />
+                                  <span>Inactive</span>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-4 font-mono font-semibold text-slate-800 dark:text-slate-200">
+                          {blogCount}
+                        </td>
+
+                        <td className="py-3 px-4 font-mono text-slate-500 dark:text-slate-400 text-[11px]">
+                          {canViewApiKeyForTenant(w.id) ? (
+                            `${w.apiKey?.slice(0, 16) || ''}...`
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-slate-400 dark:text-slate-500 select-none">
+                              <Lock className="w-3 h-3 text-amber-500/80" />
+                              <span>••••••••••••</span>
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1.5 justify-end whitespace-nowrap">
+                            <button
+                              onClick={() => {
+                                handleSelectTenant(w.id);
+                                handleTabChange('general');
+                              }}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 whitespace-nowrap"
+                            >
+                              <Settings className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+                              <span>Configure</span>
+                            </button>
+                            {isSuperAdmin && (
+                              <button
+                                type="button"
+                                disabled={deletingSiteId === w.id}
+                                onClick={() => handleDeleteWebsite(w.id, w.name)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer border border-rose-200 dark:border-rose-800 whitespace-nowrap disabled:opacity-50"
+                                title={`Delete website ${w.name}`}
+                              >
+                                <Trash2 className={`w-3.5 h-3.5 ${deletingSiteId === w.id ? 'animate-spin text-rose-500' : 'text-rose-500 dark:text-rose-400'} shrink-0`} />
+                                <span>{deletingSiteId === w.id ? 'Removing...' : 'Remove'}</span>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: IDENTITY & API KEY */}
+      {activeTab === 'general' && activeSite && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 space-y-5 shadow-xs">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Globe className="w-4 h-4 text-slate-500" />
+              Website Profile &amp; Domain
+            </h3>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">Website Name</label>
+                <input
+                  type="text"
+                  disabled={!isSuperAdmin}
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-medium focus:outline-none focus:ring-1 focus:ring-slate-400 disabled:opacity-70 disabled:cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">Production Domain / Hostname</label>
+                <input
+                  type="text"
+                  disabled={!isSuperAdmin}
+                  value={editDomain}
+                  onChange={(e) => setEditDomain(e.target.value)}
+                  placeholder="e.g. localhost:5001 or cloud.jupsoft.com"
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-slate-400 disabled:opacity-70 disabled:cursor-not-allowed"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Localhost during testing (e.g. <code className="text-blue-500 font-mono">localhost:5001</code>). When launching live, enter your production domain here without code changes.
+                </p>
+              </div>
+
+
+
+              <div>
+                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">Website Status</label>
+                <div className="flex items-center gap-3">
+                  {isSuperAdmin ? (
+                    <button
+                      type="button"
+                      disabled={togglingSiteStatusId === activeSite.id}
+                      onClick={() => handleToggleWebsiteStatus(activeSite)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border transition-colors flex items-center gap-1.5 disabled:opacity-50 ${
+                        activeSite.status === 'active'
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
+                          : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      {togglingSiteStatusId === activeSite.id ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : activeSite.status === 'active' ? (
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      ) : (
+                        <XCircle className="w-3.5 h-3.5" />
+                      )}
+                      <span>
+                        {togglingSiteStatusId === activeSite.id ? 'UPDATING...' : `Status: ${activeSite.status.toUpperCase()}`}
+                      </span>
+                    </button>
+                  ) : (
+                    <div
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1.5 select-none ${
+                        activeSite.status === 'active'
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
+                          : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      {activeSite.status === 'active' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                      <span>Status: {activeSite.status.toUpperCase()}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">AWS S3 Folder Prefix</label>
+                <input
+                  type="text"
+                  readOnly
+                  disabled
+                  value={activeSite.s3Prefix}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-500 dark:text-slate-400 font-mono focus:outline-none opacity-70 cursor-not-allowed"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                {isSuperAdmin ? (
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={handleSaveProfile}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                  >
+                    {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                    <span>{isSaving ? 'Saving to Database...' : 'Save Profile & Domain'}</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium bg-slate-100 dark:bg-slate-850 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <Lock className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Super Admin privileges required to modify settings</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Credentials & Consumer Tokens */}
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 space-y-5 shadow-xs">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-slate-500" />
+              API Key &amp; Authentication Scope
+            </h3>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-slate-700 dark:text-slate-300 font-semibold block">
+                    Website Live Secret API Key
+                  </label>
+                  {isSuperAdmin && (
+                    <button
+                      type="button"
+                      onClick={handleRegenerateApiKey}
+                      disabled={isRegeneratingKey}
+                      className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
+                      title="Roll a new secret API key for this website"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isRegeneratingKey ? 'animate-spin' : ''}`} />
+                      <span>{isRegeneratingKey ? 'Rotating...' : 'Rotate Key'}</span>
+                    </button>
+                  )}
+                </div>
+                {canViewActiveApiKey ? (
+                  <div className="flex gap-2">
+                    <input
+                      type={showApiKey ? 'text' : 'password'}
+                      readOnly
+                      value={activeSite.apiKey}
+                      className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-700 dark:text-slate-300 font-mono text-xs focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center transition-colors font-medium border border-slate-200 dark:border-slate-700 cursor-pointer"
+                      title={showApiKey ? 'Hide API key' : 'Show API key'}
+                    >
+                      {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4 text-slate-500" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={copyApiKey}
+                      className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-colors font-medium border border-slate-200 dark:border-slate-700 cursor-pointer"
+                    >
+                      {copiedKey ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                      <span>{copiedKey ? 'Copied' : 'Copy'}</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs font-medium select-none">
+                    <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span>Protected Secret: Only Super Admin and Website Admin can view or copy API credentials.</span>
+                  </div>
+                )}
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                  Generated automatically by platform backend &amp; stored in database. Client websites provide this key via <code className="font-mono text-indigo-600 dark:text-indigo-400">Authorization: Bearer &lt;key&gt;</code> to authenticate REST API requests.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
+                <div className="font-semibold text-slate-800 dark:text-slate-200">Supported Locales:</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {activeSite.supportedLanguages.map((lang) => (
+                    <span 
+                      key={lang} 
+                      className="px-2 py-0.5 rounded-md font-mono font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-[11px]"
+                    >
+                      {lang.toUpperCase()} {lang === activeSite.defaultLanguage ? '(Default)' : ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Executive Owner, Target Cadence & Alert Engine Card (Fully UI-Controlled) */}
+          <div className="lg:col-span-2 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 space-y-6 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-200/60 dark:border-blue-900/60">
+                  <Target className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Publishing Cadence, Target Quotas &amp; Alert Engine
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Control monthly article targets, automated pacing alerts, recipient hierarchy and executive digests.
+                  </p>
+                </div>
+              </div>
+
+              <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700 shrink-0">
+                Target: {editMonthlyTarget} Blogs / {editTargetCadence.toUpperCase()}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
+              {/* Owner Name */}
+              <div>
+                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">
+                  Website Owner Name
+                </label>
+                <input
+                  type="text"
+                  disabled={!isSuperAdmin}
+                  value={editOwnerName}
+                  onChange={(e) => setEditOwnerName(e.target.value)}
+                  placeholder="e.g. Director Jupsoft / Viraj Srivastav"
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-medium focus:outline-none focus:ring-1 focus:ring-slate-400 disabled:opacity-70 disabled:cursor-not-allowed"
+                />
+              </div>
+
+              {/* Primary Owner Email */}
+              <div>
+                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">
+                  Primary Owner Email (Real-Time Publish Alerts)
+                </label>
+                <input
+                  type="email"
+                  disabled={!isSuperAdmin}
+                  value={editOwnerEmail}
+                  onChange={(e) => setEditOwnerEmail(e.target.value)}
+                  placeholder="owner@jupsoft.com"
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-medium focus:outline-none focus:ring-1 focus:ring-slate-400 disabled:opacity-70 disabled:cursor-not-allowed"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Dispatched automatically via AWS SES whenever a blog is published to this website.
+                </p>
+              </div>
+
+              {/* Secondary Notification Emails */}
+              <div>
+                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">
+                  Secondary Stakeholder Emails (Comma-separated)
+                </label>
+                <input
+                  type="text"
+                  disabled={!isSuperAdmin}
+                  value={editNotificationEmails}
+                  onChange={(e) => setEditNotificationEmails(e.target.value)}
+                  placeholder="editor@jupsoft.com, marketing@jupsoft.com"
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-medium focus:outline-none focus:ring-1 focus:ring-slate-400 disabled:opacity-70 disabled:cursor-not-allowed"
+                />
+              </div>
+
+              {/* Recipient Scope Dropdown */}
+              <div>
+                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">
+                  Alert Recipient Scope &amp; Hierarchy
+                </label>
+                <select
+                  disabled={!isSuperAdmin}
+                  value={editRecipientScope}
+                  onChange={(e) => setEditRecipientScope(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-semibold focus:outline-none focus:ring-1 focus:ring-slate-400 disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  <option value="all_stakeholders">All Stakeholders: Owner + Notification Emails + Website Admins (Recommended)</option>
+                  <option value="owner_and_admins">Website Owner &amp; Admins Only</option>
+                  <option value="owner_only">Website Owner Only</option>
+                  <option value="custom_list">Custom Stakeholder Email List Only</option>
+                </select>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Controls who receives pacing shortfall alerts and monthly digests.
+                </p>
+              </div>
+
+              {/* Monthly Blog Target Preset Dropdown */}
+              <div>
+                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">
+                  Monthly Blog Target Quota
+                </label>
+                <select
+                  disabled={!isSuperAdmin}
+                  value={targetPreset}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setTargetPreset(val);
+                    if (val !== 'custom') {
+                      setEditMonthlyTarget(parseInt(val, 10));
+                    }
+                  }}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-semibold focus:outline-none focus:ring-1 focus:ring-slate-400 disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  <option value="5">5 Blogs / Month — Starter Velocity</option>
+                  <option value="10">10 Blogs / Month — Steady Growth</option>
+                  <option value="15">15 Blogs / Month — Standard Enterprise Target (Default)</option>
+                  <option value="20">20 Blogs / Month — High Velocity Authority</option>
+                  <option value="30">30 Blogs / Month — Daily Publishing Cadence</option>
+                  <option value="custom">Custom Quota Target (Enter exact number)...</option>
+                </select>
+
+                {targetPreset === 'custom' && (
+                  <div className="mt-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="500"
+                      disabled={!isSuperAdmin}
+                      value={editMonthlyTarget}
+                      onChange={(e) => setEditMonthlyTarget(parseInt(e.target.value, 10) || 15)}
+                      placeholder="Enter custom monthly target (e.g. 25)"
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-bold focus:outline-none focus:ring-1 focus:ring-slate-400"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Cadence Pacing Cycle Dropdown */}
+              <div>
+                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">
+                  Cadence Pacing Cycle
+                </label>
+                <select
+                  disabled={!isSuperAdmin}
+                  value={editTargetCadence}
+                  onChange={(e) => setEditTargetCadence(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-semibold focus:outline-none focus:ring-1 focus:ring-slate-400 disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  <option value="monthly">Monthly Cycle (1st to Month-End Pacing)</option>
+                  <option value="weekly">Weekly Sprint (7-Day Pacing Cycle)</option>
+                  <option value="bi-weekly">Bi-Weekly Sprint (14-Day Editorial Cycles)</option>
+                </select>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Evaluates whether the team is on pace or behind expected quota.
+                </p>
+              </div>
+
+              {/* Cadence Alert Schedule Dropdown */}
+              <div>
+                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">
+                  Cadence Deficit Alert Schedule
+                </label>
+                <select
+                  disabled={!isSuperAdmin}
+                  value={editTargetAlertSchedule}
+                  onChange={(e) => setEditTargetAlertSchedule(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-semibold focus:outline-none focus:ring-1 focus:ring-slate-400 disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  <option value="weekly_monday">Weekly: Every Monday at 10:00 AM IST (Recommended)</option>
+                  <option value="bi_monthly_15_25">Bi-Monthly: 15th &amp; 25th of Month at 10:00 AM IST</option>
+                  <option value="monthly_20">Monthly: 20th of Month at 10:00 AM IST</option>
+                  <option value="critical_only">Critical Only: When &le;7 Days Left with Deficit</option>
+                  <option value="custom">Custom Days: Choose Specific Days of Month...</option>
+                </select>
+
+                {editTargetAlertSchedule === 'custom' && (
+                  <div className="mt-2">
+                    <input
+                      type="text"
+                      disabled={!isSuperAdmin}
+                      value={editTargetAlertDays}
+                      onChange={(e) => setEditTargetAlertDays(e.target.value)}
+                      placeholder="e.g. 10, 20, 28"
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">Comma-separated days of the month (1-31).</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Monthly Executive Digest Schedule Dropdown */}
+              <div>
+                <label className="text-slate-700 dark:text-slate-300 font-semibold block mb-1">
+                  Monthly Executive Digest Dispatch
+                </label>
+                <select
+                  disabled={!isSuperAdmin}
+                  value={editDigestSchedule}
+                  onChange={(e) => setEditDigestSchedule(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-semibold focus:outline-none focus:ring-1 focus:ring-slate-400 disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  <option value="first_of_month">1st of Next Month at 09:00 AM IST (Poore pichhle mahine ka summary - Recommended)</option>
+                  <option value="last_day_month">Last Day of Month at 06:00 PM IST</option>
+                  <option value="monthly_28">28th of Month at 10:00 AM IST</option>
+                </select>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Comprehensive monthly KPI recap: total published articles, top 5 viewed posts, and lead authors.
+                </p>
+              </div>
+
+              {/* Cadence Alerts Enabled Toggle */}
+              <div className="md:col-span-2">
+                <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <div>
+                    <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 block">
+                      Target Cadence Alerts Enabled
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      When enabled, automated email diagnostics and in-app bell notifications are dispatched according to schedule.
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-3">
+                    <input
+                      type="checkbox"
+                      disabled={!isSuperAdmin}
+                      checked={editTargetAlertEnabled}
+                      onChange={(e) => setEditTargetAlertEnabled(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-slate-600 peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+              </div>
+
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              {isSuperAdmin && (
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={handleSaveProfile}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  <span>{isSaving ? 'Saving to Database...' : 'Save Cadence, Target & Executive Settings'}</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Danger Zone: Super Admin only */}
+          {isSuperAdmin && (
+            <div className="lg:col-span-2 p-5 rounded-2xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h4 className="text-sm font-bold text-rose-700 dark:text-rose-400">Danger Zone: Delete Website</h4>
+                <p className="text-xs text-rose-600/80 dark:text-rose-400/70 mt-0.5">
+                  Permanently delete <strong>{activeSite.name}</strong> ({activeSite.domain}) and all associated blogs, categories, tags, media assets, and redirects. This action cannot be undone.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={deletingSiteId === activeSite.id}
+                onClick={() => handleDeleteWebsite(activeSite.id, activeSite.name)}
+                className="px-3.5 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0 disabled:opacity-50 inline-flex items-center gap-1.5"
+              >
+                {deletingSiteId === activeSite.id ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Removing Website...</span>
+                  </>
+                ) : (
+                  <span>Remove This Website</span>
+                )}
+              </button>
+            </div>
+          )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB: DEVELOPER API & INTEGRATION GUIDE */}
+      {activeTab === 'developer' && activeSite && (
+        <DeveloperWorkspaceV2
+          activeSite={activeSite}
+          websites={websites}
+          onSelectSite={(id) => handleSelectTenant(id)}
+          isSuperAdmin={isSuperAdmin}
+          canViewApiKey={canViewActiveApiKey}
+          blogs={blogs}
+        />
+      )}
+
+      {/* TAB: 301 SEO REDIRECTS */}
+      {activeTab === 'redirects' && (
+        <RedirectsView embedded />
+      )}
+
+      {/* TAB: WEBHOOK REVALIDATION */}
+      {activeTab === 'webhook' && activeSite && (
+        <div className="w-full space-y-4 font-sans">
+          <div className="bg-white dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 rounded-lg p-5 space-y-4 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-red-500" />
+                  Website Refresh &amp; Sync Webhook
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Target website URL that automatically gets notified whenever you publish or update a blog, so visitors immediately see new articles.
+                </p>
+              </div>
+              <span className="text-[10px] font-mono px-2.5 py-1 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1.5 shrink-0 self-start sm:self-auto">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                HMAC SHA-256 Enabled
+              </span>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="text-slate-800 dark:text-slate-200 font-semibold block mb-1">
+                  Website Refresh URL (Webhook Endpoint)
+                </label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    disabled={!isSuperAdmin}
+                    value={editWebhookUrl}
+                    onChange={(e) => setEditWebhookUrl(e.target.value)}
+                    placeholder="e.g. https://yourdomain.com/api/revalidate"
+                    className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none focus:border-red-500 disabled:opacity-70 disabled:cursor-not-allowed"
+                  />
+                  {isSuperAdmin ? (
+                    <button
+                      type="button"
+                      disabled={isSaving}
+                      onClick={handleSaveWebhook}
+                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
+                    >
+                      {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                      <span>{isSaving ? 'Saving...' : 'Save Refresh URL'}</span>
+                    </button>
+                  ) : (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs font-semibold shrink-0 border border-slate-200 dark:border-slate-700">
+                      <Lock className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Super Admin Only</span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Target Next.js or edge URL to receive cache busting pings (e.g. <code className="text-red-600 dark:text-red-400 font-mono">https://yourdomain.com/api/revalidate</code>).
+                </p>
+              </div>
+
+              {/* Webhook Signature Secret Display */}
+              <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">Website Webhook HMAC Secret:</span>
+                  {canViewActiveApiKey && (
+                    <button
+                      type="button"
+                      onClick={copyApiKey}
+                      className="inline-flex items-center gap-1 text-[11px] text-red-600 dark:text-red-400 font-semibold hover:underline cursor-pointer"
+                    >
+                      {copiedKey ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedKey ? 'Secret Copied!' : 'Copy Secret'}</span>
+                    </button>
+                  )}
+                </div>
+                {canViewActiveApiKey ? (
+                  <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400 bg-white dark:bg-[#0c1322] px-3 py-1.5 rounded border border-slate-200 dark:border-slate-800 select-all truncate">
+                    {activeSite.apiKey}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-400 bg-white dark:bg-[#0c1322] px-3 py-1.5 rounded border border-slate-200 dark:border-slate-800 select-none">
+                    <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    <span>•••••••••••••••••••••••••••••••• (Super Admin / Website Admin Only)</span>
+                  </div>
+                )}
+                <span className="text-[11px] text-slate-400 block">
+                  Verify incoming webhook requests on consumer server using <code className="font-mono">x-hub-signature-256</code> header.
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: SYSTEM AUDIT TRAIL */}
+      {activeTab === 'audit' && (
+        <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs space-y-4">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <History className="w-4 h-4 text-slate-500" />
+                System Activity Logs
+              </h3>
+            </div>
+
+            <div className="relative w-full sm:w-64">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Filter logs by event or user..."
+                value={auditFilter}
+                onChange={(e) => setAuditFilter(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
+              />
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400">
+                  <th className="py-2.5 px-4 font-semibold">Timestamp</th>
+                  <th className="py-2.5 px-4 font-semibold">User &amp; Role</th>
+                  <th className="py-2.5 px-4 font-semibold">Event</th>
+                  <th className="py-2.5 px-4 font-semibold">Website Scope</th>
+                  <th className="py-2.5 px-4 font-semibold">Client IP</th>
+                  <th className="py-2.5 px-4 font-semibold">Activity Details</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                {isLoadingSettings ? (
+                  [...Array(5)].map((_, i) => (
+                    <tr key={i} className="animate-pulse">
+                      <td className="py-2.5 px-4"><div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-28" /></td>
+                      <td className="py-2.5 px-4"><div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-24 mb-1" /><div className="h-2 bg-slate-100 dark:bg-slate-850 rounded w-16" /></td>
+                      <td className="py-2.5 px-4"><div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-20" /></td>
+                      <td className="py-2.5 px-4"><div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-16" /></td>
+                      <td className="py-2.5 px-4"><div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-20" /></td>
+                      <td className="py-2.5 px-4"><div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-48" /></td>
+                    </tr>
+                  ))
+                ) : filteredAuditLogs.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-xs text-slate-400">
+                      No audit logs match current search filter.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredAuditLogs.map((log) => (
+                    <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
+                      <td className="py-2.5 px-4 font-mono text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                        {new Date(log.timestamp).toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-4">
+                        <div className="font-semibold text-slate-900 dark:text-white">{log.userName}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">{log.role}</div>
+                      </td>
+                      <td className="py-2.5 px-4">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded font-mono text-[10px] font-semibold border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700">
+                          {log.event}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-4 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                        {log.websiteId}
+                      </td>
+                      <td className="py-2.5 px-4 font-mono text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                        {log.ipAddress ? (
+                          log.ipAddress.replace(/^::ffff:/, '').trim() === '127.0.0.1' || log.ipAddress.replace(/^::ffff:/, '').trim() === '::1'
+                            ? '127.0.0.1 (Local)'
+                            : log.ipAddress.replace(/^::ffff:/, '').trim()
+                        ) : '—'}
+                      </td>
+                      <td className="py-2.5 px-4 text-slate-600 dark:text-slate-300 max-w-xs truncate">
+                        {log.details}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ONBOARD NEW WEBSITE */}
+      {isOnboardOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <Globe className="w-4 h-4 text-slate-700 dark:text-slate-300" />
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Onboard New Website
+                </h2>
+              </div>
+              <button
+                onClick={() => setIsOnboardOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer text-xs font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateWebsite} className="space-y-4 text-xs">
+              {onboardError && (
+                <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                  <span>{onboardError}</span>
+                </div>
+              )}
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Website Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Jupsoft FinTech Blog"
+                  value={newName}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Production Domain <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. fintech.jupsoft.com"
+                  value={newDomain}
+                  onChange={(e) => setNewDomain(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 font-mono placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Website Identifier (Slug)
+                  </label>
+                  <input
+                    type="text"
+                    value={newSlug}
+                    onChange={(e) => setNewSlug(e.target.value)}
+                    placeholder="fintech-blog"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-slate-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Default Language
+                  </label>
+                  <select
+                    value={newLang}
+                    onChange={(e) => setNewLang(e.target.value as LanguageCode)}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
+                  >
+                    <option value="en">English (EN)</option>
+                    <option value="hi">Hindi (HI)</option>
+                    <option value="fr">French (FR)</option>
+                    <option value="ar">Arabic (AR)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Website Description
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Banking, automated accounting, and cloud infrastructure blogs."
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                />
+              </div>
+
+
+
+              <div className="p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+                <div className="font-semibold text-slate-700 dark:text-slate-300">Automated Provisioning:</div>
+                <div>&bull; Generates secure secret API key `jup_live_sec_...`</div>
+                <div>&bull; Isolates AWS S3 prefix `blogs/{newSlug || 'slug'}/`</div>
+                <div>&bull; Pre-configures Next.js revalidation endpoint `https://{newDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '') || 'domain'}/api/revalidate`</div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsOnboardOpen(false)}
+                  className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isOnboardSubmitting}
+                  className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isOnboardSubmitting ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Provisioning...</span>
+                    </>
+                  ) : (
+                    <span>Save &amp; Create Website</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* S3 Media Gallery Selection Modal for Website Logo */}
+    </div>
+  );
+};

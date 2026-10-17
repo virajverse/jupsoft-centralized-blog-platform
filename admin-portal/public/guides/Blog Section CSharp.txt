@@ -1,0 +1,31 @@
+=====================================================
+Jupsoft CMS Integration Guide for C# .NET 8 / ASP.NET Core
+=====================================================
+
+1. appsettings.json:
+{
+  "JupsoftCms": {
+    "ApiUrl": "https://blogary.jupsoft.com/v1",
+    "WebsiteId": "YOUR_WEBSITE_ID",
+    "ApiKey": "YOUR_API_KEY"
+  }
+}
+
+2. Service Registration (Program.cs):
+builder.Services.AddHttpClient<IJupsoftCmsService, JupsoftCmsService>();
+
+3. Controller Actions (Controllers/BlogController.cs):
+[HttpGet("/blog")]
+public async Task<IActionResult> Index([FromQuery] int page = 1)
+{
+    var blogs = await _cms.GetBlogsAsync(page, 9);
+    return View(blogs);
+}
+
+[HttpGet("/blog/{slug}")]
+public async Task<IActionResult> Detail(string slug)
+{
+    var article = await _cms.GetBlogBySlugAsync(slug);
+    if (article == null) return NotFound();
+    return View(article);
+}

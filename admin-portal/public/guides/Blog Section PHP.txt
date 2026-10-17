@@ -1,0 +1,23 @@
+=====================================================
+Jupsoft CMS Integration Guide for PHP / Laravel
+=====================================================
+
+1. Environment (.env):
+JUPSOFT_API_URL="https://blogary.jupsoft.com/v1"
+JUPSOFT_WEBSITE_ID="YOUR_WEBSITE_ID"
+JUPSOFT_API_KEY="YOUR_API_KEY"
+
+2. Client Helper (JupsoftCms.php):
+$cms = new JupsoftCms();
+
+// Listing:
+$response = $cms->getBlogs($page, 9);
+$blogs = $response['data'];
+
+// Detail:
+$response = $cms->getBlogBySlug($slug);
+$article = $response['data'];
+
+3. Output Article HTML:
+echo '<h1>' . htmlspecialchars($article['title']) . '</h1>';
+echo '<div class="content">' . $article['content'] . '</div>';

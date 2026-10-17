@@ -1,0 +1,38 @@
+{
+  "name": "jupsoft-blog-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Jupsoft Centralized Multi-Site Blog Platform (Frontend Admin Portal & NestJS Backend)",
+  "scripts": {
+    "dev": "pnpm --parallel run dev",
+    "dev:all": "pnpm --parallel run dev",
+    "build": "pnpm -r --if-present run build",
+    "dev:frontend": "pnpm --filter admin-portal dev",
+    "dev:backend": "pnpm --filter ./backend start:dev",
+    "build:frontend": "pnpm --filter admin-portal build",
+    "build:backend": "pnpm --filter ./backend build",
+    "build:all": "pnpm -r --if-present run build",
+    "upload:landing": "node scripts/upload_landing_to_s3.js",
+    "db:generate": "pnpm --filter ./backend exec prisma generate",
+    "db:migrate": "pnpm --filter ./backend exec prisma migrate dev",
+    "db:push": "pnpm --filter ./backend exec prisma db push",
+    "db:seed": "pnpm --filter ./backend run prisma:seed",
+    "db:studio": "pnpm --filter ./backend exec prisma studio",
+    "test": "pnpm --filter ./backend run test",
+    "test:cov": "pnpm --filter ./backend run test:cov",
+    "test:ci": "pnpm --filter ./backend run test:ci"
+  },
+  "keywords": [
+    "cms",
+    "blog",
+    "multi-tenant",
+    "nestjs",
+    "nextjs"
+  ],
+  "author": "Jupsoft Technologies",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "cheerio": "^1.2.0",
+    "puppeteer-core": "^25.11.0"
+  }
+}

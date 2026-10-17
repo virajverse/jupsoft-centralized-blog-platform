@@ -1,0 +1,626 @@
+/**
+ * Media Service — TRD §10 (Media Management Module)
+ *
+ * TRD §10 Pipeline:
+ *   1. Upload to S3 (server-issued pre-signed URL)           → generatePresignedUrl()
+ *   2. Compress and convert to WebP                           → processAndUpload()
+ *   3. Generate thumbnail + responsive sizes                  → processAndUpload()
+ *   4. Store metadata in media_library (media_assets table)  → confirmUpload() / processAndUpload()
+ *   5. Return CDN URL                                         → all methods
+ *   6. Soft-delete with lifecycle cleanup                     → softDelete()
+ *
+ * TRD §10 S3 Layout: s3://<bucket>/blogs/<website>/<yyyy>/<mm>/<file>
+ */
+
+import { Injectable, NotFoundException, Logger, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../../prisma/prisma.service';
+import { RedisProvider } from '../../common/providers/redis.provider';
+import { PresignedUrlRequestDto, ConfirmMediaUploadDto, UpdateMediaDto } from './dto/media.dto';
+import { S3Client, PutObjectCommand, CopyObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import * as fs from 'fs';
+import { join, dirname } from 'path';
+import type { Sharp } from 'sharp';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const sharpLib = require('sharp') as { default: (input: Buffer) => Sharp } & ((input: Buffer) => Sharp);
+const sharpFn = (buf: Buffer): Sharp => (typeof sharpLib === 'function' ? sharpLib(buf) : (sharpLib as any).default(buf));
+import { AuthenticatedUser } from '../../common/interfaces/auth-user.interface';
+
+@Injectable()
+export class MediaService {
+  private readonly logger = new Logger(MediaService.name);
+  private s3Client: S3Client;
+  private bucket: string;
+  private cdnDomain: string;
+
+  constructor(
+    private prisma: PrismaService,
+    private configService: ConfigService,
+    private redis: RedisProvider,
+  ) {
+    const region = this.configService.get<string>('AWS_REGION') || 'ap-south-1';
+    const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID') || '';
+    const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY') || '';
+
+    this.bucket = this.configService.get<string>('AWS_S3_BUCKET') || 'blogary';
+    const envCdn = this.configService.get<string>('CLOUDFRONT_DOMAIN');
+    const s3DirectOrigin = `https://${this.bucket}.s3.${region}.amazonaws.com`;
+
+    // Authoritative CDN / Storage Domain:
+    // If CLOUDFRONT_DOMAIN is explicitly set and not the legacy inactive cdn.jupsoft.com, use it.
+    // Otherwise, default directly to the AWS S3 bucket endpoint (ap-south-1).
+    if (envCdn && !envCdn.includes('cdn.jupsoft.com')) {
+      this.cdnDomain = envCdn.replace(/\/+$/, '');
+    } else {
+      this.cdnDomain = s3DirectOrigin;
+    }
+
+    const s3Config: any = { region };
+    if (accessKeyId && secretAccessKey) {
+      s3Config.credentials = { accessKeyId, secretAccessKey };
+    }
+    this.s3Client = new S3Client(s3Config);
+  }
+
+  // ─── TRD §10: Step 1 — Generate pre-signed S3 PUT URL ──────────────────────
+
+  async generatePresignedUrl(dto: PresignedUrlRequestDto) {
+    const website = await this.prisma.website.findUnique({
+      where: { id: dto.websiteId },
+    });
+
+    if (!website) {
+      throw new NotFoundException(`Website "${dto.websiteId}" not found`);
+    }
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const cleanFileName = dto.fileName.toLowerCase().replace(/[^a-z0-9.-]/g, '-');
+
+    // TRD §10 S3 Layout: blogs/<website>/<yyyy>/<mm>/<file>
+    const tenantSlug = website.s3Prefix ? website.s3Prefix.replace(/^blogs\/|\/$/g, '') : website.id;
+    const s3Key = `blogs/${tenantSlug}/${year}/${month}/${cleanFileName}`;
+    const cdnUrl = `${this.cdnDomain}/${s3Key}`;
+
+    let presignedUrl = `${this.cdnDomain}/${s3Key}`;
+
+    try {
+      const command = new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: s3Key,
+        ContentType: dto.fileType,
+      });
+      presignedUrl = await getSignedUrl(this.s3Client, command, { expiresIn: 900 });
+    } catch (err) {
+      this.logger.warn(`Could not sign AWS S3 pre-signed URL: ${(err as Error).message}`);
+    }
+
+    return { uploadUrl: presignedUrl, s3Key, cdnUrl, fileName: cleanFileName, fileType: dto.fileType };
+  }
+
+  // ─── TRD §10: Steps 2–5 — Server-side upload with WebP conversion ──────────
+  // TRD §10: "Compress and convert to WebP, Generate thumbnail + responsive sizes"
+
+  async processAndUpload(
+    fileBuffer: Buffer,
+    originalName: string,
+    mimeType: string,
+    websiteId: string,
+    altText: string,
+    user: AuthenticatedUser,
+    ipAddress?: string,
+  ) {
+    // Validate it's an image
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'];
+    if (!allowedTypes.includes(mimeType)) {
+      throw new BadRequestException(`File type "${mimeType}" is not allowed. Only images are accepted.`);
+    }
+
+    let website = websiteId ? await this.prisma.website.findUnique({ where: { id: websiteId } }) : null;
+    if (!website) {
+      website = await this.prisma.website.findFirst();
+    }
+    if (!website) throw new NotFoundException(`Website "${websiteId || 'default'}" not found`);
+    const targetWebsiteId = website.id;
+
+    if (user) {
+      const isGlobal =
+        user.roles?.includes('Super Admin') ||
+        user.roleAssignments?.some((ra) => ra.isGlobal && ra.role === 'Website Admin');
+      if (!isGlobal) {
+        const userWebsiteIds = (user.roleAssignments || [])
+          .filter((ra) => ra.websiteId)
+          .map((ra) => ra.websiteId);
+        if (!userWebsiteIds.includes(targetWebsiteId)) {
+          throw new ForbiddenException(
+            `Access denied: cannot upload media to website "${targetWebsiteId}".`,
+          );
+        }
+      }
+    }
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const tenantSlug = website.s3Prefix?.replace(/^blogs\/|\/$/g, '') || website.id;
+    const baseName = originalName.toLowerCase().replace(/\.[^.]+$/, '').replace(/[^a-z0-9-]/g, '-');
+    const prefix = `blogs/${tenantSlug}/${year}/${month}/${baseName}`;
+
+    // TRD §10: Step 2 & 3 — Convert to WebP variants
+    let fullBuffer: Buffer;
+    let fullMeta: any;
+    let thumbBuffer: Buffer;
+    let mediumBuffer: Buffer;
+
+    try {
+      fullBuffer = await sharpFn(fileBuffer).webp({ quality: 85 }).toBuffer();
+      fullMeta = await sharpFn(fullBuffer).metadata();
+      thumbBuffer = await sharpFn(fileBuffer).resize(150, 150, { fit: 'cover' }).webp({ quality: 80 }).toBuffer();
+      mediumBuffer = await sharpFn(fileBuffer).resize(600, undefined, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 85 }).toBuffer();
+    } catch (sharpErr) {
+      throw new BadRequestException(`Invalid or corrupt image format: ${(sharpErr as Error).message}`);
+    }
+
+    // Upload all 3 variants — TRD §10: "Return CDN URL"
+    const fullKey      = `${prefix}.webp`;
+    const thumbKey     = `${prefix}-thumb.webp`;
+    const mediumKey    = `${prefix}-medium.webp`;
+
+    const [fullUrl, thumbUrl, mediumUrl] = await Promise.all([
+      this.uploadToS3(fullKey, fullBuffer, 'image/webp'),
+      this.uploadToS3(thumbKey, thumbBuffer, 'image/webp'),
+      this.uploadToS3(mediumKey, mediumBuffer, 'image/webp'),
+    ]);
+
+    // TRD §10: Step 4 — Store metadata in media_assets table
+    const media = await this.prisma.mediaAsset.create({
+      data: {
+        websiteId: targetWebsiteId,
+        fileName: `${baseName}.webp`,
+        fileType: 'image/webp',
+        fileSizeBytes: fullBuffer.length,
+        s3Key: fullKey,
+        cdnUrl: fullUrl,
+        altText: altText || baseName.replace(/-/g, ' '),
+        uploadedBy: user.name,
+      },
+    });
+
+    // Audit log
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: user.name,
+        role: user.roles[0] || 'User',
+        websiteId: targetWebsiteId,
+        event: 'media.uploaded',
+        ipAddress: ipAddress || '',
+        details: `Processed & uploaded "${baseName}.webp" (${(fullBuffer.length / 1024).toFixed(0)} KB WebP, thumbnail + medium generated).`,
+      },
+    });
+
+    this.logger.log(`TRD §10: WebP pipeline complete — full: ${fullKey}, thumb: ${thumbKey}, medium: ${mediumKey}`);
+    await this.redis.delPattern('admin:media:*');
+
+    // TRD §10: Step 5 — Return CDN URLs for all sizes
+    return {
+      id: media.id,
+      cdnUrl: fullUrl,
+      thumbnailUrl: thumbUrl,
+      mediumUrl: mediumUrl,
+      s3Key: fullKey,
+      fileName: `${baseName}.webp`,
+      fileType: 'image/webp',
+      fileSizeBytes: fullBuffer.length,
+      width: fullMeta.width,
+      height: fullMeta.height,
+    };
+  }
+
+  // ─── Internal: Upload buffer to S3 / Local Disk Fallback ──────────────────
+  private async uploadToS3(s3Key: string, buffer: Buffer, contentType: string): Promise<string> {
+    const cleanKey = s3Key.replace(/^\/+/, '');
+    const cdnUrl = `${this.cdnDomain}/${cleanKey}`;
+
+    const accessKey = this.configService.get<string>('AWS_ACCESS_KEY_ID') || '';
+    const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY') || '';
+    const isLiveS3 = Boolean(accessKey && secretAccessKey);
+
+    if (isLiveS3) {
+      // Pure S3 Upload (Cloud-native, zero disk storage)
+      try {
+        await this.s3Client.send(new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: cleanKey,
+          Body: buffer,
+          ContentType: contentType,
+          CacheControl: 'public, max-age=31536000, immutable',
+        }));
+        // Also upload alias under uploads/ for full backwards-compatibility
+        await this.s3Client.send(new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: `uploads/${cleanKey}`,
+          Body: buffer,
+          ContentType: contentType,
+          CacheControl: 'public, max-age=31536000, immutable',
+        }));
+        this.logger.log(`☁️ Uploaded media directly to S3 bucket [${this.bucket}]: ${cleanKey}`);
+      } catch (err) {
+        this.logger.error(`❌ S3 upload failed for ${cleanKey}: ${(err as Error).message}`);
+        throw err;
+      }
+    } else {
+      // Local storage fallback when S3 credentials are not configured
+      try {
+        const uploadsDir = join(process.cwd(), 'uploads');
+        const targetPath = join(uploadsDir, cleanKey);
+        const targetDir = dirname(targetPath);
+        if (!fs.existsSync(targetDir)) {
+          fs.mkdirSync(targetDir, { recursive: true });
+        }
+        fs.writeFileSync(targetPath, buffer);
+        this.logger.log(`Saved media locally (offline dev mode): ${cleanKey}`);
+      } catch (fsErr) {
+        this.logger.warn(`Could not save local copy for ${cleanKey}: ${(fsErr as Error).message}`);
+      }
+    }
+
+    return cdnUrl;
+  }
+
+  // ─── TRD §10: Step 6 — Soft-delete ─────────────────────────────────────────
+
+  async confirmUpload(dto: ConfirmMediaUploadDto, user: AuthenticatedUser, ipAddress?: string) {
+    // Sanitize s3Key: ensure clean relative path blogs/... even if client sent full URL
+    let s3Key = dto.s3Key || '';
+    if (s3Key.startsWith('http://') || s3Key.startsWith('https://')) {
+      const blogsIdx = s3Key.indexOf('blogs/');
+      s3Key = blogsIdx !== -1 ? s3Key.substring(blogsIdx) : s3Key.replace(/^https?:\/\/[^/]+\/(uploads\/)?/, '');
+    }
+    s3Key = s3Key.replace(/^\/+/, '');
+
+    // Auto-heal cdnUrl if pointing to inactive cdn.jupsoft.com
+    let cdnUrl = dto.cdnUrl || '';
+    if (cdnUrl.includes('cdn.jupsoft.com')) {
+      cdnUrl = `${this.cdnDomain}/${s3Key}`;
+    }
+
+    if (user) {
+      const isGlobal =
+        user.roles?.includes('Super Admin') ||
+        user.roleAssignments?.some((ra) => ra.isGlobal && ra.role === 'Website Admin');
+      if (!isGlobal) {
+        const userWebsiteIds = (user.roleAssignments || [])
+          .filter((ra) => ra.websiteId)
+          .map((ra) => ra.websiteId);
+        if (!userWebsiteIds.includes(dto.websiteId)) {
+          throw new ForbiddenException(
+            `Access denied: cannot register media for website "${dto.websiteId}".`,
+          );
+        }
+      }
+    }
+
+    const media = await this.prisma.mediaAsset.create({
+      data: {
+        websiteId: dto.websiteId,
+        fileName: dto.fileName,
+        fileType: dto.fileType,
+        fileSizeBytes: dto.fileSizeBytes,
+        s3Key: s3Key,
+        cdnUrl: cdnUrl,
+        altText: dto.altText || '',
+        uploadedBy: user.name,
+      },
+    });
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: user.name,
+        role: user.roles[0] || 'User',
+        websiteId: dto.websiteId,
+        event: 'media.uploaded',
+        ipAddress: ipAddress || '',
+        details: `Uploaded asset "${dto.fileName}" to ${s3Key} (${(dto.fileSizeBytes / 1024).toFixed(0)} KB).`,
+      },
+    });
+
+    // In local / dev mode, ensure a valid file exists on disk
+    try {
+      const cleanKey = s3Key.replace(/^\/+/, '');
+      const uploadsDir = join(process.cwd(), 'uploads');
+      const targetPath = join(uploadsDir, cleanKey);
+      if (!fs.existsSync(targetPath)) {
+        const targetDir = dirname(targetPath);
+        if (!fs.existsSync(targetDir)) {
+          fs.mkdirSync(targetDir, { recursive: true });
+        }
+        const svg = `<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100%" height="100%" fill="#4f46e5"/>
+          <text x="50%" y="50%" font-size="20" fill="#ffffff" font-family="sans-serif" font-weight="bold" text-anchor="middle" dy=".3em">${dto.fileName}</text>
+        </svg>`;
+        await sharpFn(Buffer.from(svg)).webp({ quality: 80 }).toFile(targetPath);
+      }
+    } catch (diskErr) {
+      this.logger.warn(`Could not ensure local asset for ${s3Key}: ${(diskErr as Error).message}`);
+    }
+
+    // Invert media cache
+    await this.redis.delPattern('admin:media:*');
+
+    return media;
+  }
+
+  async findAll(websiteId?: string, page?: number, limit?: number, user?: AuthenticatedUser) {
+    const isGlobal =
+      !user ||
+      user.roles?.includes('Super Admin') ||
+      user.roleAssignments?.some((ra) => ra.isGlobal && ra.role === 'Website Admin');
+
+    const userScope = !isGlobal && user ? `user:${user.id}` : 'global';
+    const isPaginated = page !== undefined && limit !== undefined && page > 0 && limit > 0;
+    const cacheKey = isPaginated
+      ? `admin:media:${userScope}:${websiteId || 'all'}:p${page}:l${limit}`
+      : `admin:media:${userScope}:${websiteId || 'all'}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
+    const where: Record<string, unknown> = {};
+    if (!isGlobal && user) {
+      const allowedSites = (user.roleAssignments || [])
+        .filter((ra) => ra.websiteId)
+        .map((ra) => ra.websiteId as string);
+      if (websiteId && websiteId !== 'all') {
+        if (!allowedSites.includes(websiteId)) {
+          throw new ForbiddenException(`Access denied: cannot view media for website "${websiteId}".`);
+        }
+        where.websiteId = websiteId;
+      } else {
+        where.websiteId = { in: allowedSites };
+      }
+    } else {
+      if (websiteId && websiteId !== 'all') {
+        where.websiteId = websiteId;
+      }
+    }
+    where.deletedAt = null; // exclude soft-deleted assets
+
+    const total = await this.prisma.mediaAsset.count({ where });
+
+    const queryOptions: any = {
+      where,
+      orderBy: { createdAt: 'desc' },
+    };
+
+    if (isPaginated) {
+      queryOptions.skip = (page - 1) * limit;
+      queryOptions.take = limit;
+    }
+
+    const assets = await this.prisma.mediaAsset.findMany(queryOptions);
+
+    // Auto-heal existing database records: strip domain prefix from s3Key & rewrite inactive cdn.jupsoft.com
+    const result = assets.map((asset) => {
+      let s3Key = asset.s3Key || '';
+      if (s3Key.startsWith('http://') || s3Key.startsWith('https://')) {
+        const blogsIdx = s3Key.indexOf('blogs/');
+        s3Key = blogsIdx !== -1 ? s3Key.substring(blogsIdx) : s3Key.replace(/^https?:\/\/[^/]+\/(uploads\/)?/, '');
+      }
+      s3Key = s3Key.replace(/^\/+/, '');
+
+      let cdnUrl = asset.cdnUrl || '';
+      if (
+        cdnUrl.includes('cdn.jupsoft.com') ||
+        cdnUrl.includes('blogary.jupsoft.com/uploads/') ||
+        cdnUrl.startsWith('/uploads/') ||
+        cdnUrl.startsWith('blogs/')
+      ) {
+        cdnUrl = `${this.cdnDomain}/${s3Key || asset.fileName}`;
+      }
+
+      return {
+        ...asset,
+        s3Key,
+        cdnUrl,
+      };
+    });
+
+    const response = isPaginated
+      ? {
+          data: result,
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        }
+      : result;
+
+    await this.redis.set(cacheKey, response, 120);
+    return response;
+  }
+
+  // TRD §10: "Soft-delete with lifecycle cleanup" — marks deletedAt timestamp
+  async delete(id: string, user: AuthenticatedUser, ipAddress?: string) {
+    const asset = await this.prisma.mediaAsset.findUnique({ where: { id } });
+    if (!asset) throw new NotFoundException(`Media asset "${id}" not found`);
+
+    // Security: verify caller owns this asset's tenant (BUG-006 fix)
+    const isGlobalAdmin =
+      user.roles.includes('Super Admin') ||
+      user.roleAssignments.some((ra) => ra.isGlobal && ra.role === 'Website Admin');
+    if (!isGlobalAdmin) {
+      const userWebsiteIds = user.roleAssignments
+        .filter((ra) => ra.websiteId)
+        .map((ra) => ra.websiteId);
+      if (!userWebsiteIds.includes(asset.websiteId)) {
+        throw new ForbiddenException(
+          `Access denied: media asset "${id}" does not belong to your website.`,
+        );
+      }
+    }
+
+    // Soft-delete: set deletedAt timestamp instead of hard-deleting the row
+    await this.prisma.mediaAsset.update({ where: { id }, data: { deletedAt: new Date() } });
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: user.name,
+        role: user.roles[0] || 'Super Admin',
+        websiteId: asset.websiteId,
+        event: 'media.deleted',
+        ipAddress: ipAddress || '',
+        details: `Soft-deleted asset "${asset.fileName}" (${asset.s3Key}).`,
+      },
+    });
+
+    await this.redis.delPattern('admin:media:*');
+    return { success: true, message: 'Media asset deleted' };
+  }
+
+  /**
+   * Rename media file or update alt text metadata
+   */
+  async update(id: string, dto: UpdateMediaDto, user: AuthenticatedUser, ipAddress?: string) {
+    const asset = await this.prisma.mediaAsset.findUnique({ where: { id } });
+    if (!asset || asset.deletedAt) {
+      throw new NotFoundException(`Media asset "${id}" not found`);
+    }
+
+    // Security: verify caller has permission for this asset's tenant
+    const isGlobalAdmin =
+      user.roles.includes('Super Admin') ||
+      user.roleAssignments.some((ra) => ra.isGlobal && ra.role === 'Website Admin');
+    if (!isGlobalAdmin) {
+      const userWebsiteIds = user.roleAssignments
+        .filter((ra) => ra.websiteId)
+        .map((ra) => ra.websiteId);
+      if (!userWebsiteIds.includes(asset.websiteId)) {
+        throw new ForbiddenException(
+          `Access denied: media asset "${id}" does not belong to your website.`,
+        );
+      }
+    }
+
+    const data: { fileName?: string; altText?: string; s3Key?: string; cdnUrl?: string } = {};
+
+    if (dto.fileName && dto.fileName.trim()) {
+      // Strictly enforce .webp: strip any extension and enforce .webp suffix
+      const baseOnly = dto.fileName.trim().replace(/\.[^/.]+$/, '');
+      const cleanBase = baseOnly.replace(/[^a-zA-Z0-9._-]/g, '-').replace(/-+/g, '-');
+      const newFileName = `${cleanBase || 'image'}.webp`;
+      data.fileName = newFileName;
+
+      if (asset.fileName !== newFileName && asset.s3Key) {
+        // Compute new S3 key maintaining the same folder directory structure
+        const lastSlash = asset.s3Key.lastIndexOf('/');
+        const dirPrefix = lastSlash !== -1 ? asset.s3Key.substring(0, lastSlash) : `blogs/${asset.websiteId}`;
+        const newS3Key = `${dirPrefix}/${newFileName}`;
+        const newCdnUrl = `${this.cdnDomain}/${newS3Key}`;
+
+        data.s3Key = newS3Key;
+        data.cdnUrl = newCdnUrl;
+
+        // 1. Physically copy & rename in AWS S3
+        if (this.s3Client && asset.s3Key !== newS3Key) {
+          try {
+            await this.s3Client.send(
+              new CopyObjectCommand({
+                Bucket: this.bucket,
+                CopySource: `${this.bucket}/${asset.s3Key}`,
+                Key: newS3Key,
+                ContentType: 'image/webp',
+                CacheControl: 'public, max-age=31536000, immutable',
+              }),
+            );
+            await this.s3Client.send(
+              new DeleteObjectCommand({
+                Bucket: this.bucket,
+                Key: asset.s3Key,
+              }),
+            );
+            this.logger.log(`Renamed S3 object: ${asset.s3Key} -> ${newS3Key}`);
+
+            // Rename thumbnail variant if exists
+            const oldThumb = asset.s3Key.replace(/\.webp$/, '-thumb.webp');
+            const newThumb = newS3Key.replace(/\.webp$/, '-thumb.webp');
+            await this.s3Client.send(
+              new CopyObjectCommand({
+                Bucket: this.bucket,
+                CopySource: `${this.bucket}/${oldThumb}`,
+                Key: newThumb,
+                ContentType: 'image/webp',
+                CacheControl: 'public, max-age=31536000, immutable',
+              }),
+            ).then(() => this.s3Client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: oldThumb }))).catch(() => {});
+
+            // Rename medium variant if exists
+            const oldMed = asset.s3Key.replace(/\.webp$/, '-medium.webp');
+            const newMed = newS3Key.replace(/\.webp$/, '-medium.webp');
+            await this.s3Client.send(
+              new CopyObjectCommand({
+                Bucket: this.bucket,
+                CopySource: `${this.bucket}/${oldMed}`,
+                Key: newMed,
+                ContentType: 'image/webp',
+                CacheControl: 'public, max-age=31536000, immutable',
+              }),
+            ).then(() => this.s3Client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: oldMed }))).catch(() => {});
+          } catch (s3Err) {
+            this.logger.warn(`S3 rename copy skipped/failed: ${(s3Err as Error).message}`);
+          }
+        }
+
+        // 2. Physically rename on local disk if present
+        try {
+          const uploadsDir = join(process.cwd(), 'uploads');
+          const oldDiskPath = join(uploadsDir, asset.s3Key);
+          const newDiskPath = join(uploadsDir, newS3Key);
+          if (fs.existsSync(oldDiskPath)) {
+            const newDir = dirname(newDiskPath);
+            if (!fs.existsSync(newDir)) fs.mkdirSync(newDir, { recursive: true });
+            fs.renameSync(oldDiskPath, newDiskPath);
+            this.logger.log(`Renamed local disk asset: ${oldDiskPath} -> ${newDiskPath}`);
+          }
+        } catch (diskErr) {
+          this.logger.warn(`Local disk rename skipped/failed: ${(diskErr as Error).message}`);
+        }
+
+        // 3. Auto-heal any blog featured images using the old CDN URL
+        try {
+          await this.prisma.blog.updateMany({
+            where: { featuredImage: asset.cdnUrl },
+            data: { featuredImage: newCdnUrl },
+          });
+        } catch (blogErr) {
+          this.logger.warn(`Could not update blog featured image URLs: ${(blogErr as Error).message}`);
+        }
+      }
+    }
+
+    if (dto.altText !== undefined) {
+      data.altText = dto.altText.trim();
+    }
+
+    const updated = await this.prisma.mediaAsset.update({
+      where: { id },
+      data,
+    });
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: user.name,
+        role: user.roles[0] || 'User',
+        websiteId: asset.websiteId,
+        event: 'media.renamed',
+        ipAddress: ipAddress || '',
+        details: `Renamed media asset from "${asset.fileName}" to "${updated.fileName}"`,
+      },
+    }).catch(() => {});
+
+    // Invalidate media cache in Redis
+    await this.redis.delPattern('admin:media:*');
+
+    return updated;
+  }
+}

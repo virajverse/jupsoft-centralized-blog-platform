@@ -1,0 +1,110 @@
+import path from "path";
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  devIndicators: {
+    position: 'bottom-right',
+  },
+  typescript: {
+    // We strictly typecheck locally before pushing. Skipping on EC2 prevents 1GB RAM freezing.
+    ignoreBuildErrors: true,
+  },
+  turbopack: {
+    root: path.resolve(__dirname, '..'),
+  },
+  experimental: {
+    optimizePackageImports: ['lucide-react'],
+    cpus: 1,
+  },
+  async redirects() {
+    return [
+      {
+        source: '/index.html',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/landing.html',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/contact.html',
+        destination: 'https://jupsoft.com/contact-us',
+        permanent: true,
+      },
+      {
+        source: '/contact',
+        destination: 'https://jupsoft.com/contact-us',
+        permanent: true,
+      },
+      {
+        source: '/developers.html',
+        destination: '/developers',
+        permanent: true,
+      },
+      {
+        source: '/api.html',
+        destination: '/developers',
+        permanent: true,
+      },
+      {
+        source: '/api',
+        destination: '/developers',
+        permanent: true,
+      },
+    ];
+  },
+  async rewrites() {
+    return {
+      beforeFiles: [
+        {
+          source: '/',
+          destination: '/landing.html',
+        },
+        {
+          source: '/developers',
+          destination: '/developers.html',
+        },
+      ],
+      afterFiles: [],
+      fallback: [],
+    };
+  },
+  async headers() {
+    return [
+      {
+        source: '/uploads/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+      {
+        source: '/fonts/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+      {
+        source: '/vectors/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+      {
+        source: '/:path*.png',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+      {
+        source: '/:path*.webp',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+    ];
+  },
+};
+
+export default nextConfig;

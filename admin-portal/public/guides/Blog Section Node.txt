@@ -1,0 +1,38 @@
+=====================================================
+Jupsoft CMS Integration Guide for Node.js / Express
+=====================================================
+
+1. Environment (.env):
+JUPSOFT_API_URL="https://blogary.jupsoft.com/v1"
+JUPSOFT_WEBSITE_ID="YOUR_WEBSITE_ID"
+JUPSOFT_API_KEY="YOUR_API_KEY"
+
+2. Service Module (services/jupsoftCms.js):
+const API_URL = process.env.JUPSOFT_API_URL;
+const WEBSITE_ID = process.env.JUPSOFT_WEBSITE_ID;
+const API_KEY = process.env.JUPSOFT_API_KEY;
+
+async function fetchCms(endpoint, params = {}) {
+  const query = new URLSearchParams({ website: WEBSITE_ID, ...params });
+  const res = await fetch(`${API_URL}${endpoint}?${query.toString()}`, {
+    headers: { 'Accept': 'application/json', 'x-api-key': API_KEY }
+  });
+  const json = await res.json();
+  return json.data || json;
+}
+
+module.exports = {
+  getBlogs: (page = 1, limit = 10) => fetchCms('/blogs', { page, limit }),
+  getBlogBySlug: (slug) => fetchCms(`/blogs/${encodeURIComponent(slug)}`),
+};
+
+3. Express Routes:
+app.get('/blog', async (req, res) => {
+  const blogs = await JupsoftCMS.getBlogs(req.query.page || 1, 9);
+  res.render('blog', { blogs });
+});
+
+app.get('/blog/:slug', async (req, res) => {
+  const article = await JupsoftCMS.getBlogBySlug(req.params.slug);
+  res.render('blog-detail', { article });
+});

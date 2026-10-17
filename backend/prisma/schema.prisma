@@ -1,0 +1,451 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Website {
+  id                   String   @id
+  name                 String
+  domain               String   @unique
+  logoUrl              String   @default("")
+  description          String   @default("")
+  apiKey               String   @unique
+  s3Prefix             String
+  status               String   @default("active") // active | inactive
+  defaultLanguage      String   @default("en")
+  supportedLanguages   String[] @default(["en", "hi", "fr", "ar"])
+  revalidateWebhookUrl String   @default("")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  // 1. Real Website Owner Communication Channel
+  ownerName          String?  @default("")
+  ownerEmail         String?  @default("")
+  notificationEmails String[] @default([])
+
+  // 2. Publishing Target & Quota Configuration
+  monthlyBlogTarget     Int       @default(15)
+  targetCadence         String    @default("monthly") // monthly | weekly | bi-weekly
+  targetAlertEnabled    Boolean   @default(true)
+  targetAlertDays       Int[]     @default([15, 25])
+  targetAlertSchedule   String    @default("weekly_monday") // weekly_monday | bi_monthly_15_25 | monthly_20 | critical_only | custom
+  digestSchedule        String    @default("first_of_month") // first_of_month | last_day_month | monthly_28
+  recipientScope        String    @default("all_stakeholders") // all_stakeholders | owner_only | owner_and_admins | custom_list
+  defaultCoverUrl       String    @default("")
+  lastTargetAlertSentAt DateTime?
+
+  blogs               Blog[]
+  categories          Category[]
+  tags                Tag[]
+  mediaAssets         MediaAsset[]
+  redirects           Redirect[]
+  userRoleAssignments UserRoleAssignment[]
+  supportTickets      SupportTicket[]
+  systemNotifications SystemNotification[]
+
+  @@map("websites")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  avatar        String    @default("")
+  bio           String    @default("")
+  linkedinUrl   String    @default("")
+  twitterUrl    String    @default("")
+  status        String    @default("active") // active | suspended
+  lastLoginIp   String    @default("")
+  loginAttempts Int       @default(0)
+  lockoutUntil  DateTime?
+  customModules String[]  @default([])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  roleAssignments     UserRoleAssignment[]
+  blogs               Blog[]
+  supportTickets      SupportTicket[]
+  activityTimes       UserActivityTime[]
+  systemNotifications SystemNotification[]
+
+  @@map("users")
+}
+
+model UserActivityTime {
+  id            String   @id @default(uuid())
+  userId        String
+  date          String // e.g. "2026-10-12"
+  activeMinutes Int      @default(0)
+  lastHeartbeat DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@index([date])
+  @@map("user_activity_times")
+}
+
+model UserRoleAssignment {
+  id        String   @id @default(uuid())
+  userId    String
+  // FIX 13: websiteId is nullable for global-scope roles (Super Admin).
+  // isGlobal=true means the role applies to ALL websites (no FK needed).
+  // isGlobal=false means the role is scoped to the specific websiteId.
+  websiteId String? // NULL for global-scope assignments
+  isGlobal  Boolean  @default(false)
+  role      String // Super Admin | Website Admin | Role Admin | Editor | Content Writer | Publisher | SEO Manager
+  createdAt DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  website Website? @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, websiteId])
+  @@index([userId, isGlobal])
+  @@index([websiteId])
+  @@map("user_role_assignments")
+}
+
+model Blog {
+  id               String    @id @default(uuid())
+  websiteId        String
+  authorId         String?
+  authorName       String
+  authorAvatar     String    @default("")
+  featuredImage    String    @default("")
+  featuredImageAlt String    @default("")
+  status           String    @default("Draft") // Draft | Under Review | Approved | Scheduled | Published | Archived
+  publishDate      DateTime?
+  scheduledAt      DateTime?
+  publishedBy      String?
+  viewCount        Int       @default(0)
+  readTimeMinutes  Int       @default(3)
+  categoryIds      String[]  @default([])
+  tagIds           String[]  @default([])
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  website        Website           @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  author         User?             @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  translations   BlogTranslation[]
+  revisions      BlogRevision[]
+  workflowLogs   WorkflowLog[]
+  blogCategories BlogCategory[] // TRD §9: M:N via blog_categories
+  blogTags       BlogTag[] // TRD §9: M:N via blog_tags
+
+  @@index([websiteId, status, publishDate(sort: Desc)])
+  @@index([websiteId, status])
+  @@index([status, scheduledAt])
+  @@index([authorId])
+  @@index([updatedAt(sort: Desc)])
+  @@index([websiteId, updatedAt(sort: Desc)])
+  @@index([websiteId, status, updatedAt(sort: Desc)])
+  @@map("blogs")
+}
+
+model BlogRevision {
+  id      String @id @default(uuid())
+  blogId  String
+  lang    String // en | hi | fr | ar
+  title   String
+  slug    String
+  excerpt String @default("") @db.Text
+  content String @default("") @db.Text
+
+  metaTitle       String @default("")
+  metaDescription String @default("")
+
+  createdBy String   @default("System")
+  createdAt DateTime @default(now())
+
+  blog Blog @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  @@unique([blogId, lang])
+  @@map("blog_revisions")
+}
+
+model BlogTranslation {
+  id      String @id @default(uuid())
+  blogId  String
+  lang    String // en | hi | fr | ar
+  title   String
+  slug    String
+  excerpt String @default("") @db.Text
+  content String @default("") @db.Text
+
+  // SEO & Open Graph Metadata
+  metaTitle          String @default("")
+  metaDescription    String @default("")
+  metaKeywords       String @default("")
+  canonicalUrl       String @default("")
+  focusKeyword       String @default("")
+  robots             String @default("index, follow")
+  ogTitle            String @default("")
+  ogDescription      String @default("")
+  ogImage            String @default("")
+  twitterTitle       String @default("")
+  twitterDescription String @default("")
+  twitterImage       String @default("")
+
+  blog Blog @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  @@unique([blogId, lang])
+  @@index([slug, lang])
+  @@map("blog_translations")
+}
+
+model Category {
+  id          String  @id @default(uuid())
+  websiteId   String
+  name        String
+  slug        String
+  parentId    String?
+  description String?
+  count       Int     @default(0)
+
+  website        Website        @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  blogCategories BlogCategory[] // TRD §9: M:N via blog_categories
+
+  @@unique([websiteId, slug])
+  @@map("categories")
+}
+
+model Tag {
+  id        String @id @default(uuid())
+  websiteId String
+  name      String
+  slug      String
+  count     Int    @default(0)
+
+  website  Website   @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  blogTags BlogTag[] // TRD §9: M:N via blog_tags
+
+  @@unique([websiteId, slug])
+  @@map("tags")
+}
+
+model MediaAsset {
+  id            String    @id @default(uuid())
+  websiteId     String
+  fileName      String
+  fileType      String // image/webp, image/jpeg, etc.
+  fileSizeBytes Int
+  s3Key         String
+  cdnUrl        String
+  altText       String    @default("")
+  uploadedBy    String    @default("")
+  createdAt     DateTime  @default(now())
+  deletedAt     DateTime? // soft-delete: null = active, set = deleted
+
+  website Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@index([websiteId])
+  @@index([websiteId, deletedAt, createdAt])
+  @@map("media_assets")
+}
+
+model Redirect {
+  id         String   @id @default(uuid())
+  websiteId  String
+  fromSlug   String
+  toSlug     String
+  statusCode Int      @default(301)
+  hitCount   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  website Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([websiteId, fromSlug])
+  @@map("redirects")
+}
+
+model WorkflowLog {
+  id         String   @id @default(uuid())
+  blogId     String
+  fromStatus String
+  toStatus   String
+  changedBy  String
+  role       String
+  notes      String?
+  timestamp  DateTime @default(now())
+
+  blog Blog @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  @@index([blogId, timestamp])
+  @@map("workflow_logs")
+}
+
+model SystemAuditLog {
+  id        String   @id @default(uuid())
+  timestamp DateTime @default(now())
+  userName  String
+  role      String
+  websiteId String
+  event     String
+  ipAddress String
+  details   String   @db.Text
+
+  @@index([websiteId, event])
+  @@index([websiteId, timestamp])
+  @@map("audit_logs")
+}
+
+// ─── TRD §9: M:N join tables (blog_categories, blog_tags) ──────────────────
+
+model BlogCategory {
+  blogId     String
+  categoryId String
+
+  blog     Blog     @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([blogId, categoryId])
+  @@index([categoryId])
+  @@map("blog_categories")
+}
+
+model BlogTag {
+  blogId String
+  tagId  String
+
+  blog Blog @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([blogId, tagId])
+  @@index([tagId])
+  @@map("blog_tags")
+}
+
+// ─── TRD §17: analytics table ───────────────────────────────────────────────
+// TRD §14: "View events are recorded via a lightweight tracking endpoint and
+//            aggregated asynchronously so they never slow page delivery."
+
+model AnalyticsEvent {
+  id          String   @id @default(uuid())
+  blogId      String
+  websiteId   String
+  sessionId   String // for unique visitor dedup (TRD §14)
+  ipHash      String   @default("") // hashed for privacy
+  country     String   @default("")
+  referrer    String   @default("")
+  readPercent Int      @default(0) // avg read time proxy
+  event       String   @default("page_view") // page_view | read_complete
+  timestamp   DateTime @default(now())
+
+  @@index([blogId, websiteId])
+  @@index([websiteId, timestamp])
+  @@index([timestamp]) // P1: fast retention purge (analytics.service purgeExpiredEvents)
+  @@map("analytics")
+}
+
+// ─── TRD §17: api_logs table ─────────────────────────────────────────────────
+
+model ApiLog {
+  id         String   @id @default(uuid())
+  method     String
+  path       String
+  statusCode Int
+  websiteId  String   @default("")
+  durationMs Int      @default(0)
+  timestamp  DateTime @default(now())
+
+  @@index([websiteId, timestamp])
+  @@map("api_logs")
+}
+
+// ─── TRD §17: seo_audit_logs table ──────────────────────────────────────────
+// TRD §11: "Automated SEO Checks (score 0–100)"
+
+model SeoAuditLog {
+  id        String   @id @default(uuid())
+  blogId    String
+  websiteId String
+  lang      String   @default("en")
+  score     Int // 0–100 (TRD §11)
+  checks    String   @db.Text // JSON: { metaTitle: pass, focusKeyword: fail, ... }
+  checkedBy String   @default("")
+  timestamp DateTime @default(now())
+
+  @@index([blogId])
+  @@map("seo_audit_logs")
+}
+
+// ─── TRD §17: webhooks table ─────────────────────────────────────────────────
+// TRD §13: "On publish/update, a webhook triggers on-demand revalidation"
+// TRD §15: "HMAC-signed payloads, replay protection"
+
+model WebhookDeliveryLog {
+  id           String   @id @default(uuid())
+  websiteId    String
+  event        String // blog.published | blog.updated | blog.unpublished
+  slug         String
+  targetUrl    String
+  statusCode   Int      @default(0)
+  responseBody String   @default("") @db.Text
+  attempt      Int      @default(1)
+  delivered    Boolean  @default(false)
+  timestamp    DateTime @default(now())
+
+  @@index([websiteId, event])
+  @@index([delivered, attempt, timestamp])
+  @@map("webhooks")
+}
+
+// ─── Central Support & Bug Reporting System ───────────────────────────────────
+
+model SupportTicket {
+  id            String    @id @default(uuid())
+  ticketNumber  String    @unique
+  websiteId     String
+  userId        String?
+  userName      String
+  userEmail     String
+  userRole      String    @default("User")
+  subject       String
+  description   String    @db.Text
+  screenshotUrl String    @default("")
+  pageUrl       String    @default("")
+  errorDetails  String    @default("") @db.Text
+  status        String    @default("OPEN") // OPEN | IN_PROGRESS | RESOLVED | CLOSED
+  priority      String    @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  adminNotes    String    @default("") @db.Text
+  resolvedAt    DateTime?
+  resolvedBy    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  website Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([websiteId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("support_tickets")
+}
+
+model SystemNotification {
+  id        String   @id @default(uuid())
+  userId    String
+  websiteId String
+  title     String
+  message   String
+  type      String   @default("TARGET_DEFICIT") // TARGET_DEFICIT | BLOG_PUBLISHED | PIPELINE_STUCK | SYSTEM_ALERT
+  link      String   @default("/blogs/new")
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  website Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([websiteId])
+  @@map("system_notifications")
+}

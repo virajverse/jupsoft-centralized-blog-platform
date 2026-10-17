@@ -1,0 +1,20 @@
+=====================================================
+Jupsoft CMS Integration Guide for Python (FastAPI / Django)
+=====================================================
+
+1. Environment (.env):
+JUPSOFT_API_URL="https://blogary.jupsoft.com/v1"
+JUPSOFT_WEBSITE_ID="YOUR_WEBSITE_ID"
+JUPSOFT_API_KEY="YOUR_API_KEY"
+
+2. Requests Client (jupsoft_cms.py):
+import requests, os
+API_URL = os.getenv("JUPSOFT_API_URL", "https://blogary.jupsoft.com/v1")
+WEBSITE_ID = os.getenv("JUPSOFT_WEBSITE_ID")
+API_KEY = os.getenv("JUPSOFT_API_KEY")
+
+def get_blogs(page=1, limit=10):
+    return requests.get(f"{API_URL}/blogs", headers={"x-api-key": API_KEY}, params={"website": WEBSITE_ID, "page": page, "limit": limit}).json()["data"]
+
+def get_blog_by_slug(slug):
+    return requests.get(f"{API_URL}/blogs/{slug}", headers={"x-api-key": API_KEY}, params={"website": WEBSITE_ID}).json()["data"]

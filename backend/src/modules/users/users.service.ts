@@ -1,0 +1,799 @@
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+  Logger,
+  Optional,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../../prisma/prisma.service';
+import { RedisProvider } from '../../common/providers/redis.provider';
+import { EmailService } from '../email/email.service';
+import { InviteUserDto, UpdateUserRoleDto } from './dto/user.dto';
+import * as bcrypt from 'bcrypt';
+import { SupabaseSyncService } from '../supabase-sync/supabase-sync.service';
+
+@Injectable()
+export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisProvider,
+    private config: ConfigService,
+    @Optional() private emailService?: EmailService,
+    @Optional() private supabaseSync?: SupabaseSyncService,
+  ) {}
+
+  async findAll(viewer?: any) {
+    const isSuperAdmin = viewer?.roles?.includes('Super Admin');
+    const allowedWebsites = viewer?.roleAssignments?.map((ra: any) => ra.websiteId) || [];
+    const cacheKey = `admin:users:${isSuperAdmin ? 'super' : (allowedWebsites.sort().join('_') || 'viewer')}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
+    const where: any = {};
+
+    if (!isSuperAdmin && viewer?.roleAssignments && viewer.roleAssignments.length > 0) {
+      where.roleAssignments = {
+        some: {
+          websiteId: { in: allowedWebsites },
+        },
+      };
+    }
+
+    const users = await this.prisma.user.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        roleAssignments: {
+          include: {
+            website: { select: { id: true, name: true, domain: true } },
+          },
+        },
+      },
+    });
+
+    const result = users.map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      avatar: u.avatar,
+      status: u.status,
+      lastLoginIp: u.lastLoginIp,
+      customModules: u.customModules || [],
+      roleAssignments: u.roleAssignments.reduce((acc, curr) => {
+        const key = curr.isGlobal || !curr.websiteId ? 'all' : curr.websiteId;
+        acc[key] = curr.role;
+        return acc;
+      }, {} as Record<string, string>),
+      createdAt: u.createdAt.toISOString(),
+      updatedAt: u.updatedAt.toISOString(),
+    }));
+
+    await this.redis.set(cacheKey, result, 120);
+    return result;
+  }
+
+  async invite(dto: InviteUserDto, inviter: any, ipAddress: string) {
+    const isSuperAdmin = inviter?.roles?.includes('Super Admin');
+    if (!isSuperAdmin) {
+      const inviterSites = inviter?.roleAssignments?.map((ra: any) => ra.websiteId) || [];
+      if (!inviterSites.includes(dto.websiteId) && !inviterSites.includes('all')) {
+        throw new ForbiddenException('You can only invite team members to your assigned website');
+      }
+      if (dto.role === 'Super Admin') {
+        throw new ForbiddenException('Only Super Admin can assign the Super Admin role');
+      }
+      if (dto.websiteId === 'all' || !dto.websiteId) {
+        throw new ForbiddenException('Only Super Admin can assign global or cross-website access');
+      }
+      const inviterRolesForSite = inviter?.roleAssignments
+        ?.filter((ra: any) => ra.websiteId === dto.websiteId || ra.websiteId === 'all')
+        ?.map((ra: any) => ra.role) || [];
+      if (inviterRolesForSite.includes('Role Admin') && !inviterRolesForSite.includes('Website Admin')) {
+        const allowedRoleAdminRoles = ['Editor', 'Content Writer'];
+        if (!allowedRoleAdminRoles.includes(dto.role)) {
+          throw new ForbiddenException('Role Admins can only assign Editor or Content Writer roles');
+        }
+      }
+    }
+
+    const existing = await this.prisma.user.findUnique({
+      where: { email: dto.email.toLowerCase() },
+    });
+
+    if (existing) {
+      throw new ConflictException('A user with this email address already exists');
+    }
+
+    // Invited users get the provided password from SaaS portal or a strong generated fallback
+    const rawPassword = dto.password?.trim() || `Tmp${Math.random().toString(36).slice(2, 10)}!${Date.now().toString(36)}`;
+    const defaultPasswordHash = await bcrypt.hash(rawPassword, 10);
+
+    const isSuperAdminRole = dto.role === 'Super Admin';
+    const isGlobal = isSuperAdminRole || dto.websiteId === 'all' || !dto.websiteId;
+    let targetWebsiteId: string | null = null;
+    if (!isGlobal) {
+      const siteExists = await this.prisma.website.findUnique({ where: { id: dto.websiteId } });
+      if (!siteExists) {
+        throw new BadRequestException(`Website with ID "${dto.websiteId}" does not exist`);
+      }
+      targetWebsiteId = dto.websiteId;
+    }
+
+    const roleAssignmentsToCreate: any[] = [
+      {
+        websiteId: targetWebsiteId,
+        isGlobal: isGlobal,
+        role: dto.role,
+      },
+    ];
+
+    if (isSuperAdminRole) {
+      const allWebsites = await this.prisma.website.findMany({ select: { id: true } });
+      for (const site of allWebsites) {
+        roleAssignmentsToCreate.push({
+          websiteId: site.id,
+          isGlobal: false,
+          role: 'Super Admin',
+        });
+      }
+    }
+
+    const user = await this.prisma.user.create({
+      data: {
+        email: dto.email.toLowerCase(),
+        name: dto.name,
+        passwordHash: defaultPasswordHash,
+        avatar: '',
+        status: 'active',
+        customModules: dto.customModules || [],
+        roleAssignments: {
+          create: roleAssignmentsToCreate,
+        },
+      },
+      include: {
+        roleAssignments: true,
+      },
+    });
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: inviter?.name || 'Admin',
+        role: inviter?.roles?.[0] || 'Super Admin',
+        websiteId: dto.websiteId || 'all',
+        event: 'user.invited',
+        ipAddress: ipAddress || '',
+        details: `Invited user ${user.name} (${user.email}) with role ${dto.role}.`,
+      },
+    });
+
+    await this.invalidateUserCache();
+
+    // ✉️ Dispatch Welcome & Credentials email via AWS SES (asynchronous / non-blocking)
+    if (this.emailService) {
+      const site = targetWebsiteId
+        ? await this.prisma.website.findUnique({ where: { id: targetWebsiteId } })
+        : null;
+      const portalUrl = (
+        this.config.get<string>('FRONTEND_URL') ||
+        this.config.get<string>('PLATFORM_BASE_URL') ||
+        'https://blogary.jupsoft.com'
+      ).replace(/\/+$/, '');
+
+      this.emailService
+        .sendUserCredentialsEmail({
+          toEmail: user.email,
+          toName: user.name,
+          role: dto.role,
+          tempPassword: rawPassword,
+          portalUrl,
+          websiteName: site?.name,
+          websiteDomain: site?.domain,
+          isPasswordReset: false,
+        })
+        .catch((err: Error) => {
+          this.logger.error(
+            `❌ Failed to dispatch invitation credentials email via SES to ${user.email}: ${err.message}`,
+          );
+        });
+    }
+
+    this.supabaseSync?.syncUser(user.id).catch(() => {});
+
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      avatar: user.avatar,
+      status: user.status,
+      customModules: user.customModules || [],
+      tempPassword: rawPassword,
+      roleAssignments: user.roleAssignments.reduce((acc, curr) => {
+        const key = curr.isGlobal || !curr.websiteId ? 'all' : curr.websiteId;
+        acc[key] = curr.role;
+        return acc;
+      }, {} as Record<string, string>),
+    };
+  }
+
+  async updateRole(userId: string, dto: UpdateUserRoleDto, updater: any, ipAddress: string) {
+    const isSuperAdmin = updater?.roles?.includes('Super Admin');
+    if (!isSuperAdmin) {
+      const updaterSites = updater?.roleAssignments?.map((ra: any) => ra.websiteId) || [];
+      if (!updaterSites.includes(dto.websiteId) && !updaterSites.includes('all')) {
+        throw new ForbiddenException('You can only modify roles for your assigned website');
+      }
+      if (dto.role === 'Super Admin') {
+        throw new ForbiddenException('Only Super Admin can assign the Super Admin role');
+      }
+      const updaterRolesForSite = updater?.roleAssignments
+        ?.filter((ra: any) => ra.websiteId === dto.websiteId || ra.websiteId === 'all')
+        ?.map((ra: any) => ra.role) || [];
+      if (updaterRolesForSite.includes('Role Admin') && !updaterRolesForSite.includes('Website Admin')) {
+        const allowedRoleAdminRoles = ['Editor', 'Content Writer'];
+        if (!allowedRoleAdminRoles.includes(dto.role)) {
+          throw new ForbiddenException('Role Admins can only assign Editor or Content Writer roles');
+        }
+      }
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { roleAssignments: true },
+    });
+    if (!user) {
+      throw new NotFoundException(`User "${userId}" not found`);
+    }
+
+    // 🛡️ CRITICAL SECURITY GUARD: Root Super Admin master account cannot be downgraded
+    const isTargetRootSuperAdmin = this.isRootSuperAdmin(user);
+
+    if (isTargetRootSuperAdmin && dto.role !== 'Super Admin') {
+      throw new ForbiddenException(
+        'Root Super Admin master account cannot be downgraded.',
+      );
+    }
+
+    const isUpdaterSuperAdmin = updater?.roles?.includes('Super Admin');
+    const isTargetSuperAdmin = this.userHasSuperAdminRole(user);
+    if (isTargetSuperAdmin && !isUpdaterSuperAdmin) {
+      throw new ForbiddenException('Only Super Admin can modify another Super Admin');
+    }
+    if (dto.role === 'Super Admin' && !isUpdaterSuperAdmin) {
+      throw new ForbiddenException('Only Super Admin can assign the Super Admin role');
+    }
+
+    const isSuperAdminRole = dto.role === 'Super Admin';
+    const isGlobal = isSuperAdminRole || dto.websiteId === 'all' || !dto.websiteId;
+    const targetWebsiteId = isGlobal ? null : dto.websiteId;
+
+    if (isSuperAdminRole) {
+      const existingGlobal = await this.prisma.userRoleAssignment.findFirst({
+        where: { userId, isGlobal: true },
+      });
+      if (existingGlobal) {
+        await this.prisma.userRoleAssignment.update({
+          where: { id: existingGlobal.id },
+          data: { role: 'Super Admin' },
+        });
+      } else {
+        await this.prisma.userRoleAssignment.create({
+          data: {
+            userId,
+            websiteId: null,
+            isGlobal: true,
+            role: 'Super Admin',
+          },
+        });
+      }
+
+      const allWebsites = await this.prisma.website.findMany({ select: { id: true } });
+      for (const site of allWebsites) {
+        const existingSite = await this.prisma.userRoleAssignment.findFirst({
+          where: { userId, websiteId: site.id },
+        });
+        if (existingSite) {
+          await this.prisma.userRoleAssignment.update({
+            where: { id: existingSite.id },
+            data: { role: 'Super Admin' },
+          });
+        } else {
+          await this.prisma.userRoleAssignment.create({
+            data: {
+              userId,
+              websiteId: site.id,
+              isGlobal: false,
+              role: 'Super Admin',
+            },
+          });
+        }
+      }
+    } else {
+      const existingAssignment = await this.prisma.userRoleAssignment.findFirst({
+        where: {
+          userId,
+          ...(isGlobal ? { isGlobal: true } : { websiteId: targetWebsiteId }),
+        },
+      });
+
+      if (existingAssignment) {
+        await this.prisma.userRoleAssignment.update({
+          where: { id: existingAssignment.id },
+          data: { role: dto.role },
+        });
+      } else {
+        await this.prisma.userRoleAssignment.create({
+          data: {
+            userId,
+            websiteId: targetWebsiteId,
+            isGlobal,
+            role: dto.role,
+          },
+        });
+      }
+    }
+
+    if (dto.role === 'none' || !dto.role) {
+      return this.removeRole(userId, dto.websiteId, updater, ipAddress);
+    }
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: updater.name,
+        role: updater.roles[0] || 'Super Admin',
+        websiteId: dto.websiteId,
+        event: 'user.role_updated',
+        ipAddress: ipAddress || '',
+        details: `Updated role for ${user.name} to ${dto.role} on ${dto.websiteId}.`,
+      },
+    });
+
+    await this.invalidateUserCache();
+    this.supabaseSync?.syncUser(userId).catch(() => {});
+    return { success: true, message: 'Role updated successfully' };
+  }
+
+  async removeRole(userId: string, websiteId: string, remover: any, ipAddress: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { roleAssignments: true },
+    });
+    if (!user) {
+      throw new NotFoundException(`User "${userId}" not found`);
+    }
+
+    const isTargetRootSuperAdmin = this.isRootSuperAdmin(user);
+
+    if (isTargetRootSuperAdmin) {
+      throw new ForbiddenException(
+        'Root Super Admin master role cannot be revoked via API. It can only be managed directly via database SQL query.',
+      );
+    }
+
+    const isSuperAdmin = remover?.roles?.includes('Super Admin');
+    const isTargetSuperAdmin = this.userHasSuperAdminRole(user);
+    if (isTargetSuperAdmin && !isSuperAdmin) {
+      throw new ForbiddenException('Only Super Admin can manage Super Admin roles');
+    }
+
+    if (!isSuperAdmin) {
+      const removerSites = remover?.roleAssignments?.map((ra: any) => ra.websiteId) || [];
+      if (!removerSites.includes(websiteId) && !removerSites.includes('all')) {
+        throw new ForbiddenException('You can only remove roles for your assigned website');
+      }
+    }
+
+    const isGlobal = websiteId === 'all';
+    await this.prisma.userRoleAssignment.deleteMany({
+      where: {
+        userId,
+        ...(isGlobal ? { isGlobal: true } : { websiteId }),
+      },
+    });
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: remover.name,
+        role: remover.roles[0] || 'Super Admin',
+        websiteId,
+        event: 'user.role_removed',
+        ipAddress: ipAddress || '',
+        details: `Removed tenant access to ${websiteId} for ${user.name} (${user.email}).`,
+      },
+    });
+
+    await this.invalidateUserCache();
+    this.supabaseSync?.syncUser(userId).catch(() => {});
+    return { success: true, message: 'Role assignment removed successfully' };
+  }
+
+  async toggleStatus(userId: string, status: string, updater: any, ipAddress: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { roleAssignments: true },
+    });
+    if (!user) {
+      throw new NotFoundException(`User "${userId}" not found`);
+    }
+
+    // 🛡️ CRITICAL SECURITY GUARD: Root Super Admin account cannot be deactivated or suspended
+    const isTargetRootSuperAdmin = this.isRootSuperAdmin(user);
+
+    if (isTargetRootSuperAdmin) {
+      throw new ForbiddenException(
+        'Root Super Admin status cannot be altered via API. The master administrator must remain active and can only be modified directly via database SQL query.',
+      );
+    }
+
+    const isSuperAdmin = updater?.roles?.includes('Super Admin');
+    const isTargetSuperAdmin = this.userHasSuperAdminRole(user);
+    if (isTargetSuperAdmin && !isSuperAdmin) {
+      throw new ForbiddenException('Only Super Admin can alter Super Admin account status');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { status },
+    });
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: updater.name,
+        role: updater.roles[0] || 'Super Admin',
+        websiteId: 'system',
+        event: 'user.status_updated',
+        ipAddress: ipAddress || '',
+        details: `Changed status for ${user.name} to ${status}.`,
+      },
+    });
+
+    await this.invalidateUserCache();
+    this.supabaseSync?.syncUser(userId).catch(() => {});
+    return updated;
+  }
+
+  async delete(userId: string, deleter: any, ipAddress: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { roleAssignments: true },
+    });
+    if (!user) {
+      throw new NotFoundException(`User "${userId}" not found`);
+    }
+
+    if (deleter?.id === userId) {
+      throw new ForbiddenException('You cannot delete your own account.');
+    }
+
+    // 🛡️ CRITICAL SECURITY GUARD: Root Super Admin accounts CANNOT be deleted
+    const isTargetRootSuperAdmin = this.isRootSuperAdmin(user);
+
+    if (isTargetRootSuperAdmin) {
+      throw new ForbiddenException(
+        'Root Super Admin accounts are permanently protected against deletion.',
+      );
+    }
+
+    // 🛡️ HIERARCHY RULE: Only Super Admin and Website Admin can delete
+    const isDeleterSuperAdmin = deleter?.roles?.includes('Super Admin');
+    const isDeleterWebsiteAdmin = deleter?.roles?.includes('Website Admin');
+
+    if (!isDeleterSuperAdmin && !isDeleterWebsiteAdmin) {
+      throw new ForbiddenException(
+        'Permission denied: Only Super Admin and Website Admin can delete team accounts. Your role is read-only for account deletion.',
+      );
+    }
+
+    const isTargetSuperAdmin = this.userHasSuperAdminRole(user);
+    if (isTargetSuperAdmin && !isDeleterSuperAdmin) {
+      throw new ForbiddenException('Only Super Admin can delete a Super Admin account.');
+    }
+
+    // Website Admin can ONLY delete subordinate accounts strictly below them
+    if (isDeleterWebsiteAdmin && !isDeleterSuperAdmin) {
+      const targetRoles = user.roleAssignments.map((ra) => ra.role);
+      if (targetRoles.includes('Super Admin') || targetRoles.includes('Website Admin')) {
+        throw new ForbiddenException(
+          'Website Admins can only delete subordinate accounts (e.g. Role Admin, Editor, Content Writer). You cannot delete other Website Admins or Super Admins.',
+        );
+      }
+
+      // Check tenant boundary
+      const deleterSites = deleter?.roleAssignments?.map((ra: any) => ra.websiteId) || [];
+      const userSites = user.roleAssignments.map((ra) => ra.websiteId).filter(Boolean);
+      const sharesSite = userSites.some((s) => deleterSites.includes(s) || deleterSites.includes('all'));
+      if (!sharesSite && userSites.length > 0) {
+        throw new ForbiddenException('You can only delete accounts assigned to your managed website.');
+      }
+    }
+
+    // 🛡️ PERMANENT BLOG PRESERVATION: When an author is deleted, their blogs MUST NOT be deleted.
+    // Reassign authorId to master superadmin while retaining authorName and authorAvatar intact!
+    await this.prisma.blog.updateMany({
+      where: { authorId: userId },
+      data: {
+        authorId: 'usr-superadmin',
+      },
+    });
+
+    await this.prisma.user.delete({ where: { id: userId } });
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: deleter.name,
+        role: deleter.roles[0] || 'Super Admin',
+        websiteId: 'system',
+        event: 'user.deleted',
+        ipAddress: ipAddress || '',
+        details: `Deleted account for ${user.name} (${user.email}).`,
+      },
+    });
+
+    await this.invalidateUserCache();
+    this.supabaseSync?.deleteUser(userId).catch(() => {});
+    return { success: true, message: 'User deleted' };
+  }
+
+  async resetPassword(userId: string, requester: any, ipAddress: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { roleAssignments: true },
+    });
+    if (!user) {
+      throw new NotFoundException(`User "${userId}" not found`);
+    }
+
+    const isSuperAdmin = requester?.roles?.includes('Super Admin');
+    if (!isSuperAdmin) {
+      const requesterSites = requester?.roleAssignments?.map((ra: any) => ra.websiteId) || [];
+      const userSites = user.roleAssignments.map((ra) => ra.websiteId || 'all');
+      const hasOverlap = userSites.some((s) => requesterSites.includes(s) || requesterSites.includes('all'));
+      if (!hasOverlap) {
+        throw new ForbiddenException('You do not have permission to reset credentials for this user');
+      }
+    }
+
+    // Generate strong 12-char temporary password
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$';
+    let rawPassword = 'Jup@';
+    for (let i = 0; i < 8; i++) {
+      rawPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const passwordHash = await bcrypt.hash(rawPassword, 10);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: requester?.name || 'Admin',
+        role: requester?.roles?.[0] || 'Super Admin',
+        websiteId: user.roleAssignments[0]?.websiteId || 'system',
+        event: 'user.password_reset',
+        ipAddress: ipAddress || '',
+        details: `Reset password credentials for ${user.name} (${user.email}).`,
+      },
+    });
+
+    await this.invalidateUserCache();
+
+    // ✉️ Dispatch Temporary Password Reset email via AWS SES (asynchronous / non-blocking)
+    if (this.emailService) {
+      const primarySiteId = user.roleAssignments[0]?.websiteId;
+      const site = primarySiteId
+        ? await this.prisma.website.findUnique({ where: { id: primarySiteId } })
+        : null;
+      const portalUrl = (
+        this.config.get<string>('FRONTEND_URL') ||
+        this.config.get<string>('PLATFORM_BASE_URL') ||
+        'https://blogary.jupsoft.com'
+      ).replace(/\/+$/, '');
+
+      this.emailService
+        .sendUserCredentialsEmail({
+          toEmail: user.email,
+          toName: user.name,
+          role: user.roleAssignments[0]?.role || 'Staff',
+          tempPassword: rawPassword,
+          portalUrl,
+          websiteName: site?.name,
+          websiteDomain: site?.domain,
+          isPasswordReset: true,
+        })
+        .catch((err: Error) => {
+          this.logger.error(
+            `❌ Failed to dispatch password reset email via SES to ${user.email}: ${err.message}`,
+          );
+        });
+    }
+
+    return {
+      success: true,
+      userId: user.id,
+      email: user.email,
+      tempPassword: rawPassword,
+      message: 'Temporary password generated and dispatched via email successfully',
+    };
+  }
+
+  async sendCredentials(
+    userId: string,
+    explicitPassword?: string,
+    explicitEmail?: string,
+    requester?: any,
+    ipAddress?: string,
+  ) {
+    let user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        roleAssignments: {
+          include: {
+            website: true,
+          },
+        },
+      },
+    });
+
+    // Fallback: If not found by ID, lookup by email (e.g. if frontend passed temporary timestamp ID)
+    if (!user && (explicitEmail || userId.includes('@'))) {
+      const emailToLookup = (explicitEmail || userId).trim().toLowerCase();
+      user = await this.prisma.user.findUnique({
+        where: { email: emailToLookup },
+        include: {
+          roleAssignments: {
+            include: {
+              website: true,
+            },
+          },
+        },
+      });
+    }
+
+    if (!user) {
+      throw new NotFoundException(`User "${userId}" not found in database`);
+    }
+
+    let activePassword = explicitPassword?.trim();
+
+    // If no password provided, generate a fresh secure temporary password
+    if (!activePassword) {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$';
+      activePassword = 'Jup@';
+      for (let i = 0; i < 8; i++) {
+        activePassword += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+    }
+
+    const passwordHash = await bcrypt.hash(activePassword, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash },
+    });
+
+    const primaryRa = user.roleAssignments[0];
+    const primarySite = primaryRa?.website;
+    const portalUrl = (
+      this.config.get<string>('FRONTEND_URL') ||
+      this.config.get<string>('PLATFORM_BASE_URL') ||
+      'https://blogary.jupsoft.com'
+    ).replace(/\/+$/, '');
+
+    let emailSent = false;
+    if (this.emailService) {
+      emailSent = await this.emailService.sendUserCredentialsEmail({
+        toEmail: user.email,
+        toName: user.name,
+        role: primaryRa?.role || 'Team Member',
+        tempPassword: activePassword,
+        portalUrl,
+        websiteName: primarySite?.name,
+        websiteDomain: primarySite?.domain,
+        isPasswordReset: false,
+      });
+    }
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: requester?.name || 'Admin',
+        role: requester?.roles?.[0] || 'Super Admin',
+        websiteId: primarySite?.id || 'system',
+        event: 'user.credentials_sent',
+        ipAddress: ipAddress || '',
+        details: `Dispatched credentials via AWS SES for ${user.name} (${user.email}).`,
+      },
+    });
+
+    await this.invalidateUserCache();
+
+    return {
+      success: true,
+      emailSent,
+      tempPassword: activePassword,
+      message: `Account credentials successfully dispatched via AWS SES to ${user.email}`,
+    };
+  }
+
+  async updateModules(userId: string, modules: string[], updater: any, ipAddress: string) {
+    const isSuperAdmin = updater?.roles?.includes('Super Admin');
+    const isWebsiteAdmin = updater?.roles?.includes('Website Admin');
+    if (!isSuperAdmin && !isWebsiteAdmin) {
+      throw new ForbiddenException('Only Super Admin or Website Admin can customize modular permissions');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { roleAssignments: true },
+    });
+    if (!user) {
+      throw new NotFoundException(`User with ID "${userId}" not found`);
+    }
+
+    const isTargetSuperAdmin = this.userHasSuperAdminRole(user);
+
+    if (isTargetSuperAdmin) {
+      throw new ForbiddenException(
+        'Super Admin permissions are permanently unlocked across all modules and cannot be restricted via API.',
+      );
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        customModules: modules,
+      },
+    });
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: updater?.name || 'Admin',
+        role: updater?.roles?.[0] || 'Super Admin',
+        websiteId: 'system',
+        event: 'user.permissions_updated',
+        ipAddress: ipAddress || '',
+        details: `Updated custom modules for ${user.name} (${user.email}): [${modules.join(', ')}].`,
+      },
+    });
+
+    await this.invalidateUserCache();
+    await this.redis.del(`auth:profile:${userId}`);
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      email: updated.email,
+      customModules: updated.customModules,
+      message: 'Modular permissions successfully updated in database',
+    };
+  }
+
+  private isRootSuperAdmin(user: { id?: string; email?: string; name?: string }): boolean {
+    if (!user) return false;
+    return (
+      user.id === 'usr-superadmin' ||
+      user.email?.toLowerCase().trim() === 'superadmin@jupsoft.com' ||
+      (typeof user.name === 'string' && user.name.toLowerCase().includes('sachin'))
+    );
+  }
+
+  private userHasSuperAdminRole(user: { roleAssignments?: Array<{ role: string }> }): boolean {
+    return Array.isArray(user?.roleAssignments) && user.roleAssignments.some((ra) => ra.role === 'Super Admin');
+  }
+
+  private isUserProtectedSuperAdmin(user: { id?: string; email?: string; name?: string }): boolean {
+    return this.isRootSuperAdmin(user);
+  }
+
+  private async invalidateUserCache() {
+    await Promise.allSettled([
+      this.redis.delPattern('admin:users:*'),
+      this.redis.delPattern('auth:user:*'),
+      this.redis.delPattern('auth:profile:*'),
+    ]);
+  }
+}

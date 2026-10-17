@@ -1,0 +1,108 @@
+# Dependencies
+node_modules/
+**/node_modules/
+.pnp
+.pnp.js
+
+# Environment variables & secrets (All levels)
+.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+*.env.local
+**/.env
+**/.env.*
+!**/.env.example
+
+# Local database seed scripts
+prisma/seed.ts
+backend/prisma/seed.ts
+
+# Build outputs
+.next/
+**/.next/
+dist/
+**/dist/
+build/
+**/build/
+out/
+**/out/
+.turbo/
+**/.turbo/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS and IDE caches
+.DS_Store
+Thumbs.db
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Database & Redis dumps
+*.rdb
+dump.rdb
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# Package tarballs & binary archives
+*.tgz
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+blogary.zip
+blogary/
+
+# Heavy video & media binaries (Must be hosted on AWS S3 / CDN)
+*.mp4
+*.mov
+*.avi
+*.wmv
+*.mkv
+
+# Scratch scripts, temporary folders & mirrors
+scratch/
+_source_files/
+_archive/
+netlify-mirror/
+*-AUDIT-*.md
+*-EXPERIENCE-*.md
+404-COMPARE-*.md
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Test artifacts
+test_*.png
+test_*.jpg
+
+# OAuth Secrets
+client_secret*.json
+docs/*.json
+
+# User uploads & raw image archives (Store in AWS S3)
+backend/uploads/
+**/uploads/
+blogs/images/
+
+# Local maintenance scripts
+scripts/
+backend/scripts/

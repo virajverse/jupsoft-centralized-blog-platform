@@ -1,0 +1,1051 @@
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+  ForbiddenException,
+  Logger,
+  Optional,
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../../prisma/prisma.service';
+import {
+  LoginDto,
+  RefreshTokenDto,
+  ChangePasswordDto,
+  LogoutDto,
+  GoogleLoginDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  ValidateResetTokenDto,
+} from './dto/login.dto';
+import { RedisProvider } from '../../common/providers/redis.provider';
+import { EmailService } from '../email/email.service';
+import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
+import * as fs from 'fs';
+import { join } from 'path';
+
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
+// Redis key prefix for revoked refresh tokens
+// Value: '1', TTL = JWT_REFRESH_EXPIRATION seconds (so old keys auto-expire)
+const REVOKED_TOKEN_PREFIX = 'auth:revoked_rt:';
+
+@Injectable()
+export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private jwtService: JwtService,
+    private configService: ConfigService,
+    private redis: RedisProvider,
+    @Optional() private emailService?: EmailService,
+  ) {}
+
+  private get jwtSecret(): string {
+    const secret = this.configService.get<string>('JWT_SECRET');
+    if (!secret) throw new Error('[SECURITY] JWT_SECRET is not configured');
+    return secret;
+  }
+
+  private get jwtRefreshSecret(): string {
+    const secret = this.configService.get<string>('JWT_REFRESH_SECRET');
+    if (!secret) throw new Error('[SECURITY] JWT_REFRESH_SECRET is not configured');
+    return secret;
+  }
+
+  private get jwtExpiration(): string {
+    return this.configService.get<string>('JWT_EXPIRATION') || '3650d';
+  }
+
+  private get jwtRefreshExpiration(): string {
+    return this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '3650d';
+  }
+
+  async login(dto: LoginDto, ipAddress: string) {
+    // 1. Parallel fetch: User record + In-memory / L2 cached websites prefetch
+    const userPromise = this.prisma.user.findUnique({
+      where: { email: dto.email.toLowerCase() },
+      include: {
+        roleAssignments: {
+          include: { website: true },
+        },
+      },
+    });
+
+    const websitesPromise = (async () => {
+      try {
+        const cached = await this.redis.get<any[]>('admin:websites:all');
+        if (cached && Array.isArray(cached) && cached.length > 0) return cached;
+        if (this.prisma.website?.findMany) {
+          const sites = await this.prisma.website.findMany({
+            orderBy: { createdAt: 'asc' },
+            include: {
+              _count: {
+                select: { blogs: true, categories: true, tags: true },
+              },
+            },
+          });
+          await this.redis.set('admin:websites:all', sites, 300);
+          return sites;
+        }
+      } catch {}
+      return [];
+    })();
+
+    const [user, rawWebsites] = await Promise.all([userPromise, websitesPromise]);
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    if (user.status !== 'active') {
+      throw new UnauthorizedException('This account has been suspended');
+    }
+
+    // --- Brute Force Protection ---
+    if (user.lockoutUntil && user.lockoutUntil > new Date()) {
+      const remaining = Math.ceil((user.lockoutUntil.getTime() - Date.now()) / 60000);
+      throw new ForbiddenException(
+        `Account locked due to too many failed attempts. Try again in ${remaining} minute(s).`,
+      );
+    }
+
+    const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
+
+    if (!isPasswordValid) {
+      const newAttempts = user.loginAttempts + 1;
+      const shouldLock = newAttempts >= MAX_LOGIN_ATTEMPTS;
+
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          loginAttempts: newAttempts,
+          lockoutUntil: shouldLock ? new Date(Date.now() + LOCKOUT_DURATION_MS) : null,
+        },
+      });
+
+      if (shouldLock) {
+        throw new ForbiddenException(
+          'Too many failed login attempts. Account locked for 15 minutes.',
+        );
+      }
+
+      throw new UnauthorizedException(
+        `Invalid email or password. ${MAX_LOGIN_ATTEMPTS - newAttempts} attempt(s) remaining.`,
+      );
+    }
+
+    // --- Success: Non-blocking parallel background bookkeeping (0-delay response) ---
+    const cleanIp = (ipAddress || '').replace(/^::ffff:/, '').trim();
+    Promise.all([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          lastLoginIp: cleanIp,
+          loginAttempts: 0,
+          lockoutUntil: null,
+        },
+      }),
+      this.prisma.systemAuditLog.create({
+        data: {
+          userName: user.name,
+          role: user.roleAssignments[0]?.role || 'Staff Writer',
+          websiteId: 'system',
+          event: 'user.login',
+          ipAddress: cleanIp,
+          details: `User ${user.name} (${user.email}) logged in from ${cleanIp || 'unknown'}.`,
+        },
+      }),
+    ]).catch((err) => {
+      this.logger.warn(`Post-login background update error: ${err.message}`);
+    });
+
+    const roles = user.roleAssignments.map((r) => r.role);
+    const payload = { sub: user.id, email: user.email, roles };
+
+    const accessToken = this.jwtService.sign(payload, {
+      secret: this.jwtSecret,
+      expiresIn: this.jwtExpiration as any,
+    });
+
+    const refreshToken = this.jwtService.sign(payload, {
+      secret: this.jwtRefreshSecret,
+      expiresIn: this.jwtRefreshExpiration as any,
+    });
+
+    // Clean websites for response (mask apiKey if not super admin)
+    const isSuperAdmin = roles.includes('Super Admin');
+    const websites = (rawWebsites || []).map((w: any) => {
+      const clone = { ...w };
+      if (!isSuperAdmin) {
+        clone.apiKey = '••••••••••••••••';
+      }
+      return clone;
+    });
+
+    return {
+      accessToken,
+      refreshToken,
+      websites,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar,
+        status: user.status,
+        roles,
+        customModules: user.customModules || [],
+        roleAssignments: user.roleAssignments.reduce((acc, curr) => {
+          const key = curr.isGlobal || !curr.websiteId ? 'all' : curr.websiteId;
+          acc[key] = curr.role;
+          return acc;
+        }, {} as Record<string, string>),
+      },
+    };
+  }
+
+  // ─── Google OAuth Sign-In (Strict Whitelist: existing users only) ───────────
+  async googleLogin(dto: GoogleLoginDto, ipAddress: string) {
+    if (!dto.credential) {
+      throw new BadRequestException('Google credential token is required');
+    }
+
+    // 1. Verify token with Google's OAuth2 verification endpoint (with 6s timeout)
+    let googleUser: any;
+    try {
+      const res = await fetch(
+        `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(dto.credential)}`,
+        { signal: AbortSignal.timeout(6000) },
+      );
+      if (!res.ok) {
+        const errData: any = await res.json().catch(() => ({}));
+        throw new UnauthorizedException(errData.error_description || 'Invalid Google credential token');
+      }
+      googleUser = await res.json();
+    } catch (err: any) {
+      if (err instanceof UnauthorizedException) throw err;
+      if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
+        throw new UnauthorizedException('Google authentication verification timed out. Please try again.');
+      }
+      throw new UnauthorizedException(`Failed to verify Google token: ${err.message}`);
+    }
+
+    // 2. Validate Token Issuer (iss)
+    if (
+      googleUser.iss !== 'accounts.google.com' &&
+      googleUser.iss !== 'https://accounts.google.com'
+    ) {
+      this.logger.warn(`Google token invalid issuer: ${googleUser.iss}`);
+      throw new UnauthorizedException('Invalid Google token issuer');
+    }
+
+    // 3. Validate Token Expiration (exp)
+    if (googleUser.exp && Number(googleUser.exp) < Math.floor(Date.now() / 1000)) {
+      throw new UnauthorizedException('Google token has expired');
+    }
+
+    const email = (googleUser.email || '').toLowerCase().trim();
+    const isEmailVerified = googleUser.email_verified === 'true' || googleUser.email_verified === true;
+
+    if (!email || !isEmailVerified) {
+      throw new UnauthorizedException('Google account email is not verified by Google');
+    }
+
+    // 4. Verify Google Client ID (aud) if configured in backend environment
+    const configuredClientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
+    if (configuredClientId) {
+      const allowedClientIds = configuredClientId.split(',').map((id) => id.trim()).filter(Boolean);
+      if (allowedClientIds.length > 0 && (!googleUser.aud || !allowedClientIds.includes(googleUser.aud))) {
+        this.logger.warn(
+          `Google token audience mismatch: expected one of [${allowedClientIds.join(', ')}], got ${googleUser.aud}`,
+        );
+        throw new UnauthorizedException('Google client ID mismatch');
+      }
+    }
+
+    // 2. STRICT WHITELIST: User MUST already exist in database
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      include: {
+        roleAssignments: {
+          include: { website: true },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new ForbiddenException(
+        `Access denied: No registered account found for "${email}". Only pre-registered team members can sign in with Google.`,
+      );
+    }
+
+    if (user.status !== 'active') {
+      throw new UnauthorizedException('This account has been suspended. Please contact your Super Admin.');
+    }
+
+    // 3. Success: Reset lockout, update IP, and AUTOMATICALLY sync latest Name & Avatar from Google
+    let jwtPayload: any = {};
+    try {
+      jwtPayload = this.jwtService.decode(dto.credential) || {};
+    } catch {
+      jwtPayload = {};
+    }
+
+    const syncName = (googleUser.name || jwtPayload.name || '').trim();
+    const syncAvatar = (
+      googleUser.picture ||
+      jwtPayload.picture ||
+      googleUser.avatar ||
+      jwtPayload.avatar ||
+      ''
+    ).trim();
+
+    this.logger.log(
+      `Google OAuth profile sync for ${email}: name="${syncName}", avatar="${syncAvatar ? syncAvatar.substring(0, 60) + '...' : 'none'}"`,
+    );
+
+    const cleanIp = (ipAddress || '').replace(/^::ffff:/, '').trim();
+    const updateData: any = {
+      lastLoginIp: cleanIp,
+      loginAttempts: 0,
+      lockoutUntil: null,
+    };
+    if (syncName) {
+      updateData.name = syncName;
+    }
+    if (syncAvatar) {
+      updateData.avatar = syncAvatar;
+    }
+
+    // 3. Success: Non-blocking parallel background bookkeeping (0-delay response)
+    const updatePromise = this.prisma.user.update({
+      where: { id: user.id },
+      data: updateData,
+      include: { roleAssignments: true },
+    });
+
+    const websitesPromise = (async () => {
+      try {
+        const cached = await this.redis.get<any[]>('admin:websites:all');
+        if (cached && Array.isArray(cached) && cached.length > 0) return cached;
+        if (this.prisma.website?.findMany) {
+          const sites = await this.prisma.website.findMany({
+            orderBy: { createdAt: 'asc' },
+            include: {
+              _count: {
+                select: { blogs: true, categories: true, tags: true },
+              },
+            },
+          });
+          await this.redis.set('admin:websites:all', sites, 300);
+          return sites;
+        }
+      } catch {}
+      return [];
+    })();
+
+    const [updatedUser, rawWebsites] = await Promise.all([updatePromise, websitesPromise]);
+
+    // Background cache purge and audit log
+    Promise.all([
+      this.redis.del(`auth:user:${user.id}`),
+      this.redis.del(`auth:profile:${user.id}`),
+      this.prisma.systemAuditLog.create({
+        data: {
+          userName: updatedUser.name,
+          role: updatedUser.roleAssignments[0]?.role || 'Staff Writer',
+          websiteId: 'system',
+          event: 'user.login.google',
+          ipAddress: cleanIp,
+          details: `User ${updatedUser.name} (${updatedUser.email}) signed in via Google OAuth from ${cleanIp || 'unknown'} (profile automatically synced).`,
+        },
+      }),
+    ]).catch((err) => {
+      this.logger.warn(`Post-google-login background update error: ${err.message}`);
+    });
+
+    const roles = user.roleAssignments.map((r) => r.role);
+    const payload = { sub: user.id, email: user.email, roles };
+
+    const accessToken = this.jwtService.sign(payload, {
+      secret: this.jwtSecret,
+      expiresIn: this.jwtExpiration as any,
+    });
+
+    const refreshToken = this.jwtService.sign(payload, {
+      secret: this.jwtRefreshSecret,
+      expiresIn: this.jwtRefreshExpiration as any,
+    });
+
+    const isSuperAdmin = roles.includes('Super Admin');
+    const websites = (rawWebsites || []).map((w: any) => {
+      const clone = { ...w };
+      if (!isSuperAdmin) {
+        clone.apiKey = '••••••••••••••••';
+      }
+      return clone;
+    });
+
+    return {
+      accessToken,
+      refreshToken,
+      websites,
+      user: {
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        avatar: updatedUser.avatar || '',
+        status: user.status,
+        roles,
+        customModules: user.customModules || [],
+        roleAssignments: user.roleAssignments.reduce((acc, curr) => {
+          const key = curr.isGlobal || !curr.websiteId ? 'all' : curr.websiteId;
+          acc[key] = curr.role;
+          return acc;
+        }, {} as Record<string, string>),
+      },
+    };
+  }
+
+  async refreshToken(dto: RefreshTokenDto) {
+    const tokenHash = crypto.createHash('sha256').update(dto.refreshToken).digest('hex');
+
+    // ── Step 1: Check if this refresh token has been revoked (logout or rotation) ──
+    const isRevoked = await this.redis.get<string>(`${REVOKED_TOKEN_PREFIX}${tokenHash}`);
+    if (isRevoked) {
+      // 30s Grace Period: allow in-flight parallel requests or other tabs to reuse fresh token
+      const cachedFresh = await this.redis.get<{ accessToken: string; refreshToken: string }>(`auth:grace:${tokenHash}`);
+      if (cachedFresh && typeof cachedFresh === 'object' && cachedFresh.accessToken) {
+        return cachedFresh;
+      }
+      throw new UnauthorizedException('Refresh token has been revoked. Please log in again.');
+    }
+
+    // ── Step 2: Verify signature and expiry ───────────────────────────────
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(dto.refreshToken, {
+        secret: this.jwtRefreshSecret,
+      });
+    } catch {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      include: { roleAssignments: true },
+    });
+
+    if (!user || user.status !== 'active') {
+      throw new UnauthorizedException('User account not found or suspended');
+    }
+
+    // ── Step 3: Revoke the OLD refresh token (token rotation — one-time use) ──
+    const refreshTtlSeconds = this.parseExpirationToSeconds(this.jwtRefreshExpiration);
+    await this.redis.set(
+      `${REVOKED_TOKEN_PREFIX}${tokenHash}`,
+      '1',
+      refreshTtlSeconds,
+    );
+
+    const roles = user.roleAssignments.map((r) => r.role);
+    const newPayload = { sub: user.id, email: user.email, roles };
+
+    const accessToken = this.jwtService.sign(newPayload, {
+      secret: this.jwtSecret,
+      expiresIn: this.jwtExpiration as any,
+    });
+
+    const newRefreshToken = this.jwtService.sign(newPayload, {
+      secret: this.jwtRefreshSecret,
+      expiresIn: this.jwtRefreshExpiration as any,
+    });
+
+    const result = { accessToken, refreshToken: newRefreshToken };
+    // Grace period cache: allow in-flight parallel requests / other tabs within 30s to reuse fresh tokens
+    await this.redis.set(`auth:grace:${tokenHash}`, result, 30);
+
+    return result;
+  }
+
+  /**
+   * Logout — invalidates the refresh token by adding its SHA-256 hash to
+   * the Redis revocation set. The entry auto-expires after the refresh token TTL.
+   * This prevents the token from being used for token rotation after logout.
+   */
+  async logout(dto: LogoutDto, userId: string) {
+    const tokenHash = crypto.createHash('sha256').update(dto.refreshToken).digest('hex');
+    const refreshTtlSeconds = this.parseExpirationToSeconds(this.jwtRefreshExpiration);
+
+    // Verify the token belongs to this user (prevent others from revoking tokens they don't own)
+    try {
+      const payload = this.jwtService.verify(dto.refreshToken, {
+        secret: this.jwtRefreshSecret,
+      });
+      if (payload.sub !== userId) {
+        throw new UnauthorizedException('Cannot revoke a token belonging to another user');
+      }
+    } catch (err: any) {
+      // If already expired, still mark as revoked so it can't be replayed before expiry window
+      if (err?.name !== 'TokenExpiredError') {
+        throw new UnauthorizedException('Invalid refresh token provided for logout');
+      }
+    }
+
+    await this.redis.set(`${REVOKED_TOKEN_PREFIX}${tokenHash}`, '1', refreshTtlSeconds);
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: 'User',
+        role: 'User',
+        websiteId: 'system',
+        event: 'user.logout',
+        ipAddress: '',
+        details: `User ${userId} logged out and revoked refresh token.`,
+      },
+    });
+
+    return { success: true, message: 'Logged out successfully. Refresh token revoked.' };
+  }
+
+  async getProfile(userId: string) {
+    const cacheKey = `auth:profile:${userId}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        avatar: true,
+        bio: true,
+        linkedinUrl: true,
+        twitterUrl: true,
+        status: true,
+        lastLoginIp: true,
+        customModules: true,
+        roleAssignments: {
+          select: {
+            isGlobal: true,
+            websiteId: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const profile = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      avatar: user.avatar,
+      bio: user.bio || '',
+      linkedinUrl: user.linkedinUrl || '',
+      twitterUrl: user.twitterUrl || '',
+      status: user.status,
+      lastLoginIp: user.lastLoginIp,
+      customModules: user.customModules || [],
+      roleAssignments: user.roleAssignments.reduce((acc, curr) => {
+        const key = curr.isGlobal || !curr.websiteId ? 'all' : curr.websiteId;
+        acc[key] = curr.role;
+        return acc;
+      }, {} as Record<string, string>),
+    };
+
+    // Cache profile for 60 seconds (0-delay for fast multi-tab navigations)
+    await this.redis.set(cacheKey, profile, 60);
+
+    return profile;
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto, ipAddress: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const isCurrentPasswordValid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+    if (!isCurrentPasswordValid) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+
+    if (dto.newPassword === dto.currentPassword) {
+      throw new BadRequestException('New password must be different from current password');
+    }
+
+    const newPasswordHash = await bcrypt.hash(dto.newPassword, 12);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: newPasswordHash },
+    });
+
+    await this.redis.del(`auth:profile:${userId}`);
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: user.name,
+        role: 'User',
+        websiteId: 'system',
+        event: 'user.password_changed',
+        ipAddress: ipAddress || '',
+        details: `User ${user.name} (${user.email}) changed their password.`,
+      },
+    });
+
+    return { success: true, message: 'Password changed successfully' };
+  }
+
+  async updateProfile(
+    userId: string,
+    dto: { name?: string; avatar?: string; bio?: string; linkedinUrl?: string; twitterUrl?: string },
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const updateData: any = {};
+    if (dto.name && dto.name.trim()) updateData.name = dto.name.trim();
+    if (dto.avatar !== undefined) updateData.avatar = dto.avatar.trim();
+    if (dto.bio !== undefined) updateData.bio = dto.bio.trim();
+    if (dto.linkedinUrl !== undefined) updateData.linkedinUrl = dto.linkedinUrl.trim();
+    if (dto.twitterUrl !== undefined) updateData.twitterUrl = dto.twitterUrl.trim();
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      include: { roleAssignments: true },
+    });
+
+    await this.redis.del(`auth:profile:${userId}`);
+    await this.redis.del(`auth:user:${userId}`);
+    await this.redis.delPattern('blog:*');
+    await this.redis.delPattern('blogs:*');
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      email: updated.email,
+      avatar: updated.avatar,
+      bio: updated.bio,
+      linkedinUrl: updated.linkedinUrl,
+      twitterUrl: updated.twitterUrl,
+      status: updated.status,
+      customModules: updated.customModules || [],
+      roleAssignments: updated.roleAssignments.reduce((acc, curr) => {
+        const key = curr.isGlobal || !curr.websiteId ? 'all' : curr.websiteId;
+        acc[key] = curr.role;
+        return acc;
+      }, {} as Record<string, string>),
+    };
+  }
+
+  async syncClientIp(userId: string, rawIp: string) {
+    if (!rawIp) return { success: false, message: 'IP is required' };
+    const cleanIp = rawIp.replace(/^::ffff:/, '').trim();
+    if (!cleanIp || cleanIp === '::1') return { success: false, message: 'Invalid IP' };
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { lastLoginIp: cleanIp },
+    });
+    await this.redis.del(`auth:profile:${userId}`);
+    await this.redis.del(`auth:user:${userId}`);
+    this.logger.log(`🌐 Synced client public IP for user ${userId}: ${cleanIp}`);
+    return { success: true, ip: cleanIp };
+  }
+
+  async uploadAvatar(userId: string, file: Express.Multer.File, ipAddress?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { roleAssignments: true },
+    });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (!file || !file.buffer) {
+      throw new BadRequestException('Image file buffer is required');
+    }
+
+    let webpBuffer: Buffer;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const sharpLib = require('sharp');
+      const sharpFn = (buf: Buffer) => (typeof sharpLib === 'function' ? sharpLib(buf) : sharpLib.default(buf));
+
+      // Convert any uploaded image to WebP (300x300 square crop, high quality)
+      webpBuffer = await sharpFn(file.buffer)
+        .rotate()
+        .resize(300, 300, { fit: 'cover', position: 'center' })
+        .webp({ quality: 85, effort: 4 })
+        .toBuffer();
+    } catch (err: any) {
+      throw new BadRequestException(`Invalid or corrupt image file: ${err.message}`);
+    }
+
+    const fileName = `avatar-${userId}-${Date.now()}.webp`;
+    const accessKey = this.configService.get<string>('AWS_ACCESS_KEY_ID') || '';
+    const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY') || '';
+    const bucket = this.configService.get<string>('AWS_S3_BUCKET') || 'blogary';
+    const isLiveS3 = Boolean(accessKey && secretAccessKey);
+
+    let avatarUrl = `/uploads/avatars/${fileName}`;
+
+    if (isLiveS3) {
+      // Pure S3 Upload (Cloud-native, zero disk storage)
+      try {
+        const region = this.configService.get<string>('AWS_REGION') || 'ap-south-1';
+        const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+        const s3 = new S3Client({ region, credentials: { accessKeyId: accessKey, secretAccessKey } });
+        await s3.send(new PutObjectCommand({
+          Bucket: bucket,
+          Key: `avatars/${fileName}`,
+          Body: webpBuffer,
+          ContentType: 'image/webp',
+          CacheControl: 'public, max-age=31536000, immutable',
+        }));
+        // Also upload alias under uploads/
+        await s3.send(new PutObjectCommand({
+          Bucket: bucket,
+          Key: `uploads/avatars/${fileName}`,
+          Body: webpBuffer,
+          ContentType: 'image/webp',
+          CacheControl: 'public, max-age=31536000, immutable',
+        }));
+        const envCdn = this.configService.get<string>('CLOUDFRONT_DOMAIN');
+        const s3Domain = `https://${bucket}.s3.${region}.amazonaws.com`;
+        avatarUrl = envCdn && !envCdn.includes('cdn.jupsoft.com')
+          ? `${envCdn.replace(/\/+$/, '')}/avatars/${fileName}`
+          : `${s3Domain}/avatars/${fileName}`;
+        this.logger.log(`☁️ Uploaded profile avatar directly to S3: avatars/${fileName}`);
+      } catch (err: any) {
+        this.logger.error(`❌ S3 upload failed for avatar: ${err.message}`);
+        throw err;
+      }
+    } else {
+      // Local dev fallback only
+      const uploadsDir = join(process.cwd(), 'uploads', 'avatars');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      const localFilePath = join(uploadsDir, fileName);
+      fs.writeFileSync(localFilePath, webpBuffer);
+      this.logger.log(`💾 Saved profile avatar locally (offline dev mode): ${fileName}`);
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { avatar: avatarUrl },
+      include: { roleAssignments: true },
+    });
+
+    // Cascade avatar update to all blogs authored by this user
+    const cleanName = updated.name.replace(/\s*\([^)]*(?:admin|editor|author|superadmin|user)[^)]*\)/gi, '').trim();
+    try {
+      await this.prisma.blog.updateMany({
+        where: {
+          OR: [
+            { authorId: userId },
+            { authorName: { equals: updated.name, mode: 'insensitive' } },
+            { authorName: { equals: cleanName, mode: 'insensitive' } },
+            ...(cleanName.toLowerCase().includes('sachin') ? [{ authorName: { contains: 'Sachin', mode: 'insensitive' as const } }] : []),
+          ],
+        },
+        data: { authorAvatar: avatarUrl },
+      });
+      this.logger.log(`🔄 Cascaded updated avatar to all blogs authored by ${updated.name} (${userId})`);
+    } catch (e: any) {
+      this.logger.warn(`Failed to cascade avatar to blogs: ${e.message}`);
+    }
+
+    await this.redis.del(`auth:user:${userId}`);
+    await this.redis.del(`auth:profile:${userId}`);
+    await this.redis.delPattern('blog:*');
+    await this.redis.delPattern('blogs:*');
+    await this.redis.delPattern('admin:blogs:*');
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: updated.name,
+        role: updated.roleAssignments[0]?.role || 'Staff Writer',
+        websiteId: 'system',
+        event: 'user.avatar_updated',
+        ipAddress: ipAddress || '',
+        details: `User ${updated.name} (${updated.email}) uploaded new profile photo (auto-converted to WebP, ${(webpBuffer.length / 1024).toFixed(1)} KB).`,
+      },
+    });
+
+    return {
+      success: true,
+      avatar: avatarUrl,
+      user: {
+        id: updated.id,
+        name: updated.name,
+        email: updated.email,
+        avatar: avatarUrl,
+        status: updated.status,
+      },
+    };
+  }
+
+  /**
+   * Secure Forgot Password Flow — Token Generation & Delivery (TRD §15 Security)
+   *
+   * Features:
+   * - Prevents user enumeration attacks: returns uniform generic response
+   * - Rate limiting via Redis (max 3 reset requests per 15 min per email)
+   * - Cryptographically secure random 32-byte hex token
+   * - SHA-256 token hashing for storage in Redis
+   * - 15-minute TTL expiration
+   * - Transactional email notification via EmailService
+   * - System audit log trace
+   */
+  async forgotPassword(
+    dto: ForgotPasswordDto,
+    clientIp: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const email = dto.email.trim().toLowerCase();
+    const genericResponse = {
+      success: true,
+      message: 'If that email address is registered, password reset instructions have been sent.',
+    };
+
+    // 1. Rate Limiting: Max 3 requests per 15 minutes per email
+    const rateLimitKey = `auth:pwd_reset_rate:${email}`;
+    const recentAttempts = (await this.redis.get<number>(rateLimitKey)) || 0;
+    if (recentAttempts >= 3) {
+      this.logger.warn(`[Forgot Password] Rate limit exceeded for email: ${email} from IP: ${clientIp}`);
+      throw new BadRequestException('Too many password reset attempts. Please wait 15 minutes before trying again.');
+    }
+    await this.redis.set(rateLimitKey, recentAttempts + 1, 900);
+
+    // 2. Lookup user (case-insensitive)
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      include: { roleAssignments: true },
+    });
+
+    if (!user || user.status !== 'active') {
+      this.logger.log(`[Forgot Password] Reset requested for non-existent or inactive email: ${email}`);
+      return genericResponse;
+    }
+
+    // 3. Cryptographically secure random token generation (32 bytes hex = 64 chars)
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const expiresInMinutes = 15;
+    const ttlSeconds = expiresInMinutes * 60;
+
+    // 4. Store hashed token in Redis with user metadata & 15m TTL
+    const resetKey = `auth:pwd_reset:${tokenHash}`;
+    await this.redis.set(
+      resetKey,
+      {
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        createdAt: new Date().toISOString(),
+      },
+      ttlSeconds,
+    );
+
+    // Invalidate any previous reset token for this user
+    const userPreviousTokenKey = `auth:pwd_reset_user:${user.id}`;
+    const previousTokenHash = await this.redis.get<string>(userPreviousTokenKey);
+    if (previousTokenHash) {
+      await this.redis.del(`auth:pwd_reset:${previousTokenHash}`);
+    }
+    await this.redis.set(userPreviousTokenKey, tokenHash, ttlSeconds);
+
+    // 5. Construct secure reset URL
+    const baseUrl = (
+      this.configService.get<string>('FRONTEND_URL') ||
+      this.configService.get<string>('PLATFORM_BASE_URL') ||
+      'https://blogary.jupsoft.com'
+    ).replace(/\/+$/, '');
+    const resetUrl = `${baseUrl}/reset-password?token=${rawToken}`;
+
+    // 6. Send transactional email
+    if (this.emailService) {
+      await this.emailService.sendPasswordResetEmail({
+        toEmail: user.email,
+        toName: user.name,
+        resetUrl,
+        expiresInMinutes,
+      });
+    } else {
+      this.logger.log(`[DEV EMAIL] Password reset URL for ${user.email}: ${resetUrl}`);
+    }
+
+    // 7. Audit log event
+    try {
+      await this.prisma.systemAuditLog.create({
+        data: {
+          userName: user.name,
+          role: user.roleAssignments[0]?.role || 'Staff',
+          websiteId: 'system',
+          event: 'auth.password_reset_requested',
+          ipAddress: clientIp || '',
+          details: `Password reset requested for ${user.email}. Token issued with ${expiresInMinutes}m expiry.`,
+        },
+      });
+    } catch (e: any) {
+      this.logger.warn(`Failed to write audit log for password reset request: ${e.message}`);
+    }
+
+    return genericResponse;
+  }
+
+  /**
+   * Validate Password Reset Token — Pre-flight check for UI form
+   */
+  async validateResetToken(
+    dto: ValidateResetTokenDto,
+  ): Promise<{ valid: boolean; message?: string }> {
+    if (!dto.token || !dto.token.trim()) {
+      return { valid: false, message: 'Password reset token is missing.' };
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(dto.token.trim()).digest('hex');
+    const record = await this.redis.get<{ userId: string; email: string }>(`auth:pwd_reset:${tokenHash}`);
+
+    if (!record) {
+      return { valid: false, message: 'Password reset link is invalid or has expired.' };
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Secure Password Update Validation & Reset Execution
+   *
+   * Validations:
+   * 1. Token validation: must match valid unexpired hash in Redis
+   * 2. Password complexity: min 8 chars, uppercase, lowercase, numeric/symbol
+   * 3. Account active status verification
+   * 4. History check: new password cannot equal existing password
+   * 5. Token consumption: immediately destroyed upon successful update (single-use)
+   * 6. Account unlock: resets loginAttempts to 0 and clears lockoutUntil
+   * 7. Cache eviction: invalidates cached user session and profile in Redis
+   */
+  async resetPassword(
+    dto: ResetPasswordDto,
+    clientIp: string,
+  ): Promise<{ success: boolean; message: string }> {
+    if (!dto.token || !dto.token.trim()) {
+      throw new BadRequestException('Reset token is required.');
+    }
+
+    // 1. Password Complexity Validation
+    const password = dto.newPassword;
+    if (!password || password.length < 8) {
+      throw new BadRequestException('New password must be at least 8 characters long.');
+    }
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasDigitOrSpecial = /[\d!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password);
+    if (!hasUpperCase || !hasLowerCase || !hasDigitOrSpecial) {
+      throw new BadRequestException(
+        'Password must contain at least one uppercase letter, one lowercase letter, and one number or special character.',
+      );
+    }
+
+    // 2. Validate Token in Redis
+    const tokenHash = crypto.createHash('sha256').update(dto.token.trim()).digest('hex');
+    const resetKey = `auth:pwd_reset:${tokenHash}`;
+    const record = await this.redis.get<{ userId: string; email: string; name: string }>(resetKey);
+
+    if (!record || !record.userId) {
+      throw new BadRequestException('Password reset link is invalid or has expired. Please request a new one.');
+    }
+
+    // 3. User verification
+    const user = await this.prisma.user.findUnique({
+      where: { id: record.userId },
+      include: { roleAssignments: true },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User account no longer exists.');
+    }
+
+    if (user.status !== 'active') {
+      throw new ForbiddenException('This account has been suspended. Please contact your system administrator.');
+    }
+
+    // 4. Same Password Check (Bcrypt comparison against current hash)
+    const isSamePassword = await bcrypt.compare(password, user.passwordHash);
+    if (isSamePassword) {
+      throw new BadRequestException('New password cannot be the same as your current password. Please choose a new password.');
+    }
+
+    // 5. Hash new password with 10 salt rounds
+    const newPasswordHash = await bcrypt.hash(password, 10);
+
+    // 6. Update user password and clear any lockout status
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash: newPasswordHash,
+        loginAttempts: 0,
+        lockoutUntil: null,
+      },
+    });
+
+    // 7. Single-use: Destroy token immediately from Redis
+    await this.redis.del(resetKey);
+    await this.redis.del(`auth:pwd_reset_user:${user.id}`);
+
+    // 8. Invalidate cached profile / session in Redis
+    await this.redis.del(`auth:user:${user.id}`);
+    await this.redis.del(`auth:profile:${user.id}`);
+
+    // 9. Audit Log
+    try {
+      await this.prisma.systemAuditLog.create({
+        data: {
+          userName: updated.name,
+          role: user.roleAssignments[0]?.role || 'Staff',
+          websiteId: 'system',
+          event: 'auth.password_reset_completed',
+          ipAddress: clientIp || '',
+          details: `Password reset successfully completed for user ${updated.email} (${updated.id}).`,
+        },
+      });
+    } catch (e: any) {
+      this.logger.warn(`Failed to write audit log for password reset completion: ${e.message}`);
+    }
+
+    this.logger.log(`🔑 Password successfully reset for user ${updated.email} (${updated.id})`);
+
+    return {
+      success: true,
+      message: 'Your password has been reset successfully. You can now log in with your new password.',
+    };
+  }
+
+  /**
+   * Parse expiration strings like '30d', '15m', '1h' into seconds for Redis TTL.
+   */
+  private parseExpirationToSeconds(exp: string): number {
+    const match = exp.match(/^(\d+)([smhd])$/);
+    if (!match) return 60 * 60 * 24 * 30; // default 30 days
+    const value = parseInt(match[1], 10);
+    const unit = match[2];
+    const multipliers: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
+    return value * (multipliers[unit] || 1);
+  }
+}

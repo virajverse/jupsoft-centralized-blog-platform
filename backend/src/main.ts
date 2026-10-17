@@ -1,0 +1,345 @@
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe, Logger } from '@nestjs/common';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
+import * as fs from 'fs';
+import { AppModule } from './app.module';
+import helmet from 'helmet';
+import { JsonLogger } from './common/logger/json-logger';
+import { PrismaService } from './prisma/prisma.service';
+
+async function bootstrap() {
+  const nodeEnv = process.env.NODE_ENV || 'development';
+  // TRD §18: Use structured JSON logger in production for CloudWatch Logs Insights
+  const appLogger = nodeEnv === 'production' ? new JsonLogger('jupsoft-cms') : undefined;
+  const logger = new Logger('JupsoftCmsBootstrap');
+
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true,
+    logger: appLogger ?? ['error', 'warn', 'log', 'debug'],
+  });
+
+  const configService = app.get(ConfigService);
+  const port = configService.get<number>('PORT') || 4000;
+
+  // Enable trust proxy so Express parses X-Forwarded-For, X-Real-IP, etc. from reverse proxies (Cloudflare, Nginx, ALB)
+  app.set('trust proxy', true);
+
+  // Real Client IP extraction middleware: prioritize Cloudflare CF-Connecting-IP, X-Real-IP, X-Client-Public-IP, X-Forwarded-For
+  // and strip ugly IPv4-mapped IPv6 ::ffff: prefixes
+  app.use((req: any, _res: any, next: any) => {
+    const cfIp = req.headers['cf-connecting-ip'];
+    const clientPublicIp = req.headers['x-client-public-ip'];
+    const realIp = req.headers['x-real-ip'];
+    const forwardedFor = req.headers['x-forwarded-for'];
+
+    let detected: string = (cfIp || realIp || clientPublicIp) as string;
+    if (!detected && forwardedFor) {
+      const list = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
+      detected = list.split(',')[0].trim();
+    }
+    if (!detected) {
+      detected = req.ip || req.socket?.remoteAddress || '127.0.0.1';
+    }
+
+    if (typeof detected === 'string') {
+      detected = detected.replace(/^::ffff:/, '').trim();
+      if (detected === '::1') detected = '127.0.0.1';
+      // If direct connection is loopback/internal but client provided public IP header
+      if ((detected === '127.0.0.1' || detected === 'localhost') && clientPublicIp && typeof clientPublicIp === 'string') {
+        const cleanClientIp = clientPublicIp.replace(/^::ffff:/, '').trim();
+        if (cleanClientIp && cleanClientIp !== '127.0.0.1' && cleanClientIp !== '::1') {
+          detected = cleanClientIp;
+        }
+      }
+      try {
+        Object.defineProperty(req, 'ip', {
+          value: detected,
+          configurable: true,
+          writable: true,
+        });
+      } catch {
+        req.ip = detected;
+      }
+    }
+    next();
+  });
+
+  // 1. Static Assets — Local Media Storage (/uploads)
+  const uploadsDir = join(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  app.useStaticAssets(uploadsDir, {
+    prefix: '/uploads/',
+  });
+  // Fallback for missing images in /uploads so browsers / ORB never block with 500 or JSON error
+  app.use('/uploads', (req: any, res: any, next: any) => {
+    if (req.method === 'GET' && /\.(webp|png|jpe?g|gif|svg)$/i.test(req.path)) {
+      res.setHeader('Content-Type', 'image/svg+xml');
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      return res.status(200).send(
+        `<svg width="300" height="200" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="#f1f5f9"/><text x="50%" y="50%" font-size="14" fill="#94a3b8" font-family="sans-serif" font-weight="600" text-anchor="middle" dy=".3em">Asset Not Found</text></svg>`
+      );
+    }
+    next();
+  });
+  logger.log(`📁 Static assets mounted: /uploads -> ${uploadsDir}`);
+
+  // 1.B Static Assets — Universal Embed Widget (/widget)
+  const widgetDir = join(process.cwd(), 'public', 'widget');
+  if (fs.existsSync(widgetDir)) {
+    app.useStaticAssets(widgetDir, {
+      prefix: '/widget/',
+    });
+    logger.log(`📁 Universal widget mounted: /widget -> ${widgetDir}`);
+  }
+
+  // Increase body parser limits for rich multi-language blog posts and media payloads (native Nest method)
+  app.useBodyParser('json', { limit: '25mb' });
+  app.useBodyParser('urlencoded', { limit: '25mb', extended: true });
+
+  // 2. Helmet — HTTP Security Headers
+  app.use(
+    helmet({
+      crossOriginEmbedderPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      contentSecurityPolicy: nodeEnv === 'production' ? undefined : false,
+    }),
+  );
+
+  // 3. CORS — Dynamic Multi-Tenant Whitelist (TRD §15)
+  const rawAllowedOrigins = configService.get<string>('ALLOWED_ORIGINS') || '';
+  const allowAllOrigins = rawAllowedOrigins.trim() === '*' || rawAllowedOrigins.split(',').map((s) => s.trim()).includes('*');
+  const staticAllowedOrigins = new Set(
+    (
+      rawAllowedOrigins ||
+      'https://blogary.jupsoft.com,http://blogary.jupsoft.com,https://cms.jupsoft.com,https://api.cms.jupsoft.com,https://cloud.jupsoft.com,https://jupsoft.com,https://digifynext.com,https://www.digifynext.com,https://schoolerp.in'
+    )
+      .split(',')
+      .map((o) => o.trim().toLowerCase().replace(/\/+$/, '')),
+  );
+
+  // Dynamic In-Memory Cache for registered tenant domains (Zero DB query overhead)
+  const prisma = app.get(PrismaService);
+  let activeTenantDomains = new Set<string>();
+  let lastTenantFetch = 0;
+  // Negative CORS cache: track recently-rejected origins to avoid DB hammering by bots/scanners
+  const rejectedOriginsCache = new Map<string, number>(); // origin → rejectedAt timestamp
+  const REJECTED_ORIGIN_TTL_MS = 60_000; // 60 seconds TTL for negative cache
+
+  async function getTenantDomains(): Promise<Set<string>> {
+    const now = Date.now();
+    if (now - lastTenantFetch > 60_000 || activeTenantDomains.size === 0) {
+      try {
+        const websites = await prisma.website.findMany({
+          where: { status: 'active' },
+          select: { domain: true },
+        });
+        const domains = new Set<string>();
+        for (const w of websites) {
+          if (w.domain) {
+            const cleanDomain = w.domain.toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+            domains.add(cleanDomain);
+            if (!cleanDomain.startsWith('www.')) {
+              domains.add('www.' + cleanDomain);
+            }
+          }
+        }
+        activeTenantDomains = domains;
+        lastTenantFetch = now;
+      } catch (err) {
+        logger.warn(`Could not refresh tenant CORS domains from database: ${(err as Error).message}`);
+      }
+    }
+    return activeTenantDomains;
+  }
+
+  // Pre-fetch active domains at server startup
+  await getTenantDomains().catch(() => {});
+
+  app.enableCors({
+    origin: async (origin, callback) => {
+      // 1. Allow non-browser requests (cURL, server-to-server, SSR/ISR, webhooks) or wildcard
+      if (!origin || allowAllOrigins) return callback(null, true);
+
+      const normalizedOrigin = origin.toLowerCase().replace(/\/+$/, '');
+
+      // 2. Allow local files (c:///, file:///, null origin from double-clicking local HTML files)
+      if (
+        origin === 'null' ||
+        normalizedOrigin === 'null' ||
+        normalizedOrigin.startsWith('file:') ||
+        normalizedOrigin.includes('c:/') ||
+        normalizedOrigin.includes('c:\\') ||
+        normalizedOrigin.startsWith('c:')
+      ) {
+        return callback(null, true);
+      }
+
+      // 3. Allow localhost & 127.0.0.1 on ANY port (http/https)
+      try {
+        const parsed = new URL(origin);
+        const host = parsed.hostname.toLowerCase();
+        if (
+          host === 'localhost' ||
+          host === '127.0.0.1' ||
+          host === '0.0.0.0' ||
+          host === '::1' ||
+          host.endsWith('.localhost')
+        ) {
+          return callback(null, true);
+        }
+      } catch {
+        if (
+          normalizedOrigin.includes('localhost') ||
+          normalizedOrigin.includes('127.0.0.1')
+        ) {
+          return callback(null, true);
+        }
+      }
+
+      // Fast negative cache check: skip DB query for origins recently rejected (DoS mitigation)
+      const rejectedAt = rejectedOriginsCache.get(normalizedOrigin);
+      if (rejectedAt && Date.now() - rejectedAt < REJECTED_ORIGIN_TTL_MS) {
+        return callback(null, false);
+      }
+
+      // 4. Instant check for platform domain (*.jupsoft.com, blogary.jupsoft.com, static origins)
+      if (
+        normalizedOrigin.includes('blogary.jupsoft.com') ||
+        normalizedOrigin.endsWith('.jupsoft.com') ||
+        normalizedOrigin === 'https://jupsoft.com' ||
+        normalizedOrigin === 'http://jupsoft.com' ||
+        staticAllowedOrigins.has(normalizedOrigin)
+      ) {
+        return callback(null, true);
+      }
+
+      // 5. Dynamic check for registered tenant websites in database (O(1) memory lookup)
+      try {
+        let hostname = '';
+        try {
+          const parsed = new URL(origin);
+          hostname = parsed.hostname.toLowerCase();
+        } catch {
+          hostname = normalizedOrigin.replace(/^https?:\/\//, '');
+        }
+
+        if (
+          hostname.endsWith('.jupsoft.com') ||
+          hostname === 'jupsoft.com' ||
+          hostname.endsWith('.netlify.app') ||
+          hostname.endsWith('.vercel.app')
+        ) {
+          return callback(null, true);
+        }
+
+        const tenantDomains = await getTenantDomains();
+        if (tenantDomains.has(hostname) || tenantDomains.has(normalizedOrigin.replace(/^https?:\/\//, ''))) {
+          return callback(null, true);
+        }
+
+        // 6. Cache-miss fallback: if a tenant domain was just added seconds ago in Admin UI
+        const exists = await prisma.website.findFirst({
+          where: {
+            status: 'active',
+            domain: { equals: hostname, mode: 'insensitive' },
+          },
+          select: { id: true },
+        });
+
+        if (exists) {
+          activeTenantDomains.add(hostname);
+          return callback(null, true);
+        }
+      } catch (err) {
+        logger.warn(`Dynamic CORS check error: ${(err as Error).message}`);
+      }
+
+      // Rejected: add to negative cache to prevent repeated DB queries for this bad origin
+      rejectedOriginsCache.set(normalizedOrigin, Date.now());
+      // Cleanup old entries periodically (keep map small)
+      if (rejectedOriginsCache.size > 500) {
+        const cutoff = Date.now() - REJECTED_ORIGIN_TTL_MS;
+        for (const [k, v] of rejectedOriginsCache) {
+          if (v < cutoff) rejectedOriginsCache.delete(k);
+        }
+      }
+      logger.warn(`CORS rejected origin: ${origin}`);
+      return callback(null, false);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'x-api-key',
+      'api-key',
+      'apikey',
+      'x-website-id',
+      'website-id',
+      'x-signature',
+      'x-timestamp',
+      'x-tenant-id',
+      'X-Tenant-ID',
+      'Accept',
+      'Cache-Control',
+      'Pragma',
+    ],
+  });
+
+  // 3. Global Validation Pipe — whitelist strips unknown fields, forbidNonWhitelisted DISABLED in production
+  // Reason: forbidNonWhitelisted causes 400 on any DTO mismatch (e.g. frontend ahead of backend after deploy)
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,              // Strip undeclared fields silently (safe)
+      transform: true,
+      forbidNonWhitelisted: false,  // Do NOT reject requests with extra fields — strip them instead
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
+
+  // 4. Swagger — FIX 14: available in all envs, gated by SWAGGER_API_KEY in production
+  const swaggerApiKey = configService.get<string>('SWAGGER_API_KEY');
+  const enableSwagger = nodeEnv !== 'production' || Boolean(swaggerApiKey);
+
+  if (enableSwagger) {
+    const config = new DocumentBuilder()
+      .setTitle('Jupsoft Multi-Site Centralized Blog CMS API')
+      .setDescription('Production-grade RESTful API engine.')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+
+    const document = SwaggerModule.createDocument(app, config);
+
+    if (nodeEnv === 'production' && swaggerApiKey) {
+      app.use('/api/docs', (req: any, res: any, next: any) => {
+        const key = req.query?.api_key || req.headers?.['x-swagger-key'];
+        if (key !== swaggerApiKey) {
+          res.status(401).json({ message: 'Swagger requires ?api_key=<SWAGGER_API_KEY>' });
+          return;
+        }
+        next();
+      });
+    }
+
+    SwaggerModule.setup('api/docs', app, document, {
+      customSiteTitle: 'Jupsoft CMS API Documentation',
+    });
+    logger.log('Swagger docs: http://localhost:' + port + '/api/docs');
+  }
+
+  // Enable graceful shutdown hooks for PM2 SIGTERM / SIGINT
+  app.enableShutdownHooks();
+
+  await app.listen(port);
+  logger.log('Jupsoft CMS Backend running on port ' + port + ' [' + nodeEnv + ']');
+  logger.log('Admin API: http://localhost:' + port + '/admin');
+  logger.log('Public V1 API: http://localhost:' + port + '/v1');
+}
+
+bootstrap();

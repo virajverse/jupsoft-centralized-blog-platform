@@ -1,0 +1,687 @@
+'use client';
+
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useBlogStore } from '../../store/useBlogStore';
+import { useShallow } from 'zustand/react/shallow';
+import { useQueryState } from '../../hooks/useQueryState';
+import { 
+  UploadCloud, 
+  Copy, 
+  Check, 
+  Trash2, 
+  Image as ImageIcon,
+  X,
+  RefreshCw,
+  Pencil,
+  Loader2
+} from 'lucide-react';
+import { MediaItem } from '../../types';
+import { apiClient } from '../../services/apiClient';
+import { resolveMediaUrl, extractS3Key } from '../../utils/mediaUtils';
+import { DeleteConfirmModal } from '../common/DeleteConfirmModal';
+
+export const MediaLibraryView: React.FC = () => {
+  const searchParams = useSearchParams();
+  const { setParam } = useQueryState();
+
+  const { 
+    media, 
+    activeWebsiteId, 
+    websites, 
+    blogs,
+    addMediaItem, 
+    deleteMediaItem,
+    updateMediaItem,
+    activeRole,
+    fetchMedia,
+    fetchBlogs,
+    setActiveWebsite,
+  } = useBlogStore(
+    useShallow((s) => ({
+      media: s.media,
+      activeWebsiteId: s.activeWebsiteId,
+      websites: s.websites,
+      blogs: s.blogs,
+      addMediaItem: s.addMediaItem,
+      deleteMediaItem: s.deleteMediaItem,
+      updateMediaItem: s.updateMediaItem,
+      activeRole: s.activeRole,
+      fetchMedia: s.fetchMedia,
+      fetchBlogs: s.fetchBlogs,
+      setActiveWebsite: s.setActiveWebsite,
+    }))
+  );
+
+  // URL query state
+  const siteParam = searchParams.get('site');
+  const tenantParam = searchParams.get('tenant');
+  const viewParam = searchParams.get('view');
+
+  const effectiveSiteId = siteParam && (siteParam === 'all' || websites.some((w) => w.id === siteParam))
+    ? siteParam
+    : activeWebsiteId;
+
+  const isAllSites = effectiveSiteId === 'all';
+  const [isLoadingMedia, setIsLoadingMedia] = useState(true);
+  const [deletingMediaId, setDeletingMediaId] = useState<string | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    mediaId?: string;
+    mediaName?: string;
+  }>({ isOpen: false });
+
+  useEffect(() => {
+    let active = true;
+    if (siteParam && siteParam !== activeWebsiteId && (siteParam === 'all' || websites.some((w) => w.id === siteParam))) {
+      queueMicrotask(() => setActiveWebsite(siteParam));
+    }
+    queueMicrotask(() => {
+      if (active) setIsLoadingMedia(true);
+    });
+    fetchMedia(effectiveSiteId).finally(() => {
+      if (active) setIsLoadingMedia(false);
+    });
+    // Ensure blogs are available for header/sidebar counts even if entering via direct /media link
+    if (useBlogStore.getState().blogs.length === 0) {
+      fetchBlogs(effectiveSiteId);
+    }
+    return () => { active = false; };
+  }, [effectiveSiteId, siteParam, activeWebsiteId, websites, setActiveWebsite, fetchMedia, fetchBlogs]);
+
+  const handleSyncMedia = async () => {
+    setIsLoadingMedia(true);
+    try {
+      await Promise.allSettled([
+        fetchMedia(effectiveSiteId),
+        fetchBlogs(effectiveSiteId),
+      ]);
+    } finally {
+      setIsLoadingMedia(false);
+    }
+  };
+
+  const handleDeleteMedia = (id: string, name?: string) => {
+    if (deletingMediaId) return;
+    setDeleteModal({
+      isOpen: true,
+      mediaId: id,
+      mediaName: name || 'Selected asset',
+    });
+  };
+
+  const handleConfirmDeleteMedia = async () => {
+    if (!deleteModal.mediaId) return;
+    setDeletingMediaId(deleteModal.mediaId);
+    try {
+      await deleteMediaItem(deleteModal.mediaId);
+      setDeleteModal({ isOpen: false });
+    } finally {
+      setDeletingMediaId(null);
+    }
+  };
+
+  // Derive target site directly from URL state
+  const targetSiteId = (tenantParam && websites.some((w) => w.id === tenantParam))
+    ? tenantParam
+    : (isAllSites ? websites[0]?.id : effectiveSiteId);
+
+  const activeSite = websites.find((w) => w.id === (isAllSites ? targetSiteId : effectiveSiteId)) || websites[0];
+  
+  // Deduplicate by item.id so duplicate keys never occur in DOM
+  const siteMedia = useMemo(() => {
+    const raw = isAllSites 
+      ? (tenantParam && tenantParam !== 'all' ? media.filter((m) => m.websiteId === tenantParam) : media) 
+      : media.filter((m) => m.websiteId === effectiveSiteId);
+    const seen = new Set<string>();
+    return raw.filter((item) => {
+      if (!item?.id || seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+  }, [isAllSites, tenantParam, media, effectiveSiteId]);
+
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Helper to extract base name without extension
+  const getBaseName = (name?: string) => {
+    if (!name) return '';
+    return name.replace(/\.[^/.]+$/, '');
+  };
+
+  // Rename states
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState<string>('');
+  const [isRenaming, setIsRenaming] = useState(false);
+
+  // Inspector modal edit states
+  const [inspectorFileName, setInspectorFileName] = useState('');
+  const [inspectorAltText, setInspectorAltText] = useState('');
+  const [isSavingInspector, setIsSavingInspector] = useState(false);
+  const [inspectorSaved, setInspectorSaved] = useState(false);
+
+  const inspectedItem = viewParam ? media.find((m) => m.id === viewParam) : null;
+
+  useEffect(() => {
+    if (inspectedItem) {
+      setInspectorFileName(getBaseName(inspectedItem.fileName));
+      setInspectorAltText(inspectedItem.altText || '');
+      setInspectorSaved(false);
+    }
+  }, [inspectedItem]);
+
+  const copyCdnUrl = (id: string, url: string) => {
+    navigator.clipboard.writeText(url);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleSaveRename = async (id: string, baseName: string) => {
+    const cleanBase = baseName.trim().replace(/\.[^/.]+$/, '');
+    if (!cleanBase) return;
+    setIsRenaming(true);
+    try {
+      await updateMediaItem(id, { fileName: `${cleanBase}.webp` });
+      setRenamingId(null);
+    } catch (err) {
+      console.error('Failed to rename media item:', err);
+    } finally {
+      setIsRenaming(false);
+    }
+  };
+
+  const handleSaveInspector = async () => {
+    if (!inspectedItem) return;
+    const cleanBase = inspectorFileName.trim().replace(/\.[^/.]+$/, '');
+    if (!cleanBase) return;
+    setIsSavingInspector(true);
+    try {
+      await updateMediaItem(inspectedItem.id, {
+        fileName: `${cleanBase}.webp`,
+        altText: inspectorAltText.trim(),
+      });
+      setInspectorSaved(true);
+      setTimeout(() => setInspectorSaved(false), 2500);
+    } catch (err) {
+      console.error('Failed to update media item:', err);
+    } finally {
+      setIsSavingInspector(false);
+    }
+  };
+
+  // TRD §10: Hybrid upload pipeline (Server-side sharp WebP with client-side canvas fallback)
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setProcessing(true);
+    const uploadSiteId = isAllSites ? targetSiteId : activeWebsiteId;
+    const cleanName = file.name.replace(/\.[^/.]+$/, '') + '.webp';
+
+    try {
+      // Step 1: Attempt server-side WebP pipeline via NestJS backend (TRD §10)
+      const res = await apiClient.uploadMedia(file, uploadSiteId, cleanName);
+      if (res && res.cdnUrl) {
+        const newItem: MediaItem = {
+          id: res.id || `med-${Date.now()}`,
+          websiteId: uploadSiteId,
+          fileName: res.fileName || cleanName,
+          fileType: 'image/webp',
+          fileSizeBytes: res.fileSizeBytes || file.size,
+          s3Key: extractS3Key(res.s3Key || res.cdnUrl),
+          cdnUrl: resolveMediaUrl(res.cdnUrl),
+          altText: cleanName.replace(/[-_]/g, ' ').replace('.webp', ''),
+          dimensions: res.dimensions || { width: 800, height: 600 },
+          uploadedBy: activeRole,
+          createdAt: new Date().toISOString(),
+        };
+        addMediaItem(newItem);
+        setParam('view', newItem.id);
+        setProcessing(false);
+        e.target.value = '';
+        return;
+      }
+    } catch (apiErr) {
+      console.warn('Backend media upload failed, falling back to browser canvas conversion:', apiErr);
+    }
+
+    // Step 2: Fallback to client-side canvas WebP conversion
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Create canvas for WebP conversion
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          // Real WebP encoding
+          const webpDataUrl = canvas.toDataURL('image/webp', 0.88);
+          const head = 'data:image/webp;base64,';
+          const sizeInBytes = Math.round((webpDataUrl.length - head.length) * 3 / 4);
+
+          const now = new Date();
+          const yyyy = now.getFullYear();
+          const mm = String(now.getMonth() + 1).padStart(2, '0');
+          const cleanName = file.name.replace(/\.[^/.]+$/, '') + '.webp';
+
+          const uploadSiteId = isAllSites ? targetSiteId : activeWebsiteId;
+          const uploadSite = websites.find((w) => w.id === uploadSiteId) || websites[0];
+
+          const newItem: MediaItem = {
+            id: `med-${Date.now()}`,
+            websiteId: uploadSiteId,
+            fileName: cleanName,
+            fileType: 'image/webp',
+            fileSizeBytes: sizeInBytes,
+            s3Key: `blogs/${uploadSite.s3Prefix}/${yyyy}/${mm}/${cleanName}`,
+            cdnUrl: webpDataUrl,
+            altText: cleanName.replace(/[-_]/g, ' ').replace('.webp', ''),
+            dimensions: { width: img.width, height: img.height },
+            uploadedBy: activeRole,
+            createdAt: new Date().toISOString(),
+          };
+
+          addMediaItem(newItem);
+          setParam('view', newItem.id);
+        }
+        setProcessing(false);
+      };
+      img.src = event.target?.result as string;
+    };
+
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  return (
+    <div className="w-full space-y-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+              Media Asset Manager
+            </h1>
+            <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700">
+              {isAllSites ? 'All Websites' : (activeSite?.name || 'Website')}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSyncMedia}
+            disabled={isLoadingMedia || processing}
+            className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium text-xs transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+            title="Refresh media library from server"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoadingMedia ? 'animate-spin text-red-500' : ''}`} />
+            <span>{isLoadingMedia ? 'Syncing files...' : 'Refresh media'}</span>
+          </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept="image/*"
+            className="hidden"
+          />
+          <button
+            disabled={processing}
+            onClick={() => fileInputRef.current?.click()}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 font-bold text-xs shadow-xs transition-colors cursor-pointer"
+          >
+            {processing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
+            <span>{processing ? 'Processing WebP...' : 'Upload Image File'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Multi-Tenant Filter Pills (Only in All Websites scope) */}
+      {isAllSites && (
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+          <button
+            type="button"
+            onClick={() => setParam('tenant', null)}
+            className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+              !tenantParam || tenantParam === 'all'
+                ? 'bg-red-600 text-white border-red-600 shadow-xs'
+                : 'bg-white dark:bg-[#0f172a] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            All Sites ({media.length})
+          </button>
+          {websites.map((site) => {
+            const siteCount = media.filter((m) => m.websiteId === site.id).length;
+            const isSelected = tenantParam === site.id;
+            return (
+              <button
+                key={site.id}
+                type="button"
+                onClick={() => setParam('tenant', site.id)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                  isSelected
+                    ? 'bg-red-600 text-white border-red-600 shadow-xs'
+                    : 'bg-white dark:bg-[#0f172a] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                {site.name} ({siteCount})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Media Grid or Real Empty State */}
+      {isLoadingMedia ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {[...Array(8)].map((_, i) => (
+            <div
+              key={i}
+              className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-hidden flex flex-col shadow-xs animate-pulse"
+            >
+              <div className="aspect-video bg-slate-200 dark:bg-slate-800" />
+              <div className="p-3.5 space-y-3 flex-1 flex flex-col justify-between">
+                <div className="space-y-1.5">
+                  <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-3/4" />
+                  <div className="h-2.5 bg-slate-100 dark:bg-slate-850 rounded w-1/2" />
+                </div>
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <div className="h-2.5 bg-slate-200 dark:bg-slate-800 rounded w-12" />
+                  <div className="w-5 h-5 bg-slate-200 dark:bg-slate-800 rounded" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : siteMedia.length === 0 ? (
+        <div className="bg-white dark:bg-[#0f172a] border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-16 text-center space-y-3 shadow-xs">
+          <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 mx-auto">
+            <ImageIcon className="w-6 h-6" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">No media uploaded yet</h3>
+          </div>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs cursor-pointer"
+          >
+            Upload Image
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {siteMedia.map((item) => {
+            const itemSite = websites.find((w) => w.id === item.websiteId);
+            return (
+              <div
+                key={item.id}
+                onClick={() => setParam('view', item.id)}
+                className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-hidden flex flex-col group shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all cursor-pointer"
+              >
+                <div className="aspect-video bg-slate-100 dark:bg-slate-900 relative overflow-hidden">
+                  <img
+                    src={resolveMediaUrl(item.cdnUrl)}
+                    alt={item.altText}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/70 text-[10px] text-white font-mono font-medium">
+                    WebP
+                  </span>
+                  <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/70 text-[10px] text-slate-200 font-mono">
+                    {item.dimensions ? `${item.dimensions.width}×${item.dimensions.height}` : 'WebP'}
+                  </span>
+                </div>
+
+                <div className="p-3.5 space-y-2 flex-1 flex flex-col justify-between">
+                  <div>
+                    {isAllSites && itemSite && (
+                      <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 inline-block mb-1">
+                        {itemSite.name}
+                      </span>
+                    )}
+                    {renamingId === item.id ? (
+                      <div className="space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center rounded-md border border-indigo-500 bg-white dark:bg-slate-900 overflow-hidden focus-within:ring-1 focus-within:ring-indigo-500 shadow-2xs">
+                          <input
+                            type="text"
+                            value={renameValue}
+                            autoFocus
+                            disabled={isRenaming}
+                            onChange={(e) => setRenameValue(e.target.value.replace(/\.webp$/i, ''))}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveRename(item.id, renameValue);
+                              if (e.key === 'Escape') setRenamingId(null);
+                            }}
+                            className="w-full text-xs font-semibold px-2 py-1 bg-transparent text-slate-900 dark:text-white font-mono focus:outline-none min-w-0"
+                          />
+                          <span className="px-1.5 py-1 text-[11px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 select-none border-l border-slate-200 dark:border-slate-700 shrink-0">
+                            .webp
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={isRenaming || !renameValue.trim()}
+                            onClick={() => handleSaveRename(item.id, renameValue)}
+                            className="px-2 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-bold hover:bg-indigo-700 flex items-center gap-1 disabled:opacity-50 cursor-pointer shadow-xs"
+                          >
+                            {isRenaming ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Check className="w-2.5 h-2.5" />}
+                            <span>Save</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isRenaming}
+                            onClick={() => setRenamingId(null)}
+                            className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-medium hover:bg-slate-300 dark:hover:bg-slate-700 cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <h4 className="text-xs font-semibold text-slate-900 dark:text-white truncate" title={item.fileName}>
+                          {item.fileName}
+                        </h4>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 italic truncate mt-0.5">
+                          &quot;{item.altText}&quot;
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                    <span className="font-mono">{(item.fileSizeBytes / 1024).toFixed(0)} KB</span>
+                    <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => {
+                          setRenamingId(item.id);
+                          setRenameValue(getBaseName(item.fileName));
+                        }}
+                        className="p-1 rounded-md text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer"
+                        title="Rename media file"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => copyCdnUrl(item.id, resolveMediaUrl(item.cdnUrl))}
+                        className="p-1 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                        title="Copy image URL"
+                      >
+                        {copiedId === item.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                      <button
+                        disabled={deletingMediaId === item.id}
+                        onClick={() => handleDeleteMedia(item.id, item.fileName || item.altText)}
+                        className="p-1 rounded-md text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer disabled:opacity-50"
+                        title="Delete image"
+                      >
+                        <Trash2 className={`w-3.5 h-3.5 ${deletingMediaId === item.id ? 'animate-spin text-rose-500' : ''}`} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Image Inspector Modal - URL bound (?view=[id]) */}
+      {inspectedItem && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-100">
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl animate-in zoom-in-95 duration-100">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-slate-500" />
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Media Asset Details</h3>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                  {inspectedItem.fileType}
+                </span>
+              </div>
+              <button
+                onClick={() => setParam('view', null)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 aspect-video flex items-center justify-center">
+                <img
+                  src={resolveMediaUrl(inspectedItem.cdnUrl)}
+                  alt={inspectedItem.altText}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-slate-600 dark:text-slate-300 font-semibold">
+                      File Name (Rename)
+                    </label>
+                    {inspectorSaved && (
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                        <Check className="w-3 h-3" /> Saved
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 shadow-2xs">
+                    <input
+                      type="text"
+                      value={inspectorFileName}
+                      disabled={isSavingInspector}
+                      onChange={(e) => {
+                        setInspectorFileName(e.target.value.replace(/\.webp$/i, ''));
+                        setInspectorSaved(false);
+                      }}
+                      placeholder="Enter file name..."
+                      className="w-full text-xs font-semibold px-2.5 py-1.5 bg-transparent text-slate-900 dark:text-white font-mono focus:outline-none min-w-0"
+                    />
+                    <span className="px-2.5 py-1.5 text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 select-none border-l border-slate-200 dark:border-slate-700 shrink-0">
+                      .webp
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-slate-600 dark:text-slate-300 font-semibold block mb-1">
+                    Alt Text / Description
+                  </label>
+                  <input
+                    type="text"
+                    value={inspectorAltText}
+                    disabled={isSavingInspector}
+                    onChange={(e) => {
+                      setInspectorAltText(e.target.value);
+                      setInspectorSaved(false);
+                    }}
+                    placeholder="Image description or alt text..."
+                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <button
+                    type="button"
+                    disabled={isSavingInspector || !inspectorFileName.trim()}
+                    onClick={handleSaveInspector}
+                    className="w-full py-1.5 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+                  >
+                    {isSavingInspector ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : inspectorSaved ? (
+                      <Check className="w-3.5 h-3.5 text-white" />
+                    ) : (
+                      <Pencil className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isSavingInspector ? 'Saving...' : inspectorSaved ? 'Saved Successfully' : 'Save Name & Alt Text'}</span>
+                  </button>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200/80 dark:border-slate-800 space-y-2">
+                  <div>
+                    <span className="text-slate-500 dark:text-slate-400 block font-medium">Resolution &amp; Size</span>
+                    <div className="text-slate-900 dark:text-white font-mono text-[11px]">
+                      {inspectedItem.dimensions ? `${inspectedItem.dimensions.width} × ${inspectedItem.dimensions.height} px · ` : ''}{(inspectedItem.fileSizeBytes / 1024).toFixed(1)} KB
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-500 dark:text-slate-400 block font-medium">S3 Key Path</span>
+                    <div className="text-slate-700 dark:text-slate-300 font-mono text-[10px] break-all bg-slate-50 dark:bg-slate-900 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
+                      {extractS3Key(inspectedItem.s3Key || inspectedItem.cdnUrl)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-500 dark:text-slate-400 block font-medium mb-1">CDN Data URL</span>
+                    <button
+                      onClick={() => copyCdnUrl(inspectedItem.id, resolveMediaUrl(inspectedItem.cdnUrl))}
+                      className="w-full py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1.5 transition-colors font-medium border border-slate-200 dark:border-slate-700 cursor-pointer text-xs"
+                    >
+                      {copiedId === inspectedItem.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedId === inspectedItem.id ? 'Copied to Clipboard' : 'Copy Image Link'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-slate-200 dark:border-slate-800">
+              <button
+                onClick={() => setParam('view', null)}
+                className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-semibold hover:bg-slate-800 cursor-pointer shadow-xs"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={deleteModal.isOpen}
+        title="Delete Media Asset"
+        itemName={deleteModal.mediaName}
+        itemType="image"
+        message="Are you sure you want to permanently delete this media file? Any articles linking directly to this image CDN path may show broken images."
+        confirmText="Delete Asset"
+        isLoading={Boolean(deletingMediaId)}
+        onConfirm={handleConfirmDeleteMedia}
+        onClose={() => setDeleteModal({ isOpen: false })}
+      />
+    </div>
+  );
+};

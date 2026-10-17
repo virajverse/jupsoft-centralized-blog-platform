@@ -1,0 +1,826 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --canvas-bg: #f8fafc;
+    --canvas-text: #0f172a;
+    --surface-bg: #ffffff;
+    --surface-border: #e2e8f0;
+    --surface-border-hover: #cbd5e1;
+    --muted-text: #64748b;
+  }
+
+  .dark {
+    --canvas-bg: #090d16;
+    --canvas-text: #f8fafc;
+    --surface-bg: #0f172a;
+    --surface-border: #1e293b;
+    --surface-border-hover: #334155;
+    --muted-text: #94a3b8;
+  }
+}
+
+body {
+  background-color: var(--canvas-bg);
+  color: var(--canvas-text);
+  font-family: var(--font-sans), 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: -0.011em;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 150ms ease-out, color 150ms ease-out;
+}
+
+code, kbd, samp, pre, .font-mono {
+  font-family: var(--font-mono), 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* Authentic B2B SaaS Surface & Component Architecture (Stripe & Linear Standard) */
+.glass-surface, .b2b-card {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+}
+
+.dark .glass-surface, .dark .b2b-card {
+  background-color: #0f172a;
+  border: 1px solid #1e293b;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3);
+}
+
+.glass-surface-hover, .b2b-card-hover {
+  transition: border-color 150ms ease-out, box-shadow 150ms ease-out, transform 150ms ease-out;
+}
+
+.glass-surface-hover:hover, .b2b-card-hover:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.06);
+}
+
+.dark .glass-surface-hover:hover, .dark .b2b-card-hover:hover {
+  border-color: #334155;
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.45);
+}
+
+.glass-header, .b2b-header {
+  background-color: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid #e2e8f0;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.dark .glass-header, .dark .b2b-header {
+  background-color: rgba(9, 13, 22, 0.92);
+  border-bottom: 1px solid #1e293b;
+}
+
+.glass-sidebar, .b2b-sidebar {
+  background-color: #f8fafc;
+  border-right: 1px solid #e2e8f0;
+}
+
+.dark .glass-sidebar, .dark .b2b-sidebar {
+  background-color: #080c14;
+  border-right: 1px solid #1e293b;
+}
+
+.glass-input, .b2b-input {
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
+}
+
+.dark .glass-input, .dark .b2b-input {
+  background-color: #0f172a;
+  border: 1px solid #334155;
+  color: #f8fafc;
+}
+
+.glass-input:focus, .b2b-input:focus {
+  border-color: #6366f1;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.glass-dropdown, .b2b-dropdown {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+}
+
+.dark .glass-dropdown, .dark .b2b-dropdown {
+  background-color: #0f172a;
+  border: 1px solid #1e293b;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.6);
+}
+
+.glass-pill, .b2b-pill {
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+}
+
+.dark .glass-pill, .dark .b2b-pill {
+  background-color: rgba(30, 41, 59, 0.6);
+  border: 1px solid #1e293b;
+  color: #cbd5e1;
+}
+
+/* High-Contrast Enterprise Button */
+.b2b-btn-primary {
+  background-color: #0f172a;
+  color: #ffffff;
+  border: 1px solid transparent;
+  transition: background-color 150ms ease-out, transform 100ms ease-out;
+}
+
+.b2b-btn-primary:hover {
+  background-color: #1e293b;
+}
+
+.dark .b2b-btn-primary {
+  background-color: #4f46e5;
+  color: #ffffff;
+}
+
+.dark .b2b-btn-primary:hover {
+  background-color: #4338ca;
+}
+
+/* Clean Micro Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Tiptap / ProseMirror Document Canvas Rules - Zero Outline / Clean Writing Surface */
+.tiptap.ProseMirror,
+.tiptap,
+.ProseMirror {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.tiptap.ProseMirror:focus,
+.tiptap.ProseMirror:focus-visible,
+.tiptap:focus,
+.tiptap:focus-visible,
+.ProseMirror-focused {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Tiptap Document Typography & Formatting Structure */
+.tiptap ul {
+  list-style-type: disc !important;
+  padding-left: 1.75rem !important;
+  margin-top: 0.75rem !important;
+  margin-bottom: 0.75rem !important;
+}
+
+.tiptap ol {
+  list-style-type: decimal !important;
+  padding-left: 1.75rem !important;
+  margin-top: 0.75rem !important;
+  margin-bottom: 0.75rem !important;
+}
+
+.tiptap li {
+  margin-top: 0.25rem !important;
+  margin-bottom: 0.25rem !important;
+  padding-left: 0.25rem !important;
+}
+
+.tiptap blockquote {
+  border-left: 3.5px solid #2563eb !important;
+  padding-left: 1.25rem !important;
+  margin-top: 1.25rem !important;
+  margin-bottom: 1.25rem !important;
+  font-style: italic !important;
+  color: #475569 !important;
+}
+
+.dark .tiptap blockquote {
+  border-left-color: #3b82f6 !important;
+  color: #94a3b8 !important;
+}
+
+.tiptap pre {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  padding: 1rem 1.25rem !important;
+  border-radius: 0.75rem !important;
+  margin-top: 1rem !important;
+  margin-bottom: 1rem !important;
+  font-family: var(--font-mono), monospace !important;
+  font-size: 0.875rem !important;
+  line-height: 1.6 !important;
+  overflow-x: auto !important;
+}
+
+.tiptap hr {
+  border: none !important;
+  border-top: 1px solid #e2e8f0 !important;
+  margin-top: 2rem !important;
+  margin-bottom: 2rem !important;
+}
+
+.dark .tiptap hr {
+  border-top-color: #334155 !important;
+}
+
+.tiptap mark {
+  background-color: #fef08a !important;
+  color: #0f172a !important;
+  padding: 0.125rem 0.25rem !important;
+  border-radius: 0.25rem !important;
+}
+
+/* Heading Typography: Explicitly styled because Tailwind v4 resets all headings to inherit font-size/weight */
+.tiptap h1, .ProseMirror h1 {
+  font-size: 2.25rem !important; /* 36px */
+  line-height: 1.25 !important;
+  font-weight: 800 !important;
+  margin-top: 1.75rem !important;
+  margin-bottom: 0.75rem !important;
+  color: #0f172a !important;
+  letter-spacing: -0.025em !important;
+}
+
+.dark .tiptap h1, .dark .ProseMirror h1 {
+  color: #f8fafc !important;
+}
+
+.tiptap h2, .ProseMirror h2 {
+  font-size: 1.75rem !important; /* 28px */
+  line-height: 1.3 !important;
+  font-weight: 700 !important;
+  margin-top: 1.5rem !important;
+  margin-bottom: 0.5rem !important;
+  color: #0f172a !important;
+  letter-spacing: -0.02em !important;
+}
+
+.dark .tiptap h2, .dark .ProseMirror h2 {
+  color: #f8fafc !important;
+}
+
+.tiptap h3, .ProseMirror h3 {
+  font-size: 1.35rem !important; /* 22px */
+  line-height: 1.4 !important;
+  font-weight: 600 !important;
+  margin-top: 1.25rem !important;
+  margin-bottom: 0.5rem !important;
+  color: #0f172a !important;
+  letter-spacing: -0.015em !important;
+}
+
+.dark .tiptap h3, .dark .ProseMirror h3 {
+  color: #f8fafc !important;
+}
+
+.tiptap p, .ProseMirror p {
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.75rem !important;
+  line-height: 1.75 !important;
+}
+
+/* Tiptap / ProseMirror Empty Placeholder Styles (Like Notion / Medium) */
+.tiptap p.is-empty:first-child::before,
+.tiptap .is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #94a3b8;
+  pointer-events: none;
+  height: 0;
+}
+.dark .tiptap p.is-empty:first-child::before,
+.dark .tiptap .is-empty::before {
+  color: #64748b;
+}
+
+/* ==========================================================================
+   Realistic Enterprise Blog Reader & Preview Typography Engine
+   (Provides authentic Medium / SaaS Blog rendering with proper spacing)
+   ========================================================================== */
+.blog-preview-content,
+.blog-article-preview,
+.prose {
+  color: #334155;
+  font-size: 1.0625rem; /* 17px */
+  line-height: 1.85;
+  letter-spacing: -0.011em;
+}
+
+.dark .blog-preview-content,
+.dark .blog-article-preview,
+.dark .prose {
+  color: #cbd5e1;
+}
+
+/* Headings with clear hierarchy & breathing room */
+.blog-preview-content h1,
+.blog-article-preview h1,
+.prose h1 {
+  font-size: 2.25rem !important; /* 36px */
+  font-weight: 800 !important;
+  line-height: 1.25 !important;
+  margin-top: 2.75rem !important;
+  margin-bottom: 1.25rem !important;
+  color: #0f172a !important;
+  letter-spacing: -0.025em !important;
+}
+.dark .blog-preview-content h1,
+.dark .blog-article-preview h1,
+.dark .prose h1 {
+  color: #f8fafc !important;
+}
+
+.blog-preview-content h2,
+.blog-article-preview h2,
+.prose h2 {
+  font-size: 1.65rem !important; /* 26px */
+  font-weight: 750 !important;
+  line-height: 1.35 !important;
+  margin-top: 2.5rem !important;
+  margin-bottom: 1rem !important;
+  color: #0f172a !important;
+  letter-spacing: -0.02em !important;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.7) !important;
+  padding-bottom: 0.5rem !important;
+}
+.dark .blog-preview-content h2,
+.dark .blog-article-preview h2,
+.dark .prose h2 {
+  color: #f8fafc !important;
+  border-bottom-color: rgba(51, 65, 85, 0.6) !important;
+}
+
+.blog-preview-content h3,
+.blog-article-preview h3,
+.prose h3 {
+  font-size: 1.35rem !important; /* 21px */
+  font-weight: 700 !important;
+  line-height: 1.4 !important;
+  margin-top: 2rem !important;
+  margin-bottom: 0.75rem !important;
+  color: #1e293b !important;
+  letter-spacing: -0.015em !important;
+}
+.dark .blog-preview-content h3,
+.dark .blog-article-preview h3,
+.dark .prose h3 {
+  color: #f1f5f9 !important;
+}
+
+.blog-preview-content h4,
+.blog-article-preview h4,
+.prose h4 {
+  font-size: 1.15rem !important;
+  font-weight: 650 !important;
+  line-height: 1.45 !important;
+  margin-top: 1.75rem !important;
+  margin-bottom: 0.5rem !important;
+  color: #1e293b !important;
+}
+.dark .blog-preview-content h4,
+.dark .blog-article-preview h4,
+.dark .prose h4 {
+  color: #e2e8f0 !important;
+}
+
+/* Paragraphs with readable spacing */
+.blog-preview-content p,
+.blog-article-preview p,
+.prose p {
+  margin-top: 0 !important;
+  margin-bottom: 1.4rem !important;
+  line-height: 1.85 !important;
+}
+
+/* Ordered & Unordered Lists with authentic bullet points & numbering */
+.blog-preview-content ul,
+.blog-article-preview ul,
+.prose ul {
+  list-style-type: disc !important;
+  padding-left: 2rem !important;
+  margin-top: 1rem !important;
+  margin-bottom: 1.5rem !important;
+}
+
+.blog-preview-content ol,
+.blog-article-preview ol,
+.prose ol {
+  list-style-type: decimal !important;
+  padding-left: 2rem !important;
+  margin-top: 1rem !important;
+  margin-bottom: 1.5rem !important;
+}
+
+.blog-preview-content li,
+.blog-article-preview li,
+.prose li {
+  margin-top: 0.45rem !important;
+  margin-bottom: 0.45rem !important;
+  padding-left: 0.35rem !important;
+  line-height: 1.75 !important;
+}
+
+.blog-preview-content li > p,
+.blog-article-preview li > p,
+.prose li > p {
+  margin-bottom: 0.45rem !important;
+}
+
+/* Bold & Strong text */
+.blog-preview-content strong,
+.blog-preview-content b,
+.blog-article-preview strong,
+.blog-article-preview b,
+.prose strong,
+.prose b {
+  font-weight: 700 !important;
+  color: #0f172a !important;
+}
+.dark .blog-preview-content strong,
+.dark .blog-preview-content b,
+.dark .blog-article-preview strong,
+.dark .blog-article-preview b,
+.dark .prose strong,
+.dark .prose b {
+  color: #f8fafc !important;
+}
+
+/* Blockquotes with accent line & soft tint */
+.blog-preview-content blockquote,
+.blog-article-preview blockquote,
+.prose blockquote {
+  border-left: 4px solid #6366f1 !important;
+  background: rgba(99, 102, 241, 0.05) !important;
+  padding: 1rem 1.5rem !important;
+  border-radius: 0 0.75rem 0.75rem 0 !important;
+  margin: 1.75rem 0 !important;
+  font-style: italic !important;
+  color: #475569 !important;
+}
+.dark .blog-preview-content blockquote,
+.dark .blog-article-preview blockquote,
+.dark .prose blockquote {
+  border-left-color: #818cf8 !important;
+  background: rgba(99, 102, 241, 0.1) !important;
+  color: #94a3b8 !important;
+}
+
+/* Code & Preformatted Blocks */
+.blog-preview-content pre,
+.blog-article-preview pre,
+.prose pre {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  padding: 1.25rem 1.5rem !important;
+  border-radius: 0.75rem !important;
+  margin: 1.75rem 0 !important;
+  overflow-x: auto !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 0.9rem !important;
+  line-height: 1.6 !important;
+}
+
+.blog-preview-content code:not(pre code),
+.blog-article-preview code:not(pre code),
+.prose code:not(pre code) {
+  background-color: rgba(99, 102, 241, 0.1) !important;
+  color: #4f46e5 !important;
+  padding: 0.2rem 0.45rem !important;
+  border-radius: 0.35rem !important;
+  font-size: 0.875em !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+}
+.dark .blog-preview-content code:not(pre code),
+.dark .blog-article-preview code:not(pre code),
+.dark .prose code:not(pre code) {
+  background-color: rgba(99, 102, 241, 0.2) !important;
+  color: #a5b4fc !important;
+}
+
+/* Hyperlinks */
+.blog-preview-content a,
+.blog-article-preview a,
+.prose a {
+  color: #4f46e5 !important;
+  text-decoration: underline !important;
+  text-underline-offset: 3px !important;
+  font-weight: 500 !important;
+}
+.blog-preview-content a:hover,
+.blog-article-preview a:hover,
+.prose a:hover {
+  color: #4338ca !important;
+}
+.dark .blog-preview-content a,
+.dark .blog-article-preview a,
+.dark .prose a {
+  color: #818cf8 !important;
+}
+.dark .blog-preview-content a:hover,
+.dark .blog-article-preview a:hover,
+.dark .prose a:hover {
+  color: #a5b4fc !important;
+}
+
+/* Media & Images */
+.blog-preview-content img,
+.blog-article-preview img,
+.prose img {
+  border-radius: 0.75rem !important;
+  margin: 2rem auto !important;
+  max-width: 100% !important;
+  height: auto !important;
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Dividers */
+.blog-preview-content hr,
+.blog-article-preview hr,
+.prose hr {
+  border: none !important;
+  border-top: 1px solid #e2e8f0 !important;
+  margin: 2.5rem 0 !important;
+}
+.dark .blog-preview-content hr,
+.dark .blog-article-preview hr,
+.dark .prose hr {
+  border-top-color: #334155 !important;
+}
+
+/* Tables */
+.blog-preview-content table,
+.blog-article-preview table,
+.prose table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 2rem 0 !important;
+  font-size: 0.95rem !important;
+}
+.blog-preview-content th,
+.blog-article-preview th,
+.prose th {
+  background-color: #f8fafc !important;
+  padding: 0.75rem 1rem !important;
+  font-weight: 700 !important;
+  text-align: left !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #0f172a !important;
+}
+.dark .blog-preview-content th,
+.dark .blog-article-preview th,
+.dark .prose th {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+.blog-preview-content td,
+.blog-article-preview td,
+.prose td {
+  padding: 0.75rem 1rem !important;
+  border: 1px solid #e2e8f0 !important;
+}
+.dark .blog-preview-content td,
+.dark .blog-article-preview td,
+.dark .prose td {
+  border-color: #334155 !important;
+}
+
+/* ==========================================================================
+   Tiptap Table Styles (Editable Tables inside Blog Studio)
+   ========================================================================== */
+.tiptap table,
+.blog-preview-content table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 1.5rem 0;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+}
+
+.dark .tiptap table,
+.dark .blog-preview-content table {
+  border-color: #334155;
+}
+
+.tiptap table th,
+.blog-preview-content table th {
+  position: relative;
+  box-sizing: border-box;
+  min-width: 60px;
+  background-color: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  padding: 0.625rem 0.875rem;
+  font-weight: 700;
+  text-align: left;
+  font-size: 0.875rem;
+  color: #0f172a;
+  vertical-align: top;
+}
+
+.dark .tiptap table th,
+.dark .blog-preview-content table th {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+.tiptap table td,
+.blog-preview-content table td {
+  position: relative;
+  box-sizing: border-box;
+  min-width: 60px;
+  border: 1px solid #cbd5e1;
+  padding: 0.625rem 0.875rem;
+  vertical-align: top;
+  font-size: 0.875rem;
+  color: #334155;
+}
+
+.dark .tiptap table td,
+.dark .blog-preview-content table td {
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+.tiptap table th > p,
+.tiptap table td > p {
+  margin: 0 !important;
+  line-height: 1.5;
+}
+
+.tiptap table .selectedCell:after {
+  z-index: 2;
+  position: absolute;
+  content: "";
+  left: 0; right: 0; top: 0; bottom: 0;
+  background: rgba(59, 130, 246, 0.15);
+  pointer-events: none;
+}
+
+.tiptap table .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 4px;
+  background-color: #3b82f6;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.tiptap.resize-cursor,
+body.resize-cursor {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
+.tiptap .tableWrapper {
+  overflow-x: auto;
+  margin: 1.5rem 0;
+  max-width: 100%;
+}
+
+/* ==========================================================================
+   Tiptap & Reader Callout / Info Box Styles
+   ========================================================================== */
+.tiptap .callout-box,
+.blog-preview-content .callout-box,
+.blog-article-preview .callout-box,
+.prose .callout-box {
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  margin: 1.5rem 0;
+  border-left-width: 4px;
+  border-left-style: solid;
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+
+/* Info Box (Blue) */
+.tiptap .callout-box.callout-info,
+.tiptap .callout-box[data-type="info"],
+.blog-preview-content .callout-box.callout-info,
+.blog-preview-content .callout-box[data-type="info"] {
+  background-color: #eff6ff;
+  border-color: #3b82f6;
+  border-top: 1px solid #dbeafe;
+  border-right: 1px solid #dbeafe;
+  border-bottom: 1px solid #dbeafe;
+  color: #1e3a8a;
+}
+.dark .tiptap .callout-box.callout-info,
+.dark .tiptap .callout-box[data-type="info"],
+.dark .blog-preview-content .callout-box.callout-info,
+.dark .blog-preview-content .callout-box[data-type="info"] {
+  background-color: rgba(30, 58, 138, 0.2);
+  border-color: #3b82f6;
+  border-top-color: rgba(59, 130, 246, 0.3);
+  border-right-color: rgba(59, 130, 246, 0.3);
+  border-bottom-color: rgba(59, 130, 246, 0.3);
+  color: #bfdbfe;
+}
+
+/* Warning Box (Amber) */
+.tiptap .callout-box.callout-warning,
+.tiptap .callout-box[data-type="warning"],
+.blog-preview-content .callout-box.callout-warning,
+.blog-preview-content .callout-box[data-type="warning"] {
+  background-color: #fffbeb;
+  border-color: #f59e0b;
+  border-top: 1px solid #fef3c7;
+  border-right: 1px solid #fef3c7;
+  border-bottom: 1px solid #fef3c7;
+  color: #78350f;
+}
+.dark .tiptap .callout-box.callout-warning,
+.dark .tiptap .callout-box[data-type="warning"],
+.dark .blog-preview-content .callout-box.callout-warning,
+.dark .blog-preview-content .callout-box[data-type="warning"] {
+  background-color: rgba(120, 53, 15, 0.2);
+  border-color: #f59e0b;
+  border-top-color: rgba(245, 158, 11, 0.3);
+  border-right-color: rgba(245, 158, 11, 0.3);
+  border-bottom-color: rgba(245, 158, 11, 0.3);
+  color: #fde68a;
+}
+
+/* Success Box (Emerald) */
+.tiptap .callout-box.callout-success,
+.tiptap .callout-box[data-type="success"],
+.blog-preview-content .callout-box.callout-success,
+.blog-preview-content .callout-box[data-type="success"] {
+  background-color: #ecfdf5;
+  border-color: #10b981;
+  border-top: 1px solid #d1fae5;
+  border-right: 1px solid #d1fae5;
+  border-bottom: 1px solid #d1fae5;
+  color: #064e3b;
+}
+.dark .tiptap .callout-box.callout-success,
+.dark .tiptap .callout-box[data-type="success"],
+.dark .blog-preview-content .callout-box.callout-success,
+.dark .blog-preview-content .callout-box[data-type="success"] {
+  background-color: rgba(6, 78, 59, 0.2);
+  border-color: #10b981;
+  border-top-color: rgba(16, 185, 129, 0.3);
+  border-right-color: rgba(16, 185, 129, 0.3);
+  border-bottom-color: rgba(16, 185, 129, 0.3);
+  color: #a7f3d0;
+}
+
+/* Neutral Box (Slate Card) */
+.tiptap .callout-box.callout-neutral,
+.tiptap .callout-box[data-type="neutral"],
+.blog-preview-content .callout-box.callout-neutral,
+.blog-preview-content .callout-box[data-type="neutral"] {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #64748b;
+  color: #334155;
+}
+.dark .tiptap .callout-box.callout-neutral,
+.dark .tiptap .callout-box[data-type="neutral"],
+.dark .blog-preview-content .callout-box.callout-neutral,
+.dark .blog-preview-content .callout-box[data-type="neutral"] {
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  border-left: 4px solid #94a3b8;
+  color: #cbd5e1;
+}
+

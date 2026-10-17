@@ -1,0 +1,130 @@
+<!-- ================= Blog Section (Dynamic CMS) ================= -->
+  <section class="container" id="blogSection" style="padding: 3rem 1.5rem;">
+    <h2 class="section-title">Latest Articles</h2>
+    <div class="blog-grid" id="blogGrid" style="margin-top: 2rem;"></div>
+    <div style="text-align: center; margin-top: 2rem;">
+      <a href="blog.html" class="btn btn-outline">View All Articles in Archive &rarr;</a>
+
+
+
+(  all page if you have html )
+
+ <script>
+    window.JUPSOFT_CONFIG = { apiKey: 'jup_sec_553627117dcb43749ed5b7766334e72c' };
+  </script>
+  <script src="js/cms-client.js"></script>
+)
+
+
+
+blog.html
+
+  <!-- ================= Dynamic Blog Grid (CMS) ================= -->
+  <main class="container" style="padding: 3rem 1.5rem 5rem;">
+    <div class="blog-grid" id="blogGrid"></div>
+  </main>
+
+
+
+blog details
+<!-- ================= Dynamic Article Container ================= -->
+  <article class="container" style="padding-top: 2rem;">
+    <div class="article-header">
+      <h1 class="article-title" id="articleTitle">Loading article...</h1>
+      <div class="article-meta-bar" id="articleMeta"></div>
+    </div>
+    <div class="article-featured-image" id="articleImageWrapper">
+      <img id="articleImage" src="" alt="" style="display:none; width: 100%; border-radius: 12px;">
+    </div>
+    <div class="article-layout">
+      <div>
+        <div class="article-body" id="articleBody"></div>
+
+
+
+
+
+main.js if you have 
+
+
+
+add this 
+
+
+initCmsIntegration();
+
+
+
+
+main.js
+
+
+
+
+          const date = blog.publishedAt ? new Date(blog.publishedAt).toLocaleDateString() : '';
+          card.innerHTML = `
+            ${img ? `<div class="blog-card-media"><img class="blog-card-img" src="${img}" alt="${blog.title || ''}"></div>` : ''}
+            <div class="blog-card-body">
+              <div class="blog-card-meta"><span>${date}</span></div>
+              <h3 class="blog-card-title">
+                <a href="blog-detail.html?slug=${encodeURIComponent(slug)}">${blog.title}</a>
+              </h3>
+              <p class="blog-card-excerpt">${blog.excerpt || ''}</p>
+              <div class="blog-card-footer">
+                <span class="author-name">${blog.author?.name || blog.author || ''}</span>
+                <a href="blog-detail.html?slug=${encodeURIComponent(slug)}" class="read-more-link">Read &rarr;</a>
+              </div>
+            </div>
+          `;
+          blogGrid.appendChild(card);
+        });
+      } else {
+        blogGrid.innerHTML = '<p style="text-align:center; grid-column:1/-1; color:var(--text-muted); padding:2rem 0;">No articles published yet.</p>';
+      }
+    } catch (err) {
+      console.error('CMS fetch failed:', err);
+    }
+  }
+  // 2. Blog Detail Page - Fetch Single Post by Slug
+  if (articleBody) {
+    const slug = new URLSearchParams(window.location.search).get('slug');
+    const titleEl = document.getElementById('articleTitle');
+    if (!slug) {
+      if (titleEl) titleEl.textContent = 'Please select a blog post from the blog list.';
+      return;
+    }
+    try {
+      const res = await JupsoftCMS.getBlogBySlug(slug);
+      if (res.success && res.data) {
+        const article = res.data;
+        JupsoftCMS.applySeo(article);
+        const imgEl = document.getElementById('articleImage');
+        const metaEl = document.getElementById('articleMeta');
+        if (titleEl) titleEl.textContent = article.title;
+        if (imgEl && (article.featuredImage || article.coverImage)) {
+          imgEl.src = article.featuredImage || article.coverImage;
+          imgEl.style.display = 'block';
+        }
+        if (metaEl) {
+          metaEl.textContent = `${article.author?.name || ''} • ${article.publishedAt ? new Date(article.publishedAt).toLocaleDateString() : ''}`;
+        }
+        articleBody.innerHTML = article.content || '<p>No content available.</p>';
+      } else {
+        if (titleEl) titleEl.textContent = 'Article not found.';
+      }
+    } catch (err) {
+      console.error('Failed to load blog detail:', err);
+    }
+  }
+}
+
+
+
+
+Bas yeh 2 cheezein dhyan rakhni hoti hain:
+
+Data inject karte waqt API ke keys use karein:
+blog.title
+blog.featuredImage
+blog.content
+blog.slug

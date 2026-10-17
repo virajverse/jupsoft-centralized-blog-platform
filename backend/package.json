@@ -1,0 +1,115 @@
+{
+  "name": "jupsoft-blog-backend",
+  "version": "1.0.0",
+  "description": "Enterprise centralized multi-site blog management backend service conforming to TRD v1.0",
+  "author": "Jupsoft Systems Pvt. Ltd.",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "nest build",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "dev": "nest start --watch",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
+    "start:prod": "node dist/src/main",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:seed": "ts-node prisma/seed.example.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "test:ci": "jest --ci --coverage --forceExit"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.example.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cloudwatch-logs": "^3.1131.0",
+    "@aws-sdk/client-s3": "^3.758.0",
+    "@aws-sdk/client-ses": "^3.1131.0",
+    "@aws-sdk/s3-request-presigner": "^3.758.0",
+    "@nestjs-modules/mailer": "^2.3.7",
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.1",
+    "@nestjs/jwt": "^11.0.0",
+    "@nestjs/passport": "^11.0.5",
+    "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/schedule": "^5.0.1",
+    "@nestjs/swagger": "^11.0.3",
+    "@nestjs/throttler": "^6.5.0",
+    "@prisma/client": "^6.4.1",
+    "@types/multer": "^2.2.0",
+    "bcrypt": "^5.1.1",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "helmet": "^8.3.0",
+    "ioredis": "^5.6.0",
+    "multer": "^2.3.0",
+    "nodemailer": "^10.0.9",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "sanitize-html": "^2.17.7",
+    "sharp": "^0.35.4"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/schematics": "^11.0.0",
+    "@nestjs/testing": "^11.0.1",
+    "@types/bcrypt": "^5.0.2",
+    "@types/express": "^5.0.0",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.13.4",
+    "@types/passport-jwt": "^4.0.1",
+    "@types/sanitize-html": "^2.16.1",
+    "jest": "^30.5.1",
+    "prisma": "^6.4.1",
+    "source-map-support": "^0.5.21",
+    "ts-jest": "^29.4.12",
+    "ts-loader": "^9.5.2",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.7.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@parcel/watcher",
+      "@prisma/client",
+      "@prisma/engines",
+      "@scarf/scarf",
+      "bcrypt",
+      "prisma"
+    ]
+  },
+  "jest": {
+    "moduleFileExtensions": ["js", "json", "ts"],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "moduleNameMapper": {
+      "^htmlparser2$": "<rootDir>/../../node_modules/.pnpm/htmlparser2@10.1.0/node_modules/htmlparser2/dist/commonjs/index.js"
+    },
+    "collectCoverageFrom": [
+      "**/*.(t|j)s",
+      "!**/*.spec.(t|j)s",
+      "!**/node_modules/**",
+      "!**/*.module.(t|j)s",
+      "!**/main.ts"
+    ],
+    "coverageDirectory": "../coverage",
+    "testEnvironment": "node",
+    "coverageThreshold": {
+      "global": {
+        "branches": 60,
+        "functions": 60,
+        "lines": 60,
+        "statements": 60
+      }
+    }
+  }
+}

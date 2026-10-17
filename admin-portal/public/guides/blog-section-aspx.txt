@@ -1,0 +1,93 @@
+=====================================================
+Jupsoft CMS Integration Guide for ASPX (.NET Web Forms)
+=====================================================
+
+1. Common Script (Add in Site.Master or all .aspx pages before </body>):
+
+(For Local Testing):
+<script>
+  window.JUPSOFT_CONFIG = { apiKey: 'jup_sec_553627117dcb43749ed5b7766334e72c' };
+</script>
+<script src="/js/cms-client.js"></script>
+
+(Note: Live production domain par window.JUPSOFT_CONFIG nahi lagana hai, direct domain whitelist se chalega)
+
+
+-----------------------------------------------------
+2. Blog Listing Page (Blog.aspx):
+-----------------------------------------------------
+Inside <asp:Content> or <body>:
+
+<div id="blogGrid"></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', async function () {
+    if (typeof JupsoftCMS === 'undefined') return;
+
+    var res = await JupsoftCMS.getBlogs({ limit: 12 });
+    if (res.success && res.data) {
+        var grid = document.getElementById('blogGrid');
+        grid.innerHTML = '';
+
+        res.data.forEach(function (blog) {
+            // Frontend Dev: Aap apne design ke according classes & HTML structure customize kar sakte hain
+            var card = document.createElement('div');
+            card.className = 'blog-card';
+            card.innerHTML = `
+                <img src="${blog.featuredImage || ''}" alt="${blog.title}" />
+                <h3><a href="BlogDetail.aspx?slug=${encodeURIComponent(blog.slug)}">${blog.title}</a></h3>
+                <p>${blog.excerpt || ''}</p>
+                <a href="BlogDetail.aspx?slug=${encodeURIComponent(blog.slug)}">Read More &rarr;</a>
+            `;
+            grid.appendChild(card);
+        });
+    }
+});
+</script>
+
+
+-----------------------------------------------------
+3. Blog Detail Page (BlogDetail.aspx):
+-----------------------------------------------------
+Inside <asp:Content> or <body>:
+
+<h1 id="articleTitle">Loading...</h1>
+<div id="articleMeta"></div>
+<img id="articleImage" src="" style="display:none;" />
+<div id="articleBody"></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', async function () {
+    if (typeof JupsoftCMS === 'undefined') return;
+
+    var slug = new URLSearchParams(window.location.search).get('slug');
+    if (!slug) return;
+
+    var res = await JupsoftCMS.getBlogBySlug(slug);
+    if (res.success && res.data) {
+        var article = res.data;
+        JupsoftCMS.applySeo(article); // Auto SEO title & meta description
+
+        document.getElementById('articleTitle').innerText = article.title;
+        document.getElementById('articleBody').innerHTML = article.content;
+
+        if (article.featuredImage) {
+            var img = document.getElementById('articleImage');
+            img.src = article.featuredImage;
+            img.style.display = 'block';
+        }
+    }
+});
+</script>
+
+
+-----------------------------------------------------
+4. API Data Keys:
+-----------------------------------------------------
+blog.title          -> Article Heading
+blog.featuredImage  -> Article Image URL
+blog.excerpt        -> Short Summary
+blog.content        -> Full Article HTML Body
+blog.slug           -> URL Identifier
+blog.publishedAt    -> Publish Date
+blog.author.name    -> Author Name

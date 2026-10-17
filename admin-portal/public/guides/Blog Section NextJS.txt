@@ -1,0 +1,33 @@
+=====================================================
+Jupsoft CMS Integration Guide for Next.js 14+ (App Router)
+=====================================================
+
+1. Environment Setup (.env.local):
+JUPSOFT_WEBSITE_ID="YOUR_WEBSITE_ID"
+JUPSOFT_API_URL="https://blogary.jupsoft.com/v1"
+JUPSOFT_API_KEY="YOUR_API_KEY"
+
+2. Client Fetcher (lib/jupsoft-cms.ts):
+export async function getBlogs(page = 1, limit = 9) {
+  const res = await fetch(`${process.env.JUPSOFT_API_URL}/blogs?website=${encodeURIComponent(process.env.JUPSOFT_WEBSITE_ID)}&page=${page}&limit=${limit}`, {
+    headers: { 'x-api-key': process.env.JUPSOFT_API_KEY },
+    next: { revalidate: 60 }
+  });
+  const json = await res.json();
+  return json.data || [];
+}
+
+export async function getBlogBySlug(slug: string) {
+  const res = await fetch(`${process.env.JUPSOFT_API_URL}/blogs/${encodeURIComponent(slug)}?website=${encodeURIComponent(process.env.JUPSOFT_WEBSITE_ID)}`, {
+    headers: { 'x-api-key': process.env.JUPSOFT_API_KEY },
+    next: { revalidate: 60 }
+  });
+  const json = await res.json();
+  return json.data || null;
+}
+
+3. Listing Page (app/blog/page.tsx):
+Server component rendering blog cards grid with <Link href={`/blog/${post.slug}`}>.
+
+4. Detail Page (app/blog/[slug]/page.tsx):
+Server component with generateMetadata() for dynamic SEO and dangerouslySetInnerHTML={{ __html: post.content }}.

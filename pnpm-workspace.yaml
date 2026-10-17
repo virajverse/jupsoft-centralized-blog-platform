@@ -1,0 +1,14 @@
+packages:
+  - 'admin-portal'
+  - 'backend'
+  - 'packages/*'
+allowBuilds:
+  '@parcel/watcher': true
+  '@prisma/client': true
+  '@prisma/engines': true
+  '@scarf/scarf': true
+  bcrypt: true
+  prisma: true
+  unrs-resolver: true
+minimumReleaseAgeExclude:
+  - puppeteer-core@25.11.0

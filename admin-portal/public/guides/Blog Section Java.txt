@@ -1,0 +1,19 @@
+=====================================================
+Jupsoft CMS Integration Guide for Java / Spring Boot
+=====================================================
+
+1. application.properties:
+jupsoft.cms.api-url=https://blogary.jupsoft.com/v1
+jupsoft.cms.website-id=YOUR_WEBSITE_ID
+jupsoft.cms.api-key=YOUR_API_KEY
+
+2. Controller:
+@GetMapping("/api/blogs")
+public ResponseEntity<String> list(@RequestParam(defaultValue = "1") int page) {
+    return ResponseEntity.ok(cmsService.getBlogs(page, 9));
+}
+
+@GetMapping("/api/blogs/{slug}")
+public ResponseEntity<String> detail(@PathVariable String slug) {
+    return ResponseEntity.ok(cmsService.getBlogBySlug(slug));
+}

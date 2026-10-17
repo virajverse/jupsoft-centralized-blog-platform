@@ -1,0 +1,18 @@
+=====================================================
+Jupsoft CMS REST API & cURL Reference
+=====================================================
+
+1. List Articles:
+curl -X GET "https://blogary.jupsoft.com/v1/blogs?website=YOUR_WEBSITE_ID&page=1&limit=9" \
+  -H "Accept: application/json" \
+  -H "x-api-key: YOUR_API_KEY"
+
+2. Article Detail:
+curl -X GET "https://blogary.jupsoft.com/v1/blogs/{slug}?website=YOUR_WEBSITE_ID" \
+  -H "Accept: application/json" \
+  -H "x-api-key: YOUR_API_KEY"
+
+3. Bypass Cache:
+curl -X GET "https://blogary.jupsoft.com/v1/blogs?website=YOUR_WEBSITE_ID&fresh=1" \
+  -H "Accept: application/json" \
+  -H "x-api-key: YOUR_API_KEY"
