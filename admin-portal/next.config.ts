@@ -6,8 +6,7 @@ const nextConfig: NextConfig = {
     position: 'bottom-right',
   },
   typescript: {
-    // We strictly typecheck locally before pushing. Skipping on EC2 prevents 1GB RAM freezing.
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   turbopack: {
     root: path.resolve(__dirname, '..'),

@@ -632,7 +632,7 @@ export const JupsoftNavbar: React.FC = () => {
                 </Link>
 
                 <Link
-                  href={`/settings?tab=general${siteQuery}`}
+                  href={`/settings?tab=general${siteQuery ? '&' + siteQuery.slice(1) : ''}`}
                   onClick={() => setNotifDropdownOpen(false)}
                   className="text-red-600 dark:text-red-400 hover:underline font-semibold"
                 >

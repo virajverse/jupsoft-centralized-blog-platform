@@ -4,6 +4,19 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Jupsoft Blog Engine | Centralized Multi-Site CMS",
   description: "Enterprise multi-tenant blog authoring, live SEO auditor, and editorial workflow management portal for Jupsoft Systems",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: {
+      index: false,
+      follow: false,
+      noimageindex: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'none',
+      'max-snippet': -1,
+    },
+  },
   icons: {
     icon: [
       { url: "/favicon.png?v=3", type: "image/png" },

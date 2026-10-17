@@ -527,7 +527,7 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
 
             {canAccessSettings && (
               <Link
-                href={`/settings?tab=general${siteQuery}`}
+                href={`/settings?tab=general${siteQuery ? '&' + siteQuery.slice(1) : ''}`}
                 className="text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center gap-1 text-[11px] font-semibold"
                 title="Configure full alerts, digests & default assets in settings"
               >

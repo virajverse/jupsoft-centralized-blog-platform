@@ -66,8 +66,7 @@ export default function LoginPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const googleBtnRef = useRef<HTMLDivElement>(null);
 
-  const GOOGLE_CLIENT_ID_FALLBACK = '583166649168-sed2t9drnurfq5b0s4jivbmuql4a1b84.apps.googleusercontent.com';
-  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID_FALLBACK;
+  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
   const isRedirectingRef = useRef(false);
   const isSubmittingRef = useRef(false);
 
@@ -78,7 +77,7 @@ export default function LoginPage() {
 
     const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     let dest = targetPath || urlParams?.get('redirect') || '/dashboard';
-    if (!dest || dest === '/login' || dest.startsWith('/login')) {
+    if (!dest || !dest.startsWith('/') || dest.startsWith('//') || dest === '/login' || dest.startsWith('/login')) {
       dest = '/dashboard';
     }
 

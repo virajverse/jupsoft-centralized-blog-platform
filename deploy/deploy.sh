@@ -218,10 +218,10 @@ rm -rf "$BACKUP_DIR" 2>/dev/null || true
 echo "🩺 Running post-deployment health check..."
 HEALTH_OK=false
 for i in {1..10}; do
-  BACKEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:4010/api/health 2>/dev/null || echo "000")
+  BACKEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:4010/v1/health 2>/dev/null || echo "000")
   FRONTEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000 2>/dev/null || echo "000")
   
-  if [[ "$BACKEND_STATUS" =~ ^(200|404)$ ]] && [[ "$FRONTEND_STATUS" =~ ^(200|307|308|401)$ ]]; then
+  if [[ "$BACKEND_STATUS" =~ ^(200)$ ]] && [[ "$FRONTEND_STATUS" =~ ^(200|307|308|401)$ ]]; then
     HEALTH_OK=true
     break
   fi
