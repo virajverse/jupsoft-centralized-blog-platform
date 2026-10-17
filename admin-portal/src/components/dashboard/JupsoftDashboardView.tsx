@@ -888,20 +888,28 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
             </div>
           </div>
 
-          {/* Chart Body - Compact & Practically Perfect */}
+          {/* Chart Body - High-Impact Cadence Visualization & Executive Overview */}
           {!isChartCollapsed ? (
-            <div className="px-3 py-2 sm:px-4 sm:py-2.5 flex flex-col md:flex-row items-center justify-between gap-3 md:gap-6 rounded-b-lg">
-              {/* Left: 12-Month Cadence - Tight grouping with NO awkward gaps */}
-              <div className="w-full md:max-w-xl lg:max-w-2xl">
-                <div className="flex items-end justify-between gap-1 sm:gap-1.5 h-48">
+            <div className="p-3.5 sm:p-5 flex flex-col xl:flex-row items-stretch justify-between gap-5 sm:gap-6 rounded-b-lg">
+              {/* Left: 12-Month Cadence - Expands cleanly across flex-1 with balanced spacing */}
+              <div className="flex-1 min-w-0 flex flex-col justify-between">
+                {/* Visual Chart with background guide lines */}
+                <div className="relative flex items-end justify-between gap-1 sm:gap-2 h-60 pt-4">
+                  {/* Subtle Background Guide Lines */}
+                  <div className="absolute inset-x-0 top-6 bottom-7 flex flex-col justify-between pointer-events-none opacity-40 dark:opacity-20">
+                    <div className="border-b border-dashed border-slate-300 dark:border-slate-700 w-full" />
+                    <div className="border-b border-dashed border-slate-300 dark:border-slate-700 w-full" />
+                    <div className="border-b border-slate-200 dark:border-slate-800 w-full" />
+                  </div>
+
                   {monthlyTrajectory.map((month, idx) => {
                     const isHovered = hoveredMonthKey === month.key;
                     const total = month.totalCount;
                     const published = month.publishedCount;
                     const pipeline = month.pipelineCount;
 
-                    // Height percentage (scale max 100%, min 35% if total > 0)
-                    const totalHeightPct = total > 0 ? Math.max(35, Math.round((total / maxTrajectoryCount) * 100)) : 0;
+                    // Height percentage (scale max 100%, min 25% if total > 0)
+                    const totalHeightPct = total > 0 ? Math.max(25, Math.round((total / maxTrajectoryCount) * 100)) : 0;
                     const publishedSharePct = total > 0 ? (published / total) * 100 : 0;
                     const pipelineSharePct = total > 0 ? (pipeline / total) * 100 : 0;
 
@@ -915,17 +923,20 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                     return (
                       <div
                         key={month.key}
-                        className="group flex-1 flex flex-col items-center h-full justify-end relative cursor-pointer"
+                        className="group flex-1 flex flex-col items-center h-full justify-end relative cursor-pointer z-10"
                         onMouseEnter={() => setHoveredMonthKey(month.key)}
                         onMouseLeave={() => setHoveredMonthKey(null)}
                       >
-                        {/* Hover Tooltip Card */}
+                        {/* Hover Tooltip Card - Anchored cleanly at top of column, zero clipping */}
                         {isHovered && (
                           <div
-                            className={`absolute bottom-full mb-2 z-50 pointer-events-none min-w-[125px] p-2 rounded-md bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-[10px] shadow-2xl border border-slate-700/60 dark:border-slate-200 animate-in fade-in zoom-in-95 duration-100 ${tooltipAlign}`}
+                            className={`absolute top-0 z-50 pointer-events-none min-w-[130px] p-2.5 rounded-lg bg-slate-900/95 text-white dark:bg-white dark:text-slate-900 text-[10px] shadow-2xl border border-slate-700/60 dark:border-slate-200 backdrop-blur-xs animate-in fade-in zoom-in-95 duration-100 ${tooltipAlign}`}
                           >
-                            <div className="font-bold border-b border-slate-700 dark:border-slate-200 pb-0.5 mb-1">
-                              {month.fullLabel}
+                            <div className="font-bold border-b border-slate-700 dark:border-slate-200 pb-0.5 mb-1 flex items-center justify-between">
+                              <span>{month.fullLabel}</span>
+                              <span className="text-[9px] font-mono px-1 rounded bg-slate-800 dark:bg-slate-100 text-slate-300 dark:text-slate-600">
+                                {total} posts
+                              </span>
                             </div>
                             <div className="flex items-center justify-between gap-2 text-emerald-400 dark:text-emerald-600">
                               <span>Published:</span>
@@ -945,11 +956,11 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                         )}
 
                         {/* The Bar Track */}
-                        <div className="w-full h-40 flex flex-col justify-end">
+                        <div className="w-full h-48 flex flex-col justify-end">
                           {total > 0 ? (
                             <div
-                              className={`w-full max-w-[26px] sm:max-w-[32px] mx-auto flex flex-col justify-end rounded-t-sm overflow-hidden transition-all duration-300 ${
-                                isHovered ? 'ring-2 ring-emerald-500/60 shadow-xs' : ''
+                              className={`w-full max-w-[28px] sm:max-w-[36px] mx-auto flex flex-col justify-end rounded-t-sm overflow-hidden transition-all duration-300 shadow-2xs ${
+                                isHovered ? 'ring-2 ring-emerald-500 shadow-sm scale-105' : ''
                               }`}
                               style={{ height: `${totalHeightPct}%` }}
                             >
@@ -969,7 +980,7 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                           ) : (
                             /* Clean subtle baseline tick for months with 0 posts */
                             <div
-                              className={`w-full max-w-[26px] sm:max-w-[32px] mx-auto h-[3px] rounded-full transition-all duration-200 ${
+                              className={`w-full max-w-[28px] sm:max-w-[36px] mx-auto h-[3px] rounded-full transition-all duration-200 ${
                                 isHovered
                                   ? 'bg-slate-400 dark:bg-slate-600 h-[4px]'
                                   : 'bg-slate-200 dark:bg-slate-850'
@@ -979,9 +990,9 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                         </div>
 
                         {/* Month Label */}
-                        <div className="mt-1.5 text-center select-none leading-none">
+                        <div className="mt-2 text-center select-none leading-none">
                           <span
-                            className={`text-[9px] uppercase font-bold tracking-tight block ${
+                            className={`text-[10px] uppercase font-bold tracking-tight block transition-colors ${
                               isHovered
                                 ? 'text-emerald-600 dark:text-emerald-400 font-black'
                                 : total > 0
@@ -998,48 +1009,73 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
                 </div>
               </div>
 
-              {/* Right: Executive Practical Summary Scorecards */}
-              <div className="w-full md:w-auto md:border-l md:border-slate-200 md:dark:border-slate-800 md:pl-5 flex items-center justify-between md:justify-end gap-2.5 sm:gap-3 shrink-0">
-                <div className="flex items-center gap-2 sm:gap-2.5">
-                  {/* Metric 1: In Period */}
-                  <div className="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">In Period</div>
-                    <div className="flex items-baseline gap-1 mt-0.5">
-                      <span className="text-base font-black text-emerald-600 dark:text-emerald-400 font-mono">
-                        {totalPublishedInPeriod}
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-medium">posts</span>
-                    </div>
+              {/* Right: Executive Cadence Summary & Velocity Card */}
+              <div className="w-full xl:w-72 shrink-0 xl:border-l xl:border-slate-200 xl:dark:border-slate-800 xl:pl-6 flex flex-col justify-between gap-3">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between pb-1 mb-1 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-3 h-3 text-emerald-500" />
+                      Cadence Overview
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400">12 Months</span>
                   </div>
 
-                  {/* Metric 2: Peak Month */}
-                  <div className="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Peak Month</div>
-                    <div className="flex items-baseline gap-1 mt-0.5">
-                      <span className="text-sm font-bold text-slate-800 dark:text-slate-200 font-mono">
-                        {peakMonth && peakMonth.publishedCount > 0 ? `${peakMonth.label} (${peakMonth.publishedCount})` : 'None'}
-                      </span>
+                  {/* 3 Metric Cards */}
+                  <div className="grid grid-cols-3 xl:grid-cols-1 gap-2">
+                    {/* Metric 1: In Period */}
+                    <div className="p-2.5 rounded-lg bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-800/80 transition-colors shadow-2xs">
+                      <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        <span>In Period</span>
+                        <FileText className="w-3 h-3 text-emerald-500" />
+                      </div>
+                      <div className="flex items-baseline gap-1 mt-1">
+                        <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono tracking-tight">
+                          {totalPublishedInPeriod}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-medium">posts</span>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Metric 3: Monthly Average */}
-                  <div className="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avg Rate</div>
-                    <div className="flex items-baseline gap-1 mt-0.5">
-                      <span className="text-sm font-bold text-slate-800 dark:text-slate-200 font-mono">
-                        {avgMonthlyPublished}
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-medium">/mo</span>
+                    {/* Metric 2: Peak Month */}
+                    <div className="p-2.5 rounded-lg bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-800/80 transition-colors shadow-2xs">
+                      <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        <span>Peak Month</span>
+                        <TrendingUp className="w-3 h-3 text-blue-500" />
+                      </div>
+                      <div className="flex items-baseline gap-1.5 mt-1">
+                        <span className="text-sm font-bold text-slate-800 dark:text-slate-200 font-mono">
+                          {peakMonth && peakMonth.publishedCount > 0 ? peakMonth.label : 'None'}
+                        </span>
+                        {peakMonth && peakMonth.publishedCount > 0 && (
+                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 border border-blue-200/60 dark:border-blue-800/60">
+                            {peakMonth.publishedCount} posts
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Metric 3: Avg Velocity */}
+                    <div className="p-2.5 rounded-lg bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-800/80 transition-colors shadow-2xs">
+                      <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        <span>Avg Velocity</span>
+                        <Zap className="w-3 h-3 text-amber-500" />
+                      </div>
+                      <div className="flex items-baseline gap-1 mt-1">
+                        <span className="text-xl font-black text-slate-800 dark:text-slate-200 font-mono tracking-tight">
+                          {avgMonthlyPublished}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-medium">/mo</span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Quick Action Link */}
+                {/* Quick Action Button */}
                 <Link
                   href={`/blogs${siteQuery}&status=Published`}
-                  className="hidden xl:inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-slate-100 hover:bg-emerald-50 dark:bg-slate-800 dark:hover:bg-emerald-950/60 text-slate-700 hover:text-emerald-600 dark:text-slate-300 dark:hover:text-emerald-400 text-[10px] font-bold transition-colors shrink-0 shadow-2xs"
+                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs hover:shadow-sm"
                 >
-                  <span>Browse</span>
+                  <span>Browse Published Archive</span>
                   <ChevronRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
