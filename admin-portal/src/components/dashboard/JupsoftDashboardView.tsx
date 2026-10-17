@@ -893,7 +893,7 @@ export const JupsoftDashboardView: React.FC<JupsoftDashboardViewProps> = ({
             <div className="px-3 py-2 sm:px-4 sm:py-2.5 flex flex-col md:flex-row items-center justify-between gap-3 md:gap-6 rounded-b-lg">
               {/* Left: 12-Month Cadence - Tight grouping with NO awkward gaps */}
               <div className="w-full md:max-w-xl lg:max-w-2xl">
-                <div className="flex items-end justify-between gap-1 sm:gap-1.5 h-28">
+                <div className="flex items-end justify-between gap-1 sm:gap-1.5 h-40">
                   {monthlyTrajectory.map((month, idx) => {
                     const isHovered = hoveredMonthKey === month.key;
                     const total = month.totalCount;
