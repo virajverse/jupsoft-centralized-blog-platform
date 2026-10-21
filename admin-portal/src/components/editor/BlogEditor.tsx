@@ -599,6 +599,78 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     return users.find((u) => u.id === selectedAuthorId)?.twitterUrl || '';
   }, [authorMode, selectedAuthorId, currentUser, effectiveAuthorName, users]);
 
+  // Real-Time Author Bio Sync State for Editor Sidebar (TRD §13)
+  const [editorBio, setEditorBio] = useState(() => {
+    return currentUser?.bio || (typeof window !== 'undefined' && currentUser?.id ? localStorage.getItem(`profile_bio_${currentUser.id}`) : '') || '';
+  });
+  const [editorBioSyncStatus, setEditorBioSyncStatus] = useState<'synced' | 'syncing' | 'error' | 'idle'>('synced');
+  const lastSyncedEditorBioRef = useRef(editorBio);
+  const editorBioDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Sync editorBio when selected author or currentUser changes
+  useEffect(() => {
+    if (authorMode === 'user') {
+      if (selectedAuthorId === currentUser?.id || effectiveAuthorName.includes('Sachin')) {
+        const b = currentUser?.bio || (typeof window !== 'undefined' && currentUser?.id ? localStorage.getItem(`profile_bio_${currentUser.id}`) : '') || '';
+        setEditorBio(b);
+        lastSyncedEditorBioRef.current = b.trim();
+      } else {
+        const found = users.find((u) => u.id === selectedAuthorId);
+        const b = found?.bio || '';
+        setEditorBio(b);
+        lastSyncedEditorBioRef.current = b.trim();
+      }
+    } else {
+      setEditorBio('');
+    }
+  }, [selectedAuthorId, currentUser?.bio, currentUser?.id, authorMode, users, effectiveAuthorName]);
+
+  const syncEditorBioToBackend = async (newBio: string) => {
+    const cleanBio = newBio.trim();
+    if (cleanBio === lastSyncedEditorBioRef.current) {
+      setEditorBioSyncStatus('synced');
+      return;
+    }
+    setEditorBioSyncStatus('syncing');
+    try {
+      const updated = await apiClient.updateProfile({ bio: cleanBio });
+      lastSyncedEditorBioRef.current = cleanBio;
+      useBlogStore.setState((prev) => ({
+        currentUser: prev.currentUser ? { ...prev.currentUser, bio: updated.bio !== undefined ? updated.bio : cleanBio } : null,
+      }));
+      if (typeof window !== 'undefined' && currentUser?.id) {
+        localStorage.setItem(`profile_bio_${currentUser.id}`, cleanBio);
+      }
+      setEditorBioSyncStatus('synced');
+    } catch {
+      setEditorBioSyncStatus('error');
+    }
+  };
+
+  const handleEditorBioChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setEditorBio(val);
+    if (selectedAuthorId === currentUser?.id || effectiveAuthorName.includes('Sachin')) {
+      useBlogStore.setState((prev) => ({
+        currentUser: prev.currentUser ? { ...prev.currentUser, bio: val } : null,
+      }));
+    }
+    setEditorBioSyncStatus('syncing');
+    if (editorBioDebounceRef.current) {
+      clearTimeout(editorBioDebounceRef.current);
+    }
+    editorBioDebounceRef.current = setTimeout(() => {
+      syncEditorBioToBackend(val);
+    }, 800);
+  };
+
+  const handleEditorBioBlur = () => {
+    if (editorBioDebounceRef.current) {
+      clearTimeout(editorBioDebounceRef.current);
+    }
+    syncEditorBioToBackend(editorBio);
+  };
+
   // Per-language dictionary state
   const defaultTrans = useCallback((lang: LanguageCode): BlogTranslation => ({
     id: `trans-${lang}-${Date.now()}`,
@@ -841,7 +913,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         .run();
     }
     setLinkModalOpen(false);
-    showNotification('Link applied successfully! 🔗', 'success');
+    showNotification('Link applied successfully!', 'success');
   };
 
   // Remove Link handler
@@ -1343,7 +1415,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       if (editor && translatedContent) {
         editor.commands.setContent(translatedContent);
       }
-      showNotification(`AI Translation complete for ${currentLang.toUpperCase()}! ✨`, 'success');
+      showNotification(`AI Translation complete for ${currentLang.toUpperCase()}!`, 'success');
     } catch (err: unknown) {
       console.error('AI translation failed:', err);
       showNotification(err instanceof Error ? err.message : 'AI translation service unavailable', 'warning');
@@ -1697,7 +1769,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         sessionStorage.setItem(`jupsoft_editing_blog_${savedBlogResult.id}`, JSON.stringify(savedBlogResult));
       } catch {}
       setHasUnsavedChanges(false);
-      showNotification(status === 'Published' ? 'Blog published successfully! 🎉' : 'Blog saved successfully! ✅', 'success');
+      showNotification(status === 'Published' ? 'Blog published successfully!' : 'Blog saved successfully!', 'success');
       router.push(`/blogs?site=${targetSiteId}`);
     } catch (err: unknown) {
       console.warn('saveBlog error:', err);
@@ -2537,7 +2609,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                       type="button"
                       onClick={() => {
                         navigator.clipboard.writeText(`https://${activeSite.domain}/blog/${activeTrans.slug}`);
-                        showNotification('Live permalink copied to clipboard! 📋', 'success');
+                        showNotification('Live permalink copied to clipboard!', 'success');
                       }}
                       className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer ml-0.5"
                       title="Copy full article URL"
@@ -3304,6 +3376,50 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                         : 'Upload photo or choose from Media library (auto-converted to WebP).'}
                     </p>
                   </div>
+                  {/* Author Bio (Real-Time Live Site Sync) */}
+                  <div className="pt-2 border-t border-dashed border-slate-200 dark:border-slate-800/80 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                        Author Bio (Real-Time Live Sync)
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {editorBioSyncStatus === 'syncing' && (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                            <RefreshCw className="w-2.5 h-2.5 animate-spin" /> Syncing...
+                          </span>
+                        )}
+                        {editorBioSyncStatus === 'synced' && (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live Synced
+                          </span>
+                        )}
+                        {editorBioSyncStatus === 'error' && (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-rose-600 dark:text-rose-400 font-medium">
+                            Sync error
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {authorMode === 'user' ? (
+                      <>
+                        <textarea
+                          rows={3}
+                          value={editorBio}
+                          onChange={handleEditorBioChange}
+                          onBlur={handleEditorBioBlur}
+                          placeholder="Write author bio (propagates in real-time to published blogs and live ISR pages)..."
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-slate-400 leading-relaxed font-sans resize-none"
+                        />
+                        <p className="text-[9px] text-slate-400 dark:text-slate-500 leading-tight">
+                          Live website caches automatically purge and revalidate whenever you type.
+                        </p>
+                      </>
+                    ) : (
+                      <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                        Custom author byline uses the official editorial desk profile. Switch to <strong>Team</strong> to customize individual author bio.
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Categories */}
@@ -3419,7 +3535,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   />
                   {formattedPublishDate.displayVal ? (
                     <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                      ✓ Displays as: {formattedPublishDate.displayVal}
+                      <Check className="w-3 h-3 inline mr-1" />Displays as: {formattedPublishDate.displayVal}
                     </p>
                   ) : (
                     <p className="text-[10px] text-slate-400 dark:text-slate-500">Pick any date to authentically backdate this article.</p>
@@ -3689,7 +3805,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   {/* Informational Callout */}
                   <div className="bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 text-xs text-slate-500 dark:text-slate-400 space-y-1">
                     <div className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-                      <span>⚡ Why WebP?</span>
+                      <span>Why WebP?</span>
                     </div>
                     <p>
                       WebP delivers 30%–80% smaller file sizes than PNG/JPEG with superior visual fidelity, ensuring 100/100 Google Lighthouse Core Web Vitals and rapid LCP load times.

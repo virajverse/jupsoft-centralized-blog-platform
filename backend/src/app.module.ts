@@ -1,11 +1,11 @@
 /**
  * AppModule — Production-Hardened Configuration
- * TRD §15: Rate limiting, security interceptors, global guards
+ * TRD §15: Rate limiting, security interceptors, global guards, global exception filter
  * TRD §18: CloudWatch structured logging
  */
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD, APP_INTERCEPTOR, Reflector } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER, Reflector } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './prisma/prisma.module';
@@ -28,6 +28,7 @@ import { SupabaseSyncModule } from './modules/supabase-sync/supabase-sync.module
 import { SupportModule } from './modules/support/support.module';
 import { RedisModule } from './common/providers/redis.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 @Module({
   imports: [
@@ -84,6 +85,11 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     {
       provide: APP_INTERCEPTOR,
       useClass: LoggingInterceptor,
+    },
+    // Centralized Global Exception Filter (TRD §15 & Velocity NodeBestPractices)
+    {
+      provide: APP_FILTER,
+      useClass: AllExceptionsFilter,
     },
   ],
 })

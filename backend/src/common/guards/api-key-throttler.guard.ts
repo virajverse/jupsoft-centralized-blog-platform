@@ -15,7 +15,7 @@
  *   - limit: 120 requests per minute per API key
  */
 
-import { Injectable, ExecutionContext } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ThrottlerGuard, ThrottlerRequest } from '@nestjs/throttler';
 
 @Injectable()

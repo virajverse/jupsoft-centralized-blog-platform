@@ -3,14 +3,15 @@
  * Tests: login, invalid credentials, brute-force, JWT tamper, refresh rotation, logout
  */
 import { AuthService } from '../modules/auth/auth.service';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 
 const mockPrisma = {
   user: {
     findUnique: jest.fn(),
     update: jest.fn(),
+  },
+  blog: {
+    findMany: jest.fn(),
   },
   systemAuditLog: { create: jest.fn() },
 };
@@ -31,6 +32,12 @@ const mockRedis = {
   get: jest.fn(() => null),
   set: jest.fn(),
   del: jest.fn(),
+  delPattern: jest.fn(),
+  delPatterns: jest.fn(),
+};
+
+const mockWebhookDispatcher = {
+  dispatchWebhook: jest.fn().mockResolvedValue(undefined),
 };
 
 const makeUser = (overrides: any = {}) => ({
@@ -56,6 +63,8 @@ describe('AuthService', () => {
       mockJwt as any,
       mockConfig as any,
       mockRedis as any,
+      undefined,
+      mockWebhookDispatcher as any,
     );
   });
 
@@ -314,6 +323,72 @@ describe('AuthService', () => {
           passwordHash: '$2b$10$brandnewhashedpassword',
         }),
       }));
+    });
+  });
+
+  // ── PHASE 4.8: Profile & Author Bio Real-Time Live Site Sync ──────────
+  describe('updateProfile()', () => {
+    it('should update bio and profile fields, clear caches, and dispatch ISR webhooks in real-time', async () => {
+      const user = makeUser({ id: 'author-1', name: 'Sachin Author', bio: 'Old bio' });
+      mockPrisma.user.findUnique.mockResolvedValue(user);
+      mockPrisma.user.update.mockResolvedValue({
+        ...user,
+        bio: 'New real-time updated author bio with deep expertise.',
+      });
+      mockPrisma.blog.findMany.mockResolvedValue([
+        {
+          websiteId: 'web-1',
+          translations: [{ slug: 'modern-school-erp-solutions' }],
+        },
+        {
+          websiteId: 'web-2',
+          translations: [{ slug: 'cloud-security-in-education' }],
+        },
+      ]);
+
+      const res = await service.updateProfile('author-1', {
+        bio: 'New real-time updated author bio with deep expertise.',
+      });
+
+      expect(res.bio).toBe('New real-time updated author bio with deep expertise.');
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 'author-1' },
+        data: expect.objectContaining({
+          bio: 'New real-time updated author bio with deep expertise.',
+        }),
+      }));
+
+      // Cache invalidation verification
+      expect(mockRedis.del).toHaveBeenCalledWith('auth:profile:author-1');
+      expect(mockRedis.del).toHaveBeenCalledWith('auth:user:author-1');
+      expect(mockRedis.delPatterns).toHaveBeenCalledWith(['blog:*', 'blogs:*', 'search:*']);
+
+      // Await next tick so asynchronous webhook dispatch finishes
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(mockPrisma.blog.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({
+          OR: [{ authorId: 'author-1' }, { authorName: 'Sachin Author' }],
+          status: 'Published',
+        }),
+      }));
+
+      expect(mockWebhookDispatcher.dispatchWebhook).toHaveBeenCalledWith(
+        'web-1',
+        'blog.updated',
+        'modern-school-erp-solutions',
+      );
+      expect(mockWebhookDispatcher.dispatchWebhook).toHaveBeenCalledWith(
+        'web-2',
+        'blog.updated',
+        'cloud-security-in-education',
+      );
+    });
+
+    it('should throw UnauthorizedException if user is not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      await expect(service.updateProfile('non-existent', { bio: 'Some bio' }))
+        .rejects.toThrow('User not found');
     });
   });
 });

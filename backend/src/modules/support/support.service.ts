@@ -5,7 +5,7 @@ import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { AuthenticatedUser } from '../../common/interfaces/auth-user.interface';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { join, dirname } from 'path';
+import { join } from 'path';
 import * as fs from 'fs';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -292,7 +292,7 @@ export class SupportService {
    * Update ticket status or add resolution notes (Super Admin Only)
    */
   async updateTicket(id: string, dto: UpdateTicketDto, user: AuthenticatedUser) {
-    const existing = await this.findOne(id);
+    await this.findOne(id);
 
     const data: any = {};
     if (dto.status) {

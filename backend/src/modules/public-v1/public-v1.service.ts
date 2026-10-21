@@ -43,6 +43,15 @@ export class PublicV1Service {
     return this.redis.ping();
   }
 
+  async checkDatabase(): Promise<boolean> {
+    try {
+      await this.prisma.$queryRaw`SELECT 1`;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private normalizeMediaUrl(url?: string): string {
     if (!url) return '';
     if (url.startsWith('data:') || url.startsWith('blob:')) return url;
@@ -364,7 +373,7 @@ export class PublicV1Service {
   }
 
   // ─── TRD §13: key format blog:{website}:{slug}:{lang}
-  async getBlogBySlug(slug: string, websiteId: string, lang = 'en', bypassCache = false, hasExplicitLang = false) {
+  async getBlogBySlug(slug: string, websiteId: string, lang = 'en', bypassCache = false, _hasExplicitLang = false) {
     // TRD §13: "checks Redis first (key: blog:{website}:{slug}:{lang})"
     const cacheKey = `blog:${websiteId}:${slug}:${lang}`;
     if (!bypassCache) {

@@ -6,7 +6,7 @@
  */
 import { BlogsService } from '../modules/blogs/blogs.service';
 import { MediaService } from '../modules/media/media.service';
-import { NotFoundException, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 
 // ─── 1. BlogsService Tenant Isolation ──────────────────────────────────────
 

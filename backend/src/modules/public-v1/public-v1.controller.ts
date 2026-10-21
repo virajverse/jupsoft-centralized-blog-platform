@@ -55,10 +55,20 @@ export class PublicV1Controller {
 
   @Get('health')
   @ApiOperation({ summary: 'Health check endpoint for status monitoring' })
-  async healthCheck() {
-    const isRedisActive = await this.publicV1Service.checkRedis();
+  async healthCheck(@Res({ passthrough: true }) res: any) {
+    const [isRedisActive, isDbActive] = await Promise.all([
+      this.publicV1Service.checkRedis(),
+      this.publicV1Service.checkDatabase(),
+    ]);
+
+    const isHealthy = isDbActive;
+    if (!isHealthy) {
+      res.status(HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
     return {
-      status: 'ok',
+      status: isHealthy ? 'ok' : 'degraded',
+      database: isDbActive ? 'connected' : 'disconnected',
       redis: isRedisActive ? 'connected' : 'offline',
       service: 'Jupsoft Centralized CMS Backend',
       timestamp: new Date().toISOString(),
@@ -73,8 +83,8 @@ export class PublicV1Controller {
   async revalidateCache(
     @Req() req: any,
     @Body() body: any,
-    @Headers('x-signature') xSignature?: string,
-    @Headers('x-hub-signature-256') xHubSignature?: string,
+    @Headers('x-signature') _xSignature?: string,
+    @Headers('x-hub-signature-256') _xHubSignature?: string,
     @Headers('x-event') xEvent?: string,
     @Query('website') queryWebsite?: string,
   ) {

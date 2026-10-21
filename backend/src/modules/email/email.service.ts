@@ -891,7 +891,8 @@ export class EmailService {
 
               <!-- Direct Link Fallback -->
               <div style="background-color: #f8fafc; border-radius: 6px; padding: 12px 14px; font-size: 11px; color: #64748b; margin-bottom: 20px; border: 1px solid #e2e8f0; word-break: break-all; line-height: 1.6;">
-                <strong>Live URL:</strong> <a href="${liveUrl}" style="color: #2563eb; text-decoration: underline;">${liveUrl}</a>
+                <strong>Live URL:</strong> <a href="${liveUrl}" style="color: #2563eb; text-decoration: underline;">${liveUrl}</a><br/>
+                <strong>CMS Edit:</strong> <a href="${cmsInspectUrl}" style="color: #2563eb; text-decoration: underline;">${cmsInspectUrl}</a>
               </div>
 
               <!-- Footer -->

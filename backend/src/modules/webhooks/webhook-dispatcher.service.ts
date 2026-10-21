@@ -219,15 +219,15 @@ export class WebhookDispatcherService {
           delivered = res.ok;
 
           if (res.ok) {
-            this.logger.log(`✅ Webhook [${endpoint.name}] delivered (${res.status}) to ${endpoint.url}`);
+            this.logger.log(`✅ Webhook [${endpoint.name}] delivered (${res.status}) in ${Date.now() - startTime}ms to ${endpoint.url}`);
           } else {
-            this.logger.warn(`⚠️ Webhook [${endpoint.name}] responded ${res.status} from ${endpoint.url}`);
+            this.logger.warn(`⚠️ Webhook [${endpoint.name}] responded ${res.status} in ${Date.now() - startTime}ms from ${endpoint.url}`);
           }
         } catch (err) {
           statusCode = 0;
           responseBody = (err as Error).message;
           this.logger.error(
-            `❌ Webhook [${endpoint.name}] network failure to ${endpoint.url}: ${(err as Error).message}`,
+            `❌ Webhook [${endpoint.name}] network failure in ${Date.now() - startTime}ms to ${endpoint.url}: ${(err as Error).message}`,
           );
         }
 

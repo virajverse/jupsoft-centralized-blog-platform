@@ -66,6 +66,21 @@ export class MediaService {
   // ─── TRD §10: Step 1 — Generate pre-signed S3 PUT URL ──────────────────────
 
   async generatePresignedUrl(dto: PresignedUrlRequestDto) {
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+    const lowerType = (dto.fileType || '').toLowerCase().trim();
+    if (!allowedTypes.includes(lowerType)) {
+      throw new BadRequestException(
+        `File type "${dto.fileType}" is not permitted for upload. Only raster image assets (JPEG, PNG, WebP, GIF) are allowed.`,
+      );
+    }
+
+    const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25MB
+    if (dto.fileSizeBytes && dto.fileSizeBytes > MAX_FILE_SIZE_BYTES) {
+      throw new BadRequestException(
+        `File size exceeds maximum allowed upload limit of 25MB (${Math.round(dto.fileSizeBytes / (1024 * 1024))}MB requested).`,
+      );
+    }
+
     const website = await this.prisma.website.findUnique({
       where: { id: dto.websiteId },
     });

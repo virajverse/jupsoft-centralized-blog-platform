@@ -137,6 +137,28 @@ describe('MediaService - Upload Security', () => {
     })).rejects.toThrow(NotFoundException);
   });
 
+  it('should reject non-image MIME types in presigned URL request', async () => {
+    mockPrisma.website.findUnique.mockResolvedValue({ id: 'site-1', s3Prefix: 'blogs/site-1' });
+
+    await expect(service.generatePresignedUrl({
+      websiteId: 'site-1',
+      fileName: 'document.pdf',
+      fileType: 'application/pdf',
+      fileSizeBytes: 1024,
+    })).rejects.toThrow(BadRequestException);
+  });
+
+  it('should reject files exceeding 25MB in presigned URL request', async () => {
+    mockPrisma.website.findUnique.mockResolvedValue({ id: 'site-1', s3Prefix: 'blogs/site-1' });
+
+    await expect(service.generatePresignedUrl({
+      websiteId: 'site-1',
+      fileName: 'massive-video.mp4',
+      fileType: 'image/jpeg',
+      fileSizeBytes: 30 * 1024 * 1024,
+    })).rejects.toThrow(BadRequestException);
+  });
+
   it('should throw NotFoundException when deleting non-existent media asset', async () => {
     mockPrisma.mediaAsset.findUnique.mockResolvedValue(null);
 

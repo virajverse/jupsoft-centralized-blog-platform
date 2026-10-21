@@ -21,6 +21,7 @@ import {
 } from './dto/login.dto';
 import { RedisProvider } from '../../common/providers/redis.provider';
 import { EmailService } from '../email/email.service';
+import { WebhookDispatcherService } from '../webhooks/webhook-dispatcher.service';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
@@ -43,6 +44,7 @@ export class AuthService {
     private configService: ConfigService,
     private redis: RedisProvider,
     @Optional() private emailService?: EmailService,
+    @Optional() private webhookDispatcher?: WebhookDispatcherService,
   ) {}
 
   private get jwtSecret(): string {
@@ -635,8 +637,45 @@ export class AuthService {
 
     await this.redis.del(`auth:profile:${userId}`);
     await this.redis.del(`auth:user:${userId}`);
-    await this.redis.delPattern('blog:*');
-    await this.redis.delPattern('blogs:*');
+    if (this.redis.delPatterns) {
+      await this.redis.delPatterns(['blog:*', 'blogs:*', 'search:*']);
+    } else {
+      await this.redis.delPattern?.('blog:*');
+      await this.redis.delPattern?.('blogs:*');
+      await this.redis.delPattern?.('search:*');
+    }
+
+    // Real-Time Live Site Sync (TRD §13 On-Demand ISR Cache Invalidation)
+    // When author updates profile (bio, name, avatar) or avatar photo, propagate in real-time to all tenant websites
+    if (this.webhookDispatcher) {
+      this.prisma.blog.findMany({
+        where: {
+          OR: [
+            { authorId: userId },
+            { authorName: user.name },
+          ],
+          status: 'Published',
+        },
+        select: {
+          websiteId: true,
+          translations: { select: { slug: true } },
+        },
+      }).then((blogs) => {
+        const dispatched = new Set<string>();
+        for (const b of blogs) {
+          const primarySlug = b.translations?.[0]?.slug;
+          if (primarySlug && b.websiteId && !dispatched.has(`${b.websiteId}:${primarySlug}`)) {
+            dispatched.add(`${b.websiteId}:${primarySlug}`);
+            this.webhookDispatcher?.dispatchWebhook(b.websiteId, 'blog.updated', primarySlug).catch((err) => {
+              this.logger.warn(`[LiveSync] Failed to dispatch ISR revalidation for slug ${primarySlug}: ${err.message}`);
+            });
+          }
+        }
+      }).catch((err) => {
+        this.logger.warn(`[LiveSync] Failed to query author blogs for ISR revalidation: ${err.message}`);
+      });
+    }
+
 
     return {
       id: updated.id,
@@ -777,8 +816,45 @@ export class AuthService {
 
     await this.redis.del(`auth:user:${userId}`);
     await this.redis.del(`auth:profile:${userId}`);
-    await this.redis.delPattern('blog:*');
-    await this.redis.delPattern('blogs:*');
+    if (this.redis.delPatterns) {
+      await this.redis.delPatterns(['blog:*', 'blogs:*', 'search:*']);
+    } else {
+      await this.redis.delPattern?.('blog:*');
+      await this.redis.delPattern?.('blogs:*');
+      await this.redis.delPattern?.('search:*');
+    }
+
+    // Real-Time Live Site Sync (TRD §13 On-Demand ISR Cache Invalidation)
+    // When author updates profile (bio, name, avatar) or avatar photo, propagate in real-time to all tenant websites
+    if (this.webhookDispatcher) {
+      this.prisma.blog.findMany({
+        where: {
+          OR: [
+            { authorId: userId },
+            { authorName: user.name },
+          ],
+          status: 'Published',
+        },
+        select: {
+          websiteId: true,
+          translations: { select: { slug: true } },
+        },
+      }).then((blogs) => {
+        const dispatched = new Set<string>();
+        for (const b of blogs) {
+          const primarySlug = b.translations?.[0]?.slug;
+          if (primarySlug && b.websiteId && !dispatched.has(`${b.websiteId}:${primarySlug}`)) {
+            dispatched.add(`${b.websiteId}:${primarySlug}`);
+            this.webhookDispatcher?.dispatchWebhook(b.websiteId, 'blog.updated', primarySlug).catch((err) => {
+              this.logger.warn(`[LiveSync] Failed to dispatch ISR revalidation for slug ${primarySlug}: ${err.message}`);
+            });
+          }
+        }
+      }).catch((err) => {
+        this.logger.warn(`[LiveSync] Failed to query author blogs for ISR revalidation: ${err.message}`);
+      });
+    }
+
     await this.redis.delPattern('admin:blogs:*');
 
     await this.prisma.systemAuditLog.create({

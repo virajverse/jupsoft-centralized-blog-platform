@@ -39,7 +39,7 @@ describe('WebhookDispatcherService', () => {
 
     let capturedHeaders: any = null;
     // Mock global fetch
-    const mockFetch = jest.fn().mockImplementation(async (url: string, opts: any) => {
+    const mockFetch = jest.fn().mockImplementation(async (_url: string, opts: any) => {
       capturedHeaders = opts.headers;
       return { status: 200, ok: true, text: () => Promise.resolve('ok') };
     });
@@ -57,7 +57,6 @@ describe('WebhookDispatcherService', () => {
     mockPrisma.website.findUnique.mockResolvedValue(website);
     mockPrisma.webhookDeliveryLog.create.mockResolvedValue({});
 
-    let capturedHeaders: any = null;
     const mockFetch = jest.fn().mockImplementation(async () => {
       return { status: 200, ok: true, text: () => Promise.resolve('ok') };
     });

@@ -29,7 +29,6 @@ import {
   GoogleLoginDto,
   ForgotPasswordDto,
   ResetPasswordDto,
-  ValidateResetTokenDto,
 } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';

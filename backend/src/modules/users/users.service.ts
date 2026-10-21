@@ -785,9 +785,6 @@ export class UsersService {
     return Array.isArray(user?.roleAssignments) && user.roleAssignments.some((ra) => ra.role === 'Super Admin');
   }
 
-  private isUserProtectedSuperAdmin(user: { id?: string; email?: string; name?: string }): boolean {
-    return this.isRootSuperAdmin(user);
-  }
 
   private async invalidateUserCache() {
     await Promise.allSettled([

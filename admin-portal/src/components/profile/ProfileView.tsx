@@ -74,6 +74,11 @@ export const ProfileView: React.FC = () => {
     return currentUser?.twitterUrl || (typeof window !== 'undefined' && currentUser?.id ? localStorage.getItem(`profile_twitter_${currentUser.id}`) : '') || '';
   });
 
+  // Real-Time Author Bio Sync State (TRD §13 On-Demand ISR Cache Invalidation)
+  const [bioSyncStatus, setBioSyncStatus] = useState<'synced' | 'syncing' | 'error' | 'idle'>('synced');
+  const lastSyncedBioRef = useRef(bio);
+  const bioDebounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [avatarLoadError, setAvatarLoadError] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -190,11 +195,63 @@ export const ProfileView: React.FC = () => {
     }
   };
 
+  // Real-Time Author Bio Sync to Live Website
+  const syncBioToLiveSite = async (newBio: string) => {
+    const cleanBio = newBio.trim();
+    if (cleanBio === lastSyncedBioRef.current) {
+      setBioSyncStatus('synced');
+      return;
+    }
+    setBioSyncStatus('syncing');
+    try {
+      const updated = await apiClient.updateProfile({
+        bio: cleanBio,
+      });
+      lastSyncedBioRef.current = cleanBio;
+      useBlogStore.setState((prev) => ({
+        currentUser: prev.currentUser
+          ? {
+              ...prev.currentUser,
+              bio: updated.bio !== undefined ? updated.bio : cleanBio,
+            }
+          : null,
+      }));
+      if (typeof window !== 'undefined' && currentUser?.id) {
+        localStorage.setItem(`profile_bio_${currentUser.id}`, cleanBio);
+      }
+      setBioSyncStatus('synced');
+    } catch {
+      setBioSyncStatus('error');
+    }
+  };
+
+  const handleBioChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setBio(val);
+    setBioSyncStatus('syncing');
+    if (bioDebounceTimeoutRef.current) {
+      clearTimeout(bioDebounceTimeoutRef.current);
+    }
+    bioDebounceTimeoutRef.current = setTimeout(() => {
+      syncBioToLiveSite(val);
+    }, 800);
+  };
+
+  const handleBioBlur = () => {
+    if (bioDebounceTimeoutRef.current) {
+      clearTimeout(bioDebounceTimeoutRef.current);
+    }
+    syncBioToLiveSite(bio);
+  };
+
   // Sync state if currentUser changes
   useEffect(() => {
     if (currentUser) {
       if (currentUser.name) setDisplayName(currentUser.name);
-      if (currentUser.bio !== undefined) setBio(currentUser.bio || '');
+      if (currentUser.bio !== undefined) {
+        setBio(currentUser.bio || '');
+        lastSyncedBioRef.current = (currentUser.bio || '').trim();
+      }
       if (currentUser.linkedinUrl !== undefined) setLinkedinUrl(currentUser.linkedinUrl || '');
       if (currentUser.twitterUrl !== undefined) setTwitterUrl(currentUser.twitterUrl || '');
     }
@@ -303,7 +360,9 @@ export const ProfileView: React.FC = () => {
         localStorage.setItem(`profile_linkedin_${currentUser.id}`, cleanLinkedin);
         localStorage.setItem(`profile_twitter_${currentUser.id}`, cleanTwitter);
       }
-      showNotification('Profile & Author details saved successfully in database!', 'success');
+      lastSyncedBioRef.current = cleanBio;
+      setBioSyncStatus('synced');
+      showNotification('Profile & Author details saved successfully in database and live sites!', 'success');
     } catch (err: unknown) {
       showNotification(err instanceof Error ? err.message : 'Failed to update profile', 'warning');
     } finally {
@@ -681,16 +740,39 @@ export const ProfileView: React.FC = () => {
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                  Author Bio (Shown on &quot;About the Author&quot; Card)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold text-slate-700 dark:text-slate-300">
+                    Author Bio (Shown on &quot;About the Author&quot; Card)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {bioSyncStatus === 'syncing' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60">
+                        <RefreshCw className="w-2.5 h-2.5 animate-spin" /> Syncing in real-time...
+                      </span>
+                    )}
+                    {bioSyncStatus === 'synced' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live Synced to Site
+                      </span>
+                    )}
+                    {bioSyncStatus === 'error' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60">
+                        Sync error
+                      </span>
+                    )}
+                  </div>
+                </div>
                 <textarea
                   rows={3}
                   value={bio}
-                  onChange={(e) => setBio(e.target.value)}
+                  onChange={handleBioChange}
+                  onBlur={handleBioBlur}
                   placeholder="Share a brief 2-3 sentence overview of your writing expertise, industry focus, and background..."
                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-red-500 leading-relaxed font-sans"
                 />
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                  Updates propagate automatically in real-time to all live blog posts and ISR tenant sites.
+                </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
