@@ -4,6 +4,7 @@ import {
   Body,
   Get,
   Put,
+  Param,
   UseGuards,
   Ip,
   UseInterceptors,
@@ -89,7 +90,8 @@ export class AuthController {
     @Req() req: Request,
   ) {
     const effectiveIp = (dto.clientPublicIp || ip || '').replace(/^::ffff:/, '').trim();
-    const result = await this.authService.login(dto, effectiveIp);
+    const userAgent = req.headers['user-agent'] || '';
+    const result = await this.authService.login(dto, effectiveIp, userAgent);
     this.setAuthCookies(res, result.accessToken, result.refreshToken, req);
     return result;
   }
@@ -107,7 +109,8 @@ export class AuthController {
     @Req() req: Request,
   ) {
     const effectiveIp = (dto.clientPublicIp || ip || '').replace(/^::ffff:/, '').trim();
-    const result = await this.authService.googleLogin(dto, effectiveIp);
+    const userAgent = req.headers['user-agent'] || '';
+    const result = await this.authService.googleLogin(dto, effectiveIp, userAgent);
     this.setAuthCookies(res, result.accessToken, result.refreshToken, req);
     return result;
   }
@@ -122,7 +125,9 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Req() req: Request,
   ) {
-    const result = await this.authService.refreshToken(dto);
+    const effectiveIp = (req.headers['x-forwarded-for'] as string || req.ip || '').split(',')[0].replace(/^::ffff:/, '').trim();
+    const userAgent = req.headers['user-agent'] || '';
+    const result = await this.authService.refreshToken(dto, effectiveIp, userAgent);
     this.setAuthCookies(res, result.accessToken, result.refreshToken, req);
     return result;
   }
@@ -142,6 +147,59 @@ export class AuthController {
   ) {
     const result = await this.authService.logout(dto, userId);
     this.clearAuthCookies(res, req);
+    return result;
+  }
+
+  @Get('sessions')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get all active login sessions / devices for current authenticated user' })
+  async getActiveSessions(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('sessionId') currentSessionId: string,
+    @Ip() ip: string,
+    @Req() req: Request,
+  ) {
+    const effectiveIp = (req.headers['x-forwarded-for'] as string || ip || '').split(',')[0].replace(/^::ffff:/, '').trim();
+    const userAgent = req.headers['user-agent'] || '';
+    return this.authService.getActiveSessions(userId, currentSessionId, effectiveIp, userAgent);
+  }
+
+  @Post('sessions/revoke-all')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Sign out of all other active sessions / devices (or all sessions)' })
+  async revokeAllSessions(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('sessionId') currentSessionId: string,
+    @Body() body: { includeCurrent?: boolean },
+    @Res({ passthrough: true }) res: Response,
+    @Req() req: Request,
+  ) {
+    const result = await this.authService.revokeAllSessions(userId, currentSessionId, body?.includeCurrent === true);
+    if (body?.includeCurrent === true) {
+      this.clearAuthCookies(res, req);
+    }
+    return result;
+  }
+
+  @Post('sessions/revoke/:sessionId')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Revoke a specific active session / device' })
+  async revokeSession(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('sessionId') currentSessionId: string,
+    @Param('sessionId') sessionId: string,
+    @Res({ passthrough: true }) res: Response,
+    @Req() req: Request,
+  ) {
+    const result = await this.authService.revokeSession(userId, sessionId);
+    if (sessionId === currentSessionId) {
+      this.clearAuthCookies(res, req);
+    }
     return result;
   }
 

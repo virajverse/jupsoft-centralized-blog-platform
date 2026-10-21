@@ -7,7 +7,7 @@
  */
 
 import {
-  Blog, Website, Category, Tag, MediaItem,
+  Blog, Website, Category, Tag, MediaItem, ActiveSession,
   UserAccount, RedirectItem, SystemAuditLog, BlogStatus, BlogSEO, BlogTranslation,
   SupportTicket, TeamMemberTimeSpent, SystemNotification,
 } from '../types';
@@ -538,6 +538,27 @@ class ApiClient {
       }
     }
     this.hardPurge();
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // Active Sessions & Multi-Device Token Management
+  // ═════════════════════════════════════════════════════════════════════════
+
+  async getActiveSessions(): Promise<{ success: boolean; count: number; sessions: ActiveSession[] }> {
+    return this.request('/admin/auth/sessions');
+  }
+
+  async revokeSession(sessionId: string): Promise<{ success: boolean; message: string }> {
+    return this.request(`/admin/auth/sessions/revoke/${sessionId}`, {
+      method: 'POST',
+    });
+  }
+
+  async revokeAllSessions(includeCurrent = false): Promise<{ success: boolean; message: string; count: number }> {
+    return this.request('/admin/auth/sessions/revoke-all', {
+      method: 'POST',
+      body: JSON.stringify({ includeCurrent }),
+    });
   }
 
   // ─── Websites / Multi-Tenant (TRD §3) ─────────────────────────────────────

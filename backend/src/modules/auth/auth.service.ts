@@ -20,6 +20,22 @@ import {
   ValidateResetTokenDto,
 } from './dto/login.dto';
 import { RedisProvider } from '../../common/providers/redis.provider';
+import { parseUserAgent } from '../../common/utils/user-agent.util';
+
+export interface ActiveSession {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  device: string;
+  browser: string;
+  os: string;
+  ipAddress: string;
+  deviceType: 'desktop' | 'mobile' | 'tablet';
+  userAgent: string;
+  createdAt: string;
+  lastActiveAt: string;
+  isCurrent?: boolean;
+}
 import { EmailService } from '../email/email.service';
 import { WebhookDispatcherService } from '../webhooks/webhook-dispatcher.service';
 import * as bcrypt from 'bcrypt';
@@ -33,6 +49,9 @@ const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 // Redis key prefix for revoked refresh tokens
 // Value: '1', TTL = JWT_REFRESH_EXPIRATION seconds (so old keys auto-expire)
 const REVOKED_TOKEN_PREFIX = 'auth:revoked_rt:';
+const SESSIONS_PREFIX = 'auth:sessions:';
+const REVOKED_SESSION_PREFIX = 'auth:revoked_session:';
+const USER_REVOKED_ALL_PREFIX = 'auth:user_revoked_all_before:';
 
 @Injectable()
 export class AuthService {
@@ -67,7 +86,7 @@ export class AuthService {
     return this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '3650d';
   }
 
-  async login(dto: LoginDto, ipAddress: string) {
+  async login(dto: LoginDto, ipAddress: string, userAgent?: string) {
     // 1. Parallel fetch: User record + In-memory / L2 cached websites prefetch
     const userPromise = this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase() },
@@ -166,8 +185,9 @@ export class AuthService {
       this.logger.warn(`Post-login background update error: ${err.message}`);
     });
 
+    const sessionId = crypto.randomUUID();
     const roles = user.roleAssignments.map((r) => r.role);
-    const payload = { sub: user.id, email: user.email, roles };
+    const payload = { sub: user.id, email: user.email, roles, sessionId };
 
     const accessToken = this.jwtService.sign(payload, {
       secret: this.jwtSecret,
@@ -178,6 +198,9 @@ export class AuthService {
       secret: this.jwtRefreshSecret,
       expiresIn: this.jwtRefreshExpiration as any,
     });
+
+    // Record active session for multi-device tracking & one-click sign out
+    await this.recordSession(user.id, sessionId, refreshToken, cleanIp, userAgent);
 
     // Clean websites for response (mask apiKey if not super admin)
     const isSuperAdmin = roles.includes('Super Admin');
@@ -192,6 +215,7 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
+      sessionId,
       websites,
       user: {
         id: user.id,
@@ -211,7 +235,7 @@ export class AuthService {
   }
 
   // ─── Google OAuth Sign-In (Strict Whitelist: existing users only) ───────────
-  async googleLogin(dto: GoogleLoginDto, ipAddress: string) {
+  async googleLogin(dto: GoogleLoginDto, ipAddress: string, userAgent?: string) {
     if (!dto.credential) {
       throw new BadRequestException('Google credential token is required');
     }
@@ -370,8 +394,9 @@ export class AuthService {
       this.logger.warn(`Post-google-login background update error: ${err.message}`);
     });
 
+    const sessionId = crypto.randomUUID();
     const roles = user.roleAssignments.map((r) => r.role);
-    const payload = { sub: user.id, email: user.email, roles };
+    const payload = { sub: user.id, email: user.email, roles, sessionId };
 
     const accessToken = this.jwtService.sign(payload, {
       secret: this.jwtSecret,
@@ -382,6 +407,9 @@ export class AuthService {
       secret: this.jwtRefreshSecret,
       expiresIn: this.jwtRefreshExpiration as any,
     });
+
+    // Record active session for multi-device tracking & one-click sign out
+    await this.recordSession(user.id, sessionId, refreshToken, cleanIp, userAgent);
 
     const isSuperAdmin = roles.includes('Super Admin');
     const websites = (rawWebsites || []).map((w: any) => {
@@ -395,6 +423,7 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
+      sessionId,
       websites,
       user: {
         id: updatedUser.id,
@@ -413,7 +442,7 @@ export class AuthService {
     };
   }
 
-  async refreshToken(dto: RefreshTokenDto) {
+  async refreshToken(dto: RefreshTokenDto, ipAddress?: string, userAgent?: string) {
     const tokenHash = crypto.createHash('sha256').update(dto.refreshToken).digest('hex');
 
     // ── Step 1: Check if this refresh token has been revoked (logout or rotation) ──
@@ -454,8 +483,9 @@ export class AuthService {
       refreshTtlSeconds,
     );
 
+    const sessionId = payload.sessionId || crypto.randomUUID();
     const roles = user.roleAssignments.map((r) => r.role);
-    const newPayload = { sub: user.id, email: user.email, roles };
+    const newPayload = { sub: user.id, email: user.email, roles, sessionId };
 
     const accessToken = this.jwtService.sign(newPayload, {
       secret: this.jwtSecret,
@@ -467,7 +497,10 @@ export class AuthService {
       expiresIn: this.jwtRefreshExpiration as any,
     });
 
-    const result = { accessToken, refreshToken: newRefreshToken };
+    // Update active session with rotated token hash and activity heartbeat
+    await this.updateSessionActivity(user.id, sessionId, newRefreshToken, ipAddress, userAgent);
+
+    const result = { accessToken, refreshToken: newRefreshToken, sessionId };
     // Grace period cache: allow in-flight parallel requests / other tabs within 30s to reuse fresh tokens
     await this.redis.set(`auth:grace:${tokenHash}`, result, 30);
 
@@ -499,6 +532,15 @@ export class AuthService {
     }
 
     await this.redis.set(`${REVOKED_TOKEN_PREFIX}${tokenHash}`, '1', refreshTtlSeconds);
+
+    // Remove matching session from user's active session list
+    try {
+      const sessions = (await this.redis.get<ActiveSession[]>(`${SESSIONS_PREFIX}${userId}`)) || [];
+      const remaining = sessions.filter((s) => s.tokenHash !== tokenHash);
+      if (remaining.length !== sessions.length) {
+        await this.redis.set(`${SESSIONS_PREFIX}${userId}`, remaining, refreshTtlSeconds);
+      }
+    } catch {}
 
     await this.prisma.systemAuditLog.create({
       data: {
@@ -1114,6 +1156,264 @@ export class AuthService {
     return {
       success: true,
       message: 'Your password has been reset successfully. You can now log in with your new password.',
+    };
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // Multi-Device Active Session Management & One-Click Sign Out
+  // ═════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Record a new active login session in Redis & L1 cache.
+   */
+  async recordSession(
+    userId: string,
+    sessionId: string,
+    refreshToken: string,
+    ipAddress: string,
+    userAgent?: string,
+  ): Promise<void> {
+    try {
+      const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+      const uaInfo = parseUserAgent(userAgent || '');
+      const refreshTtlSeconds = this.parseExpirationToSeconds(this.jwtRefreshExpiration);
+
+      const cleanIp = (ipAddress || '').replace(/^::ffff:/, '').trim() || 'Active Connection';
+
+      const newSession: ActiveSession = {
+        id: sessionId,
+        userId,
+        tokenHash,
+        device: uaInfo.device,
+        browser: uaInfo.browser,
+        os: uaInfo.os,
+        ipAddress: cleanIp,
+        deviceType: uaInfo.deviceType,
+        userAgent: userAgent || 'Unknown',
+        createdAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+      };
+
+      const key = `${SESSIONS_PREFIX}${userId}`;
+      const existing = (await this.redis.get<ActiveSession[]>(key)) || [];
+      // Keep newest first, limit to 25 concurrent sessions per user
+      const updated = [newSession, ...existing.filter((s) => s.id !== sessionId)].slice(0, 25);
+      await this.redis.set(key, updated, refreshTtlSeconds);
+    } catch (err: any) {
+      this.logger.warn(`Failed to record session for user ${userId}: ${err.message}`);
+    }
+  }
+
+  /**
+   * Update active session heartbeat and rotated token hash.
+   */
+  async updateSessionActivity(
+    userId: string,
+    sessionId: string,
+    newRefreshToken: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<void> {
+    try {
+      const key = `${SESSIONS_PREFIX}${userId}`;
+      const sessions = (await this.redis.get<ActiveSession[]>(key)) || [];
+      const tokenHash = crypto.createHash('sha256').update(newRefreshToken).digest('hex');
+      const refreshTtlSeconds = this.parseExpirationToSeconds(this.jwtRefreshExpiration);
+
+      let found = false;
+      const updated = sessions.map((s) => {
+        if (s.id === sessionId) {
+          found = true;
+          return {
+            ...s,
+            tokenHash,
+            lastActiveAt: new Date().toISOString(),
+            ipAddress: (ipAddress || '').replace(/^::ffff:/, '').trim() || s.ipAddress,
+            userAgent: userAgent || s.userAgent,
+          };
+        }
+        return s;
+      });
+
+      if (!found) {
+        // Synthesize if missing
+        const uaInfo = parseUserAgent(userAgent || '');
+        const synthesized: ActiveSession = {
+          id: sessionId,
+          userId,
+          tokenHash,
+          device: uaInfo.device,
+          browser: uaInfo.browser,
+          os: uaInfo.os,
+          ipAddress: (ipAddress || '').replace(/^::ffff:/, '').trim() || 'Active Connection',
+          deviceType: uaInfo.deviceType,
+          userAgent: userAgent || 'Unknown',
+          createdAt: new Date().toISOString(),
+          lastActiveAt: new Date().toISOString(),
+        };
+        updated.unshift(synthesized);
+      }
+
+      await this.redis.set(key, updated.slice(0, 25), refreshTtlSeconds);
+    } catch (err: any) {
+      this.logger.warn(`Failed to update session activity for user ${userId}: ${err.message}`);
+    }
+  }
+
+  /**
+   * Get all active sessions for a user, sorted with the current device first.
+   */
+  async getActiveSessions(
+    userId: string,
+    currentSessionId?: string,
+    clientIp?: string,
+    userAgent?: string,
+  ) {
+    const key = `${SESSIONS_PREFIX}${userId}`;
+    let sessions = (await this.redis.get<ActiveSession[]>(key)) || [];
+
+    // Synthesize current session if list is empty or currentSessionId isn't found
+    const hasCurrent = currentSessionId && sessions.some((s) => s.id === currentSessionId);
+    if (!hasCurrent || sessions.length === 0) {
+      const activeId = currentSessionId || crypto.randomUUID();
+      const uaInfo = parseUserAgent(userAgent || '');
+      const cleanIp = (clientIp || '').replace(/^::ffff:/, '').trim() || 'Active Connection';
+
+      const synthesized: ActiveSession = {
+        id: activeId,
+        userId,
+        tokenHash: '',
+        device: uaInfo.device,
+        browser: uaInfo.browser,
+        os: uaInfo.os,
+        ipAddress: cleanIp,
+        deviceType: uaInfo.deviceType,
+        userAgent: userAgent || 'Unknown',
+        createdAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+      };
+
+      sessions = [synthesized, ...sessions.filter((s) => s.id !== activeId)];
+      const refreshTtlSeconds = this.parseExpirationToSeconds(this.jwtRefreshExpiration);
+      await this.redis.set(key, sessions, refreshTtlSeconds);
+    }
+
+    // Flag current session
+    const marked = sessions.map((s, idx) => ({
+      ...s,
+      isCurrent: currentSessionId ? s.id === currentSessionId : idx === 0,
+    }));
+
+    // Sort: Current session first, then most recently active
+    marked.sort((a, b) => {
+      if (a.isCurrent) return -1;
+      if (b.isCurrent) return 1;
+      return new Date(b.lastActiveAt).getTime() - new Date(a.lastActiveAt).getTime();
+    });
+
+    return {
+      success: true,
+      count: marked.length,
+      sessions: marked,
+    };
+  }
+
+  /**
+   * Revoke a single active session by ID.
+   */
+  async revokeSession(userId: string, sessionId: string) {
+    const refreshTtlSeconds = this.parseExpirationToSeconds(this.jwtRefreshExpiration);
+    const key = `${SESSIONS_PREFIX}${userId}`;
+    const sessions = (await this.redis.get<ActiveSession[]>(key)) || [];
+
+    const target = sessions.find((s) => s.id === sessionId);
+    if (target) {
+      // Invalidate session ID in Redis
+      await this.redis.set(`${REVOKED_SESSION_PREFIX}${sessionId}`, '1', refreshTtlSeconds);
+
+      // Invalidate associated refresh token if present
+      if (target.tokenHash) {
+        await this.redis.set(`${REVOKED_TOKEN_PREFIX}${target.tokenHash}`, '1', refreshTtlSeconds);
+      }
+
+      // Remove from session list
+      const remaining = sessions.filter((s) => s.id !== sessionId);
+      await this.redis.set(key, remaining, refreshTtlSeconds);
+
+      // Audit log
+      this.prisma.systemAuditLog.create({
+        data: {
+          userName: 'User',
+          role: 'User',
+          websiteId: 'system',
+          event: 'auth.session.revoked',
+          ipAddress: target.ipAddress || '',
+          details: `Session ${sessionId} (${target.device} - ${target.browser}) was manually signed out.`,
+        },
+      }).catch(() => {});
+    }
+
+    return {
+      success: true,
+      message: 'Device session signed out successfully.',
+    };
+  }
+
+  /**
+   * Revoke all other active sessions for a user (or all sessions if includeCurrent is true).
+   */
+  async revokeAllSessions(userId: string, currentSessionId?: string, includeCurrent = false) {
+    const refreshTtlSeconds = this.parseExpirationToSeconds(this.jwtRefreshExpiration);
+    const key = `${SESSIONS_PREFIX}${userId}`;
+    const sessions = (await this.redis.get<ActiveSession[]>(key)) || [];
+
+    let revokedCount = 0;
+    const remaining: ActiveSession[] = [];
+
+    for (const session of sessions) {
+      if (!includeCurrent && currentSessionId && session.id === currentSessionId) {
+        remaining.push(session);
+      } else {
+        await this.redis.set(`${REVOKED_SESSION_PREFIX}${session.id}`, '1', refreshTtlSeconds);
+        if (session.tokenHash) {
+          await this.redis.set(`${REVOKED_TOKEN_PREFIX}${session.tokenHash}`, '1', refreshTtlSeconds);
+        }
+        revokedCount++;
+      }
+    }
+
+    if (includeCurrent) {
+      // Global invalidation: any token issued before now is invalid
+      await this.redis.set(
+        `${USER_REVOKED_ALL_PREFIX}${userId}`,
+        Math.floor(Date.now() / 1000).toString(),
+        refreshTtlSeconds,
+      );
+      await this.redis.del(key);
+      await this.redis.del(`auth:user:${userId}`);
+      await this.redis.del(`auth:profile:${userId}`);
+    } else {
+      await this.redis.set(key, remaining, refreshTtlSeconds);
+    }
+
+    // Audit log
+    this.prisma.systemAuditLog.create({
+      data: {
+        userName: 'User',
+        role: 'User',
+        websiteId: 'system',
+        event: includeCurrent ? 'auth.sessions.revoked_all' : 'auth.sessions.revoked_all_others',
+        ipAddress: '',
+        details: `User ${userId} revoked ${revokedCount} session(s). includeCurrent=${includeCurrent}`,
+      },
+    }).catch(() => {});
+
+    return {
+      success: true,
+      message: includeCurrent
+        ? 'All active sessions have been signed out successfully.'
+        : 'All other devices have been signed out successfully.',
+      count: revokedCount,
     };
   }
 

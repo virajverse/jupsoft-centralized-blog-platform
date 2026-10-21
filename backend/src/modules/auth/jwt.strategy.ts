@@ -9,6 +9,8 @@ export interface JwtPayload {
   sub: string;
   email: string;
   roles: string[];
+  sessionId?: string;
+  iat?: number;
 }
 
 @Injectable()
@@ -33,9 +35,27 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
+    // 1. Session Revocation Check: Instant multi-device token invalidation
+    if (payload.sessionId) {
+      const isSessionRevoked = await this.redis.get<string>(`auth:revoked_session:${payload.sessionId}`);
+      if (isSessionRevoked) {
+        throw new UnauthorizedException('This session has been revoked. Please sign in again.');
+      }
+    }
+
+    // 2. Global Sign-Out Check: If all sessions were revoked after token iat
+    if (payload.iat) {
+      const revokedAllBefore = await this.redis.get<string>(`auth:user_revoked_all_before:${payload.sub}`);
+      if (revokedAllBefore && payload.iat < Number(revokedAllBefore)) {
+        throw new UnauthorizedException('All sessions have been signed out. Please sign in again.');
+      }
+    }
+
     const cacheKey = `auth:user:${payload.sub}`;
     const cached = await this.redis.get<any>(cacheKey);
-    if (cached) return cached;
+    if (cached) {
+      return { ...cached, sessionId: payload.sessionId };
+    }
 
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
@@ -62,6 +82,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         isGlobal: ra.isGlobal,
         role: ra.role,
       })),
+      sessionId: payload.sessionId,
     };
 
     // Cache user object for 60s to avoid DB hit on every request

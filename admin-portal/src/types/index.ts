@@ -236,6 +236,21 @@ export interface UserAccount {
 }
 
 // System Audit Log Contract (TRD Section 15 & 17)
+// Active Login Session Contract
+export interface ActiveSession {
+  id: string;
+  userId: string;
+  device: string;
+  browser: string;
+  os: string;
+  ipAddress: string;
+  deviceType: 'desktop' | 'mobile' | 'tablet';
+  userAgent?: string;
+  createdAt: string;
+  lastActiveAt: string;
+  isCurrent: boolean;
+}
+
 export interface SystemAuditLog {
   id: string;
   timestamp: string;
