@@ -238,6 +238,14 @@ class ApiClient {
     return this.token;
   }
 
+  getRefreshToken(): string | null {
+    let rt = this.refreshTokenValue || getCookie('jupsoft_refresh_token');
+    if (!rt && typeof window !== 'undefined') {
+      try { rt = localStorage.getItem('jupsoft_refresh_token'); } catch {}
+    }
+    return (rt && rt !== 'null' && rt !== 'undefined') ? rt : null;
+  }
+
   private async attemptRefresh(): Promise<string | null> {
     let rt = this.refreshTokenValue || getCookie('jupsoft_refresh_token');
     if (!rt && typeof window !== 'undefined') {
@@ -517,8 +525,19 @@ class ApiClient {
     });
   }
 
-  logout() {
-    this.clearTokens();
+  async logout() {
+    const refreshToken = this.getRefreshToken();
+    if (refreshToken) {
+      try {
+        await this.request('/admin/auth/logout', {
+          method: 'POST',
+          body: JSON.stringify({ refreshToken }),
+        });
+      } catch (err) {
+        console.warn('[apiClient] Backend logout revocation notice:', err);
+      }
+    }
+    this.hardPurge();
   }
 
   // ─── Websites / Multi-Tenant (TRD §3) ─────────────────────────────────────

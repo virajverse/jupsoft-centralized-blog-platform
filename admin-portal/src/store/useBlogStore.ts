@@ -590,8 +590,8 @@ export const useBlogStore = create<BlogState>()(
         }
       },
 
-      logout: () => {
-        apiClient.hardPurge();
+      logout: async () => {
+        await apiClient.logout();
         set({ isAuthenticated: false, currentUser: null, activeWebsiteId: 'all' });
       },
 
