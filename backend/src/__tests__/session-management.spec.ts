@@ -118,6 +118,46 @@ describe('Multi-Device Session Management & One-Click Sign Out', () => {
       expect(result.sessions[0].isCurrent).toBe(true);
     });
 
+    it('should NEVER create duplicate sessions on repeated getActiveSessions calls (idempotent refresh)', async () => {
+      const userId = 'user-123';
+      const ip = '122.176.33.17';
+      const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/155.0.0.0 Safari/537.36';
+
+      // Call getActiveSessions 10 times in a row without currentSessionId (simulating repeated UI refresh clicks)
+      for (let i = 0; i < 10; i++) {
+        const res = await authService.getActiveSessions(userId, undefined, ip, ua);
+        expect(res.success).toBe(true);
+        expect(res.sessions.length).toBe(1); // Must ALWAYS stay exactly 1!
+        expect(res.sessions[0].isCurrent).toBe(true);
+      }
+    });
+
+    it('should automatically deduplicate existing duplicate sessions from the same device and IP', async () => {
+      const userId = 'user-123';
+      const ip = '122.176.33.17';
+      const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/155.0.0.0 Safari/537.36';
+
+      // Simulate 11 duplicate sessions preexisting in Redis
+      redisMock[`auth:sessions:${userId}`] = Array.from({ length: 11 }, (_, i) => ({
+        id: `sess-dup-${i}`,
+        userId,
+        tokenHash: `hash-${i}`,
+        device: 'Windows PC',
+        browser: 'Chrome 155',
+        os: 'Windows 10/11',
+        ipAddress: ip,
+        deviceType: 'desktop',
+        userAgent: ua,
+        createdAt: new Date().toISOString(),
+        lastActiveAt: new Date(Date.now() - i * 1000).toISOString(),
+      }));
+
+      const res = await authService.getActiveSessions(userId, undefined, ip, ua);
+      expect(res.success).toBe(true);
+      expect(res.sessions.length).toBe(1); // Pruned from 11 down to 1!
+      expect(res.sessions[0].isCurrent).toBe(true);
+    });
+
     it('should sort multiple active sessions with current session first', async () => {
       const userId = 'user-123';
       const session1 = 'session-1';
@@ -165,7 +205,7 @@ describe('Multi-Device Session Management & One-Click Sign Out', () => {
       await authService.recordSession(userId, otherSessionA, 'rt-a', '10.0.0.2');
       await authService.recordSession(userId, otherSessionB, 'rt-b', '10.0.0.3');
 
-      const result = await authService.revokeAllSessions(userId, currentSession, false);
+      const result = await authService.revokeAllSessions(userId, currentSession, false, '10.0.0.1');
       expect(result.success).toBe(true);
       expect(result.count).toBe(2);
 

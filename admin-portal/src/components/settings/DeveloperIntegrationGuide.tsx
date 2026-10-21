@@ -230,7 +230,7 @@ export const DeveloperIntegrationGuide: React.FC<DeveloperIntegrationGuideProps>
  * 
  * Features:
  * - Stale-While-Revalidate via sessionStorage (0ms instant page loads)
- * - 3500ms AbortController timeout (prevents slow mobile network freezes)
+ * - Dynamic connection-aware timeout (9s-22s) with automatic retry
  * - Zero API Key Exposure: Origin domain whitelist authentication
  * - Safe image fallbacks (never renders broken image tags)
  */
@@ -244,26 +244,53 @@ export const DeveloperIntegrationGuide: React.FC<DeveloperIntegrationGuideProps>
     defaultImage: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=800&auto=format&fit=crop&q=80'
   };
 
-  // Safe fetch with AbortController timeout and Domain-Locked Client API Key
-  function fetchWithTimeout(url, timeoutMs) {
-    timeoutMs = timeoutMs || 3500;
+  // Safe fetch with dynamic connection-aware timeout, auto-retry and Domain-Locked Client API Key
+  function getDynamicTimeout() {
+    if (typeof navigator !== 'undefined' && navigator.connection) {
+      var eff = navigator.connection.effectiveType;
+      if (eff === '2g' || eff === 'slow-2g') return 22000;
+      if (eff === '3g') return 16000;
+    }
+    return 9000;
+  }
+
+  function fetchWithTimeout(url, timeoutMs, retryCount) {
+    retryCount = retryCount !== undefined ? retryCount : 0;
+    timeoutMs = timeoutMs || getDynamicTimeout();
     var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var timer = null;
+
+    var headers = {
+      'Accept': 'application/json'
+    };
+    if (CMS.apiKey && !CMS.apiKey.includes('your_api_key')) {
+      headers['x-api-key'] = CMS.apiKey;
+    }
 
     var fetchPromise = fetch(url, {
       method: 'GET',
       mode: 'cors',
-      headers: {
-        'Accept': 'application/json',
-        'x-api-key': CMS.apiKey
-      },
+      headers: headers,
       signal: controller ? controller.signal : undefined
+    }).catch(function (err) {
+      if (retryCount < 1 && err.name !== 'AbortError') {
+        return new Promise(function (resolve) {
+          setTimeout(function () {
+            resolve(fetchWithTimeout(url, timeoutMs, retryCount + 1));
+          }, 350);
+        });
+      }
+      throw err;
     });
 
     var timeoutPromise = new Promise(function (_, reject) {
       timer = setTimeout(function () {
         if (controller) controller.abort();
-        reject(new Error('CMS request timed out after ' + timeoutMs + 'ms'));
+        if (retryCount < 1) {
+          fetchWithTimeout(url, timeoutMs, retryCount + 1).then(_).catch(reject);
+        } else {
+          reject(new Error('CMS request timed out after ' + timeoutMs + 'ms'));
+        }
       }, timeoutMs);
     });
 
@@ -293,7 +320,7 @@ export const DeveloperIntegrationGuide: React.FC<DeveloperIntegrationGuideProps>
     var endpoint = CMS.apiUrl + '/v1/blogs?website=' + encodeURIComponent(CMS.websiteId) +
                    '&page=' + page + '&limit=' + limit + category + tag + search + fresh;
 
-    return fetchWithTimeout(endpoint, 4000)
+    return fetchWithTimeout(endpoint, getDynamicTimeout())
       .then(function (res) {
         if (!res.ok) throw new Error('CMS HTTP ' + res.status);
         return res.json();
@@ -313,7 +340,7 @@ export const DeveloperIntegrationGuide: React.FC<DeveloperIntegrationGuideProps>
     var endpoint = CMS.apiUrl + '/v1/blogs/' + encodeURIComponent(slug) +
                    '?website=' + encodeURIComponent(CMS.websiteId) + fresh;
 
-    return fetchWithTimeout(endpoint, 4000)
+    return fetchWithTimeout(endpoint, getDynamicTimeout())
       .then(function (res) {
         if (!res.ok) throw new Error('Article not found (HTTP ' + res.status + ')');
         return res.json();
@@ -323,7 +350,7 @@ export const DeveloperIntegrationGuide: React.FC<DeveloperIntegrationGuideProps>
   // 3. Fetch Taxonomy Categories
   CMS.fetchCategories = function () {
     var endpoint = CMS.apiUrl + '/v1/categories?websiteId=' + encodeURIComponent(CMS.websiteId);
-    return fetchWithTimeout(endpoint, 3500)
+    return fetchWithTimeout(endpoint, getDynamicTimeout())
       .then(function (res) { return res.ok ? res.json() : { data: [] }; })
       .catch(function () { return { data: [] }; });
   };
@@ -353,6 +380,65 @@ export const DeveloperIntegrationGuide: React.FC<DeveloperIntegrationGuideProps>
         '<a class="cms-read-more" href="/blog/' + encodeURIComponent(blog.slug) + '">Read Full Story →</a>' +
       '</div>' +
     '</article>';
+  };
+
+  // 5. Head SEO Tag Helper (Complete Suite: Title, Meta, OG, Twitter, Canonical & JSON-LD)
+  CMS.applySeo = function (article) {
+    if (!article || typeof document === 'undefined') return;
+    var title = (article.seo && article.seo.metaTitle) || article.title;
+    if (title) document.title = title;
+
+    function setMeta(name, content, attrName) {
+      if (!content) return;
+      attrName = attrName || 'name';
+      var el = document.querySelector('meta[' + attrName + '="' + name + '"]');
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute(attrName, name);
+        document.head.appendChild(el);
+      }
+      el.setAttribute('content', content);
+    }
+
+    var desc = (article.seo && article.seo.metaDescription) || article.excerpt;
+    setMeta('description', desc);
+    setMeta('keywords', article.seo && article.seo.metaKeywords);
+    setMeta('robots', (article.seo && article.seo.robots) || 'index, follow');
+
+    var canonical = (article.seo && article.seo.canonicalUrl) || (typeof window !== 'undefined' ? window.location.href.split('?')[0] : '');
+    if (canonical) {
+      var link = document.querySelector('link[rel="canonical"]');
+      if (!link) {
+        link = document.createElement('link');
+        link.setAttribute('rel', 'canonical');
+        document.head.appendChild(link);
+      }
+      link.setAttribute('href', canonical);
+    }
+
+    var ogImage = (article.seo && article.seo.ogImage) || article.featuredImage;
+    setMeta('og:type', 'article', 'property');
+    setMeta('og:site_name', '${activeSite?.name || 'Website'}', 'property');
+    setMeta('og:title', (article.seo && article.seo.ogTitle) || title, 'property');
+    setMeta('og:description', (article.seo && article.seo.ogDescription) || desc, 'property');
+    setMeta('og:image', ogImage, 'property');
+    setMeta('og:url', canonical, 'property');
+
+    setMeta('twitter:card', 'summary_large_image');
+    setMeta('twitter:title', (article.seo && article.seo.twitterTitle) || title);
+    setMeta('twitter:description', (article.seo && article.seo.twitterDescription) || desc);
+    setMeta('twitter:image', (article.seo && article.seo.twitterImage) || ogImage);
+
+    var schema = article.schemaJsonLd || (article.seo && article.seo.schemaJsonLd);
+    if (schema) {
+      var existing = document.getElementById('jupsoft-schema-ld');
+      if (existing) existing.remove();
+      var s = document.createElement('script');
+      s.id = 'jupsoft-schema-ld';
+      s.type = 'application/ld+json';
+      s.text = typeof schema === 'string' ? schema : JSON.stringify(schema);
+      document.head.appendChild(s);
+    }
   };
 
   global.BlogaryClient = CMS;
@@ -1160,6 +1246,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Web;
 using System.Web.UI;
+using System.Web.UI.HtmlControls;
 
 public partial class blog_detail : System.Web.UI.Page
 {
@@ -1171,6 +1258,13 @@ public partial class blog_detail : System.Web.UI.Page
     {
         CurrentSlug = Request.QueryString["slug"] ?? "";
         if (string.IsNullOrEmpty(CurrentSlug.Trim()))
+        {
+            string path = Request.Url.AbsolutePath.TrimEnd('/');
+            int lastSlash = path.LastIndexOf('/');
+            if (lastSlash >= 0) CurrentSlug = path.Substring(lastSlash + 1);
+        }
+
+        if (string.IsNullOrEmpty(CurrentSlug.Trim()) || CurrentSlug.Equals("blog-detail", StringComparison.OrdinalIgnoreCase))
         {
             Response.Redirect("/blog", true);
             return;
@@ -1203,12 +1297,88 @@ public partial class blog_detail : System.Web.UI.Page
                     client.Headers[HttpRequestHeader.Authorization] = auth;
                 }
                 BlogDetailJson = client.DownloadString(url);
+                InjectSeoTags(BlogDetailJson, slug);
             }
         }
         catch (Exception ex)
         {
             BlogDetailJson = "null";
         }
+    }
+
+    private void InjectSeoTags(string json, string slug)
+    {
+        try
+        {
+            string title = ExtractJsonValue(json, "metaTitle");
+            if (string.IsNullOrEmpty(title)) title = ExtractJsonValue(json, "title");
+            string desc = ExtractJsonValue(json, "metaDescription");
+            if (string.IsNullOrEmpty(desc)) desc = ExtractJsonValue(json, "excerpt");
+            string ogImg = ExtractJsonValue(json, "ogImage");
+            if (string.IsNullOrEmpty(ogImg)) ogImg = ExtractJsonValue(json, "featuredImage");
+            string canonical = ExtractJsonValue(json, "canonicalUrl");
+            if (string.IsNullOrEmpty(canonical)) canonical = "https://${siteDomain}/blog/" + slug;
+
+            if (!string.IsNullOrEmpty(title))
+            {
+                Page.Title = title + " | ${activeSite?.name || 'Website'}";
+                AddMetaProperty("og:title", title);
+                AddMetaTag("twitter:title", title);
+            }
+            if (!string.IsNullOrEmpty(desc))
+            {
+                AddMetaTag("description", desc);
+                AddMetaProperty("og:description", desc);
+                AddMetaTag("twitter:description", desc);
+            }
+            if (!string.IsNullOrEmpty(ogImg))
+            {
+                AddMetaProperty("og:image", ogImg);
+                AddMetaTag("twitter:image", ogImg);
+                AddMetaTag("twitter:card", "summary_large_image");
+            }
+            AddMetaProperty("og:type", "article");
+            AddMetaProperty("og:url", canonical);
+
+            HtmlLink link = new HtmlLink();
+            link.Attributes.Add("rel", "canonical");
+            link.Href = canonical;
+            if (Page.Header != null) Page.Header.Controls.Add(link);
+        }
+        catch {}
+    }
+
+    private void AddMetaTag(string name, string content)
+    {
+        if (Page.Header == null) return;
+        HtmlMeta meta = new HtmlMeta();
+        meta.Name = name;
+        meta.Content = content;
+        Page.Header.Controls.Add(meta);
+    }
+
+    private void AddMetaProperty(string property, string content)
+    {
+        if (Page.Header == null) return;
+        HtmlMeta meta = new HtmlMeta();
+        meta.Attributes.Add("property", property);
+        meta.Content = content;
+        Page.Header.Controls.Add(meta);
+    }
+
+    private static string ExtractJsonValue(string json, string key)
+    {
+        try
+        {
+            string pattern = "\"" + key + "\":\"";
+            int idx = json.IndexOf(pattern);
+            if (idx == -1) return "";
+            int start = idx + pattern.Length;
+            int end = json.IndexOf("\"", start);
+            if (end == -1) return "";
+            return json.Substring(start, end - start).Replace("\\\"", "\"").Replace("\\/", "/");
+        }
+        catch { return ""; }
     }
 
     private void LoadRecentBlogs()

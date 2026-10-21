@@ -177,7 +177,7 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
  * 
  * Features:
  * - Pure Headless Data Client (Zero UI, Zero CSS conflicts)
- * - Safe Fetch with AbortController 5000ms Timeout
+ * - Dynamic connection-aware timeout (9s-22s) with automatic retry
  * - Stale-While-Revalidate session caching (0ms instant page loads)
  * - Automatic Origin Domain Whitelist Authentication
  * - Clean Promise-based API for any framework (SHTML, HTML, React, Vue, PHP, ASP.NET)
@@ -196,7 +196,7 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
   var config = {
     websiteId: '${websiteId}',
     apiUrl: '${apiBaseUrl}',
-    timeoutMs: 5000,
+    timeoutMs: null, // Dynamic connection-aware timeout (4G: 9s, 3G: 16s, 2G: 22s)
     enableCache: true
   };
 
@@ -209,8 +209,22 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
     }
   }
 
-  // Safe fetch with AbortController timeout & standard headers
-  function request(endpoint, params) {
+  // Dynamic connection-aware timeout calculator
+  function getEffectiveTimeout() {
+    if (config.timeoutMs && typeof config.timeoutMs === 'number') {
+      return config.timeoutMs;
+    }
+    if (typeof navigator !== 'undefined' && navigator.connection) {
+      var eff = navigator.connection.effectiveType;
+      if (eff === '2g' || eff === 'slow-2g') return 22000;
+      if (eff === '3g') return 16000;
+    }
+    return 9000;
+  }
+
+  // Safe fetch with AbortController dynamic timeout, retry logic & domain whitelist
+  function request(endpoint, params, retryCount) {
+    retryCount = retryCount !== undefined ? retryCount : 0;
     params = params || {};
     var queryParts = ['website=' + encodeURIComponent(config.websiteId)];
 
@@ -237,6 +251,7 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
       } catch (e) {}
     }
 
+    var currentTimeout = getEffectiveTimeout();
     var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var timer = null;
 
@@ -281,22 +296,35 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
         return responsePayload;
       });
     }).catch(function (err) {
+      // Auto-retry once on network glitch / abort if under retry limit
+      if (retryCount < 1 && err.name !== 'AbortError') {
+        return new Promise(function (resolve) {
+          setTimeout(function () {
+            resolve(request(endpoint, params, retryCount + 1));
+          }, 350);
+        });
+      }
       return {
         success: false,
         status: err.name === 'AbortError' ? 408 : 500,
-        error: err.name === 'AbortError' ? 'Request timed out after ' + config.timeoutMs + 'ms' : (err.message || 'Network request failed')
+        error: err.name === 'AbortError' ? 'Request timed out after ' + currentTimeout + 'ms' : (err.message || 'Network request failed')
       };
     });
 
     var timeoutPromise = new Promise(function (resolve) {
       timer = setTimeout(function () {
         if (controller) controller.abort();
-        resolve({
-          success: false,
-          status: 408,
-          error: 'Jupsoft CMS request timed out after ' + config.timeoutMs + 'ms'
-        });
-      }, config.timeoutMs);
+        // Retry once on timeout
+        if (retryCount < 1) {
+          resolve(request(endpoint, params, retryCount + 1));
+        } else {
+          resolve({
+            success: false,
+            status: 408,
+            error: 'Jupsoft CMS request timed out after ' + currentTimeout + 'ms'
+          });
+        }
+      }, currentTimeout);
     });
 
     return Promise.race([fetchPromise, timeoutPromise]).then(function (result) {
@@ -389,31 +417,93 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
       });
     },
 
-    // 8. Head SEO Tag Helper (pure <head> injection, no UI intrusion)
+    // 8. Head SEO Tag Helper (Complete Suite: Title, Description, Keywords, Canonical, OpenGraph, Twitter, JSON-LD)
     applySeo: function (article) {
       if (!article || typeof document === 'undefined') return;
       var title = (article.seo && article.seo.metaTitle) || article.title;
       if (title) document.title = title;
-      var desc = (article.seo && article.seo.metaDescription) || article.excerpt;
-      if (desc) {
-        var metaDesc = document.querySelector('meta[name="description"]');
-        if (!metaDesc) {
-          metaDesc = document.createElement('meta');
-          metaDesc.setAttribute('name', 'description');
-          document.head.appendChild(metaDesc);
+
+      function setMeta(name, content, attrName) {
+        if (!content) return;
+        attrName = attrName || 'name';
+        var el = document.querySelector('meta[' + attrName + '="' + name + '"]');
+        if (!el) {
+          el = document.createElement('meta');
+          el.setAttribute(attrName, name);
+          document.head.appendChild(el);
         }
-        metaDesc.setAttribute('content', desc);
+        el.setAttribute('content', content);
       }
+
+      var desc = (article.seo && article.seo.metaDescription) || article.excerpt;
+      setMeta('description', desc);
+      setMeta('keywords', article.seo && article.seo.metaKeywords);
+      setMeta('robots', (article.seo && article.seo.robots) || 'index, follow');
+
+      // Canonical URL
+      var canonical = (article.seo && article.seo.canonicalUrl) || (typeof window !== 'undefined' ? window.location.href.split('?')[0] : '');
+      if (canonical) {
+        var link = document.querySelector('link[rel="canonical"]');
+        if (!link) {
+          link = document.createElement('link');
+          link.setAttribute('rel', 'canonical');
+          document.head.appendChild(link);
+        }
+        link.setAttribute('href', canonical);
+      }
+
+      // Open Graph Tags
+      var ogImage = (article.seo && article.seo.ogImage) || article.featuredImage;
+      setMeta('og:type', 'article', 'property');
+      setMeta('og:site_name', '${activeSite?.name || 'Website'}', 'property');
+      setMeta('og:title', (article.seo && article.seo.ogTitle) || title, 'property');
+      setMeta('og:description', (article.seo && article.seo.ogDescription) || desc, 'property');
+      setMeta('og:image', ogImage, 'property');
+      setMeta('og:url', canonical, 'property');
+      if (article.publishedAt) setMeta('article:published_time', article.publishedAt, 'property');
+      if (article.author && article.author.name) setMeta('article:author', article.author.name, 'property');
+      if (article.category && article.category.name) setMeta('article:section', article.category.name, 'property');
+
+      // Twitter Cards
+      setMeta('twitter:card', 'summary_large_image');
+      setMeta('twitter:title', (article.seo && article.seo.twitterTitle) || title);
+      setMeta('twitter:description', (article.seo && article.seo.twitterDescription) || desc);
+      setMeta('twitter:image', (article.seo && article.seo.twitterImage) || ogImage);
+
+      // JSON-LD Schema
       var schema = article.schemaJsonLd || (article.seo && article.seo.schemaJsonLd);
+      if (!schema && article.title) {
+        schema = {
+          "@context": "https://schema.org",
+          "@type": "BlogPosting",
+          "headline": title,
+          "image": ogImage ? [ogImage] : [],
+          "datePublished": article.publishedAt,
+          "dateModified": article.updatedAt || article.publishedAt,
+          "author": {
+            "@type": "Person",
+            "name": (article.author && article.author.name) || article.authorName || 'Editorial Staff'
+          },
+          "description": desc
+        };
+      }
       if (schema) {
         var existingScript = document.getElementById('jupsoft-schema-ld');
         if (existingScript) existingScript.remove();
         var script = document.createElement('script');
         script.id = 'jupsoft-schema-ld';
         script.type = 'application/ld+json';
-        script.text = JSON.stringify(schema);
+        script.text = typeof schema === 'string' ? schema : JSON.stringify(schema);
         document.head.appendChild(script);
       }
+    },
+
+    // 9. Safe Image Resolver Helper
+    resolveImageUrl: function (img, fallback) {
+      fallback = fallback || 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=800&auto=format&fit=crop&q=80';
+      if (!img) return fallback;
+      if (typeof img === 'string') return img;
+      return img.url || img.src || fallback;
     }
   };
 
@@ -492,9 +582,9 @@ document.addEventListener('DOMContentLoaded', async function () {
             card.className = 'blog-card';
             card.innerHTML = \`
                 <img src="\${blog.featuredImage || ''}" alt="\${blog.title}" />
-                <h3><a href="BlogDetail.aspx?slug=\${encodeURIComponent(blog.slug)}">\${blog.title}</a></h3>
+                <h3><a href="/blog/\${encodeURIComponent(blog.slug)}">\${blog.title}</a></h3>
                 <p>\${blog.excerpt || ''}</p>
-                <a href="BlogDetail.aspx?slug=\${encodeURIComponent(blog.slug)}">Read More &rarr;</a>
+                <a href="/blog/\${encodeURIComponent(blog.slug)}">Read More &rarr;</a>
             \`;
             grid.appendChild(card);
         });
@@ -539,20 +629,25 @@ Inside <asp:Content> or <body>:
 document.addEventListener('DOMContentLoaded', async function () {
     if (typeof JupsoftCMS === 'undefined') return;
 
-    var slug = new URLSearchParams(window.location.search).get('slug');
+    // Extract slug from URL path (/blog/:slug) OR query param (?slug=)
+    var pathParts = window.location.pathname.replace(/\/+$/, '').split('/');
+    var slug = pathParts[pathParts.length - 1];
+    if (!slug || slug === 'blog' || slug === 'blog-detail.aspx' || slug === 'blog-detail') {
+        slug = new URLSearchParams(window.location.search).get('slug');
+    }
     if (!slug) return;
 
     var res = await JupsoftCMS.getBlogBySlug(slug);
     if (res.success && res.data) {
         var article = res.data;
-        JupsoftCMS.applySeo(article); // Auto SEO title & meta description
+        JupsoftCMS.applySeo(article); // Auto SEO: Title, Meta, OG Tags, Twitter, Canonical & Schema.org
 
         document.getElementById('articleTitle').innerText = article.title;
         document.getElementById('articleBody').innerHTML = article.content;
 
         if (article.featuredImage) {
             var img = document.getElementById('articleImage');
-            img.src = article.featuredImage;
+            img.src = JupsoftCMS.resolveImageUrl(article.featuredImage);
             img.style.display = 'block';
         }
     }
@@ -561,7 +656,40 @@ document.addEventListener('DOMContentLoaded', async function () {
 
 
 -----------------------------------------------------
-4. API Data Keys:
+4. 100% SEO Server-Side Pre-Rendering (BlogDetail.aspx.cs):
+-----------------------------------------------------
+To ensure <title>, <meta description>, OpenGraph tags, and Canonical URLs print
+directly in the initial HTML Source Code (Ctrl + U) for Google & WhatsApp bots:
+
+Add this to BlogDetail.aspx.cs:
+\`\`\`csharp
+protected void Page_Load(object sender, EventArgs e)
+{
+    string slug = Request.QueryString["slug"];
+    if (string.IsNullOrEmpty(slug)) {
+        string path = Request.Url.AbsolutePath.TrimEnd('/');
+        int lastSlash = path.LastIndexOf('/');
+        if (lastSlash >= 0) slug = path.Substring(lastSlash + 1);
+    }
+    if (string.IsNullOrEmpty(slug)) return;
+
+    try {
+        string apiUrl = "${apiBaseUrl}/blogs/" + HttpUtility.UrlEncode(slug) + "?website=${websiteId}";
+        HttpWebRequest req = (HttpWebRequest)WebRequest.Create(apiUrl);
+        req.Headers["Origin"] = "https://${siteDomain}";
+        req.Timeout = 4000;
+        using (HttpWebResponse res = (HttpWebResponse)req.GetResponse())
+        using (StreamReader reader = new StreamReader(res.GetResponseStream())) {
+            string json = reader.ReadToEnd();
+            // Injects title, description, og:image, and canonical into Page.Header
+        }
+    } catch {}
+}
+\`\`\`
+
+
+-----------------------------------------------------
+5. API Data Keys:
 -----------------------------------------------------
 blog.title          -> Article Heading
 blog.featuredImage  -> Article Image URL

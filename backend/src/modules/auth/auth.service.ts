@@ -1164,6 +1164,27 @@ export class AuthService {
   // ═════════════════════════════════════════════════════════════════════════
 
   /**
+   * Deduplicate sessions by physical device fingerprint (IP + Device + Browser + OS).
+   * Keeps only the newest/most recently active entry for each unique device.
+   */
+  private deduplicateSessions(sessions: ActiveSession[]): ActiveSession[] {
+    const seen = new Map<string, ActiveSession>();
+    const sorted = [...sessions].sort(
+      (a, b) => new Date(b.lastActiveAt).getTime() - new Date(a.lastActiveAt).getTime(),
+    );
+
+    for (const session of sorted) {
+      const cleanIp = (session.ipAddress || '').replace(/^::ffff:/, '').trim() || 'unknown';
+      const fingerprint = `${cleanIp}|${session.device}|${session.browser}|${session.os}`;
+      if (!seen.has(fingerprint)) {
+        seen.set(fingerprint, session);
+      }
+    }
+
+    return Array.from(seen.values());
+  }
+
+  /**
    * Record a new active login session in Redis & L1 cache.
    */
   async recordSession(
@@ -1177,7 +1198,6 @@ export class AuthService {
       const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
       const uaInfo = parseUserAgent(userAgent || '');
       const refreshTtlSeconds = this.parseExpirationToSeconds(this.jwtRefreshExpiration);
-
       const cleanIp = (ipAddress || '').replace(/^::ffff:/, '').trim() || 'Active Connection';
 
       const newSession: ActiveSession = {
@@ -1196,8 +1216,17 @@ export class AuthService {
 
       const key = `${SESSIONS_PREFIX}${userId}`;
       const existing = (await this.redis.get<ActiveSession[]>(key)) || [];
-      // Keep newest first, limit to 25 concurrent sessions per user
-      const updated = [newSession, ...existing.filter((s) => s.id !== sessionId)].slice(0, 25);
+
+      // Deduplicate: replace any older session with identical device + browser + IP
+      const filtered = existing.filter((s) => {
+        if (s.id === sessionId) return false;
+        if (s.ipAddress === cleanIp && s.device === uaInfo.device && s.browser === uaInfo.browser) {
+          return false;
+        }
+        return true;
+      });
+
+      const updated = [newSession, ...filtered].slice(0, 25);
       await this.redis.set(key, updated, refreshTtlSeconds);
     } catch (err: any) {
       this.logger.warn(`Failed to record session for user ${userId}: ${err.message}`);
@@ -1216,7 +1245,8 @@ export class AuthService {
   ): Promise<void> {
     try {
       const key = `${SESSIONS_PREFIX}${userId}`;
-      const sessions = (await this.redis.get<ActiveSession[]>(key)) || [];
+      const rawSessions = (await this.redis.get<ActiveSession[]>(key)) || [];
+      const sessions = this.deduplicateSessions(rawSessions);
       const tokenHash = crypto.createHash('sha256').update(newRefreshToken).digest('hex');
       const refreshTtlSeconds = this.parseExpirationToSeconds(this.jwtRefreshExpiration);
 
@@ -1236,8 +1266,8 @@ export class AuthService {
       });
 
       if (!found) {
-        // Synthesize if missing
         const uaInfo = parseUserAgent(userAgent || '');
+        const cleanIp = (ipAddress || '').replace(/^::ffff:/, '').trim() || 'Active Connection';
         const synthesized: ActiveSession = {
           id: sessionId,
           userId,
@@ -1245,7 +1275,7 @@ export class AuthService {
           device: uaInfo.device,
           browser: uaInfo.browser,
           os: uaInfo.os,
-          ipAddress: (ipAddress || '').replace(/^::ffff:/, '').trim() || 'Active Connection',
+          ipAddress: cleanIp,
           deviceType: uaInfo.deviceType,
           userAgent: userAgent || 'Unknown',
           createdAt: new Date().toISOString(),
@@ -1254,7 +1284,7 @@ export class AuthService {
         updated.unshift(synthesized);
       }
 
-      await this.redis.set(key, updated.slice(0, 25), refreshTtlSeconds);
+      await this.redis.set(key, this.deduplicateSessions(updated).slice(0, 25), refreshTtlSeconds);
     } catch (err: any) {
       this.logger.warn(`Failed to update session activity for user ${userId}: ${err.message}`);
     }
@@ -1262,6 +1292,7 @@ export class AuthService {
 
   /**
    * Get all active sessions for a user, sorted with the current device first.
+   * STRICT IDEMPOTENCY: Never creates duplicate sessions on repeated calls or page refreshes.
    */
   async getActiveSessions(
     userId: string,
@@ -1270,14 +1301,17 @@ export class AuthService {
     userAgent?: string,
   ) {
     const key = `${SESSIONS_PREFIX}${userId}`;
-    let sessions = (await this.redis.get<ActiveSession[]>(key)) || [];
+    const rawSessions = (await this.redis.get<ActiveSession[]>(key)) || [];
+    const refreshTtlSeconds = this.parseExpirationToSeconds(this.jwtRefreshExpiration);
+    const cleanIp = (clientIp || '').replace(/^::ffff:/, '').trim() || 'Active Connection';
 
-    // Synthesize current session if list is empty or currentSessionId isn't found
-    const hasCurrent = currentSessionId && sessions.some((s) => s.id === currentSessionId);
-    if (!hasCurrent || sessions.length === 0) {
-      const activeId = currentSessionId || crypto.randomUUID();
+    // 1. Deduplicate by physical device fingerprint so identical browser/IP never duplicates
+    let sessions = this.deduplicateSessions(rawSessions);
+
+    // 2. If completely empty, synthesize ONE initial session with stable deterministic ID
+    if (sessions.length === 0) {
+      const activeId = currentSessionId || `session_default_${userId.replace(/-/g, '').substring(0, 8)}`;
       const uaInfo = parseUserAgent(userAgent || '');
-      const cleanIp = (clientIp || '').replace(/^::ffff:/, '').trim() || 'Active Connection';
 
       const synthesized: ActiveSession = {
         id: activeId,
@@ -1293,15 +1327,35 @@ export class AuthService {
         lastActiveAt: new Date().toISOString(),
       };
 
-      sessions = [synthesized, ...sessions.filter((s) => s.id !== activeId)];
-      const refreshTtlSeconds = this.parseExpirationToSeconds(this.jwtRefreshExpiration);
+      sessions = [synthesized];
+      await this.redis.set(key, sessions, refreshTtlSeconds);
+    } else if (sessions.length !== rawSessions.length) {
+      // Auto-prune existing duplicates from Redis cache
       await this.redis.set(key, sessions, refreshTtlSeconds);
     }
 
+    // 3. Determine which session is CURRENT (Guarantee: Exactly 1 session flagged current)
+    let currentMatchId = currentSessionId && sessions.some((s) => s.id === currentSessionId)
+      ? currentSessionId
+      : null;
+
+    if (!currentMatchId) {
+      const uaInfo = parseUserAgent(userAgent || '');
+      const match = sessions.find(
+        (s) => s.ipAddress === cleanIp && s.device === uaInfo.device && s.browser === uaInfo.browser,
+      ) || sessions.find((s) => s.ipAddress === cleanIp);
+
+      if (match) {
+        currentMatchId = match.id;
+      } else {
+        currentMatchId = sessions[0].id;
+      }
+    }
+
     // Flag current session
-    const marked = sessions.map((s, idx) => ({
+    const marked = sessions.map((s) => ({
       ...s,
-      isCurrent: currentSessionId ? s.id === currentSessionId : idx === 0,
+      isCurrent: s.id === currentMatchId,
     }));
 
     // Sort: Current session first, then most recently active
@@ -1324,7 +1378,8 @@ export class AuthService {
   async revokeSession(userId: string, sessionId: string) {
     const refreshTtlSeconds = this.parseExpirationToSeconds(this.jwtRefreshExpiration);
     const key = `${SESSIONS_PREFIX}${userId}`;
-    const sessions = (await this.redis.get<ActiveSession[]>(key)) || [];
+    const rawSessions = (await this.redis.get<ActiveSession[]>(key)) || [];
+    const sessions = this.deduplicateSessions(rawSessions);
 
     const target = sessions.find((s) => s.id === sessionId);
     if (target) {
@@ -1362,16 +1417,38 @@ export class AuthService {
   /**
    * Revoke all other active sessions for a user (or all sessions if includeCurrent is true).
    */
-  async revokeAllSessions(userId: string, currentSessionId?: string, includeCurrent = false) {
+  async revokeAllSessions(
+    userId: string,
+    currentSessionId?: string,
+    includeCurrent = false,
+    clientIp?: string,
+    userAgent?: string,
+  ) {
     const refreshTtlSeconds = this.parseExpirationToSeconds(this.jwtRefreshExpiration);
     const key = `${SESSIONS_PREFIX}${userId}`;
-    const sessions = (await this.redis.get<ActiveSession[]>(key)) || [];
+    const rawSessions = (await this.redis.get<ActiveSession[]>(key)) || [];
+    const sessions = this.deduplicateSessions(rawSessions);
+
+    const cleanIp = (clientIp || '').replace(/^::ffff:/, '').trim();
+    const uaInfo = parseUserAgent(userAgent || '');
+
+    // Identify current session to keep
+    let keepSessionId = currentSessionId && sessions.some((s) => s.id === currentSessionId)
+      ? currentSessionId
+      : null;
+
+    if (!keepSessionId && !includeCurrent && sessions.length > 0) {
+      const match = sessions.find(
+        (s) => s.ipAddress === cleanIp && s.device === uaInfo.device && s.browser === uaInfo.browser,
+      ) || sessions.find((s) => s.ipAddress === cleanIp) || sessions[0];
+      keepSessionId = match.id;
+    }
 
     let revokedCount = 0;
     const remaining: ActiveSession[] = [];
 
     for (const session of sessions) {
-      if (!includeCurrent && currentSessionId && session.id === currentSessionId) {
+      if (!includeCurrent && keepSessionId && session.id === keepSessionId) {
         remaining.push(session);
       } else {
         await this.redis.set(`${REVOKED_SESSION_PREFIX}${session.id}`, '1', refreshTtlSeconds);
@@ -1383,7 +1460,6 @@ export class AuthService {
     }
 
     if (includeCurrent) {
-      // Global invalidation: any token issued before now is invalid
       await this.redis.set(
         `${USER_REVOKED_ALL_PREFIX}${userId}`,
         Math.floor(Date.now() / 1000).toString(),
@@ -1403,7 +1479,7 @@ export class AuthService {
         role: 'User',
         websiteId: 'system',
         event: includeCurrent ? 'auth.sessions.revoked_all' : 'auth.sessions.revoked_all_others',
-        ipAddress: '',
+        ipAddress: cleanIp || '',
         details: `User ${userId} revoked ${revokedCount} session(s). includeCurrent=${includeCurrent}`,
       },
     }).catch(() => {});

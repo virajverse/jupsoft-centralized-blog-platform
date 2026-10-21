@@ -160,7 +160,7 @@ export class AuthController {
     @Ip() ip: string,
     @Req() req: Request,
   ) {
-    const effectiveIp = (req.headers['x-forwarded-for'] as string || ip || '').split(',')[0].replace(/^::ffff:/, '').trim();
+    const effectiveIp = (req.headers['x-forwarded-for'] as string || req.ip || '').split(',')[0].replace(/^::ffff:/, '').trim();
     const userAgent = req.headers['user-agent'] || '';
     return this.authService.getActiveSessions(userId, currentSessionId, effectiveIp, userAgent);
   }
@@ -177,7 +177,15 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Req() req: Request,
   ) {
-    const result = await this.authService.revokeAllSessions(userId, currentSessionId, body?.includeCurrent === true);
+    const effectiveIp = ((req.headers['x-forwarded-for'] as string) || req.ip || '').split(',')[0].replace(/^::ffff:/, '').trim();
+    const userAgent = req.headers['user-agent'] || '';
+    const result = await this.authService.revokeAllSessions(
+      userId,
+      currentSessionId,
+      body?.includeCurrent === true,
+      effectiveIp,
+      userAgent,
+    );
     if (body?.includeCurrent === true) {
       this.clearAuthCookies(res, req);
     }
