@@ -286,7 +286,7 @@ export const SettingsView: React.FC = () => {
       return;
     }
     const confirmed = window.confirm(
-      `⚠️ Warning: Regenerating the API key for "${activeSite.name}" will immediately invalidate the existing key.\n\nAny client website using this key will need to update its .env.local to continue fetching blogs.\n\nDo you want to proceed?`
+      `Warning: Regenerating the API key for "${activeSite.name}" will immediately invalidate the existing key.\n\nAny client website using this key will need to update its .env.local to continue fetching blogs.\n\nDo you want to proceed?`
     );
     if (!confirmed) return;
 
@@ -401,7 +401,7 @@ export const SettingsView: React.FC = () => {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to register website';
       setOnboardError(msg);
-      showNotification(`❌ ${msg}`, 'warning');
+      showNotification(msg, 'warning');
     } finally {
       setIsOnboardSubmitting(false);
     }

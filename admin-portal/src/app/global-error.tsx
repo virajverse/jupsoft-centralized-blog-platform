@@ -14,8 +14,8 @@ export default function GlobalRootError({
       <body style={{ margin: 0, fontFamily: 'system-ui, sans-serif', background: '#090d16', color: '#f8fafc' }}>
         <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
           <div style={{ maxWidth: '420px', width: '100%', background: '#0f172a', border: '1px solid #1e293b', borderRadius: '1rem', padding: '2rem', textAlign: 'center' }}>
-            <div style={{ width: '48px', height: '48px', margin: '0 auto 1rem', background: '#f59e0b20', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b', fontSize: '24px' }}>
-              ⚠️
+            <div style={{ width: '48px', height: '48px', margin: '0 auto 1rem', background: '#f59e0b20', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b', fontSize: '20px', fontWeight: 'bold' }}>
+              !
             </div>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 0.5rem' }}>System Initialization Shield</h2>
             <p style={{ fontSize: '0.85rem', color: '#94a3b8', lineHeight: 1.5, margin: '0 0 1.5rem' }}>

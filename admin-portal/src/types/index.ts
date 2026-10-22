@@ -244,6 +244,8 @@ export interface ActiveSession {
   browser: string;
   os: string;
   ipAddress: string;
+  location?: string;
+  isp?: string;
   deviceType: 'desktop' | 'mobile' | 'tablet';
   userAgent?: string;
   createdAt: string;

@@ -27,7 +27,8 @@ import {
   Tablet,
   LogOut,
   Radio,
-  ShieldCheck
+  ShieldCheck,
+  MapPin
 } from 'lucide-react';
 import { ActiveSession } from '../../types';
 
@@ -871,13 +872,32 @@ export const ProfileView: React.FC = () => {
                           )}
                         </div>
 
+                        {/* Location & Network ISP info */}
+                        {(session.location || session.isp) && (
+                          <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-600 dark:text-slate-300 flex-wrap">
+                            {session.location && (
+                              <span className="inline-flex items-center gap-1 text-slate-700 dark:text-slate-200 font-medium">
+                                <MapPin className="w-2.5 h-2.5 text-blue-500 shrink-0" />
+                                <span>{session.location}</span>
+                              </span>
+                            )}
+                            {session.location && session.isp && <span className="text-slate-300 dark:text-slate-600">&bull;</span>}
+                            {session.isp && (
+                              <span className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                                <Globe className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                                <span className="truncate max-w-[140px]">{session.isp}</span>
+                              </span>
+                            )}
+                          </div>
+                        )}
+
                         <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500 dark:text-slate-400 flex-wrap">
-                          <span className="font-mono">{session.ipAddress}</span>
+                          <span className="font-mono bg-slate-100 dark:bg-slate-800/80 px-1 py-0.2 rounded text-[9.5px] border border-slate-200/50 dark:border-slate-700/50">{session.ipAddress}</span>
                           <span>&bull;</span>
                           <span>{session.os}</span>
                           <span>&bull;</span>
                           <span className={session.isCurrent ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : ''}>
-                            {formatSessionTime(session.lastActiveAt)}
+                            {session.isCurrent ? 'Active now' : formatSessionTime(session.lastActiveAt)}
                           </span>
                         </div>
                       </div>

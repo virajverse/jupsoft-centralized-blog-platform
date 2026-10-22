@@ -77,6 +77,15 @@ export class AuthController {
     res.clearCookie('jupsoft_refresh_token', { ...clearOpts, httpOnly: true });
   }
 
+  private extractClientIp(req: Request, fallbackIp?: string, bodyPublicIp?: string): string {
+    const customHeader = (req.headers['x-client-public-ip'] as string) || '';
+    const forwarded = ((req.headers['x-forwarded-for'] as string) || '').split(',')[0].trim();
+    const realIp = (req.headers['x-real-ip'] as string) || '';
+    const cfIp = (req.headers['cf-connecting-ip'] as string) || '';
+    const chosen = bodyPublicIp || customHeader || cfIp || realIp || forwarded || fallbackIp || req.ip || '';
+    return chosen.replace(/^::ffff:/, '').trim();
+  }
+
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Authenticate user — returns access + refresh token pair and sets secure cookies' })
@@ -89,7 +98,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Req() req: Request,
   ) {
-    const effectiveIp = (dto.clientPublicIp || ip || '').replace(/^::ffff:/, '').trim();
+    const effectiveIp = this.extractClientIp(req, ip, dto.clientPublicIp);
     const userAgent = req.headers['user-agent'] || '';
     const result = await this.authService.login(dto, effectiveIp, userAgent);
     this.setAuthCookies(res, result.accessToken, result.refreshToken, req);
@@ -108,7 +117,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Req() req: Request,
   ) {
-    const effectiveIp = (dto.clientPublicIp || ip || '').replace(/^::ffff:/, '').trim();
+    const effectiveIp = this.extractClientIp(req, ip, dto.clientPublicIp);
     const userAgent = req.headers['user-agent'] || '';
     const result = await this.authService.googleLogin(dto, effectiveIp, userAgent);
     this.setAuthCookies(res, result.accessToken, result.refreshToken, req);
@@ -125,7 +134,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Req() req: Request,
   ) {
-    const effectiveIp = (req.headers['x-forwarded-for'] as string || req.ip || '').split(',')[0].replace(/^::ffff:/, '').trim();
+    const effectiveIp = this.extractClientIp(req);
     const userAgent = req.headers['user-agent'] || '';
     const result = await this.authService.refreshToken(dto, effectiveIp, userAgent);
     this.setAuthCookies(res, result.accessToken, result.refreshToken, req);
@@ -160,7 +169,7 @@ export class AuthController {
     @Ip() ip: string,
     @Req() req: Request,
   ) {
-    const effectiveIp = (req.headers['x-forwarded-for'] as string || req.ip || '').split(',')[0].replace(/^::ffff:/, '').trim();
+    const effectiveIp = this.extractClientIp(req, ip);
     const userAgent = req.headers['user-agent'] || '';
     return this.authService.getActiveSessions(userId, currentSessionId, effectiveIp, userAgent);
   }
@@ -177,7 +186,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Req() req: Request,
   ) {
-    const effectiveIp = ((req.headers['x-forwarded-for'] as string) || req.ip || '').split(',')[0].replace(/^::ffff:/, '').trim();
+    const effectiveIp = this.extractClientIp(req);
     const userAgent = req.headers['user-agent'] || '';
     const result = await this.authService.revokeAllSessions(
       userId,

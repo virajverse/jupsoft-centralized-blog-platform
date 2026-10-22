@@ -30,6 +30,8 @@ export interface ActiveSession {
   browser: string;
   os: string;
   ipAddress: string;
+  location?: string;
+  isp?: string;
   deviceType: 'desktop' | 'mobile' | 'tablet';
   userAgent: string;
   createdAt: string;
@@ -748,7 +750,7 @@ export class AuthService {
     });
     await this.redis.del(`auth:profile:${userId}`);
     await this.redis.del(`auth:user:${userId}`);
-    this.logger.log(`🌐 Synced client public IP for user ${userId}: ${cleanIp}`);
+    this.logger.log(`[Auth] Synced client public IP for user ${userId}: ${cleanIp}`);
     return { success: true, ip: cleanIp };
   }
 
@@ -815,9 +817,9 @@ export class AuthService {
         avatarUrl = envCdn && !envCdn.includes('cdn.jupsoft.com')
           ? `${envCdn.replace(/\/+$/, '')}/avatars/${fileName}`
           : `${s3Domain}/avatars/${fileName}`;
-        this.logger.log(`☁️ Uploaded profile avatar directly to S3: avatars/${fileName}`);
+        this.logger.log(`[S3] Uploaded profile avatar directly to S3: avatars/${fileName}`);
       } catch (err: any) {
-        this.logger.error(`❌ S3 upload failed for avatar: ${err.message}`);
+        this.logger.error(`[S3] S3 upload failed for avatar: ${err.message}`);
         throw err;
       }
     } else {
@@ -828,7 +830,7 @@ export class AuthService {
       }
       const localFilePath = join(uploadsDir, fileName);
       fs.writeFileSync(localFilePath, webpBuffer);
-      this.logger.log(`💾 Saved profile avatar locally (offline dev mode): ${fileName}`);
+      this.logger.log(`[Auth] Saved profile avatar locally (offline dev mode): ${fileName}`);
     }
 
     const updated = await this.prisma.user.update({
@@ -851,7 +853,7 @@ export class AuthService {
         },
         data: { authorAvatar: avatarUrl },
       });
-      this.logger.log(`🔄 Cascaded updated avatar to all blogs authored by ${updated.name} (${userId})`);
+      this.logger.log(`[Auth] Cascaded updated avatar to all blogs authored by ${updated.name} (${userId})`);
     } catch (e: any) {
       this.logger.warn(`Failed to cascade avatar to blogs: ${e.message}`);
     }
@@ -1151,7 +1153,7 @@ export class AuthService {
       this.logger.warn(`Failed to write audit log for password reset completion: ${e.message}`);
     }
 
-    this.logger.log(`🔑 Password successfully reset for user ${updated.email} (${updated.id})`);
+    this.logger.log(`[Auth] Password successfully reset for user ${updated.email} (${updated.id})`);
 
     return {
       success: true,
@@ -1164,7 +1166,7 @@ export class AuthService {
   // ═════════════════════════════════════════════════════════════════════════
 
   /**
-   * Deduplicate sessions by physical device fingerprint (IP + Device + Browser + OS).
+   * Deduplicate sessions by physical device fingerprint (IP + Device + Browser + OS + DeviceType).
    * Keeps only the newest/most recently active entry for each unique device.
    */
   private deduplicateSessions(sessions: ActiveSession[]): ActiveSession[] {
@@ -1174,14 +1176,72 @@ export class AuthService {
     );
 
     for (const session of sorted) {
+      if (!session || !session.id) continue;
       const cleanIp = (session.ipAddress || '').replace(/^::ffff:/, '').trim() || 'unknown';
-      const fingerprint = `${cleanIp}|${session.device}|${session.browser}|${session.os}`;
+      const fingerprint = `${cleanIp}|${session.device}|${session.browser}|${session.os}|${session.deviceType}`;
       if (!seen.has(fingerprint)) {
         seen.set(fingerprint, session);
       }
     }
 
     return Array.from(seen.values());
+  }
+
+  /**
+   * Resolve IP Geolocation and ISP details with 30-day Redis caching.
+   * Fail-safe: Returns 'Local Network' for private IPs, or 'Unknown Location' if API fails.
+   */
+  async resolveIpGeo(ip: string): Promise<{ location: string; isp: string }> {
+    const clean = (ip || '').replace(/^::ffff:/, '').trim();
+    if (
+      !clean ||
+      clean === '127.0.0.1' ||
+      clean === '::1' ||
+      clean === 'localhost' ||
+      clean.startsWith('192.168.') ||
+      clean.startsWith('10.') ||
+      clean.startsWith('172.16.') ||
+      clean === 'Active Connection'
+    ) {
+      return { location: 'Local Network', isp: 'Internal Network' };
+    }
+
+    if (process.env.NODE_ENV === 'test') {
+      return { location: 'Delhi, India', isp: 'Bharti Airtel' };
+    }
+
+    const cacheKey = `geo:ip:${clean}`;
+    try {
+      const cached = await this.redis.get<{ location: string; isp: string }>(cacheKey);
+      if (cached && typeof cached === 'object' && cached.location) {
+        return cached;
+      }
+    } catch {}
+
+    try {
+      const res = await fetch(`http://ip-api.com/json/${clean}?fields=status,country,regionName,city,isp`, {
+        signal: AbortSignal.timeout(1500),
+      });
+      if (res.ok) {
+        const data: any = await res.json();
+        if (data?.status === 'success') {
+          const parts = [data.city, data.country].filter(Boolean);
+          const location = parts.length > 0 ? parts.join(', ') : 'Unknown Location';
+          const isp = data.isp || 'Broadband';
+          const geo = { location, isp };
+          // 30 days cache (2,592,000 seconds)
+          await this.redis.set(cacheKey, geo, 2592000);
+          return geo;
+        }
+      }
+    } catch {}
+
+    const fallback = { location: 'Unknown Location', isp: '' };
+    try {
+      await this.redis.set(cacheKey, fallback, 3600);
+    } catch {}
+
+    return fallback;
   }
 
   /**
@@ -1200,6 +1260,11 @@ export class AuthService {
       const refreshTtlSeconds = this.parseExpirationToSeconds(this.jwtRefreshExpiration);
       const cleanIp = (ipAddress || '').replace(/^::ffff:/, '').trim() || 'Active Connection';
 
+      let geo = { location: 'Unknown Location', isp: '' };
+      try {
+        geo = await this.resolveIpGeo(cleanIp);
+      } catch {}
+
       const newSession: ActiveSession = {
         id: sessionId,
         userId,
@@ -1208,6 +1273,8 @@ export class AuthService {
         browser: uaInfo.browser,
         os: uaInfo.os,
         ipAddress: cleanIp,
+        location: geo.location,
+        isp: geo.isp,
         deviceType: uaInfo.deviceType,
         userAgent: userAgent || 'Unknown',
         createdAt: new Date().toISOString(),
@@ -1217,16 +1284,17 @@ export class AuthService {
       const key = `${SESSIONS_PREFIX}${userId}`;
       const existing = (await this.redis.get<ActiveSession[]>(key)) || [];
 
-      // Deduplicate: replace any older session with identical device + browser + IP
+      // Deduplicate: replace any older session with identical device + browser + IP or tokenHash
       const filtered = existing.filter((s) => {
         if (s.id === sessionId) return false;
+        if (s.tokenHash === tokenHash) return false;
         if (s.ipAddress === cleanIp && s.device === uaInfo.device && s.browser === uaInfo.browser) {
           return false;
         }
         return true;
       });
 
-      const updated = [newSession, ...filtered].slice(0, 25);
+      const updated = this.deduplicateSessions([newSession, ...filtered]).slice(0, 25);
       await this.redis.set(key, updated, refreshTtlSeconds);
     } catch (err: any) {
       this.logger.warn(`Failed to record session for user ${userId}: ${err.message}`);
@@ -1312,6 +1380,10 @@ export class AuthService {
     if (sessions.length === 0) {
       const activeId = currentSessionId || `session_default_${userId.replace(/-/g, '').substring(0, 8)}`;
       const uaInfo = parseUserAgent(userAgent || '');
+      let geo = { location: 'Unknown Location', isp: '' };
+      try {
+        geo = await this.resolveIpGeo(cleanIp);
+      } catch {}
 
       const synthesized: ActiveSession = {
         id: activeId,
@@ -1321,6 +1393,8 @@ export class AuthService {
         browser: uaInfo.browser,
         os: uaInfo.os,
         ipAddress: cleanIp,
+        location: geo.location,
+        isp: geo.isp,
         deviceType: uaInfo.deviceType,
         userAgent: userAgent || 'Unknown',
         createdAt: new Date().toISOString(),
@@ -1329,9 +1403,25 @@ export class AuthService {
 
       sessions = [synthesized];
       await this.redis.set(key, sessions, refreshTtlSeconds);
-    } else if (sessions.length !== rawSessions.length) {
-      // Auto-prune existing duplicates from Redis cache
-      await this.redis.set(key, sessions, refreshTtlSeconds);
+    } else {
+      // Enrich any session missing location or isp
+      let needsPersist = sessions.length !== rawSessions.length;
+      await Promise.all(
+        sessions.map(async (s) => {
+          if (!s.location || !s.isp) {
+            try {
+              const geo = await this.resolveIpGeo(s.ipAddress);
+              s.location = s.location || geo.location;
+              s.isp = s.isp || geo.isp;
+              needsPersist = true;
+            } catch {}
+          }
+        }),
+      );
+
+      if (needsPersist) {
+        await this.redis.set(key, sessions, refreshTtlSeconds);
+      }
     }
 
     // 3. Determine which session is CURRENT (Guarantee: Exactly 1 session flagged current)
@@ -1370,6 +1460,44 @@ export class AuthService {
       count: marked.length,
       sessions: marked,
     };
+  }
+
+  /**
+   * Heartbeat / Activity Touch with 60s Redis debounce.
+   * Keeps active session timestamp fresh in real-time during CMS navigation.
+   */
+  async touchSession(userId: string, sessionId: string, clientIp?: string): Promise<void> {
+    try {
+      const touchKey = `auth:session_touch:${sessionId}`;
+      const alreadyTouched = await this.redis.get<string>(touchKey);
+      if (alreadyTouched) return;
+      await this.redis.set(touchKey, '1', 60);
+
+      const key = `${SESSIONS_PREFIX}${userId}`;
+      const rawSessions = (await this.redis.get<ActiveSession[]>(key)) || [];
+      if (!rawSessions.length) return;
+
+      let modified = false;
+      const nowIso = new Date().toISOString();
+      const cleanIp = (clientIp || '').replace(/^::ffff:/, '').trim();
+
+      const updated = rawSessions.map((s) => {
+        if (s.id === sessionId) {
+          modified = true;
+          return {
+            ...s,
+            lastActiveAt: nowIso,
+            ipAddress: (cleanIp && cleanIp !== 'Active Connection' && cleanIp !== s.ipAddress) ? cleanIp : s.ipAddress,
+          };
+        }
+        return s;
+      });
+
+      if (modified) {
+        const refreshTtlSeconds = this.parseExpirationToSeconds(this.jwtRefreshExpiration);
+        await this.redis.set(key, updated, refreshTtlSeconds);
+      }
+    } catch {}
   }
 
   /**

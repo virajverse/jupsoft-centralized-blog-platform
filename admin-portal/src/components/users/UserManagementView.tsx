@@ -456,7 +456,7 @@ _Please log in and update your password on your first sign-in._`;
       const activePwd = password || user.tempPassword;
       const res = await sendUserCredentials(user.id, activePwd, user.email);
       if (res.success) {
-        showNotification(`✉️ Account credentials successfully dispatched via AWS SES to ${user.email}`, 'success');
+        showNotification(`Account credentials successfully dispatched via AWS SES to ${user.email}`, 'success');
       } else {
         showNotification(res.message || 'Failed to dispatch email via AWS SES', 'warning');
       }
@@ -1898,7 +1898,7 @@ _Please log in and update your password on your first sign-in._`;
                           <div className="mt-1 flex items-center gap-1 text-[9px] font-semibold">
                             {isCurrentlyAllowed ? (
                               isCustomUnlocked ? (
-                                <span className="text-indigo-600 dark:text-indigo-400">✨ Custom Unlocked</span>
+                                <span className="text-indigo-600 dark:text-indigo-400">Custom Unlocked</span>
                               ) : (
                                 <span className="text-emerald-600 dark:text-emerald-400">Role Default</span>
                               )
@@ -2362,7 +2362,7 @@ _Please log in and update your password on your first sign-in._`;
                           <div className="mt-1 flex items-center gap-1 text-[9px] font-semibold">
                             {isCurrentlyAllowed ? (
                               isCustomUnlocked ? (
-                                <span className="text-indigo-600 dark:text-indigo-400">✨ Custom Unlocked</span>
+                                <span className="text-indigo-600 dark:text-indigo-400">Custom Unlocked</span>
                               ) : (
                                 <span className="text-emerald-600 dark:text-emerald-400">Role Default</span>
                               )

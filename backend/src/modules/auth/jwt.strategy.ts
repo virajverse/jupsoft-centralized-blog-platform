@@ -4,6 +4,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisProvider } from '../../common/providers/redis.provider';
+import * as crypto from 'crypto';
 
 export interface JwtPayload {
   sub: string;
@@ -31,13 +32,31 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: secret,
+      passReqToCallback: true,
     });
   }
 
-  async validate(payload: JwtPayload) {
+  async validate(reqOrPayload: any, maybePayload?: JwtPayload) {
+    const hasReq = maybePayload !== undefined;
+    const req = hasReq ? reqOrPayload : null;
+    const payload: JwtPayload = hasReq ? maybePayload! : reqOrPayload;
+
+    // Determine deterministic sessionId (extract from payload or derive from bearer token for legacy tokens)
+    let sessionId = payload.sessionId;
+    if (!sessionId && req) {
+      try {
+        const authHeader = req.headers?.authorization || req.headers?.Authorization;
+        if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+          const rawToken = authHeader.substring(7);
+          const hash = crypto.createHash('sha256').update(rawToken).digest('hex').substring(0, 16);
+          sessionId = `legacy_${hash}`;
+        }
+      } catch {}
+    }
+
     // 1. Session Revocation Check: Instant multi-device token invalidation
-    if (payload.sessionId) {
-      const isSessionRevoked = await this.redis.get<string>(`auth:revoked_session:${payload.sessionId}`);
+    if (sessionId) {
+      const isSessionRevoked = await this.redis.get<string>(`auth:revoked_session:${sessionId}`);
       if (isSessionRevoked) {
         throw new UnauthorizedException('This session has been revoked. Please sign in again.');
       }
@@ -51,10 +70,37 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       }
     }
 
+    // 3. Debounced Session Activity Touch (once every 60s per session)
+    if (sessionId && payload.sub) {
+      const touchKey = `auth:session_touch:${sessionId}`;
+      this.redis.get<string>(touchKey).then((exists) => {
+        if (!exists) {
+          this.redis.set(touchKey, '1', 60);
+          const key = `auth:sessions:${payload.sub}`;
+          this.redis.get<any[]>(key).then((raw) => {
+            if (raw && Array.isArray(raw) && raw.length > 0) {
+              const nowIso = new Date().toISOString();
+              let modified = false;
+              const mapped = raw.map((s) => {
+                if (s.id === sessionId) {
+                  modified = true;
+                  return { ...s, lastActiveAt: nowIso };
+                }
+                return s;
+              });
+              if (modified) {
+                this.redis.set(key, mapped, 60 * 60 * 24 * 30);
+              }
+            }
+          }).catch(() => {});
+        }
+      }).catch(() => {});
+    }
+
     const cacheKey = `auth:user:${payload.sub}`;
     const cached = await this.redis.get<any>(cacheKey);
     if (cached) {
-      return { ...cached, sessionId: payload.sessionId };
+      return { ...cached, sessionId };
     }
 
     const user = await this.prisma.user.findUnique({
@@ -82,7 +128,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         isGlobal: ra.isGlobal,
         role: ra.role,
       })),
-      sessionId: payload.sessionId,
+      sessionId,
     };
 
     // Cache user object for 60s to avoid DB hit on every request
