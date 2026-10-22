@@ -1,3 +1,23 @@
-# Disallow all search engines and automated crawlers from indexing the admin portal
+# Jupsoft Centralized Blog Platform — Search Engine Robots Policy
+# Allow public headless REST API and CDN media assets for client websites and crawlers
 User-agent: *
-Disallow: /
+Allow: /v1/
+Allow: /uploads/
+Allow: /widget/
+Allow: /robots.txt
+
+# Disallow indexing of private CMS Admin Portal and internal dashboard routes
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /blogs
+Disallow: /settings
+Disallow: /users
+Disallow: /workflow
+Disallow: /media
+Disallow: /taxonomy
+Disallow: /profile
+Disallow: /login
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /api/
+Disallow: /_next/
