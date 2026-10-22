@@ -111,11 +111,10 @@ export default function LoginPage() {
     setErrorMsg(null);
 
     const timeoutTimer = setTimeout(() => {
-      if (isSubmittingRef.current && !isRedirectingRef.current) {
-        isSubmittingRef.current = false;
-        setGoogleLoading(false);
-        setErrorMsg('Google authentication timed out. Please try again.');
-      }
+      isSubmittingRef.current = false;
+      isRedirectingRef.current = false;
+      setGoogleLoading(false);
+      setErrorMsg('Google authentication timed out. Please try again.');
     }, 8000);
 
     try {
@@ -202,6 +201,9 @@ export default function LoginPage() {
     if (isSessionExpired) {
       useBlogStore.getState().logout();
       apiClient.hardPurge();
+      isRedirectingRef.current = false;
+      isSubmittingRef.current = false;
+      setLoading(false);
       queueMicrotask(() => setErrorMsg('Your session has expired or account is inactive. Please sign in again.'));
       try {
         window.history.replaceState({}, document.title, window.location.pathname);
@@ -209,9 +211,59 @@ export default function LoginPage() {
       return;
     }
 
-    // 2. Auto-redirect already authenticated user to dashboard (avoiding duplicate redirect or fetch race)
+    // 2. Validate live active token: If token is missing, user CANNOT be authenticated!
+    const token = apiClient.getToken();
+    if (!token || token.startsWith('offline_token_')) {
+      // Clean stale in-memory or persisted Zustand flags so the login form is instantly interactive
+      if (isAuthenticated || currentUser) {
+        useBlogStore.getState().logout();
+        apiClient.hardPurge();
+      }
+      isRedirectingRef.current = false;
+      isSubmittingRef.current = false;
+      setLoading(false);
+      return;
+    }
+
+    // 3. Token exists and Zustand flags user as authenticated:
+    // Verify token with backend BEFORE blindly redirecting (prevents infinite redirect loops across browsers)
     if (isAuthenticated && currentUser && !isRedirectingRef.current) {
-      performRedirect();
+      let cancelled = false;
+      setLoading(true);
+
+      const verifyTimer = setTimeout(() => {
+        if (!cancelled && !isRedirectingRef.current) {
+          setLoading(false);
+          isRedirectingRef.current = false;
+        }
+      }, 5000);
+
+      apiClient.getProfile().then((profile) => {
+        clearTimeout(verifyTimer);
+        if (cancelled) return;
+        if (profile && profile.id) {
+          performRedirect();
+        } else {
+          useBlogStore.getState().logout();
+          apiClient.hardPurge();
+          isRedirectingRef.current = false;
+          setLoading(false);
+        }
+      }).catch(() => {
+        clearTimeout(verifyTimer);
+        if (cancelled) return;
+        // Server rejected token (401 or revoked): Clean up and unlock login form
+        useBlogStore.getState().logout();
+        apiClient.hardPurge();
+        isRedirectingRef.current = false;
+        setLoading(false);
+        setErrorMsg('Your previous session has expired. Please sign in with your credentials.');
+      });
+
+      return () => {
+        cancelled = true;
+        clearTimeout(verifyTimer);
+      };
     }
   }, [isAuthenticated, currentUser]);
 
@@ -233,11 +285,10 @@ export default function LoginPage() {
     setErrorMsg(null);
 
     const timeoutTimer = setTimeout(() => {
-      if (isSubmittingRef.current && !isRedirectingRef.current) {
-        isSubmittingRef.current = false;
-        setLoading(false);
-        setErrorMsg('Authentication request timed out. Please check your internet connection and try again.');
-      }
+      isSubmittingRef.current = false;
+      isRedirectingRef.current = false;
+      setLoading(false);
+      setErrorMsg('Authentication request timed out. Please check your internet connection and try again.');
     }, 8000);
 
     try {
@@ -247,12 +298,14 @@ export default function LoginPage() {
         performRedirect();
       } else {
         isSubmittingRef.current = false;
+        isRedirectingRef.current = false;
         setLoading(false);
         setErrorMsg(res.message || 'Authentication failed. Please check your credentials.');
       }
     } catch (err: unknown) {
       clearTimeout(timeoutTimer);
       isSubmittingRef.current = false;
+      isRedirectingRef.current = false;
       setLoading(false);
       const msg = err instanceof Error ? err.message : 'An unexpected error occurred.';
       setErrorMsg(msg);

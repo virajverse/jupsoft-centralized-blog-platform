@@ -47,11 +47,16 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
       initialDataLoadedRef.current = null;
       if (isAuthenticated || (token && token.startsWith('offline_token_'))) {
         useBlogStore.getState().logout();
+        apiClient.hardPurge();
       }
       const loginUrl = pathname && !pathname.startsWith('/login')
-        ? `/login?redirect=${encodeURIComponent(pathname)}`
+        ? `/login?session=expired&redirect=${encodeURIComponent(pathname)}`
         : '/login';
-      router.replace(loginUrl);
+      if (typeof window !== 'undefined') {
+        window.location.href = loginUrl;
+      } else {
+        router.replace(loginUrl);
+      }
     } else {
       if (initialDataLoadedRef.current !== token) {
         initialDataLoadedRef.current = token;
