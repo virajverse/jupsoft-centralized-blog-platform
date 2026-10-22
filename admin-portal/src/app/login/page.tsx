@@ -88,11 +88,11 @@ export default function LoginPage() {
       document.cookie = `jupsoft_auth_token=${token}; path=/; max-age=315360000; SameSite=Lax${isHttps ? '; Secure' : ''}`;
     }
 
-    // Seamless client-side route transition without unmounting or dropping in-memory state
-    try {
+    // Direct, guaranteed browser navigation: never hangs on Next.js client router transitions
+    if (typeof window !== 'undefined') {
+      window.location.href = dest;
+    } else {
       router.replace(dest);
-    } catch {
-      window.location.replace(dest);
     }
   };
 
@@ -110,8 +110,17 @@ export default function LoginPage() {
     setGoogleLoading(true);
     setErrorMsg(null);
 
+    const timeoutTimer = setTimeout(() => {
+      if (isSubmittingRef.current && !isRedirectingRef.current) {
+        isSubmittingRef.current = false;
+        setGoogleLoading(false);
+        setErrorMsg('Google authentication timed out. Please try again.');
+      }
+    }, 8000);
+
     try {
       const res = await loginWithGoogle(response.credential);
+      clearTimeout(timeoutTimer);
       if (res.success) {
         performRedirect();
       } else {
@@ -120,6 +129,7 @@ export default function LoginPage() {
         setErrorMsg(res.message || 'Google sign-in denied. Only registered accounts can access the CMS.');
       }
     } catch (err: unknown) {
+      clearTimeout(timeoutTimer);
       isSubmittingRef.current = false;
       setGoogleLoading(false);
       const msg = err instanceof Error ? err.message : 'An unexpected error occurred during Google sign-in.';
@@ -222,8 +232,17 @@ export default function LoginPage() {
     setLoading(true);
     setErrorMsg(null);
 
+    const timeoutTimer = setTimeout(() => {
+      if (isSubmittingRef.current && !isRedirectingRef.current) {
+        isSubmittingRef.current = false;
+        setLoading(false);
+        setErrorMsg('Authentication request timed out. Please check your internet connection and try again.');
+      }
+    }, 8000);
+
     try {
       const res = await login(email.trim(), password);
+      clearTimeout(timeoutTimer);
       if (res.success) {
         performRedirect();
       } else {
@@ -232,6 +251,7 @@ export default function LoginPage() {
         setErrorMsg(res.message || 'Authentication failed. Please check your credentials.');
       }
     } catch (err: unknown) {
+      clearTimeout(timeoutTimer);
       isSubmittingRef.current = false;
       setLoading(false);
       const msg = err instanceof Error ? err.message : 'An unexpected error occurred.';

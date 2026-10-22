@@ -1262,7 +1262,10 @@ export class AuthService {
 
       let geo = { location: 'Unknown Location', isp: '' };
       try {
-        geo = await this.resolveIpGeo(cleanIp);
+        const cached = await this.redis.get<{ location: string; isp: string }>(`geo:ip:${cleanIp}`);
+        if (cached && typeof cached === 'object' && cached.location) {
+          geo = cached;
+        }
       } catch {}
 
       const newSession: ActiveSession = {
@@ -1382,7 +1385,10 @@ export class AuthService {
       const uaInfo = parseUserAgent(userAgent || '');
       let geo = { location: 'Unknown Location', isp: '' };
       try {
-        geo = await this.resolveIpGeo(cleanIp);
+        const cached = await this.redis.get<{ location: string; isp: string }>(`geo:ip:${cleanIp}`);
+        if (cached && typeof cached === 'object' && cached.location) {
+          geo = cached;
+        }
       } catch {}
 
       const synthesized: ActiveSession = {
