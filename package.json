@@ -29,7 +29,7 @@
     "nestjs",
     "nextjs"
   ],
-  "author": "Jupsoft Technologies",
+  "author": "Jupsoft Systems",
   "license": "UNLICENSED",
   "devDependencies": {
     "cheerio": "^1.2.0",

@@ -324,4 +324,4 @@ website = await this.prisma.website.findFirst({
 
 ---
 
-*Authored for Jupsoft Technologies Centralized Multi-Site Platform — Autonomous Operations Playbook.*
+*Authored for Jupsoft Systems Centralized Multi-Site Platform — Autonomous Operations Playbook.*
