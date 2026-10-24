@@ -637,13 +637,15 @@ class ApiClient {
       transArray.push(...blog.translations);
     }
 
-    const cleanWebsiteId = (blog.websiteId && blog.websiteId !== 'all') ? blog.websiteId : 'site-cloud';
+    const cleanWebsiteId = (blog.websiteId && blog.websiteId !== 'all' && blog.websiteId !== 'site-cloud')
+      ? blog.websiteId
+      : undefined;
 
     // Strictly whitelist only properties defined in CreateBlogDto / UpdateBlogDto
     const payload: Record<string, unknown> = {
-      websiteId: cleanWebsiteId,
       translations: transArray,
     };
+    if (cleanWebsiteId) payload.websiteId = cleanWebsiteId;
 
     if (blog.featuredImage !== undefined && blog.featuredImage !== null) payload.featuredImage = blog.featuredImage;
     if (blog.featuredImageAlt !== undefined && blog.featuredImageAlt !== null) payload.featuredImageAlt = blog.featuredImageAlt;
@@ -654,14 +656,22 @@ class ApiClient {
     if (blog.authorId) payload.authorId = blog.authorId;
     if (blog.authorName) payload.authorName = blog.authorName;
     if (blog.authorAvatar !== undefined && blog.authorAvatar !== null) payload.authorAvatar = blog.authorAvatar;
-    if (blog.publishDate !== undefined && blog.publishDate !== null) payload.publishDate = blog.publishDate;
-    if (blog.scheduledAt !== undefined && blog.scheduledAt !== null) payload.scheduledAt = blog.scheduledAt;
+    if (blog.publishDate && typeof blog.publishDate === 'string' && blog.publishDate.trim() !== '') {
+      payload.publishDate = blog.publishDate.trim();
+    }
+    if (blog.scheduledAt && typeof blog.scheduledAt === 'string' && blog.scheduledAt.trim() !== '') {
+      payload.scheduledAt = blog.scheduledAt.trim();
+    }
 
     return payload;
   }
 
   async createBlog(blog: BlogPayloadInput): Promise<Blog> {
     const payload = this.formatBlogPayload(blog);
+    if (!payload.websiteId) {
+      const websites = await this.getWebsites().catch(() => []);
+      payload.websiteId = websites[0]?.id || 'site-jupsoft-test';
+    }
     return this.request('/admin/blogs', { method: 'POST', body: JSON.stringify(payload) });
   }
 

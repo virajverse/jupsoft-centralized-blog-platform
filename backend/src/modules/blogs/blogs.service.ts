@@ -661,8 +661,13 @@ export class BlogsService {
         }
         blogUpdateData.authorAvatar = resolvedAvatar;
       }
-      if (dto.websiteId) {
-        blogUpdateData.websiteId = dto.websiteId;
+      if (dto.websiteId && dto.websiteId !== existing.websiteId) {
+        const targetSite = await tx.website.findUnique({ where: { id: dto.websiteId } });
+        if (!targetSite) {
+          this.logger.warn(`Ignoring invalid websiteId "${dto.websiteId}" for blog "${id}" - site does not exist.`);
+        } else {
+          blogUpdateData.websiteId = dto.websiteId;
+        }
       }
       if (dto.publishDate) {
         blogUpdateData.publishDate = new Date(dto.publishDate);

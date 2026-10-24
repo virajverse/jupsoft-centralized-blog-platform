@@ -303,24 +303,27 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   const [selectedWebsiteId, setSelectedWebsiteId] = useState<string>(() => {
     if (existingBlog?.websiteId) return existingBlog.websiteId;
     const siteQuery = searchParams.get('site');
-    if (siteQuery && siteQuery !== 'all' && websites.some((w) => w.id === siteQuery)) return siteQuery;
-    if (activeWebsiteId && activeWebsiteId !== 'all') return activeWebsiteId;
-    return websites[0]?.id || 'site-growth';
+    if (siteQuery && siteQuery !== 'all' && siteQuery !== 'site-cloud' && websites.some((w) => w.id === siteQuery)) return siteQuery;
+    if (activeWebsiteId && activeWebsiteId !== 'all' && activeWebsiteId !== 'site-cloud') return activeWebsiteId;
+    return websites[0]?.id || 'site-jupsoft-test';
   });
 
   // Synchronize selectedWebsiteId once websites load asynchronously from API
   useEffect(() => {
     if (websites.length > 0) {
       if (!selectedWebsiteId || selectedWebsiteId === 'site-cloud' || !websites.some((w) => w.id === selectedWebsiteId)) {
+        const blogSite = existingBlog?.websiteId && websites.some((w) => w.id === existingBlog.websiteId)
+          ? existingBlog.websiteId
+          : null;
         const siteQuery = searchParams.get('site');
-        const matched = siteQuery && siteQuery !== 'all' ? websites.find((w) => w.id === siteQuery) : null;
-        const validSite = matched || (activeWebsiteId && activeWebsiteId !== 'all' ? websites.find((w) => w.id === activeWebsiteId) : null) || websites[0];
+        const matched = siteQuery && siteQuery !== 'all' && siteQuery !== 'site-cloud' ? websites.find((w) => w.id === siteQuery) : null;
+        const validSite = blogSite || matched?.id || (activeWebsiteId && activeWebsiteId !== 'all' && activeWebsiteId !== 'site-cloud' ? websites.find((w) => w.id === activeWebsiteId)?.id : null) || websites[0]?.id || '';
         if (validSite) {
-          setSelectedWebsiteId(validSite.id);
+          setSelectedWebsiteId(validSite);
         }
       }
     }
-  }, [websites, selectedWebsiteId, activeWebsiteId, searchParams]);
+  }, [websites, selectedWebsiteId, activeWebsiteId, searchParams, existingBlog?.websiteId]);
 
   const activeSite = useMemo(
     () => websites.find((w) => w.id === selectedWebsiteId) || websites[0] || { id: 'site-growth', name: 'DigifyNext Marketing' },
@@ -1088,11 +1091,27 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
             const next = { ...prev };
             (['en', 'hi', 'fr', 'ar'] as LanguageCode[]).forEach((l) => {
               if (normTrans[l]) {
+                const rawSeo = normTrans[l].seo || {};
                 next[l] = {
                   ...defaultTrans(l),
                   ...normTrans[l],
                   content: normTrans[l].content || '<p></p>',
-                  seo: { ...createEmptySEO(), ...(normTrans[l].seo || {}) } as BlogSEO,
+                  seo: {
+                    ...createEmptySEO(),
+                    ...rawSeo,
+                    metaTitle: rawSeo.metaTitle || normTrans[l].metaTitle || '',
+                    metaDescription: rawSeo.metaDescription || normTrans[l].metaDescription || '',
+                    metaKeywords: rawSeo.metaKeywords || normTrans[l].metaKeywords || '',
+                    canonicalUrl: rawSeo.canonicalUrl || normTrans[l].canonicalUrl || '',
+                    focusKeyword: rawSeo.focusKeyword || normTrans[l].focusKeyword || '',
+                    robots: rawSeo.robots || normTrans[l].robots || 'index, follow',
+                    ogTitle: rawSeo.ogTitle || normTrans[l].ogTitle || '',
+                    ogDescription: rawSeo.ogDescription || normTrans[l].ogDescription || '',
+                    ogImage: rawSeo.ogImage || normTrans[l].ogImage || '',
+                    twitterTitle: rawSeo.twitterTitle || normTrans[l].twitterTitle || '',
+                    twitterDescription: rawSeo.twitterDescription || normTrans[l].twitterDescription || '',
+                    twitterImage: rawSeo.twitterImage || normTrans[l].twitterImage || '',
+                  } as BlogSEO,
                 };
               }
             });
@@ -1109,6 +1128,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
           }
         }
 
+        if (fullBlog.websiteId) {
+          setSelectedWebsiteId(fullBlog.websiteId);
+        }
         if (fullBlog.status) setStatus(fullBlog.status as BlogStatus);
         if (fullBlog.featuredImage) setFeaturedImage(fullBlog.featuredImage);
         if (fullBlog.featuredImageAlt) setFeaturedImageAlt(fullBlog.featuredImageAlt);
@@ -1635,8 +1657,10 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       return;
     }
 
-    const targetSiteId = selectedWebsiteId || (activeWebsiteId !== 'all' ? activeWebsiteId : 'site-cloud');
     const baseBlog = initialBlogRef.current || existingBlog;
+    const targetSiteId = (selectedWebsiteId && selectedWebsiteId !== 'site-cloud' && selectedWebsiteId !== 'all')
+      ? selectedWebsiteId
+      : (baseBlog?.websiteId || websites[0]?.id || 'site-jupsoft-test');
     const isCurrentlyPublished = baseBlog?.status === 'Published' || status === 'Published';
     const isNewDraft = !baseBlog?.id || baseBlog.id.startsWith('new-') || baseBlog.id.startsWith('temp-') || baseBlog.id.startsWith('draft-');
     const id = isNewDraft ? `new-${Date.now()}` : baseBlog.id;
