@@ -165,6 +165,7 @@ export class CreateBlogDto {
   status?: string;
 
   @ApiProperty({ example: '2026-03-24T00:00:00.000Z', required: false })
+  @ValidateIf((o) => !!o.publishDate)
   @IsDateString()
   @IsOptional()
   publishDate?: string;
@@ -220,11 +221,13 @@ export class UpdateBlogDto {
   status?: string;
 
   @ApiProperty({ example: '2026-03-24T00:00:00.000Z', required: false })
+  @ValidateIf((o) => !!o.publishDate)
   @IsDateString()
   @IsOptional()
   publishDate?: string;
 
   @ApiProperty({ example: '2026-09-25T10:00:00Z', required: false })
+  @ValidateIf((o) => !!o.scheduledAt)
   @IsDateString()
   @IsOptional()
   scheduledAt?: string;
@@ -286,6 +289,7 @@ export class TransitionBlogStatusDto {
   scheduledAt?: string;
 
   @ApiProperty({ example: '2026-03-24T00:00:00.000Z', required: false, description: 'Custom/backdated publish timestamp' })
+  @ValidateIf((o) => !!o.publishDate)
   @IsDateString()
   @IsOptional()
   publishDate?: string;

@@ -49,15 +49,21 @@ export class SupportService {
     file?: Express.Multer.File,
     user?: AuthenticatedUser,
   ) {
-    // 1. Resolve tenant websiteId
+    // 1. Resolve tenant websiteId with safe fallback
     let websiteId = dto.websiteId;
-    if (!websiteId || websiteId === 'all') {
+    if (!websiteId || websiteId === 'all' || websiteId === 'site-cloud') {
       const userSite = user?.roleAssignments?.find((ra) => ra.websiteId)?.websiteId;
       if (userSite) {
         websiteId = userSite;
       } else {
         const defaultSite = await this.prisma.website.findFirst();
-        websiteId = defaultSite ? defaultSite.id : 'site-cloud';
+        websiteId = defaultSite ? defaultSite.id : '';
+      }
+    } else {
+      const siteExists = await this.prisma.website.findUnique({ where: { id: websiteId } });
+      if (!siteExists) {
+        const defaultSite = await this.prisma.website.findFirst();
+        websiteId = defaultSite ? defaultSite.id : '';
       }
     }
 

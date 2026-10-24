@@ -81,7 +81,7 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
   const [isSchemaOpen, setIsSchemaOpen] = useState(false);
 
   // Active Tenant Credentials
-  const websiteId = activeSite?.id || 'site-default';
+  const websiteId = activeSite?.id || websites[0]?.id || 'site-jupsoft-test';
   const siteDomain = activeSite?.domain || 'yourdomain.com';
   const apiKey = (canViewApiKey && activeSite?.apiKey) ? activeSite.apiKey : 'jup_live_sec_your_api_key';
   const apiBaseUrl = 'https://blogary.jupsoft.com/v1';

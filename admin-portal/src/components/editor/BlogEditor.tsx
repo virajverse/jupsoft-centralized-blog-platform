@@ -1553,7 +1553,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
     setUploadingImage(true);
     const cleanName = file.name.replace(/\.[^/.]+$/, '') + '.webp';
-    const uploadSiteId = activeSite?.id || (websites.length > 0 ? websites[0].id : 'site-growth');
+    const uploadSiteId = selectedWebsiteId || existingBlog?.websiteId || activeSite?.id || websites[0]?.id || 'site-jupsoft-test';
     const uploadSite = websites.find((w) => w.id === uploadSiteId) || websites[0];
 
     try {

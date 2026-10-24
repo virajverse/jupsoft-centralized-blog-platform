@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsString, IsOptional, IsArray, IsUrl, IsNumber, IsBoolean } from 'class-validator';
+import {
+  ValidateIf, IsNotEmpty, IsString, IsOptional, IsArray, IsUrl, IsNumber, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateWebsiteDto {
@@ -38,6 +39,7 @@ export class CreateWebsiteDto {
   supportedLanguages?: string[];
 
   @ApiProperty({ example: 'https://fintech.jupsoft.com/api/revalidate', required: false })
+  @ValidateIf((o) => !!o.revalidateWebhookUrl)
   @IsUrl({ require_tld: false, require_protocol: true }, { message: 'revalidateWebhookUrl must be a valid URL (e.g. https://yourdomain.com/api/revalidate or http://localhost:5001/api/revalidate)' })
   @IsString()
   @IsOptional()
@@ -141,6 +143,7 @@ export class UpdateWebsiteDto {
   status?: string;
 
   @ApiProperty({ required: false })
+  @ValidateIf((o) => !!o.revalidateWebhookUrl)
   @IsUrl({ require_tld: false, require_protocol: true }, { message: 'revalidateWebhookUrl must be a valid URL (e.g. https://yourdomain.com/api/revalidate or http://localhost:5001/api/revalidate)' })
   @IsString()
   @IsOptional()

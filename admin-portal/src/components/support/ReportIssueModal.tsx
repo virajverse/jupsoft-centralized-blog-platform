@@ -183,7 +183,8 @@ export const ReportIssueModal: React.FC<ReportIssueModalProps> = ({
       const formData = new FormData();
       formData.append('subject', `[${category}] ${subject.trim()}`);
       formData.append('description', description.trim());
-      formData.append('websiteId', activeWebsiteId || 'site-cloud');
+      const effectiveSiteId = (activeWebsiteId && activeWebsiteId !== 'all' && activeWebsiteId !== 'site-cloud') ? activeWebsiteId : (websites[0]?.id || 'site-jupsoft-test');
+      formData.append('websiteId', effectiveSiteId);
       formData.append('pageUrl', pathname || window.location.pathname);
       formData.append('priority', priority);
 
