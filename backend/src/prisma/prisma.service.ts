@@ -29,10 +29,10 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   async onModuleInit() {
     try {
       await this.$connect();
-      this.logger.log('✅ Connected to PostgreSQL via Prisma');
+      this.logger.log('[PrismaService] Connected to PostgreSQL via Prisma');
       await this.ensureInitialSeed();
     } catch (err: any) {
-      this.logger.warn(`⚠️ Warning: PostgreSQL not reachable yet: ${err?.message}. Prisma will reconnect lazily on incoming requests.`);
+      this.logger.warn(`[PrismaService] PostgreSQL not reachable yet: ${err?.message}. Prisma will reconnect lazily on incoming requests.`);
     }
   }
 
@@ -44,7 +44,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     try {
       const siteCount = await this.website.count();
       if (siteCount === 0) {
-        this.logger.log('🌱 Database has 0 websites. Initializing default production websites...');
+        this.logger.log('[PrismaService] Database has 0 websites. Initializing default production websites...');
         await this.website.createMany({
           data: [
             {
@@ -88,17 +88,17 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
             },
           ],
         });
-        this.logger.log('✅ Initialized 3 baseline production websites');
+        this.logger.log('[PrismaService] Initialized 3 baseline production websites');
       }
 
       const userCount = await this.user.count();
       if (userCount === 0) {
         const initialPassword = process.env.INITIAL_SUPERADMIN_PASSWORD;
         if (!initialPassword) {
-          this.logger.warn('🌱 Database has 0 users, but INITIAL_SUPERADMIN_PASSWORD is not set. Skipping auto-initialization.');
+          this.logger.warn('[PrismaService] Database has 0 users, but INITIAL_SUPERADMIN_PASSWORD is not set. Skipping auto-initialization.');
           return;
         }
-        this.logger.log('🌱 Database has 0 users. Initializing default SuperAdmin in PostgreSQL...');
+        this.logger.log('[PrismaService] Database has 0 users. Initializing default SuperAdmin in PostgreSQL...');
         const passwordHash = await bcrypt.hash(initialPassword, 10);
         await this.user.create({
           data: {
@@ -119,7 +119,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
             },
           },
         });
-        this.logger.log('✅ Default SuperAdmin created: admin@jupsoft.com');
+        this.logger.log('[PrismaService] Default SuperAdmin created: admin@jupsoft.com');
       }
     } catch (seedErr) {
       this.logger.warn(`Initial baseline check skipped: ${(seedErr as Error).message}`);

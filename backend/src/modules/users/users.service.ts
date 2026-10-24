@@ -173,7 +173,7 @@ export class UsersService {
 
     await this.invalidateUserCache();
 
-    // ✉️ Dispatch Welcome & Credentials email via AWS SES (asynchronous / non-blocking)
+    // Dispatch Welcome & Credentials email via AWS SES (asynchronous / non-blocking)
     if (this.emailService) {
       const site = targetWebsiteId
         ? await this.prisma.website.findUnique({ where: { id: targetWebsiteId } })
@@ -197,7 +197,7 @@ export class UsersService {
         })
         .catch((err: Error) => {
           this.logger.error(
-            `❌ Failed to dispatch invitation credentials email via SES to ${user.email}: ${err.message}`,
+            `[UsersService] Failed to dispatch invitation credentials email via SES to ${user.email}: ${err.message}`,
           );
         });
     }
@@ -249,7 +249,7 @@ export class UsersService {
       throw new NotFoundException(`User "${userId}" not found`);
     }
 
-    // 🛡️ CRITICAL SECURITY GUARD: Root Super Admin master account cannot be downgraded
+    // CRITICAL SECURITY GUARD: Root Super Admin master account cannot be downgraded
     const isTargetRootSuperAdmin = this.isRootSuperAdmin(user);
 
     if (isTargetRootSuperAdmin && dto.role !== 'Super Admin') {
@@ -420,7 +420,7 @@ export class UsersService {
       throw new NotFoundException(`User "${userId}" not found`);
     }
 
-    // 🛡️ CRITICAL SECURITY GUARD: Root Super Admin account cannot be deactivated or suspended
+    // CRITICAL SECURITY GUARD: Root Super Admin account cannot be deactivated or suspended
     const isTargetRootSuperAdmin = this.isRootSuperAdmin(user);
 
     if (isTargetRootSuperAdmin) {
@@ -469,7 +469,7 @@ export class UsersService {
       throw new ForbiddenException('You cannot delete your own account.');
     }
 
-    // 🛡️ CRITICAL SECURITY GUARD: Root Super Admin accounts CANNOT be deleted
+    // CRITICAL SECURITY GUARD: Root Super Admin accounts CANNOT be deleted
     const isTargetRootSuperAdmin = this.isRootSuperAdmin(user);
 
     if (isTargetRootSuperAdmin) {
@@ -478,7 +478,7 @@ export class UsersService {
       );
     }
 
-    // 🛡️ HIERARCHY RULE: Only Super Admin and Website Admin can delete
+    // HIERARCHY RULE: Only Super Admin and Website Admin can delete
     const isDeleterSuperAdmin = deleter?.roles?.includes('Super Admin');
     const isDeleterWebsiteAdmin = deleter?.roles?.includes('Website Admin');
 
@@ -511,7 +511,7 @@ export class UsersService {
       }
     }
 
-    // 🛡️ PERMANENT BLOG PRESERVATION: When an author is deleted, their blogs MUST NOT be deleted.
+    // PERMANENT BLOG PRESERVATION: When an author is deleted, their blogs MUST NOT be deleted.
     // Reassign authorId to master superadmin while retaining authorName and authorAvatar intact!
     await this.prisma.blog.updateMany({
       where: { authorId: userId },
@@ -583,7 +583,7 @@ export class UsersService {
 
     await this.invalidateUserCache();
 
-    // ✉️ Dispatch Temporary Password Reset email via AWS SES (asynchronous / non-blocking)
+    // Dispatch Temporary Password Reset email via AWS SES (asynchronous / non-blocking)
     if (this.emailService) {
       const primarySiteId = user.roleAssignments[0]?.websiteId;
       const site = primarySiteId
@@ -608,7 +608,7 @@ export class UsersService {
         })
         .catch((err: Error) => {
           this.logger.error(
-            `❌ Failed to dispatch password reset email via SES to ${user.email}: ${err.message}`,
+            `[UsersService] Failed to dispatch password reset email via SES to ${user.email}: ${err.message}`,
           );
         });
     }

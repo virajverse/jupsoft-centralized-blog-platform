@@ -115,27 +115,27 @@ export interface MonthlyExecutiveDigestEmailPayload {
 // Map status transitions to email subjects and human-readable messages
 const EMAIL_TEMPLATES: Record<string, { subject: string; headline: string; bodyLine: string }> = {
   'Under Review': {
-    subject: '📝 Article Submitted for Review — Jupsoft CMS',
+    subject: 'Article Submitted for Review — Jupsoft CMS',
     headline: 'New Article Ready for Editorial Review',
     bodyLine: 'A new article has been submitted for your review.',
   },
   Approved: {
-    subject: '✅ Article Approved — Ready to Publish',
+    subject: 'Article Approved — Ready to Publish',
     headline: 'Article Approved for Publishing',
     bodyLine: 'The following article has been approved and is ready to be published.',
   },
   Published: {
-    subject: '🚀 Your Article is Now Live!',
+    subject: 'Your Article is Now Live!',
     headline: 'Article Successfully Published',
     bodyLine: 'Great news! Your article is now live and visible to readers.',
   },
   Archived: {
-    subject: '📦 Article Archived — Jupsoft CMS',
+    subject: 'Article Archived — Jupsoft CMS',
     headline: 'Article Has Been Archived',
     bodyLine: 'The following article has been archived and removed from public view.',
   },
   Scheduled: {
-    subject: '🗓️ Article Scheduled for Publishing',
+    subject: 'Article Scheduled for Publishing',
     headline: 'Article Scheduled',
     bodyLine: 'The following article has been scheduled for automated publishing.',
   },
@@ -226,10 +226,10 @@ export class EmailService {
         region,
         credentials: { accessKeyId, secretAccessKey },
       });
-      this.logger.log(`✉️  EmailService initialized — SES region: ${region}, from: ${this.fromAddress}, key: ${accessKeyId.slice(0, 6)}...`);
+      this.logger.log(`[EmailService] Initialized SES region: ${region}, from: ${this.fromAddress}, key: ${accessKeyId.slice(0, 6)}...`);
     } else {
       this.logger.warn(
-        `✉️  EmailService: AWS SES credentials not configured — email dispatch is disabled until credentials are provided.`,
+        `[EmailService] AWS SES credentials not configured — email dispatch is disabled until credentials are provided.`,
       );
     }
   }
@@ -268,12 +268,12 @@ export class EmailService {
 
       await this.sesClient.send(command);
       this.logger.log(
-        `✅ Email sent via SES → ${payload.toEmail} (event: ${payload.event}, blog: "${payload.blogTitle}")`,
+        `[EmailService] Email sent via SES -> ${payload.toEmail} (event: ${payload.event}, blog: "${payload.blogTitle}")`,
       );
     } catch (err) {
       // Never throw — email failures must not block workflow transitions
       this.logger.error(
-        `❌ SES email delivery failed to ${payload.toEmail}: ${(err as Error).message}`,
+        `[EmailService] SES email delivery failed to ${payload.toEmail}: ${(err as Error).message}`,
       );
     }
   }
@@ -283,7 +283,7 @@ export class EmailService {
    * Gracefully logs in dev mode if SES is not configured.
    */
   async sendPasswordResetEmail(payload: PasswordResetEmailPayload): Promise<void> {
-    const subject = '🔒 Reset Your Blogary CMS Password';
+    const subject = 'Reset Your Blogary CMS Password';
     const htmlBody = this.buildPasswordResetHtml(payload);
     const textBody = this.buildPasswordResetText(payload);
 
@@ -306,10 +306,10 @@ export class EmailService {
       });
 
       await this.sesClient.send(command);
-      this.logger.log(`✅ Password reset email sent via SES → ${payload.toEmail}`);
+      this.logger.log(`[EmailService] Password reset email sent via SES -> ${payload.toEmail}`);
     } catch (err) {
       this.logger.error(
-        `❌ SES password reset email delivery failed to ${payload.toEmail}: ${(err as Error).message}`,
+        `[EmailService] SES password reset email delivery failed to ${payload.toEmail}: ${(err as Error).message}`,
       );
     }
   }
@@ -321,8 +321,8 @@ export class EmailService {
   async sendUserCredentialsEmail(payload: UserCredentialsEmailPayload): Promise<boolean> {
     const isReset = Boolean(payload.isPasswordReset);
     const subject = isReset
-      ? '🔑 Your Blogary CMS Temporary Password Has Been Reset'
-      : '🎉 Welcome to Blogary CMS — Your Account Credentials';
+      ? 'Your Blogary CMS Temporary Password Has Been Reset'
+      : 'Welcome to Blogary CMS — Your Account Credentials';
     const htmlBody = this.buildUserCredentialsHtml(payload);
     const textBody = this.buildUserCredentialsText(payload);
 
@@ -345,11 +345,11 @@ export class EmailService {
       });
 
       await this.sesClient.send(command);
-      this.logger.log(`✅ Credentials email sent via SES → ${payload.toEmail} (isReset: ${isReset})`);
+      this.logger.log(`[EmailService] Credentials email sent via SES -> ${payload.toEmail} (isReset: ${isReset})`);
       return true;
     } catch (err) {
       this.logger.error(
-        `❌ SES credentials email delivery failed to ${payload.toEmail}: ${(err as Error).message}`,
+        `[EmailService] SES credentials email delivery failed to ${payload.toEmail}: ${(err as Error).message}`,
       );
       return false;
     }
@@ -383,11 +383,11 @@ export class EmailService {
       });
 
       await this.sesClient.send(command);
-      this.logger.log(`✅ Website Owner Publish notification sent via SES → ${payload.toEmail} ("${payload.blogTitle}")`);
+      this.logger.log(`[EmailService] Website Owner Publish notification sent via SES -> ${payload.toEmail} ("${payload.blogTitle}")`);
       return true;
     } catch (err) {
       this.logger.error(
-        `❌ SES Website Owner notification failed to ${payload.toEmail}: ${(err as Error).message}`,
+        `[EmailService] SES Website Owner notification failed to ${payload.toEmail}: ${(err as Error).message}`,
       );
       return false;
     }
@@ -426,11 +426,11 @@ export class EmailService {
       });
 
       await this.sesClient.send(command);
-      this.logger.log(`✅ Target Cadence Alert sent via SES → ${payload.toEmail} (${payload.websiteName}: ${payload.publishedCount}/${payload.targetCount})`);
+      this.logger.log(`[EmailService] Target Cadence Alert sent via SES -> ${payload.toEmail} (${payload.websiteName}: ${payload.publishedCount}/${payload.targetCount})`);
       return true;
     } catch (err) {
       this.logger.error(
-        `❌ SES Target Cadence Alert failed to ${payload.toEmail}: ${(err as Error).message}`,
+        `[EmailService] SES Target Cadence Alert failed to ${payload.toEmail}: ${(err as Error).message}`,
       );
       return false;
     }
@@ -464,11 +464,11 @@ export class EmailService {
       });
 
       await this.sesClient.send(command);
-      this.logger.log(`✅ Monthly Executive Digest sent via SES → ${payload.toEmail} (${payload.websiteName}: ${payload.cycleMonth})`);
+      this.logger.log(`[EmailService] Monthly Executive Digest sent via SES -> ${payload.toEmail} (${payload.websiteName}: ${payload.cycleMonth})`);
       return true;
     } catch (err) {
       this.logger.error(
-        `❌ SES Monthly Executive Digest failed to ${payload.toEmail}: ${(err as Error).message}`,
+        `[EmailService] SES Monthly Executive Digest failed to ${payload.toEmail}: ${(err as Error).message}`,
       );
       return false;
     }
@@ -598,7 +598,7 @@ export class EmailService {
         <!-- Expiration Alert -->
         <div style="background-color: #fffbeb; border-radius: 8px; padding: 14px 16px; margin-bottom: 24px; border: 1px solid #fef3c7; border-left: 4px solid #f59e0b;">
           <p style="color: #92400e; font-size: 12px; margin: 0; line-height: 1.5;">
-            ⏰ This reset link is single-use and will expire in <strong>${payload.expiresInMinutes} minutes</strong>.
+            This reset link is single-use and will expire in <strong>${payload.expiresInMinutes} minutes</strong>.
           </p>
         </div>
 
@@ -611,7 +611,7 @@ export class EmailService {
         <!-- Security Disclaimer -->
         <div style="border-top: 1px solid #e2e8f0; padding-top: 20px;">
           <p style="color: #94a3b8; font-size: 11px; line-height: 1.5; margin: 0;">
-            🛡️ If you did not request this password reset, you can safely ignore this email. Your current password remains secure and no changes were made.
+            If you did not request this password reset, you can safely ignore this email. Your current password remains secure and no changes were made.
           </p>
         </div>
       </td>
@@ -721,7 +721,7 @@ export class EmailService {
         <!-- Security Notice -->
         <div style="background-color: #fffbeb; border-radius: 8px; padding: 14px 16px; margin-bottom: 24px; border: 1px solid #fef3c7; border-left: 4px solid #f59e0b;">
           <p style="color: #92400e; font-size: 12px; margin: 0; line-height: 1.5;">
-            ⚠️ <strong>Security Recommendation:</strong> For your protection, please change this temporary password immediately after logging in via <em>Profile &rarr; Security</em>.
+            <strong>Security Recommendation:</strong> For your protection, please change this temporary password immediately after logging in via <em>Profile &rarr; Security</em>.
           </p>
         </div>
 

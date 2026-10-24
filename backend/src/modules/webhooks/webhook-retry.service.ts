@@ -44,7 +44,7 @@ export class WebhookRetryService {
 
     if (failedWebhooks.length === 0) return;
 
-    this.logger.log(`⚡ Retrying ${failedWebhooks.length} failed webhook(s)...`);
+    this.logger.log(`[WebhookRetry] Retrying ${failedWebhooks.length} failed webhook(s)...`);
 
     const defaultSecret =
       this.configService.get<string>('WEBHOOK_DEFAULT_SECRET') ||
@@ -122,12 +122,12 @@ export class WebhookRetryService {
         });
 
         if (delivered) {
-          this.logger.log(`✅ Webhook retry succeeded: ${wh.targetUrl} (slug: ${wh.slug})`);
+          this.logger.log(`[WebhookRetry] Webhook retry succeeded: ${wh.targetUrl} (slug: ${wh.slug})`);
         } else {
-          this.logger.warn(`⚠️ Webhook retry attempt ${wh.attempt + 1}/${MAX_RETRY_ATTEMPTS} failed: ${statusCode}`);
+          this.logger.warn(`[WebhookRetry] Webhook retry attempt ${wh.attempt + 1}/${MAX_RETRY_ATTEMPTS} failed: ${statusCode}`);
         }
       } catch (err) {
-        this.logger.error(`❌ Webhook retry error for ${wh.targetUrl}: ${(err as Error).message}`);
+        this.logger.error(`[WebhookRetry] Webhook retry error for ${wh.targetUrl}: ${(err as Error).message}`);
         // Mark as failed attempt
         await this.prisma.webhookDeliveryLog.update({
           where: { id: wh.id },

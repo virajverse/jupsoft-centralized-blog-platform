@@ -61,7 +61,7 @@ export class RedisProvider implements OnModuleDestroy {
 
       this.client.on('connect', () => {
         this.isConnected = true;
-        this.logger.log('🚀 Redis L2 cache connected on port ' + port);
+        this.logger.log('[RedisProvider] Redis L2 cache connected on port ' + port);
       });
 
       this.client.on('ready', () => {

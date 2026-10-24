@@ -13,7 +13,8 @@ import {
   TrendingUp, 
   ShieldCheck, 
   ArrowRight,
-  Loader2
+  Loader2,
+  X
 } from 'lucide-react';
 import { DeleteConfirmModal } from '../common/DeleteConfirmModal';
 
@@ -335,7 +336,7 @@ export const RedirectsView: React.FC<RedirectsViewProps> = ({ embedded = false }
                 onClick={() => setIsModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer text-xs font-bold"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 

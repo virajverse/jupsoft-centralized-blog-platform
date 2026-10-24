@@ -103,7 +103,7 @@ export class ScheduledPublisherService {
           this.logger.warn(`Failed to dispatch publish notifications for scheduled blog ${blog.id}: ${err.message}`);
         });
 
-        this.logger.log(`✅ Auto-published scheduled article: ${blog.id} (${blog.website.domain})`);
+        this.logger.log(`[ScheduledPublisher] Auto-published scheduled article: ${blog.id} (${blog.website.domain})`);
       } catch (err) {
         this.logger.error(`Failed to auto-publish scheduled article ${blog.id}: ${(err as Error).message}`);
       }

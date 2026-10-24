@@ -34,7 +34,8 @@ import {
   Clock,
   CheckCircle,
   ChevronRight,
-  Info
+  Info,
+  X
 } from 'lucide-react';
 
 interface DeveloperIntegrationGuideProps {
@@ -1090,7 +1091,7 @@ module.exports = nextConfig;`;
     <add key="CmsHost" value="${apiBaseUrl.replace(/\/v1$/, '')}" />
     <add key="CmsSite" value="${websiteId}" />
 
-    <!-- 🔒 AES-128 Encrypted Token (Decrypted strictly in server-side C# RAM) -->
+    <!-- AES-128 Encrypted Token (Decrypted strictly in server-side C# RAM) -->
     <!-- Plaintext API key is NEVER stored here and NEVER sent to the browser! -->
     <add key="CmsToken" value="${encryptedCmsToken || 'Encrypting...'}" />
   </appSettings>
@@ -1491,7 +1492,7 @@ public partial class blog_detail : System.Web.UI.Page
   </div>
 
   <script>
-    // 🔒 100% ZERO API KEY LEAK GUARANTEE
+    // 100% ZERO API KEY LEAK GUARANTEE
     // Data is directly injected by ASP.NET C# server-side execution.
     // Inspecting this source code in your browser (Ctrl+U) reveals ZERO API keys or tokens!
     var rawServerData = <%= BlogsJson %>;
@@ -1816,7 +1817,7 @@ curl -s -X POST "https://blogary.jupsoft.com/v1/revalidate" \\
 
 ---
 
-## 🚀 Quickstart for Frontend Developers
+## Quickstart for Frontend Developers
 
 ### 1. Domain-Restricted Client API Key Authentication
 Public blog requests must include your website's Client API Key in the request header:
@@ -1840,7 +1841,7 @@ For IIS / Windows Server environments where API credentials must NEVER appear in
 
 ---
 
-## 📡 Core API Endpoints
+## Core API Endpoints
 
 ### 1. List Published Articles
 \`\`\`http
@@ -1865,7 +1866,7 @@ Accept: application/json
 
 ---
 
-## ⚠️ Important Gotchas to Avoid
+## Important Gotchas to Avoid
 1. **Always supply the API Key**: Pass \`x-api-key: ${apiKey}\` in all fetch calls (pre-configured in \`cms-client.js\`).
 2. **Fix 404 on blog detail links**: Ensure \`web.config\` or \`.htaccess\` is uploaded to your website root. If your server cannot rewrite URLs, use \`/blog-detail.shtml?slug={slug}\`.
 3. **Bypass edge cache when testing new posts**: Add \`&fresh=1\` to any endpoint to query live database state immediately.
@@ -2669,7 +2670,7 @@ Accept: application/json
                       onClick={() => setCodeSearchQuery('')}
                       className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-xs cursor-pointer"
                     >
-                      ✕
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
@@ -3277,7 +3278,7 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`}
                 onClick={() => setFaqSearchQuery('')}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs cursor-pointer"
               >
-                ✕
+                <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>

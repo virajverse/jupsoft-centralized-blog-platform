@@ -1441,7 +1441,7 @@ export const SettingsView: React.FC = () => {
                 onClick={() => setIsOnboardOpen(false)}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer text-xs font-bold"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 

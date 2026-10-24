@@ -329,19 +329,19 @@ export const UserManagementView: React.FC = () => {
     const domain = site?.domain || 'cloud.jupsoft.com';
     const roleName = user.roleAssignments?.[site?.id || ''] || user.roleAssignments?.['all'] || 'Team Member';
     const managedScope = roleName === 'Role Admin' && user.managedRoles && user.managedRoles.length > 0
-      ? `\n🛡️ *Managed Roles Scope:* ${user.managedRoles.join(', ')}`
+      ? `\n*Managed Roles Scope:* ${user.managedRoles.join(', ')}`
       : '';
     const portalUrl = typeof window !== 'undefined' ? `${window.location.origin}/login` : `https://${domain}/login`;
     const pwd = password || user.tempPassword || 'Provided by Administrator';
 
-    return `🚀 *Welcome to Jupsoft CMS!*
+    return `*Welcome to Jupsoft CMS!*
 
 Your team account has been configured for *${websiteName}* (${domain}).
 
-🌐 *Login Portal:* ${portalUrl}
-📧 *User ID / Email:* ${user.email}
-🔑 *Temporary Password:* ${pwd}
-💼 *Role:* ${roleName}${managedScope}
+*Login Portal:* ${portalUrl}
+*User ID / Email:* ${user.email}
+*Temporary Password:* ${pwd}
+*Role:* ${roleName}${managedScope}
 
 _Please log in and update your password on your first sign-in._`;
   };
@@ -869,7 +869,7 @@ _Please log in and update your password on your first sign-in._`;
       </div>
 
       {/* ===================================================================== */}
-      {/* TAB 1: 🌳 DELEGATED TEAM HIERARCHY (EXECUTIVE VIEW)                  */}
+      {/* TAB 1: DELEGATED TEAM HIERARCHY (EXECUTIVE VIEW)                  */}
       {/* ===================================================================== */}
       {activeTab === 'hierarchy' && (
         <div className="space-y-6">
@@ -1116,7 +1116,7 @@ _Please log in and update your password on your first sign-in._`;
       )}
 
       {/* ===================================================================== */}
-      {/* TAB 2: 📋 ALL MEMBERS (STREAMLINED ROSTER DIRECTORY)                  */}
+      {/* TAB 2: ALL MEMBERS (STREAMLINED ROSTER DIRECTORY)                  */}
       {/* ===================================================================== */}
       {activeTab === 'directory' && (
         <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
@@ -1413,7 +1413,7 @@ _Please log in and update your password on your first sign-in._`;
                               const primarySiteId = Object.keys(u.roleAssignments || {})[0];
                               const site = websites.find((w) => w.id === primarySiteId) || websites[0];
 
-                              // 🛡️ CRITICAL SECURITY SHIELD: Root Super Admin cannot be deleted or modified
+                              // CRITICAL SECURITY SHIELD: Root Super Admin cannot be deleted or modified
                               if (targetIsRootSuperAdmin) {
                                 return (
                                   <div className="flex items-center justify-end gap-1.5">
@@ -1499,7 +1499,7 @@ _Please log in and update your password on your first sign-in._`;
       )}
 
       {/* ===================================================================== */}
-      {/* TAB 3: 🛡️ RBAC ENTITLEMENT MATRIX                                     */}
+      {/* TAB 3: RBAC ENTITLEMENT MATRIX                                     */}
       {/* ===================================================================== */}
       {activeTab === 'matrix' && (
         <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs space-y-4">
@@ -1579,7 +1579,7 @@ _Please log in and update your password on your first sign-in._`;
                 onClick={() => setInspectingWebsite(null)}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer text-xs font-bold"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -1734,7 +1734,7 @@ _Please log in and update your password on your first sign-in._`;
                 onClick={() => setIsInviteOpen(false)}
                 className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-xs font-bold"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -2104,7 +2104,7 @@ _Please log in and update your password on your first sign-in._`;
                 onClick={() => setEditingUser(null)}
                 className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-xs font-bold"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -2558,7 +2558,7 @@ _Please log in and update your password on your first sign-in._`;
                 onClick={() => setShareModalData(null)}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer text-xs font-bold"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 

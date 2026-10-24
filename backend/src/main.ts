@@ -86,7 +86,7 @@ async function bootstrap() {
     }
     next();
   });
-  logger.log(`📁 Static assets mounted: /uploads -> ${uploadsDir}`);
+  logger.log(`[Bootstrap] Static assets mounted: /uploads -> ${uploadsDir}`);
 
   // 1.B Static Assets — Universal Embed Widget (/widget)
   const widgetDir = join(process.cwd(), 'public', 'widget');
@@ -94,7 +94,7 @@ async function bootstrap() {
     app.useStaticAssets(widgetDir, {
       prefix: '/widget/',
     });
-    logger.log(`📁 Universal widget mounted: /widget -> ${widgetDir}`);
+    logger.log(`[Bootstrap] Universal widget mounted: /widget -> ${widgetDir}`);
   }
 
   // Increase body parser limits for rich multi-language blog posts and media payloads (native Nest method)

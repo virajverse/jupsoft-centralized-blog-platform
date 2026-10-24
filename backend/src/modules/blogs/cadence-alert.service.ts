@@ -34,7 +34,7 @@ export class CadenceAlertService {
       return;
     }
 
-    this.logger.log('⚡ Running scheduled Weekly Target Cadence Alert job...');
+    this.logger.log('[CadenceAlert] Running scheduled Weekly Target Cadence Alert job...');
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
@@ -225,7 +225,7 @@ export class CadenceAlertService {
           data: { lastTargetAlertSentAt: now },
         });
 
-        this.logger.log(`✅ Weekly Cadence Alert dispatched for ${website.name} (${publishedCount}/${targetCount} blogs, ${recipientsList.length} recipients)`);
+        this.logger.log(`[CadenceAlert] Weekly Cadence Alert dispatched for ${website.name} (${publishedCount}/${targetCount} blogs, ${recipientsList.length} recipients)`);
       } catch (siteErr) {
         this.logger.error(`Error processing cadence alert for website ${website.name}: ${(siteErr as Error).message}`);
       }
@@ -244,7 +244,7 @@ export class CadenceAlertService {
       return;
     }
 
-    this.logger.log('⚡ Running scheduled Monthly Executive Digest job for previous month...');
+    this.logger.log('[CadenceAlert] Running scheduled Monthly Executive Digest job for previous month...');
     const now = new Date();
     // Prior month range
     const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
@@ -413,7 +413,7 @@ export class CadenceAlertService {
           }
         }
 
-        this.logger.log(`✅ Monthly Executive Digest dispatched for ${website.name} (${publishedCount}/${targetCount} blogs, ${recipientsList.length} recipients)`);
+        this.logger.log(`[CadenceAlert] Monthly Executive Digest dispatched for ${website.name} (${publishedCount}/${targetCount} blogs, ${recipientsList.length} recipients)`);
       } catch (siteErr) {
         this.logger.error(`Error processing monthly digest for website ${website.name}: ${(siteErr as Error).message}`);
       }

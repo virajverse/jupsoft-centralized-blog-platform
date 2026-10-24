@@ -260,9 +260,9 @@ export class MediaService {
           ContentType: contentType,
           CacheControl: 'public, max-age=31536000, immutable',
         }));
-        this.logger.log(`☁️ Uploaded media directly to S3 bucket [${this.bucket}]: ${cleanKey}`);
+        this.logger.log(`[MediaService] Uploaded media directly to S3 bucket [${this.bucket}]: ${cleanKey}`);
       } catch (err) {
-        this.logger.error(`❌ S3 upload failed for ${cleanKey}: ${(err as Error).message}`);
+        this.logger.error(`[MediaService] S3 upload failed for ${cleanKey}: ${(err as Error).message}`);
         throw err;
       }
     } else {

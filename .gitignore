@@ -93,6 +93,8 @@ netlify-mirror/
 # Test artifacts
 test_*.png
 test_*.jpg
+rendered_*.html
+screenshots-ref/
 
 # OAuth Secrets
 client_secret*.json

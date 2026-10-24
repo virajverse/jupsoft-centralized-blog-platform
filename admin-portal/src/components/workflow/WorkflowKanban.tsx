@@ -586,7 +586,7 @@ export const WorkflowKanban: React.FC = () => {
                           {col.status === 'Published' && (
                             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
                               <div className="w-full text-center text-[11px] text-emerald-700 dark:text-emerald-400 font-mono py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60">
-                                ✓ Live on {websites.find((w) => w.id === blog.websiteId)?.domain || activeSite?.domain || 'Production'}
+                                Live on {websites.find((w) => w.id === blog.websiteId)?.domain || activeSite?.domain || 'Production'}
                               </div>
                               {canTransition('Published', 'Archived', activeRole) && (
                                 <button

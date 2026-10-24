@@ -191,7 +191,7 @@ export class WebhookDispatcherService {
           .digest('hex');
 
         this.logger.log(
-          `⚡ Dispatching Webhook [${endpoint.name}] → ${endpoint.url} (event: ${event}, slug: ${slug})`,
+          `[WebhookDispatcher] Dispatching Webhook [${endpoint.name}] -> ${endpoint.url} (event: ${event}, slug: ${slug})`,
         );
 
         const startTime = Date.now();
@@ -219,15 +219,15 @@ export class WebhookDispatcherService {
           delivered = res.ok;
 
           if (res.ok) {
-            this.logger.log(`✅ Webhook [${endpoint.name}] delivered (${res.status}) in ${Date.now() - startTime}ms to ${endpoint.url}`);
+            this.logger.log(`[WebhookDispatcher] Webhook [${endpoint.name}] delivered (${res.status}) in ${Date.now() - startTime}ms to ${endpoint.url}`);
           } else {
-            this.logger.warn(`⚠️ Webhook [${endpoint.name}] responded ${res.status} in ${Date.now() - startTime}ms from ${endpoint.url}`);
+            this.logger.warn(`[WebhookDispatcher] Webhook [${endpoint.name}] responded ${res.status} in ${Date.now() - startTime}ms from ${endpoint.url}`);
           }
         } catch (err) {
           statusCode = 0;
           responseBody = (err as Error).message;
           this.logger.error(
-            `❌ Webhook [${endpoint.name}] network failure in ${Date.now() - startTime}ms to ${endpoint.url}: ${(err as Error).message}`,
+            `[WebhookDispatcher] Webhook [${endpoint.name}] network failure in ${Date.now() - startTime}ms to ${endpoint.url}: ${(err as Error).message}`,
           );
         }
 
@@ -309,7 +309,7 @@ export class WebhookDispatcherService {
     let delivered = false;
 
     try {
-      this.logger.log(`⚡ Sending LIVE test ping to: ${targetUrl}`);
+      this.logger.log(`[WebhookDispatcher] Sending LIVE test ping to: ${targetUrl}`);
       const res = await fetch(targetUrl, {
         method: 'POST',
         headers: {

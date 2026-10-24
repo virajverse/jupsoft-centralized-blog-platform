@@ -31,7 +31,8 @@ import {
   Terminal,
   ArrowRight,
   Layers,
-  Info
+  Info,
+  X
 } from 'lucide-react';
 
 export interface DeveloperWorkspaceV2Props {
@@ -3532,7 +3533,7 @@ RewriteRule ^blog/([a-zA-Z0-9\\-_]+)/?$ blog-detail.shtml?slug=$1 [L,QSA]`;
                 onClick={() => setFaqSearchQuery('')}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs cursor-pointer"
               >
-                ✕
+                <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>

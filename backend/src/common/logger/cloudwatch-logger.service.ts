@@ -61,9 +61,9 @@ export class CloudWatchLoggerService implements OnModuleInit {
         region,
         credentials: { accessKeyId, secretAccessKey },
       });
-      this.logger.log(`📊 CloudWatchLoggerService enabled — group: ${this.logGroup}`);
+      this.logger.log(`[CloudWatchLogger] Enabled — group: ${this.logGroup}`);
     } else {
-      this.logger.debug('📊 CloudWatchLoggerService: disabled (dev mode or no CLOUDWATCH_LOG_GROUP set)');
+      this.logger.debug('[CloudWatchLogger] Disabled (dev mode or no CLOUDWATCH_LOG_GROUP set)');
     }
   }
 

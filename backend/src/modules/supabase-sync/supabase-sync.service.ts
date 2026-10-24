@@ -38,6 +38,7 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
       this.configService.get<string>('VPS_DATABASE_URL') ||
       this.configService.get<string>('SECONDARY_DATABASE_URL') ||
       '';
+    const enableMirrorSync = this.configService.get<string>('ENABLE_MIRROR_SYNC') === 'true';
     const localUrl = this.configService.get<string>('LOCAL_DATABASE_URL') || '';
     const cloudDirectUrl = this.configService.get<string>('DIRECT_URL') || '';
 
@@ -45,7 +46,7 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
       dbUrl.includes('supabase.co') || dbUrl.includes('supabase.com') || dbUrl.includes('pooler.supabase');
 
     let targetUrl = mirrorUrl;
-    if (!targetUrl) {
+    if (!targetUrl && enableMirrorSync) {
       if (isPrimaryDbSupabase) {
         targetUrl = localUrl;
         this.mirrorTargetName = 'Secondary PostgreSQL (VPS / Local)';
@@ -53,7 +54,7 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
         targetUrl = cloudDirectUrl;
         this.mirrorTargetName = 'Supabase Cloud PostgreSQL';
       }
-    } else {
+    } else if (targetUrl) {
       this.mirrorTargetName = 'Configured Mirror Database';
     }
 
@@ -63,20 +64,35 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
           datasources: { db: { url: targetUrl } },
         });
         this.isEnabled = true;
-        this.logger.log(`⚡ [AutoSyncEngine] Initialized mirror target -> ${this.mirrorTargetName}`);
+        this.logger.log(`[AutoSyncEngine] Initialized mirror target -> ${this.mirrorTargetName}`);
         return true;
       } catch (err: any) {
-        this.logger.warn(`⚠️ [AutoSyncEngine] Could not initialize client for ${this.mirrorTargetName}: ${err.message}`);
+        this.logger.warn(`[AutoSyncEngine] Could not initialize client for ${this.mirrorTargetName}: ${err.message}`);
         this.isEnabled = false;
         return false;
       }
     } else {
       this.isEnabled = false;
       if (targetUrl === dbUrl) {
-        this.logger.log('ℹ️ [AutoSyncEngine] Mirroring paused: Secondary target is identical to primary database.');
+        this.logger.log('[AutoSyncEngine] Mirroring paused: Secondary target is identical to primary database.');
       } else {
-        this.logger.log('ℹ️ [AutoSyncEngine] Single database mode: No distinct secondary database configured (LOCAL_DATABASE_URL / MIRROR_DATABASE_URL).');
+        this.logger.log('[AutoSyncEngine] Single database mode: Dual-database mirror sync is inactive (set ENABLE_MIRROR_SYNC=true or MIRROR_DATABASE_URL to activate).');
       }
+      return false;
+    }
+  }
+
+  private async verifySchemaCompatibility(): Promise<boolean> {
+    if (!this.mirrorPrisma) return false;
+    try {
+      await this.mirrorPrisma.website.findFirst({
+        select: { id: true, ownerName: true, digestSchedule: true },
+      });
+      return true;
+    } catch (err: any) {
+      this.logger.warn(
+        `[AutoSyncEngine] Mirror database schema is incompatible or missing columns: ${err.message}. Dual-sync paused until schema migration is run.`,
+      );
       return false;
     }
   }
@@ -85,17 +101,24 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
     if (this.isEnabled && this.mirrorPrisma) {
       try {
         await this.mirrorPrisma.$connect();
-        this.logger.log(`✅ [AutoSyncEngine] Successfully connected to ${this.mirrorTargetName}`);
+        this.logger.log(`[AutoSyncEngine] Successfully connected to ${this.mirrorTargetName}`);
+
+        const schemaCompatible = await this.verifySchemaCompatibility();
+        if (!schemaCompatible) {
+          this.isEnabled = false;
+          return;
+        }
+
         // Run initial synchronization 10 seconds after server boot in the background
         setTimeout(() => {
-          this.logger.log('🚀 [AutoSyncEngine] Running initial post-boot database sync...');
+          this.logger.log('[AutoSyncEngine] Running initial post-boot database sync...');
           this.fullSync().catch((err) =>
-            this.logger.warn(`⚠️ [AutoSyncEngine] Initial post-boot sync failed: ${err.message}`),
+            this.logger.warn(`[AutoSyncEngine] Initial post-boot sync failed: ${err.message}`),
           );
         }, 10000);
       } catch (err: any) {
         this.logger.warn(
-          `⚠️ [AutoSyncEngine] Connection to ${this.mirrorTargetName} failed on boot: ${err.message}. Will auto-retry on cron cycle.`,
+          `[AutoSyncEngine] Connection to ${this.mirrorTargetName} failed on boot: ${err.message}. Will auto-retry on cron cycle.`,
         );
       }
     }
@@ -113,23 +136,28 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
    */
   @Cron(CronExpression.EVERY_2_HOURS)
   async handlePeriodicSync() {
+    if (!this.isEnabled) return;
+
     if (this.isSyncInProgress) {
-      this.logger.log('⏳ [AutoSyncCron] A sync is already in progress, skipping this interval.');
+      this.logger.log('[AutoSyncCron] A sync is already in progress, skipping this interval.');
       return;
     }
 
-    if (!this.isEnabled || !this.mirrorPrisma) {
+    if (!this.mirrorPrisma) {
       const initialized = this.initMirrorClient();
       if (!initialized) return;
     }
 
-    this.logger.log('⏰ [AutoSyncCron] Triggering automated 2-hour dual-database reconciliation (Supabase <-> Secondary)...');
+    const schemaCompatible = await this.verifySchemaCompatibility();
+    if (!schemaCompatible) return;
+
+    this.logger.log('[AutoSyncCron] Triggering automated 2-hour dual-database reconciliation (Supabase <-> Secondary)...');
     try {
       this.isSyncInProgress = true;
       const res = await this.fullSync();
-      this.logger.log(`✅ [AutoSyncCron] Periodic sync complete! Result: ${JSON.stringify(res.stats)}`);
+      this.logger.log(`[AutoSyncCron] Periodic sync complete. Result: ${JSON.stringify(res.stats)}`);
     } catch (err: any) {
-      this.logger.error(`❌ [AutoSyncCron] Periodic sync encountered an error: ${err.message}`);
+      this.logger.error(`[AutoSyncCron] Periodic sync encountered an error: ${err.message}`);
     } finally {
       this.isSyncInProgress = false;
     }
@@ -195,9 +223,9 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
           updatedAt: w.updatedAt,
         },
       });
-      this.logger.log(`✅ [AutoSync] Synced website "${w.name}" (${w.id}) to ${this.mirrorTargetName}`);
+      this.logger.log(`[AutoSync] Synced website "${w.name}" (${w.id}) to ${this.mirrorTargetName}`);
     } catch (err: any) {
-      this.logger.warn(`⚠️ [AutoSync] Failed to sync website ${websiteId}: ${err.message}`);
+      this.logger.warn(`[AutoSync] Failed to sync website ${websiteId}: ${err.message}`);
     }
   }
 
@@ -205,9 +233,9 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
     if (!this.isEnabled || !this.mirrorPrisma) return;
     try {
       await this.mirrorPrisma.website.deleteMany({ where: { id: websiteId } });
-      this.logger.log(`🗑️ [AutoSync] Deleted website "${websiteId}" from ${this.mirrorTargetName}`);
+      this.logger.log(`[AutoSync] Deleted website "${websiteId}" from ${this.mirrorTargetName}`);
     } catch (err: any) {
-      this.logger.warn(`⚠️ [AutoSync] Failed to delete website ${websiteId}: ${err.message}`);
+      this.logger.warn(`[AutoSync] Failed to delete website ${websiteId}: ${err.message}`);
     }
   }
 
@@ -371,9 +399,9 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
         }
       }
 
-      this.logger.log(`✅ [AutoSync] Mirrored blog "${blog.id}" to ${this.mirrorTargetName}`);
+      this.logger.log(`[AutoSync] Mirrored blog "${blog.id}" to ${this.mirrorTargetName}`);
     } catch (err: any) {
-      this.logger.warn(`⚠️ [AutoSync] Failed to mirror blog ${blogId}: ${err.message}`);
+      this.logger.warn(`[AutoSync] Failed to mirror blog ${blogId}: ${err.message}`);
     }
   }
 
@@ -381,9 +409,9 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
     if (!this.isEnabled || !this.mirrorPrisma) return;
     try {
       await this.mirrorPrisma.blog.deleteMany({ where: { id: blogId } });
-      this.logger.log(`🗑️ [AutoSync] Deleted blog "${blogId}" from ${this.mirrorTargetName}`);
+      this.logger.log(`[AutoSync] Deleted blog "${blogId}" from ${this.mirrorTargetName}`);
     } catch (err: any) {
-      this.logger.warn(`⚠️ [AutoSync] Failed to delete blog ${blogId}: ${err.message}`);
+      this.logger.warn(`[AutoSync] Failed to delete blog ${blogId}: ${err.message}`);
     }
   }
 
@@ -422,9 +450,9 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
           count: cat.count,
         },
       });
-      this.logger.log(`✅ [AutoSync] Synced category "${cat.name}" to ${this.mirrorTargetName}`);
+      this.logger.log(`[AutoSync] Synced category "${cat.name}" to ${this.mirrorTargetName}`);
     } catch (err: any) {
-      this.logger.warn(`⚠️ [AutoSync] Failed to sync category ${categoryId}: ${err.message}`);
+      this.logger.warn(`[AutoSync] Failed to sync category ${categoryId}: ${err.message}`);
     }
   }
 
@@ -432,9 +460,9 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
     if (!this.isEnabled || !this.mirrorPrisma) return;
     try {
       await this.mirrorPrisma.category.deleteMany({ where: { id: categoryId } });
-      this.logger.log(`🗑️ [AutoSync] Deleted category "${categoryId}" from ${this.mirrorTargetName}`);
+      this.logger.log(`[AutoSync] Deleted category "${categoryId}" from ${this.mirrorTargetName}`);
     } catch (err: any) {
-      this.logger.warn(`⚠️ [AutoSync] Failed to delete category ${categoryId}: ${err.message}`);
+      this.logger.warn(`[AutoSync] Failed to delete category ${categoryId}: ${err.message}`);
     }
   }
 
@@ -468,9 +496,9 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
           count: tag.count,
         },
       });
-      this.logger.log(`✅ [AutoSync] Synced tag "${tag.name}" to ${this.mirrorTargetName}`);
+      this.logger.log(`[AutoSync] Synced tag "${tag.name}" to ${this.mirrorTargetName}`);
     } catch (err: any) {
-      this.logger.warn(`⚠️ [AutoSync] Failed to sync tag ${tagId}: ${err.message}`);
+      this.logger.warn(`[AutoSync] Failed to sync tag ${tagId}: ${err.message}`);
     }
   }
 
@@ -478,9 +506,9 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
     if (!this.isEnabled || !this.mirrorPrisma) return;
     try {
       await this.mirrorPrisma.tag.deleteMany({ where: { id: tagId } });
-      this.logger.log(`🗑️ [AutoSync] Deleted tag "${tagId}" from ${this.mirrorTargetName}`);
+      this.logger.log(`[AutoSync] Deleted tag "${tagId}" from ${this.mirrorTargetName}`);
     } catch (err: any) {
-      this.logger.warn(`⚠️ [AutoSync] Failed to delete tag ${tagId}: ${err.message}`);
+      this.logger.warn(`[AutoSync] Failed to delete tag ${tagId}: ${err.message}`);
     }
   }
 
@@ -541,9 +569,9 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
         });
       }
 
-      this.logger.log(`✅ [AutoSync] Synced user "${user.email}" to ${this.mirrorTargetName}`);
+      this.logger.log(`[AutoSync] Synced user "${user.email}" to ${this.mirrorTargetName}`);
     } catch (err: any) {
-      this.logger.warn(`⚠️ [AutoSync] Failed to sync user ${userId}: ${err.message}`);
+      this.logger.warn(`[AutoSync] Failed to sync user ${userId}: ${err.message}`);
     }
   }
 
@@ -551,9 +579,9 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
     if (!this.isEnabled || !this.mirrorPrisma) return;
     try {
       await this.mirrorPrisma.user.deleteMany({ where: { id: userId } });
-      this.logger.log(`🗑️ [AutoSync] Deleted user "${userId}" from ${this.mirrorTargetName}`);
+      this.logger.log(`[AutoSync] Deleted user "${userId}" from ${this.mirrorTargetName}`);
     } catch (err: any) {
-      this.logger.warn(`⚠️ [AutoSync] Failed to delete user ${userId}: ${err.message}`);
+      this.logger.warn(`[AutoSync] Failed to delete user ${userId}: ${err.message}`);
     }
   }
 
@@ -591,9 +619,9 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
           createdAt: red.createdAt,
         },
       });
-      this.logger.log(`✅ [AutoSync] Synced 301 redirect "${red.fromSlug}" to ${this.mirrorTargetName}`);
+      this.logger.log(`[AutoSync] Synced 301 redirect "${red.fromSlug}" to ${this.mirrorTargetName}`);
     } catch (err: any) {
-      this.logger.warn(`⚠️ [AutoSync] Failed to sync redirect ${redirectId}: ${err.message}`);
+      this.logger.warn(`[AutoSync] Failed to sync redirect ${redirectId}: ${err.message}`);
     }
   }
 
@@ -601,9 +629,9 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
     if (!this.isEnabled || !this.mirrorPrisma) return;
     try {
       await this.mirrorPrisma.redirect.deleteMany({ where: { id: redirectId } });
-      this.logger.log(`🗑️ [AutoSync] Deleted redirect "${redirectId}" from ${this.mirrorTargetName}`);
+      this.logger.log(`[AutoSync] Deleted redirect "${redirectId}" from ${this.mirrorTargetName}`);
     } catch (err: any) {
-      this.logger.warn(`⚠️ [AutoSync] Failed to delete redirect ${redirectId}: ${err.message}`);
+      this.logger.warn(`[AutoSync] Failed to delete redirect ${redirectId}: ${err.message}`);
     }
   }
 
@@ -668,10 +696,10 @@ export class SupabaseSyncService implements OnModuleInit, OnModuleDestroy {
         stats.blogs++;
       }
 
-      this.logger.log(`🎉 [AutoSyncEngine] Full dual-database reconciliation complete! Stats: ${JSON.stringify(stats)}`);
+      this.logger.log(`[AutoSyncEngine] Full dual-database reconciliation complete. Stats: ${JSON.stringify(stats)}`);
       return { success: true, stats };
     } catch (err: any) {
-      this.logger.error(`❌ [AutoSyncEngine] Full reconciliation failed: ${err.message}`);
+      this.logger.error(`[AutoSyncEngine] Full reconciliation failed: ${err.message}`);
       return { success: false, stats };
     }
   }
