@@ -488,7 +488,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   // Determine whether existing blog uses a team member or custom byline
   const isCustomAuthorInitial = useMemo(() => {
     if (!existingBlog) return false;
-    if (existingBlog.authorId === 'usr-custom') return true;
+    if (!existingBlog.authorId || existingBlog.authorId === 'usr-custom') return true;
     if (existingBlog.authorName) {
       const cleanName = existingBlog.authorName.replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim();
       const matchesCurrentUser = cleanCurrentName && cleanName.toLowerCase() === cleanCurrentName.toLowerCase();
@@ -502,7 +502,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   }, [existingBlog, cleanCurrentName, users]);
 
   const [authorMode, setAuthorMode] = useState<'user' | 'custom'>(() => {
-    if (existingBlog?.authorId === 'usr-custom' || isCustomAuthorInitial) return 'custom';
+    if (!existingBlog?.authorId || existingBlog?.authorId === 'usr-custom' || isCustomAuthorInitial) return 'custom';
     return 'user';
   });
   const [selectedAuthorId, setSelectedAuthorId] = useState<string>(() => {
@@ -1140,7 +1140,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
         if (fullBlog.publishDate) setPublishDate(fullBlog.publishDate);
         if (fullBlog.authorId || fullBlog.authorName) {
           const rawAuthorName = (fullBlog.authorName || '').replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim();
-          const isExplicitCustom = fullBlog.authorId === 'usr-custom';
+          const isExplicitCustom = !fullBlog.authorId || fullBlog.authorId === 'usr-custom';
 
           // Check if authorName or authorId matches any team member
           const matchesTeam = users.find((u) => {
@@ -1726,7 +1726,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     
     const finalAuthorId = isTeamMode 
       ? (selectedTeamUser?.id || selectedAuthorId || currentUser?.id || 'usr-superadmin')
-      : 'usr-custom';
+      : null;
       
     const finalAuthorName = isTeamMode
       ? (selectedTeamUser?.name || cleanCurrentName).replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim()

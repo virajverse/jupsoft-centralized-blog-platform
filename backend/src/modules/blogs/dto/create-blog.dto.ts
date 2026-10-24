@@ -171,9 +171,10 @@ export class CreateBlogDto {
   publishDate?: string;
 
   @ApiProperty({ example: 'usr-123', required: false })
+  @ValidateIf((o) => !!o.authorId)
   @IsString()
   @IsOptional()
-  authorId?: string;
+  authorId?: string | null;
 
   @ApiProperty({ example: 'Aarav Sharma', required: false })
   @IsString()
@@ -249,9 +250,10 @@ export class UpdateBlogDto {
   tagIds?: string[];
 
   @ApiProperty({ required: false })
+  @ValidateIf((o) => !!o.authorId)
   @IsString()
   @IsOptional()
-  authorId?: string;
+  authorId?: string | null;
 
   @ApiProperty({ required: false })
   @IsString()

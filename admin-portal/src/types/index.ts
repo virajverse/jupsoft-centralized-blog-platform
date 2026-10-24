@@ -111,7 +111,7 @@ export interface WorkflowLog {
 export interface Blog {
   id: string;
   websiteId: string;
-  authorId: string;
+  authorId?: string | null;
   authorName: string;
   authorAvatar: string;
   featuredImage: string;

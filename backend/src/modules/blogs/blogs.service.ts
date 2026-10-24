@@ -411,10 +411,24 @@ export class BlogsService {
         }
       }
 
+      let validatedAuthorId: string | null = null;
+      if (dto.authorId && dto.authorId !== 'usr-custom' && (typeof dto.authorId === 'string' && dto.authorId.trim() !== '')) {
+        const authorUser = await tx.user.findUnique({ where: { id: dto.authorId.trim() }, select: { id: true } });
+        if (authorUser) {
+          validatedAuthorId = authorUser.id;
+        }
+      }
+      if (!validatedAuthorId && (!dto.authorId || dto.authorId !== 'usr-custom')) {
+        const callerUser = await tx.user.findUnique({ where: { id: user.id }, select: { id: true } });
+        if (callerUser) {
+          validatedAuthorId = callerUser.id;
+        }
+      }
+
       const createdBlog = await tx.blog.create({
         data: {
           websiteId: dto.websiteId,
-          authorId: dto.authorId || user.id,
+          authorId: validatedAuthorId,
           authorName: dto.authorName?.trim() || user.name.replace(/\s*\([^)]*Admin[^)]*\)/gi, '').trim(),
           authorAvatar: resolvedAuthorAvatar || '',
           featuredImage: dto.featuredImage?.trim() || 'https://blogary.s3.ap-south-1.amazonaws.com/blogs/default-blog-cover.webp',
@@ -451,18 +465,32 @@ export class BlogsService {
         },
       });
 
-      // Sync join tables from categoryIds / tagIds arrays (Fix 7: keep M:N tables in sync)
+      // Sync join tables from categoryIds / tagIds arrays (Fix 7: keep M:N tables in sync with FK validation)
       if (dto.categoryIds && dto.categoryIds.length > 0) {
-        await tx.blogCategory.createMany({
-          data: dto.categoryIds.map((cid) => ({ blogId: createdBlog.id, categoryId: cid })),
-          skipDuplicates: true,
+        const validCategories = await tx.category.findMany({
+          where: { id: { in: dto.categoryIds } },
+          select: { id: true },
         });
+        const validCatIds = validCategories.map((c) => c.id);
+        if (validCatIds.length > 0) {
+          await tx.blogCategory.createMany({
+            data: validCatIds.map((cid) => ({ blogId: createdBlog.id, categoryId: cid })),
+            skipDuplicates: true,
+          });
+        }
       }
       if (dto.tagIds && dto.tagIds.length > 0) {
-        await tx.blogTag.createMany({
-          data: dto.tagIds.map((tid) => ({ blogId: createdBlog.id, tagId: tid })),
-          skipDuplicates: true,
+        const validTags = await tx.tag.findMany({
+          where: { id: { in: dto.tagIds } },
+          select: { id: true },
         });
+        const validTagIds = validTags.map((t) => t.id);
+        if (validTagIds.length > 0) {
+          await tx.blogTag.createMany({
+            data: validTagIds.map((tid) => ({ blogId: createdBlog.id, tagId: tid })),
+            skipDuplicates: true,
+          });
+        }
       }
 
       // Record workflow log if status is non-draft
@@ -627,8 +655,16 @@ export class BlogsService {
         categoryIds: dto.categoryIds,
         tagIds: dto.tagIds,
       };
-      if (dto.authorId) {
-        blogUpdateData.authorId = dto.authorId;
+      if (dto.authorId !== undefined) {
+        if (!dto.authorId || dto.authorId === 'usr-custom' || (typeof dto.authorId === 'string' && dto.authorId.trim() === '')) {
+          blogUpdateData.authorId = null;
+        } else {
+          const authorUser = await tx.user.findUnique({
+            where: { id: dto.authorId.trim() },
+            select: { id: true },
+          });
+          blogUpdateData.authorId = authorUser ? authorUser.id : null;
+        }
       }
       if (dto.authorName !== undefined) {
         blogUpdateData.authorName = dto.authorName.trim();
@@ -700,23 +736,37 @@ export class BlogsService {
         });
       }
 
-      // Sync join tables (Fix 7)
+      // Sync join tables (Fix 7: with FK validation)
       if (dto.categoryIds !== undefined) {
         await tx.blogCategory.deleteMany({ where: { blogId: id } });
         if (dto.categoryIds.length > 0) {
-          await tx.blogCategory.createMany({
-            data: dto.categoryIds.map((cid) => ({ blogId: id, categoryId: cid })),
-            skipDuplicates: true,
+          const validCategories = await tx.category.findMany({
+            where: { id: { in: dto.categoryIds } },
+            select: { id: true },
           });
+          const validCatIds = validCategories.map((c) => c.id);
+          if (validCatIds.length > 0) {
+            await tx.blogCategory.createMany({
+              data: validCatIds.map((cid) => ({ blogId: id, categoryId: cid })),
+              skipDuplicates: true,
+            });
+          }
         }
       }
       if (dto.tagIds !== undefined) {
         await tx.blogTag.deleteMany({ where: { blogId: id } });
         if (dto.tagIds.length > 0) {
-          await tx.blogTag.createMany({
-            data: dto.tagIds.map((tid) => ({ blogId: id, tagId: tid })),
-            skipDuplicates: true,
+          const validTags = await tx.tag.findMany({
+            where: { id: { in: dto.tagIds } },
+            select: { id: true },
           });
+          const validTagIds = validTags.map((t) => t.id);
+          if (validTagIds.length > 0) {
+            await tx.blogTag.createMany({
+              data: validTagIds.map((tid) => ({ blogId: id, tagId: tid })),
+              skipDuplicates: true,
+            });
+          }
         }
       }
 

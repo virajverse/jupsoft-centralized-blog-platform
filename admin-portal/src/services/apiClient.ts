@@ -653,7 +653,11 @@ class ApiClient {
     if (blog.readTimeMinutes !== undefined && blog.readTimeMinutes !== null) payload.readTimeMinutes = blog.readTimeMinutes;
     if (Array.isArray(blog.categoryIds)) payload.categoryIds = blog.categoryIds;
     if (Array.isArray(blog.tagIds)) payload.tagIds = blog.tagIds;
-    if (blog.authorId) payload.authorId = blog.authorId;
+    if (blog.authorId !== undefined) {
+      payload.authorId = (blog.authorId === 'usr-custom' || !blog.authorId || (typeof blog.authorId === 'string' && blog.authorId.trim() === ''))
+        ? null
+        : blog.authorId.trim();
+    }
     if (blog.authorName) payload.authorName = blog.authorName;
     if (blog.authorAvatar !== undefined && blog.authorAvatar !== null) payload.authorAvatar = blog.authorAvatar;
     if (blog.publishDate && typeof blog.publishDate === 'string' && blog.publishDate.trim() !== '') {
