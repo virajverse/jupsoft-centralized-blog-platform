@@ -230,6 +230,7 @@ export interface UserAccount {
   role?: UserRole;
   roles?: string[];
   status: 'active' | 'suspended';
+  reportsTo?: string;
   lastLoginIp: string;
   createdAt: string;
   customModules?: AppModule[];

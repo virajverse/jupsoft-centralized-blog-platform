@@ -65,6 +65,7 @@ model User {
   loginAttempts Int       @default(0)
   lockoutUntil  DateTime?
   customModules String[]  @default([])
+  reportsTo     String?   @default("")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

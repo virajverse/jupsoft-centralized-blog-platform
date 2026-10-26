@@ -351,17 +351,53 @@ _Please log in and update your password on your first sign-in._`;
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteWebsiteId, setInviteWebsiteId] = useState<string>('');
   const [inviteRole, setInviteRole] = useState<UserRole | ''>('');
+  const [inviteReportsTo, setInviteReportsTo] = useState<string>('');
+  const [inviteReportsToCustom, setInviteReportsToCustom] = useState<string>('');
   const [inviteManagedRoles, setInviteManagedRoles] = useState<UserRole[]>(['Editor', 'Content Writer']);
   const [invitePassword, setInvitePassword] = useState(() => generateStrongPassword());
   const [showInvitePassword, setShowInvitePassword] = useState(false);
   const [inviteCustomModules, setInviteCustomModules] = useState<AppModule[]>([]);
 
+  // Managers and supervisory options helper
+  const superAdminUsers = useMemo(
+    () => users.filter((u) => isSuperAdminAccount(u) || Object.values(u.roleAssignments || {}).includes('Super Admin')),
+    [users]
+  );
+  const websiteAdminUsers = useMemo(
+    () => users.filter((u) => !superAdminUsers.some((sa) => sa.id === u.id) && Object.values(u.roleAssignments || {}).includes('Website Admin')),
+    [users, superAdminUsers]
+  );
+  const standardReportOptions = useMemo(() => {
+    return [
+      '',
+      '—',
+      'Super Admin',
+      'Website Admin',
+      'Editorial Lead',
+      ...superAdminUsers.map((u) => `${u.name} (Super Admin)`),
+      ...websiteAdminUsers.map((u) => `${u.name} (Website Admin)`),
+    ];
+  }, [superAdminUsers, websiteAdminUsers]);
+
   const handleInviteRoleChange = (newRole: UserRole | '') => {
     setInviteRole(newRole);
     if (newRole === 'Super Admin') {
       setInviteWebsiteId('all');
+      setInviteReportsTo('—');
+      setInviteReportsToCustom('');
     } else if (inviteWebsiteId === 'all') {
       setInviteWebsiteId('');
+      setInviteReportsTo('');
+      setInviteReportsToCustom('');
+    } else if (newRole === 'Website Admin' || newRole === 'Role Admin') {
+      setInviteReportsTo('Super Admin');
+      setInviteReportsToCustom('');
+    } else if (newRole) {
+      setInviteReportsTo('Website Admin');
+      setInviteReportsToCustom('');
+    } else {
+      setInviteReportsTo('');
+      setInviteReportsToCustom('');
     }
     if (newRole) {
       setInviteCustomModules(getDefaultRoleModules(newRole));
@@ -389,6 +425,8 @@ _Please log in and update your password on your first sign-in._`;
     setInviteEmail('');
     setInviteWebsiteId('');
     setInviteRole('');
+    setInviteReportsTo('');
+    setInviteReportsToCustom('');
     setInviteCustomModules([]);
     setInvitePassword(generateStrongPassword());
     setShowInvitePassword(false);
@@ -408,6 +446,8 @@ _Please log in and update your password on your first sign-in._`;
   const [editRoleAssignments, setEditRoleAssignments] = useState<Record<string, UserRole>>({});
   const [editAddWebsiteId, setEditAddWebsiteId] = useState<string>('');
   const [editAddRole, setEditAddRole] = useState<UserRole | ''>('');
+  const [editReportsTo, setEditReportsTo] = useState<string>('');
+  const [editReportsToCustom, setEditReportsToCustom] = useState<string>('');
   const [editManagedRoles, setEditManagedRoles] = useState<UserRole[]>(['Editor', 'Content Writer']);
   const [editStatus, setEditStatus] = useState<'active' | 'suspended'>('active');
   const [editCustomModules, setEditCustomModules] = useState<AppModule[]>([]);
@@ -547,6 +587,14 @@ _Please log in and update your password on your first sign-in._`;
     const firstRole = Object.values(initialAssignments)[0] || allowedRoles[0] || 'Content Writer';
     setEditManagedRoles(u.managedRoles && u.managedRoles.length > 0 ? u.managedRoles : ['Editor', 'Content Writer']);
     setEditStatus(u.status);
+    const currentRep = (u.reportsTo || '').trim();
+    if (currentRep && !standardReportOptions.includes(currentRep)) {
+      setEditReportsTo('custom');
+      setEditReportsToCustom(currentRep);
+    } else {
+      setEditReportsTo(currentRep);
+      setEditReportsToCustom('');
+    }
     setEditCustomModules(
       u.customModules && u.customModules.length > 0
         ? [...u.customModules]
@@ -572,12 +620,16 @@ _Please log in and update your password on your first sign-in._`;
     setIsSavingUserEdit(true);
     try {
       const hasRoleAdmin = Object.values(editRoleAssignments).includes('Role Admin');
+      const effectiveEditReportsTo = editReportsTo === 'custom'
+        ? editReportsToCustom.trim()
+        : editReportsTo;
 
       await updateUser(editingUser.id, {
         roleAssignments: editRoleAssignments,
         managedRoles: hasRoleAdmin ? (editManagedRoles.length > 0 ? editManagedRoles : (['Editor', 'Content Writer'] as UserRole[])) : undefined,
         customModules: editCustomModules,
         status: editStatus,
+        reportsTo: effectiveEditReportsTo,
       });
 
       showNotification(`Updated website role assignments and permissions for ${editingUser.name}`, 'success');
@@ -628,6 +680,10 @@ _Please log in and update your password on your first sign-in._`;
       initialRoleAssignments[effectiveSiteId] = inviteRole as UserRole;
     }
 
+    const effectiveReportsTo = inviteReportsTo === 'custom'
+      ? inviteReportsToCustom.trim()
+      : (inviteReportsTo || (isSuper ? '—' : ''));
+
     const newUser: UserAccount = {
       id: `usr-${Date.now()}`,
       name: inviteName.trim(),
@@ -637,6 +693,7 @@ _Please log in and update your password on your first sign-in._`;
       roleAssignments: initialRoleAssignments,
       managedRoles: assignedManagedRoles,
       customModules: inviteCustomModules,
+      reportsTo: effectiveReportsTo,
       tempPassword: assignedTempPassword,
       status: 'active',
       lastLoginIp: '',
@@ -1225,14 +1282,16 @@ _Please log in and update your password on your first sign-in._`;
                     const isAnyWebsiteAdmin = Object.values(u.roleAssignments || {}).includes('Website Admin');
 
                     // Determine delegation line
-                    let delegationText = 'Super Admin (Global)';
-                    if (!isGlobalSuper) {
-                      if (isAnyWebsiteAdmin) {
-                        delegationText = 'Website Admin (Team Lead)';
+                    let delegationText = u.reportsTo?.trim();
+                    if (!delegationText) {
+                      if (isGlobalSuper) {
+                        delegationText = '—';
+                      } else if (isAnyWebsiteAdmin) {
+                        delegationText = 'Super Admin';
                       } else {
                         const siteId = assignedTenants[0]?.[0];
-                        const siteLead = siteId ? users.find(lead => lead.roleAssignments?.[siteId] === 'Website Admin') : null;
-                        delegationText = siteLead ? `Managed by ${siteLead.name}` : 'Direct Contributor';
+                        const siteLead = siteId ? users.find((lead) => lead.roleAssignments?.[siteId] === 'Website Admin') : null;
+                        delegationText = siteLead ? `Website Admin (${siteLead.name})` : 'Website Admin';
                       }
                     }
 
@@ -1863,6 +1922,68 @@ _Please log in and update your password on your first sign-in._`;
                     )}
                   </select>
                 </div>
+              </div>
+
+              {/* Reports To (Supervisor / Direct Lead) */}
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Reports To (Reporting Line / Supervisor)
+                </label>
+                <select
+                  value={
+                    inviteReportsTo === 'custom' || (!standardReportOptions.includes(inviteReportsTo) && inviteReportsTo)
+                      ? 'custom'
+                      : inviteReportsTo
+                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setInviteReportsTo(val);
+                    if (val !== 'custom') {
+                      setInviteReportsToCustom('');
+                    }
+                  }}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
+                >
+                  <option value="">Select supervisor / reporting line...</option>
+                  <option value="—">— (Independent / No Manager)</option>
+                  <optgroup label="Standard Roles">
+                    <option value="Super Admin">Super Admin</option>
+                    <option value="Website Admin">Website Admin (Site Lead)</option>
+                    <option value="Editorial Lead">Editorial Lead</option>
+                  </optgroup>
+                  {superAdminUsers.length > 0 && (
+                    <optgroup label="Super Admins">
+                      {superAdminUsers.map((u) => (
+                        <option key={u.id} value={`${u.name} (Super Admin)`}>
+                          {u.name} (Super Admin)
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {websiteAdminUsers.length > 0 && (
+                    <optgroup label="Website Admins">
+                      {websiteAdminUsers.map((u) => (
+                        <option key={u.id} value={`${u.name} (Website Admin)`}>
+                          {u.name} (Website Admin)
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <option value="custom">Other / Custom Name...</option>
+                </select>
+
+                {(inviteReportsTo === 'custom' || (!standardReportOptions.includes(inviteReportsTo) && inviteReportsTo)) && (
+                  <input
+                    type="text"
+                    placeholder="Enter manager name or designation (e.g. Rahul Verma - Head of Content)"
+                    value={inviteReportsTo === 'custom' ? inviteReportsToCustom : inviteReportsTo}
+                    onChange={(e) => {
+                      setInviteReportsTo('custom');
+                      setInviteReportsToCustom(e.target.value);
+                    }}
+                    className="mt-2 w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none text-xs"
+                  />
+                )}
               </div>
 
               {/* Plugin & Module Capabilities with Super Admin Granular Unlock */}
@@ -2522,6 +2643,68 @@ _Please log in and update your password on your first sign-in._`;
                   </div>
                 </div>
               )}
+
+              {/* Reports To (Supervisor / Direct Lead) */}
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Reports To (Reporting Line / Supervisor)
+                </label>
+                <select
+                  value={
+                    editReportsTo === 'custom' || (!standardReportOptions.includes(editReportsTo) && editReportsTo)
+                      ? 'custom'
+                      : editReportsTo
+                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEditReportsTo(val);
+                    if (val !== 'custom') {
+                      setEditReportsToCustom('');
+                    }
+                  }}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none text-xs"
+                >
+                  <option value="">Select supervisor / reporting line...</option>
+                  <option value="—">— (Independent / No Manager)</option>
+                  <optgroup label="Standard Roles">
+                    <option value="Super Admin">Super Admin</option>
+                    <option value="Website Admin">Website Admin (Site Lead)</option>
+                    <option value="Editorial Lead">Editorial Lead</option>
+                  </optgroup>
+                  {superAdminUsers.length > 0 && (
+                    <optgroup label="Super Admins">
+                      {superAdminUsers.map((u) => (
+                        <option key={u.id} value={`${u.name} (Super Admin)`}>
+                          {u.name} (Super Admin)
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {websiteAdminUsers.length > 0 && (
+                    <optgroup label="Website Admins">
+                      {websiteAdminUsers.map((u) => (
+                        <option key={u.id} value={`${u.name} (Website Admin)`}>
+                          {u.name} (Website Admin)
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <option value="custom">Other / Custom Name...</option>
+                </select>
+
+                {(editReportsTo === 'custom' || (!standardReportOptions.includes(editReportsTo) && editReportsTo)) && (
+                  <input
+                    type="text"
+                    placeholder="Enter manager name or designation (e.g. Rahul Verma - Head of Content)"
+                    value={editReportsTo === 'custom' ? editReportsToCustom : editReportsTo}
+                    onChange={(e) => {
+                      setEditReportsTo('custom');
+                      setEditReportsToCustom(e.target.value);
+                    }}
+                    className="mt-2 w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none text-xs"
+                  />
+                )}
+              </div>
 
               {/* Account Status */}
               <div>

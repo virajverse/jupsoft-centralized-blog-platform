@@ -62,6 +62,7 @@ export class UsersService {
       email: u.email,
       avatar: u.avatar,
       status: u.status,
+      reportsTo: u.reportsTo || '',
       lastLoginIp: u.lastLoginIp,
       customModules: u.customModules || [],
       roleAssignments: u.roleAssignments.reduce((acc, curr) => {
@@ -150,6 +151,7 @@ export class UsersService {
         passwordHash: defaultPasswordHash,
         avatar: '',
         status: 'active',
+        reportsTo: dto.reportsTo || '',
         customModules: dto.customModules || [],
         roleAssignments: {
           create: roleAssignmentsToCreate,
@@ -210,6 +212,7 @@ export class UsersService {
       email: user.email,
       avatar: user.avatar,
       status: user.status,
+      reportsTo: user.reportsTo || dto.reportsTo || '',
       customModules: user.customModules || [],
       tempPassword: rawPassword,
       roleAssignments: user.roleAssignments.reduce((acc, curr) => {
@@ -769,6 +772,38 @@ export class UsersService {
       email: updated.email,
       customModules: updated.customModules,
       message: 'Modular permissions successfully updated in database',
+    };
+  }
+
+  async updateReportsTo(userId: string, reportsTo: string, updater: any, ipAddress: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { reportsTo: reportsTo || '' },
+    });
+
+    await this.invalidateUserCache();
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userName: updater?.name || 'Admin',
+        role: updater?.roles?.[0] || 'Super Admin',
+        websiteId: 'all',
+        event: 'user.reports_to_updated',
+        ipAddress: ipAddress || '',
+        details: `Updated reportsTo for user ${user.name} (${user.email}) to "${reportsTo}".`,
+      },
+    });
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      reportsTo: updated.reportsTo,
+      message: 'User reporting line updated successfully',
     };
   }
 

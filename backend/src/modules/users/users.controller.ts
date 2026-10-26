@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Ip, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
-import { InviteUserDto, UpdateUserRoleDto, UpdateUserModulesDto } from './dto/user.dto';
+import { InviteUserDto, UpdateUserRoleDto, UpdateUserModulesDto, UpdateUserReportsToDto } from './dto/user.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -74,6 +74,18 @@ export class UsersController {
     @Ip() ip: string,
   ) {
     return this.usersService.toggleStatus(id, body.status, user, ip);
+  }
+
+  @Put(':id/reports-to')
+  @Roles('Super Admin', 'Website Admin')
+  @ApiOperation({ summary: 'Update user reporting line / supervisor' })
+  async updateReportsTo(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserReportsToDto,
+    @CurrentUser() user: any,
+    @Ip() ip: string,
+  ) {
+    return this.usersService.updateReportsTo(id, dto.reportsTo, user, ip);
   }
 
   @Delete(':id')

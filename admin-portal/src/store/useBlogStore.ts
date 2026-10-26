@@ -1012,11 +1012,13 @@ export const useBlogStore = create<BlogState>()(
             role: targetRole,
             password: user.tempPassword,
             customModules: user.customModules,
+            reportsTo: user.reportsTo,
           });
           const userWithCredentials = {
             ...created,
             customModules: created.customModules || user.customModules || [],
             tempPassword: created.tempPassword || user.tempPassword,
+            reportsTo: created.reportsTo || user.reportsTo || '',
           };
           set((state) => ({
             users: [userWithCredentials, ...state.users.filter((u) => u.id !== created.id)],
@@ -1093,6 +1095,13 @@ export const useBlogStore = create<BlogState>()(
           }
           if (updates.status) {
             await apiClient.updateUserStatus(id, updates.status);
+          }
+          if (updates.reportsTo !== undefined) {
+            try {
+              await apiClient.updateUserReportsTo(id, updates.reportsTo);
+            } catch (repErr) {
+              console.warn(`apiClient.updateUserReportsTo failed for ${id}:`, repErr);
+            }
           }
           set((state) => ({
             users: state.users.map((u) => (u.id === id ? { ...u, ...updates } : u)),

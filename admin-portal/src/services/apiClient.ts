@@ -854,8 +854,12 @@ class ApiClient {
     return this.request('/admin/users');
   }
 
-  async inviteUser(user: { email: string; name: string; websiteId: string; role: string; password?: string; customModules?: string[] }): Promise<UserAccount> {
+  async inviteUser(user: { email: string; name: string; websiteId: string; role: string; password?: string; customModules?: string[]; reportsTo?: string }): Promise<UserAccount> {
     return this.request('/admin/users/invite', { method: 'POST', body: JSON.stringify(user) });
+  }
+
+  async updateUserReportsTo(id: string, reportsTo: string): Promise<{ success: boolean; reportsTo: string }> {
+    return this.request(`/admin/users/${id}/reports-to`, { method: 'PUT', body: JSON.stringify({ reportsTo }) });
   }
 
   async updateUserRole(id: string, role: string, websiteId: string): Promise<UserAccount> {

@@ -29,6 +29,17 @@ export class InviteUserDto {
   @ApiProperty({ example: ['blogs', 'workflow', 'media'], required: false })
   @IsOptional()
   customModules?: string[];
+
+  @ApiProperty({ example: 'Sachin Sharma (Super Admin)', description: 'Supervisor or reporting line', required: false })
+  @IsOptional()
+  @IsString()
+  reportsTo?: string;
+}
+
+export class UpdateUserReportsToDto {
+  @ApiProperty({ example: 'Sachin Sharma (Super Admin)', description: 'Supervisor or reporting line' })
+  @IsString()
+  reportsTo: string;
 }
 
 export class UpdateUserRoleDto {
