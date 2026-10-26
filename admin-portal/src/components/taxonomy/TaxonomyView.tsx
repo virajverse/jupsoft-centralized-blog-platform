@@ -300,8 +300,9 @@ export const TaxonomyView: React.FC = () => {
               <div className="flex justify-end pt-1">
                 <button
                   type="submit"
-                  disabled={isSubmittingCat}
-                  className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
+                  disabled={!newCatName.trim() || isSubmittingCat}
+                  className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed text-white text-xs font-bold shadow-xs transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                  title={!newCatName.trim() ? 'Please enter a category name' : 'Create Category'}
                 >
                   {isSubmittingCat && <RefreshCw className="w-3 h-3 animate-spin" />}
                   <span>{isSubmittingCat ? 'Creating...' : '+ Create Category'}</span>
@@ -400,8 +401,9 @@ export const TaxonomyView: React.FC = () => {
               />
               <button
                 type="submit"
-                disabled={isSubmittingTag}
-                className="px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
+                disabled={!newTagName.trim() || isSubmittingTag}
+                className="px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed text-white text-xs font-bold shadow-xs transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                title={!newTagName.trim() ? 'Please enter a tag label' : 'Add Tag'}
               >
                 {isSubmittingTag && <RefreshCw className="w-3 h-3 animate-spin" />}
                 <span>{isSubmittingTag ? 'Adding...' : 'Add'}</span>

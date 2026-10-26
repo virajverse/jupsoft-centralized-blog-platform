@@ -1543,8 +1543,9 @@ export const SettingsView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={isOnboardSubmitting}
-                  className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-2"
+                  disabled={!newName.trim() || !newDomain.trim() || isOnboardSubmitting}
+                  className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold cursor-pointer shadow-xs flex items-center gap-2"
+                  title={!newName.trim() || !newDomain.trim() ? 'Please provide website name and domain' : 'Save and create website'}
                 >
                   {isOnboardSubmitting ? (
                     <>

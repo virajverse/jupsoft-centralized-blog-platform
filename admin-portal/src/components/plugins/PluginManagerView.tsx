@@ -733,8 +733,9 @@ export const PluginManagerView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={isCreatingPlugin}
-                  className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                  disabled={!newPlugin.id.trim() || !newPlugin.name.trim() || isCreatingPlugin}
+                  className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed text-white font-semibold shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                  title={!newPlugin.id.trim() || !newPlugin.name.trim() ? 'Please provide plugin identifier and name' : 'Register custom plugin'}
                 >
                   {isCreatingPlugin ? (
                     <>

@@ -524,8 +524,9 @@ export const ReportIssueModal: React.FC<ReportIssueModalProps> = ({
 
                   <button
                     type="submit"
-                    disabled={isSubmitting}
-                    className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+                    disabled={!subject.trim() || !description.trim() || isSubmitting}
+                    className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+                    title={!subject.trim() || !description.trim() ? 'Please provide both subject and description' : 'Send complaint to Super Admin'}
                   >
                     {isSubmitting ? (
                       <>

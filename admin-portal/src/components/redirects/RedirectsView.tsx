@@ -64,15 +64,13 @@ export const RedirectsView: React.FC<RedirectsViewProps> = ({ embedded = false }
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Form State
-  const [targetSiteId, setTargetSiteId] = useState<string>(effectiveSiteId === 'all' ? websites[0]?.id : effectiveSiteId);
+  const [targetSiteId, setTargetSiteId] = useState<string>(effectiveSiteId === 'all' ? '' : effectiveSiteId);
 
   React.useEffect(() => {
     if (effectiveSiteId && effectiveSiteId !== 'all') {
       queueMicrotask(() => setTargetSiteId(effectiveSiteId));
-    } else if (websites.length > 0 && (!targetSiteId || !websites.some((w) => w.id === targetSiteId))) {
-      queueMicrotask(() => setTargetSiteId(websites[0].id));
     }
-  }, [effectiveSiteId, websites, targetSiteId]);
+  }, [effectiveSiteId]);
   const [fromSlug, setFromSlug] = useState('');
   const [toSlug, setToSlug] = useState('');
   const [deleteModal, setDeleteModal] = useState<{
@@ -225,7 +223,16 @@ export const RedirectsView: React.FC<RedirectsViewProps> = ({ embedded = false }
 
             <button
               type="button"
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => {
+                if (effectiveSiteId && effectiveSiteId !== 'all') {
+                  setTargetSiteId(effectiveSiteId);
+                } else {
+                  setTargetSiteId('');
+                }
+                setFromSlug('');
+                setToSlug('');
+                setIsModalOpen(true);
+              }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer shrink-0"
               title="Create new 301 redirect rule"
             >
@@ -343,13 +350,15 @@ export const RedirectsView: React.FC<RedirectsViewProps> = ({ embedded = false }
             <form onSubmit={handleCreateRedirect} className="space-y-4 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Target Website
+                  Target Website <span className="text-rose-500">*</span>
                 </label>
                 <select
                   value={targetSiteId}
                   onChange={(e) => setTargetSiteId(e.target.value)}
+                  required
                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
                 >
+                  <option value="" disabled>Select target website...</option>
                   {websites.map((w) => (
                     <option key={w.id} value={w.id}>
                       {w.name} ({w.domain})
@@ -410,8 +419,9 @@ export const RedirectsView: React.FC<RedirectsViewProps> = ({ embedded = false }
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold text-xs cursor-pointer shadow-xs transition-colors flex items-center gap-1.5"
+                  disabled={!targetSiteId || !fromSlug.trim() || !toSlug.trim() || isSubmitting}
+                  className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed text-white font-bold text-xs cursor-pointer shadow-xs transition-colors flex items-center gap-1.5"
+                  title={!targetSiteId || !fromSlug.trim() || !toSlug.trim() ? 'Please select a website and enter both from & to slugs' : 'Save redirect rule'}
                 >
                   {isSubmitting ? (
                     <>

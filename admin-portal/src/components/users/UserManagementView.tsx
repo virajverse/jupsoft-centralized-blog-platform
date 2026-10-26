@@ -346,23 +346,28 @@ Your team account has been configured for *${websiteName}* (${domain}).
 _Please log in and update your password on your first sign-in._`;
   };
 
-  // Invite Form state
-  const defaultInviteSite = (activeWebsiteId && activeWebsiteId !== 'all' && activeWebsiteId !== 'site-cloud') ? activeWebsiteId : (visibleWebsites[0]?.id || websites[0]?.id || 'site-jupsoft-test');
+  // Invite Form state - Clean unselected state requiring explicit user selection
   const [inviteName, setInviteName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteWebsiteId, setInviteWebsiteId] = useState<string>(defaultInviteSite);
-  const [inviteRole, setInviteRole] = useState<UserRole>(allowedRoles[0] || 'Content Writer');
+  const [inviteWebsiteId, setInviteWebsiteId] = useState<string>('');
+  const [inviteRole, setInviteRole] = useState<UserRole | ''>('');
   const [inviteManagedRoles, setInviteManagedRoles] = useState<UserRole[]>(['Editor', 'Content Writer']);
   const [invitePassword, setInvitePassword] = useState(() => generateStrongPassword());
   const [showInvitePassword, setShowInvitePassword] = useState(false);
-  const [inviteCustomModules, setInviteCustomModules] = useState<AppModule[]>(() => getDefaultRoleModules(allowedRoles[0] || 'Content Writer'));
+  const [inviteCustomModules, setInviteCustomModules] = useState<AppModule[]>([]);
 
-  const handleInviteRoleChange = (newRole: UserRole) => {
+  const handleInviteRoleChange = (newRole: UserRole | '') => {
     setInviteRole(newRole);
     if (newRole === 'Super Admin') {
       setInviteWebsiteId('all');
+    } else if (inviteWebsiteId === 'all') {
+      setInviteWebsiteId('');
     }
-    setInviteCustomModules(getDefaultRoleModules(newRole));
+    if (newRole) {
+      setInviteCustomModules(getDefaultRoleModules(newRole));
+    } else {
+      setInviteCustomModules([]);
+    }
   };
 
   const toggleInviteModule = (modId: AppModule) => {
@@ -372,8 +377,31 @@ _Please log in and update your password on your first sign-in._`;
   };
 
   const resetInviteModulesToDefault = () => {
-    setInviteCustomModules(getDefaultRoleModules(inviteRole));
+    if (inviteRole) {
+      setInviteCustomModules(getDefaultRoleModules(inviteRole));
+    } else {
+      setInviteCustomModules([]);
+    }
   };
+
+  const handleOpenInviteModal = () => {
+    setInviteName('');
+    setInviteEmail('');
+    setInviteWebsiteId('');
+    setInviteRole('');
+    setInviteCustomModules([]);
+    setInvitePassword(generateStrongPassword());
+    setShowInvitePassword(false);
+    setIsInviteOpen(true);
+  };
+
+  const isInviteFormValid = Boolean(
+    inviteName.trim() &&
+    inviteEmail.trim() &&
+    /\S+@\S+\.\S+/.test(inviteEmail.trim()) &&
+    inviteRole &&
+    (inviteRole === 'Super Admin' || inviteWebsiteId)
+  );
 
   // Edit User Form state (Supports multi-tenant role assignment)
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
@@ -566,9 +594,15 @@ _Please log in and update your password on your first sign-in._`;
 
   const handleInviteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteName.trim() || !inviteEmail.trim() || isSubmittingInvite) {
+    if (!inviteName.trim() || !inviteEmail.trim() || !inviteRole || (!inviteWebsiteId && inviteRole !== 'Super Admin') || isSubmittingInvite) {
       if (!inviteName.trim() || !inviteEmail.trim()) {
         showNotification('Please provide both name and email.', 'warning');
+      } else if (!/\S+@\S+\.\S+/.test(inviteEmail.trim())) {
+        showNotification('Please provide a valid email address.', 'warning');
+      } else if (!inviteRole) {
+        showNotification('Please select an assigned role.', 'warning');
+      } else if (!inviteWebsiteId && inviteRole !== 'Super Admin') {
+        showNotification('Please select a website assignment scope.', 'warning');
       }
       return;
     }
@@ -588,7 +622,7 @@ _Please log in and update your password on your first sign-in._`;
         initialRoleAssignments[w.id] = 'Super Admin';
       });
     } else {
-      initialRoleAssignments[effectiveSiteId] = inviteRole;
+      initialRoleAssignments[effectiveSiteId] = inviteRole as UserRole;
     }
 
     const newUser: UserAccount = {
@@ -596,7 +630,7 @@ _Please log in and update your password on your first sign-in._`;
       name: inviteName.trim(),
       email: inviteEmail.trim().toLowerCase(),
       avatar: '/uploads/avatars/avatar-default.webp',
-      role: inviteRole,
+      role: inviteRole as UserRole,
       roleAssignments: initialRoleAssignments,
       managedRoles: assignedManagedRoles,
       customModules: inviteCustomModules,
@@ -622,9 +656,11 @@ _Please log in and update your password on your first sign-in._`;
       // Reset inputs with freshly generated password for next action
       setInviteName('');
       setInviteEmail('');
+      setInviteWebsiteId('');
+      setInviteRole('');
+      setInviteCustomModules([]);
       setInvitePassword(generateStrongPassword());
       setInviteManagedRoles(['Editor', 'Content Writer']);
-      setInviteCustomModules(getDefaultRoleModules(allowedRoles[0] || 'Content Writer'));
     } catch {
       // Error notification is handled by store
     } finally {
@@ -696,11 +732,7 @@ _Please log in and update your password on your first sign-in._`;
 
         {canManageUsers(activeRole) && (
           <button
-            onClick={() => {
-              setInviteRole(allowedRoles[0] || 'Content Writer');
-              setInviteWebsiteId(defaultInviteSite);
-              setIsInviteOpen(true);
-            }}
+            onClick={handleOpenInviteModal}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-sm hover:shadow transition-all cursor-pointer self-start sm:self-auto"
           >
             <UserPlus className="w-4 h-4" />
@@ -1096,8 +1128,13 @@ _Please log in and update your password on your first sign-in._`;
                       {canManageUsers(activeRole) && (
                         <button
                           onClick={() => {
+                            setInviteName('');
+                            setInviteEmail('');
                             setInviteWebsiteId(site.id);
-                            setInviteRole('Content Writer');
+                            setInviteRole('');
+                            setInviteCustomModules([]);
+                            setInvitePassword(generateStrongPassword());
+                            setShowInvitePassword(false);
                             setIsInviteOpen(true);
                           }}
                           className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white inline-flex items-center gap-1 cursor-pointer"
@@ -1618,8 +1655,13 @@ _Please log in and update your password on your first sign-in._`;
                 {canManageUsers(activeRole) && (
                   <button
                     onClick={() => {
+                      setInviteName('');
+                      setInviteEmail('');
                       setInviteWebsiteId(inspectingWebsite.id);
-                      setInviteRole('Content Writer');
+                      setInviteRole('');
+                      setInviteCustomModules([]);
+                      setInvitePassword(generateStrongPassword());
+                      setShowInvitePassword(false);
                       setInspectingWebsite(null);
                       setIsInviteOpen(true);
                     }}
@@ -1773,20 +1815,18 @@ _Please log in and update your password on your first sign-in._`;
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Website Assignment Scope
+                    Assigned Role <span className="text-rose-500">*</span>
                   </label>
                   <select
-                    value={inviteRole === 'Super Admin' ? 'all' : inviteWebsiteId}
-                    disabled={inviteRole === 'Super Admin'}
-                    onChange={(e) => setInviteWebsiteId(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none disabled:opacity-70 disabled:cursor-not-allowed"
+                    value={inviteRole}
+                    onChange={(e) => handleInviteRoleChange(e.target.value as UserRole)}
+                    required
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
                   >
-                    {isSuperAdmin && (
-                      <option value="all">All Websites (Network Wide / Global)</option>
-                    )}
-                    {visibleWebsites.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name} ({w.domain})
+                    <option value="" disabled>Select assigned role...</option>
+                    {allowedRoles.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
                       </option>
                     ))}
                   </select>
@@ -1794,18 +1834,30 @@ _Please log in and update your password on your first sign-in._`;
 
                 <div>
                   <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Assigned Role
+                    Website Assignment Scope <span className="text-rose-500">*</span>
                   </label>
                   <select
-                    value={inviteRole}
-                    onChange={(e) => handleInviteRoleChange(e.target.value as UserRole)}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none"
+                    value={inviteRole === 'Super Admin' ? 'all' : inviteWebsiteId}
+                    disabled={inviteRole === 'Super Admin' || !inviteRole}
+                    onChange={(e) => setInviteWebsiteId(e.target.value)}
+                    required
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none disabled:opacity-70 disabled:cursor-not-allowed"
                   >
-                    {allowedRoles.map((role) => (
-                      <option key={role} value={role}>
-                        {role}
-                      </option>
-                    ))}
+                    {inviteRole === 'Super Admin' ? (
+                      <option value="all">All Websites (Network Wide / Global)</option>
+                    ) : (
+                      <>
+                        <option value="" disabled>Select website scope...</option>
+                        {isSuperAdmin && (
+                          <option value="all">All Websites (Network Wide / Global)</option>
+                        )}
+                        {visibleWebsites.map((w) => (
+                          <option key={w.id} value={w.id}>
+                            {w.name} ({w.domain})
+                          </option>
+                        ))}
+                      </>
+                    )}
                   </select>
                 </div>
               </div>
@@ -1840,7 +1892,7 @@ _Please log in and update your password on your first sign-in._`;
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                   {PLUGIN_MODULES.map((mod) => {
-                    const isRoleDefault = getDefaultRoleModules(inviteRole).includes(mod.id);
+                    const isRoleDefault = inviteRole ? getDefaultRoleModules(inviteRole).includes(mod.id) : false;
                     const isCurrentlyAllowed = inviteCustomModules.includes(mod.id);
                     const isCustomUnlocked = isCurrentlyAllowed && !isRoleDefault;
                     const ModIcon = mod.icon;
@@ -2067,8 +2119,9 @@ _Please log in and update your password on your first sign-in._`;
               <button
                 type="submit"
                 form="invite-user-form"
-                disabled={isSubmittingInvite}
-                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs cursor-pointer shadow-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                disabled={!isInviteFormValid || isSubmittingInvite}
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed text-white font-bold text-xs cursor-pointer shadow-xs flex items-center gap-1.5 transition-colors"
+                title={!isInviteFormValid ? 'Please fill name, valid email, select role and website scope' : 'Create user and generate invitation'}
               >
                 {isSubmittingInvite ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                 <span>{isSubmittingInvite ? 'Creating...' : 'Create & Generate Invitation'}</span>
