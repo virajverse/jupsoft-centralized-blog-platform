@@ -407,7 +407,7 @@ _Please log in and update your password on your first sign-in._`;
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
   const [editRoleAssignments, setEditRoleAssignments] = useState<Record<string, UserRole>>({});
   const [editAddWebsiteId, setEditAddWebsiteId] = useState<string>('');
-  const [editAddRole, setEditAddRole] = useState<UserRole>('Editor');
+  const [editAddRole, setEditAddRole] = useState<UserRole | ''>('');
   const [editManagedRoles, setEditManagedRoles] = useState<UserRole[]>(['Editor', 'Content Writer']);
   const [editStatus, setEditStatus] = useState<'active' | 'suspended'>('active');
   const [editCustomModules, setEditCustomModules] = useState<AppModule[]>([]);
@@ -429,24 +429,28 @@ _Please log in and update your password on your first sign-in._`;
   };
 
   const handleAddTenantRole = () => {
-    if (!editAddWebsiteId) return;
+    if (!editAddWebsiteId || !editAddRole) {
+      if (!editAddWebsiteId) {
+        showNotification('Please select a website to assign.', 'warning');
+      } else if (!editAddRole) {
+        showNotification('Please select a role for this website.', 'warning');
+      }
+      return;
+    }
     setEditRoleAssignments((prev) => {
       if (editAddWebsiteId === 'all') {
-        return { all: editAddRole };
+        return { all: editAddRole as UserRole };
       }
       const next = { ...prev };
       if (next['all']) {
         delete next['all'];
       }
-      next[editAddWebsiteId] = editAddRole;
+      next[editAddWebsiteId] = editAddRole as UserRole;
       return next;
     });
-    const remaining = visibleWebsites.filter((w) => w.id !== editAddWebsiteId && !editRoleAssignments[w.id]);
-    if (remaining.length > 0) {
-      setEditAddWebsiteId(remaining[0].id);
-    } else {
-      setEditAddWebsiteId('');
-    }
+    // Reset inputs cleanly to unselected state
+    setEditAddWebsiteId('');
+    setEditAddRole('');
   };
 
   const toggleEditModule = (modId: AppModule) => {
@@ -536,10 +540,9 @@ _Please log in and update your password on your first sign-in._`;
     }
     setEditRoleAssignments(initialAssignments);
 
-    // Prepare candidate website for next addition
-    const unassigned = visibleWebsites.filter((w) => !initialAssignments[w.id]);
-    setEditAddWebsiteId(unassigned[0]?.id || visibleWebsites[0]?.id || '');
-    setEditAddRole(allowedRoles[0] || 'Editor');
+    // Prepare candidate website for next addition - Keep empty unselected
+    setEditAddWebsiteId('');
+    setEditAddRole('');
 
     const firstRole = Object.values(initialAssignments)[0] || allowedRoles[0] || 'Content Writer';
     setEditManagedRoles(u.managedRoles && u.managedRoles.length > 0 ? u.managedRoles : ['Editor', 'Content Writer']);
@@ -2298,9 +2301,11 @@ _Please log in and update your password on your first sign-in._`;
                       <div className="sm:col-span-4">
                         <select
                           value={editAddRole}
+                          disabled={!editAddWebsiteId}
                           onChange={(e) => setEditAddRole(e.target.value as UserRole)}
-                          className="w-full bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none"
+                          className="w-full bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                         >
+                          <option value="" disabled>Select role...</option>
                           {allowedRoles.map((r) => (
                             <option key={r} value={r}>
                               {r}
@@ -2313,8 +2318,9 @@ _Please log in and update your password on your first sign-in._`;
                         <button
                           type="button"
                           onClick={handleAddTenantRole}
-                          disabled={!editAddWebsiteId}
-                          className="w-full h-full py-1.5 px-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1 shadow-2xs transition-colors cursor-pointer"
+                          disabled={!editAddWebsiteId || !editAddRole}
+                          className="w-full h-full py-1.5 px-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1 shadow-2xs transition-colors cursor-pointer"
+                          title={!editAddWebsiteId || !editAddRole ? 'Please select both website and role to assign' : 'Assign website scope'}
                         >
                           <Plus className="w-3.5 h-3.5" />
                           <span>Assign</span>
