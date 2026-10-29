@@ -78,6 +78,8 @@ export interface BlogSEO {
   canonicalUrl: string;
   focusKeyword: string;
   robots: string;
+  schemaType?: string;
+  customSchema?: string;
   ogTitle: string;
   ogDescription: string;
   ogImage: string;

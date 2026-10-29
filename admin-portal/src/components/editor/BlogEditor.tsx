@@ -1489,10 +1489,13 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
   // JSON-LD Schema Generator (TRD Section 11 & 12)
   const jsonLdSchema = useMemo(() => {
+    if (activeTrans.seo.customSchema && activeTrans.seo.customSchema.trim()) {
+      return activeTrans.seo.customSchema.trim();
+    }
     return JSON.stringify(
       {
         '@context': 'https://schema.org',
-        '@type': 'BlogPosting',
+        '@type': activeTrans.seo.schemaType || 'BlogPosting',
         headline: activeTrans.title || 'Untitled Post',
         description: activeTrans.seo.metaDescription || activeTrans.excerpt || 'Blog summary',
         image: [featuredImage || 'https://blogary.s3.ap-south-1.amazonaws.com/blogs/default-blog-cover.webp'],
@@ -3006,6 +3009,40 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                     onChange={(e) => updateActiveSeoField('canonicalUrl', e.target.value)}
                     placeholder="https://..."
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:border-slate-400"
+                  />
+                </div>
+
+                {/* Schema Type Selector & Custom JSON-LD */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    Schema.org Type
+                  </label>
+                  <select
+                    value={activeTrans.seo.schemaType || 'BlogPosting'}
+                    onChange={(e) => updateActiveSeoField('schemaType', e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-400 cursor-pointer"
+                  >
+                    <option value="BlogPosting">BlogPosting (Default)</option>
+                    <option value="Article">Article</option>
+                    <option value="NewsArticle">NewsArticle</option>
+                    <option value="TechArticle">TechArticle</option>
+                    <option value="HowTo">HowTo (Guide/Tutorial)</option>
+                    <option value="FAQPage">FAQPage (Q&A)</option>
+                    <option value="Course">Course (Educational)</option>
+                    <option value="Review">Review</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    Custom Schema JSON-LD (Optional Override)
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={activeTrans.seo.customSchema || ''}
+                    onChange={(e) => updateActiveSeoField('customSchema', e.target.value)}
+                    placeholder='{"@context":"https://schema.org","@type":"FAQPage",...}'
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-[11px] text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:border-slate-400 resize-y"
                   />
                 </div>
 

@@ -624,6 +624,8 @@ class ApiClient {
             canonicalUrl: t.seo?.canonicalUrl || t.canonicalUrl || '',
             focusKeyword: t.seo?.focusKeyword || t.focusKeyword || '',
             robots: t.seo?.robots || t.robots || 'index, follow',
+            schemaType: t.seo?.schemaType || t.schemaType || 'BlogPosting',
+            customSchema: t.seo?.customSchema || t.customSchema || '',
             ogTitle: t.seo?.ogTitle || t.ogTitle || t.title,
             ogDescription: t.seo?.ogDescription || t.ogDescription || t.excerpt || '',
             ogImage: t.seo?.ogImage || t.ogImage || blog.featuredImage || '',

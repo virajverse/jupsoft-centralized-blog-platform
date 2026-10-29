@@ -189,6 +189,8 @@ model BlogTranslation {
   canonicalUrl       String @default("")
   focusKeyword       String @default("")
   robots             String @default("index, follow")
+  schemaType         String @default("BlogPosting")
+  customSchema       String @default("") @db.Text
   ogTitle            String @default("")
   ogDescription      String @default("")
   ogImage            String @default("")

@@ -337,6 +337,8 @@ export class PublicV1Service {
             `https://${b.website?.domain || ''}/blog/${translation.slug}`,
           focusKeyword: translation.focusKeyword,
           robots: translation.robots || 'index, follow',
+          schemaType: translation.schemaType || 'BlogPosting',
+          customSchema: translation.customSchema || '',
           ogTitle: translation.ogTitle || translation.title,
           ogDescription: translation.ogDescription || translation.excerpt,
           ogImage: this.normalizeMediaUrl(translation.ogImage || b.featuredImage),
@@ -349,26 +351,46 @@ export class PublicV1Service {
             href: `https://${b.website?.domain || ''}/blog/${t.slug}?lang=${t.lang}`,
           })),
         },
-        // TRD §11: Schema.org JSON-LD for consuming sites (E-E-A-T verified author links)
-        schemaJsonLd: {
-          '@context': 'https://schema.org',
-          '@type': 'BlogPosting',
-          headline: translation.title,
-          image: b.featuredImage ? [this.normalizeMediaUrl(b.featuredImage)] : [],
-          datePublished: b.publishDate instanceof Date ? b.publishDate.toISOString() : b.publishDate,
-          dateModified: b.updatedAt instanceof Date ? b.updatedAt.toISOString() : new Date().toISOString(),
-          author: {
-            '@type': 'Person',
-            name: this.cleanAuthorName(b.authorName),
-            ...(b.author?.bio ? { description: b.author.bio } : {}),
-            ...(this.resolveAuthorAvatar(b) ? { image: this.resolveAuthorAvatar(b) } : {}),
-            ...((b.author?.linkedinUrl || b.author?.twitterUrl)
-              ? { sameAs: [b.author?.linkedinUrl, b.author?.twitterUrl].filter(Boolean) }
-              : {}),
-          },
-          description: translation.excerpt,
-        },
+        // TRD §11: Schema.org JSON-LD for consuming sites (Dynamic per-blog schema support)
+        schemaJsonLd: this.resolveSchemaJsonLd(b, translation),
       },
+    };
+  }
+
+  /**
+   * TRD §11: Dynamic / Custom Schema.org JSON-LD resolver
+   * Supports custom JSON-LD (e.g. FAQPage, HowTo) or dynamic schemaType (Article, NewsArticle, etc.)
+   */
+  private resolveSchemaJsonLd(b: any, translation: any): any {
+    if (translation.customSchema && typeof translation.customSchema === 'string' && translation.customSchema.trim()) {
+      try {
+        const parsed = JSON.parse(translation.customSchema.trim());
+        if (parsed && typeof parsed === 'object') {
+          return parsed;
+        }
+      } catch {
+        return translation.customSchema.trim();
+      }
+    }
+
+    const schemaType = translation.schemaType || 'BlogPosting';
+    return {
+      '@context': 'https://schema.org',
+      '@type': schemaType,
+      headline: translation.title,
+      image: b.featuredImage ? [this.normalizeMediaUrl(b.featuredImage)] : [],
+      datePublished: b.publishDate instanceof Date ? b.publishDate.toISOString() : b.publishDate,
+      dateModified: b.updatedAt instanceof Date ? b.updatedAt.toISOString() : new Date().toISOString(),
+      author: {
+        '@type': 'Person',
+        name: this.cleanAuthorName(b.authorName),
+        ...(b.author?.bio ? { description: b.author.bio } : {}),
+        ...(this.resolveAuthorAvatar(b) ? { image: this.resolveAuthorAvatar(b) } : {}),
+        ...((b.author?.linkedinUrl || b.author?.twitterUrl)
+          ? { sameAs: [b.author?.linkedinUrl, b.author?.twitterUrl].filter(Boolean) }
+          : {}),
+      },
+      description: translation.excerpt,
     };
   }
 

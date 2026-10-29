@@ -95,6 +95,16 @@ export class BlogTranslationInputDto {
   @IsOptional()
   robots?: string;
 
+  @ApiProperty({ required: false, default: 'BlogPosting', description: 'Schema.org @type (e.g. BlogPosting, Article, NewsArticle, FAQPage, HowTo)' })
+  @IsString()
+  @IsOptional()
+  schemaType?: string;
+
+  @ApiProperty({ required: false, description: 'Optional raw custom Schema.org JSON-LD string' })
+  @IsString()
+  @IsOptional()
+  customSchema?: string;
+
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()

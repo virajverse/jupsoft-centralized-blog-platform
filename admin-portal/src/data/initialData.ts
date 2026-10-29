@@ -20,6 +20,8 @@ export const createEmptySEO = (): BlogSEO => ({
   canonicalUrl: '',
   focusKeyword: '',
   robots: 'index, follow',
+  schemaType: 'BlogPosting',
+  customSchema: '',
   ogTitle: '',
   ogDescription: '',
   ogImage: '',
