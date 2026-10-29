@@ -591,6 +591,11 @@ export const useBlogStore = create<BlogState>()(
       },
 
       logout: async () => {
+        if (typeof window !== 'undefined') {
+          try {
+            (window as any).google?.accounts?.id?.disableAutoSelect?.();
+          } catch {}
+        }
         await apiClient.logout();
         set({ isAuthenticated: false, currentUser: null, activeWebsiteId: 'all' });
       },

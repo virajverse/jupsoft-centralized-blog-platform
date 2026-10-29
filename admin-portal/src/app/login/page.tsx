@@ -24,6 +24,7 @@ declare global {
           initialize: (config: Record<string, unknown>) => void;
           renderButton: (parent: HTMLElement, options: Record<string, unknown>) => void;
           prompt: (momentListener?: (notification: any) => void) => void;
+          disableAutoSelect?: () => void;
         };
       };
     };
@@ -121,6 +122,13 @@ export default function LoginPage() {
       const res = await loginWithGoogle(response.credential);
       clearTimeout(timeoutTimer);
       if (res.success) {
+        // Step 2: Store last used Google email for subsequent zero-popup silent logins
+        try {
+          const user = useBlogStore.getState().currentUser;
+          if (user?.email) {
+            localStorage.setItem('jupsoft_last_google_email', user.email.toLowerCase().trim());
+          }
+        } catch {}
         performRedirect();
       } else {
         isSubmittingRef.current = false;
@@ -141,12 +149,21 @@ export default function LoginPage() {
     if (!googleClientId) return;
 
     try {
-      window.google.accounts.id.initialize({
+      const lastGoogleEmail = localStorage.getItem('jupsoft_last_google_email') || '';
+
+      const gisConfig: Record<string, unknown> = {
         client_id: googleClientId,
         callback: handleGoogleCredentialResponse,
-        auto_select: false,
+        auto_select: true, // Step 1: Enables automatic silent sign-in
         cancel_on_tap_outside: true,
-      });
+      };
+
+      // Step 2: Pass login_hint so Google directly selects the user's account without popup
+      if (lastGoogleEmail) {
+        gisConfig.login_hint = lastGoogleEmail;
+      }
+
+      window.google.accounts.id.initialize(gisConfig);
 
       if (googleBtnRef.current) {
         googleBtnRef.current.innerHTML = '';
@@ -161,10 +178,25 @@ export default function LoginPage() {
         });
         setGisRendered(true);
       }
+
+      // Step 3: Trigger silent background verification on page load for returning users
+      const urlParams = new URLSearchParams(window.location.search);
+      const isSessionExpired = urlParams.get('session') === 'expired';
+      const isLoggedOut = urlParams.get('logout') === 'true';
+
+      if (!isSessionExpired && !isLoggedOut && !isRedirectingRef.current && !loading && !googleLoading) {
+        window.google.accounts.id.prompt((notification) => {
+          if (notification?.isNotDisplayed?.()) {
+            console.debug('[Google Auth] Silent prompt not displayed');
+          } else if (notification?.isSkippedMoment?.()) {
+            console.debug('[Google Auth] Silent prompt skipped');
+          }
+        });
+      }
     } catch (err) {
       console.warn('Google Identity Services initialization warning:', err);
     }
-  }, [googleClientId, handleGoogleCredentialResponse]);
+  }, [googleClientId, handleGoogleCredentialResponse, loading, googleLoading]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
@@ -225,9 +257,9 @@ export default function LoginPage() {
       return;
     }
 
-    // 3. Token exists and Zustand flags user as authenticated:
+    // 3. Token exists:
     // Verify token with backend BEFORE blindly redirecting (prevents infinite redirect loops across browsers)
-    if (isAuthenticated && currentUser && !isRedirectingRef.current) {
+    if (token && !isRedirectingRef.current) {
       let cancelled = false;
       setLoading(true);
 
