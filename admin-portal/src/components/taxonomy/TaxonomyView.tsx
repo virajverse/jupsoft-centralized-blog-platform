@@ -27,6 +27,7 @@ export const TaxonomyView: React.FC = () => {
     websites, 
     fetchCategories, 
     fetchTags,
+    fetchWebsites,
     addCategory, 
     deleteCategory,
     addTag,
@@ -41,6 +42,7 @@ export const TaxonomyView: React.FC = () => {
       websites: s.websites,
       fetchCategories: s.fetchCategories,
       fetchTags: s.fetchTags,
+      fetchWebsites: s.fetchWebsites,
       addCategory: s.addCategory,
       deleteCategory: s.deleteCategory,
       addTag: s.addTag,
@@ -67,6 +69,12 @@ export const TaxonomyView: React.FC = () => {
     : (isAllSites ? websites[0]?.id : effectiveSiteId);
 
   const [isLoadingTaxonomy, setIsLoadingTaxonomy] = useState(true);
+
+  useEffect(() => {
+    if (websites.length === 0) {
+      fetchWebsites().catch(() => {});
+    }
+  }, [websites.length, fetchWebsites]);
 
   useEffect(() => {
     let active = true;
@@ -199,13 +207,32 @@ export const TaxonomyView: React.FC = () => {
     <div className="w-full space-y-4">
       {/* Header */}
       <div>
-        <div className="flex items-center gap-2 mb-1">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-            Categories &amp; Tags
-          </h1>
-          <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700">
-            {activeSite?.name || 'Website'}
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+              Categories &amp; Tags
+            </h1>
+            <select
+              value={targetSiteId || ''}
+              onChange={(e) => {
+                const newSite = e.target.value;
+                setActiveWebsite(newSite);
+                setParam('site', newSite);
+              }}
+              className="text-xs px-2.5 py-1 rounded-md font-semibold border bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700 shadow-xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-slate-400"
+              title="Switch Target Website"
+            >
+              {websites.length === 0 ? (
+                <option value="">Loading Websites...</option>
+              ) : (
+                websites.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} ({w.domain})
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
         </div>
 
         {/* Section Filter Tabs - URL bound (?tab=all|categories|tags) */}
@@ -259,7 +286,7 @@ export const TaxonomyView: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input
                   type="text"
-                  placeholder="Category name (e.g. Cloud ERP)"
+                  placeholder="Category name (e.g. Technology, Updates, News)"
                   value={newCatName}
                   onChange={(e) => setNewCatName(e.target.value)}
                   required
@@ -267,7 +294,7 @@ export const TaxonomyView: React.FC = () => {
                 />
                 <input
                   type="text"
-                  placeholder="Slug (optional, e.g. cloud-erp)"
+                  placeholder="Slug (optional, e.g. technology-updates)"
                   value={newCatSlug}
                   onChange={(e) => setNewCatSlug(e.target.value)}
                   className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400 font-mono"
@@ -394,7 +421,7 @@ export const TaxonomyView: React.FC = () => {
             <form onSubmit={handleCreateTag} className="flex gap-2">
               <input
                 type="text"
-                placeholder="New tag label (e.g. ERP, SaaS, Web3)"
+                placeholder="New tag label (e.g. Featured, News, Guide)"
                 value={newTagName}
                 onChange={(e) => setNewTagName(e.target.value)}
                 className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"

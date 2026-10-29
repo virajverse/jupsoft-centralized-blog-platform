@@ -637,7 +637,7 @@ class ApiClient {
       transArray.push(...blog.translations);
     }
 
-    const cleanWebsiteId = (blog.websiteId && blog.websiteId !== 'all' && blog.websiteId !== 'site-cloud')
+    const cleanWebsiteId = (blog.websiteId && blog.websiteId !== 'all')
       ? blog.websiteId
       : undefined;
 

@@ -154,11 +154,11 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
             publishedAt: new Date().toISOString(),
             readTimeMinutes: publishedBlogs[0]?.readTimeMinutes || 8,
             categories: [
-              { id: 'cat-1', name: 'Cloud & ERP', slug: 'cloud-erp' }
+              { id: 'cat-1', name: 'Engineering & Tech', slug: 'engineering-tech' }
             ],
-            primaryCategory: 'Cloud & ERP',
+            primaryCategory: 'Engineering & Tech',
             tags: [
-              { id: 'tag-1', name: 'Enterprise', slug: 'enterprise' }
+              { id: 'tag-1', name: 'Architecture', slug: 'architecture' }
             ],
             categoryIds: ['cat-1'],
             tagIds: ['tag-1'],
@@ -205,10 +205,10 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
             bio: 'Principal Systems Architect',
           },
           categories: [
-            { id: 'cat-1', name: 'Cloud & ERP', slug: 'cloud-erp' }
+            { id: 'cat-1', name: 'Engineering & Tech', slug: 'engineering-tech' }
           ],
           tags: [
-            { id: 'tag-1', name: 'Enterprise', slug: 'enterprise' }
+            { id: 'tag-1', name: 'Architecture', slug: 'architecture' }
           ],
           seo: {
             metaTitle: 'Comprehensive Enterprise Architecture Guide',
@@ -244,9 +244,9 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
       sampleResponse: {
         success: true,
         data: [
-          { id: 'cat-1', name: 'Admissions & Campus', slug: 'admissions-campus', count: 14 },
-          { id: 'cat-2', name: 'Academics & Curriculum', slug: 'academics-curriculum', count: 9 },
-          { id: 'cat-3', name: 'Student Life & Events', slug: 'student-life-events', count: 6 },
+          { id: 'cat-1', name: 'Technology & Engineering', slug: 'technology-engineering', count: 14 },
+          { id: 'cat-2', name: 'Insights & Strategy', slug: 'insights-strategy', count: 9 },
+          { id: 'cat-3', name: 'Product Updates', slug: 'product-updates', count: 6 },
         ],
       },
     },
@@ -263,9 +263,9 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
       sampleResponse: {
         success: true,
         data: [
-          { id: 'tag-1', name: 'Admissions 2026', slug: 'admissions-2026', count: 12 },
-          { id: 'tag-2', name: 'Higher Education', slug: 'higher-education', count: 8 },
-          { id: 'tag-3', name: 'Parenting Guide', slug: 'parenting-guide', count: 5 },
+          { id: 'tag-1', name: 'Featured', slug: 'featured', count: 12 },
+          { id: 'tag-2', name: 'Architecture', slug: 'architecture', count: 8 },
+          { id: 'tag-3', name: 'Guides', slug: 'guides', count: 5 },
         ],
       },
     },

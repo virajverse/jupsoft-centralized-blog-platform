@@ -46,6 +46,7 @@ export const AdminGuideModal: React.FC = () => {
   const isGuideOpen = useBlogStore((s) => s.isGuideOpen);
   const setGuideOpen = useBlogStore((s) => s.setGuideOpen);
   const activeRole = useBlogStore((s) => s.activeRole);
+  const websites = useBlogStore((s) => s.websites);
 
   const [mode, setMode] = useState<ModalMode>('options');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(HELP_CATEGORIES[0].id);
@@ -142,16 +143,14 @@ The Jupsoft Centralized Content Platform consolidates editorial and publishing o
 ### Core Architectural Principles:
 - **Single Source of Truth**: All articles, media assets, categories, and user credentials reside in a central PostgreSQL database.
 - **Connected Websites**:
-  1. \`site-cloud\` -> Jupsoft Cloud & ERP (cloud.jupsoft.com)
-  2. \`site-growth\` -> DigifyNext Marketing (digifynext.com)
-  3. \`site-jupsoft-test\` -> Jupsoft Staging & Testing (test.jupsoft.com)
+  Each registered brand domain (e.g. PopWave, Jupsoft Cloud, DigifyNext) possesses an isolated tenant identifier, domain routing, and HMAC webhook invalidation endpoint.
 - **Instant Edge Invalidation**: Publishing or updating articles triggers HMAC-SHA256 signed webhooks to target consumer frontends, immediately purging edge cache without rebuilding or redeploying sites.
 
 ---
 
 ## 2. Multi-Website Scoping: All Websites vs. Single Website Scope
 - **Global Network Scope (\`?site=all\`)**: Provides an aggregated view of total articles across all client domains, cross-site publishing velocity, pending reviews, and unified telemetry.
-- **Single Website Scope (\`?site=site-cloud\`)**: Filters the entire workspace context—including Articles, Categories & Tags, Media Library, and Old Link Redirects—strictly to the selected brand domain.
+- **Single Website Scope (\`?site=<website-id>\`)**: Filters the entire workspace context—including Articles, Categories & Tags, Media Library, and Old Link Redirects—strictly to the selected brand domain.
 
 ---
 
@@ -654,18 +653,18 @@ The Jupsoft Centralized Content Platform consolidates editorial and publishing o
                 <span>Connected Websites</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750">
-                  <div className="font-bold text-slate-900 dark:text-white">site-cloud</div>
-                  <div className="text-[11px] text-slate-400 font-mono">cloud.jupsoft.com</div>
-                </div>
-                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750">
-                  <div className="font-bold text-slate-900 dark:text-white">site-growth</div>
-                  <div className="text-[11px] text-slate-400 font-mono">digifynext.com</div>
-                </div>
-                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750">
-                  <div className="font-bold text-slate-900 dark:text-white">site-jupsoft-test</div>
-                  <div className="text-[11px] text-slate-400 font-mono">test.jupsoft.com</div>
-                </div>
+                {websites.length > 0 ? (
+                  websites.map((w) => (
+                    <div key={w.id} className="p-2.5 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750">
+                      <div className="font-bold text-slate-900 dark:text-white truncate">{w.name}</div>
+                      <div className="text-[11px] text-slate-400 font-mono truncate">{w.domain}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-slate-400 col-span-3 text-center">
+                    Websites will appear dynamically from database.
+                  </div>
+                )}
               </div>
             </div>
           </div>

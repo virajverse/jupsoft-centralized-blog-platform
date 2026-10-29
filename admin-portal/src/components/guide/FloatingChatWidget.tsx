@@ -134,7 +134,7 @@ const DOMAIN_INTENTS: DomainIntent[] = [
     id: 'multisite-scope',
     categoryTitle: 'Multi-Website Scope',
     categoryId: 'multisite-scope',
-    triggerKeywords: ['scope', 'tenant', 'website', 'domain', 'all websites', 'site-cloud', 'digifynext', 'switch'],
+    triggerKeywords: ['scope', 'tenant', 'website', 'domain', 'all websites', 'switch'],
   },
   {
     id: 'auth-security',

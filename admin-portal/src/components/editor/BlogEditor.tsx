@@ -257,6 +257,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     currentUser,
     users,
     fetchUsers,
+    fetchWebsites,
   } = useBlogStore(
     useShallow((s) => ({
       editingBlogId: s.editingBlogId,
@@ -277,6 +278,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
       currentUser: s.currentUser,
       users: s.users,
       fetchUsers: s.fetchUsers,
+      fetchWebsites: s.fetchWebsites,
     }))
   );
 
@@ -303,21 +305,28 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   const [selectedWebsiteId, setSelectedWebsiteId] = useState<string>(() => {
     if (existingBlog?.websiteId) return existingBlog.websiteId;
     const siteQuery = searchParams.get('site');
-    if (siteQuery && siteQuery !== 'all' && siteQuery !== 'site-cloud' && websites.some((w) => w.id === siteQuery)) return siteQuery;
-    if (activeWebsiteId && activeWebsiteId !== 'all' && activeWebsiteId !== 'site-cloud') return activeWebsiteId;
-    return websites[0]?.id || 'site-jupsoft-test';
+    if (siteQuery && siteQuery !== 'all' && websites.some((w) => w.id === siteQuery)) return siteQuery;
+    if (activeWebsiteId && activeWebsiteId !== 'all' && websites.some((w) => w.id === activeWebsiteId)) return activeWebsiteId;
+    return websites[0]?.id || '';
   });
+
+  // Ensure websites are fetched if not yet loaded
+  useEffect(() => {
+    if (websites.length === 0) {
+      fetchWebsites().catch(() => {});
+    }
+  }, [websites.length, fetchWebsites]);
 
   // Synchronize selectedWebsiteId once websites load asynchronously from API
   useEffect(() => {
     if (websites.length > 0) {
-      if (!selectedWebsiteId || selectedWebsiteId === 'site-cloud' || !websites.some((w) => w.id === selectedWebsiteId)) {
+      if (!selectedWebsiteId || !websites.some((w) => w.id === selectedWebsiteId)) {
         const blogSite = existingBlog?.websiteId && websites.some((w) => w.id === existingBlog.websiteId)
           ? existingBlog.websiteId
           : null;
         const siteQuery = searchParams.get('site');
-        const matched = siteQuery && siteQuery !== 'all' && siteQuery !== 'site-cloud' ? websites.find((w) => w.id === siteQuery) : null;
-        const validSite = blogSite || matched?.id || (activeWebsiteId && activeWebsiteId !== 'all' && activeWebsiteId !== 'site-cloud' ? websites.find((w) => w.id === activeWebsiteId)?.id : null) || websites[0]?.id || '';
+        const matched = siteQuery && siteQuery !== 'all' ? websites.find((w) => w.id === siteQuery) : null;
+        const validSite = blogSite || matched?.id || (activeWebsiteId && activeWebsiteId !== 'all' ? websites.find((w) => w.id === activeWebsiteId)?.id : null) || websites[0]?.id || '';
         if (validSite) {
           setSelectedWebsiteId(validSite);
         }
@@ -326,7 +335,18 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
   }, [websites, selectedWebsiteId, activeWebsiteId, searchParams, existingBlog?.websiteId]);
 
   const activeSite = useMemo(
-    () => websites.find((w) => w.id === selectedWebsiteId) || websites[0] || { id: 'site-growth', name: 'DigifyNext Marketing' },
+    () => websites.find((w) => w.id === selectedWebsiteId) || websites[0] || {
+      id: selectedWebsiteId || '',
+      name: 'Website',
+      domain: 'website.com',
+      status: 'active' as const,
+      defaultLanguage: 'en',
+      supportedLanguages: ['en'],
+      apiKey: '',
+      s3Prefix: '',
+      revalidateWebhookUrl: '',
+      createdAt: ''
+    },
     [websites, selectedWebsiteId]
   );
   const siteCategories = categories[selectedWebsiteId] || [];
@@ -1553,7 +1573,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
 
     setUploadingImage(true);
     const cleanName = file.name.replace(/\.[^/.]+$/, '') + '.webp';
-    const uploadSiteId = selectedWebsiteId || existingBlog?.websiteId || activeSite?.id || websites[0]?.id || 'site-jupsoft-test';
+    const uploadSiteId = selectedWebsiteId || existingBlog?.websiteId || activeSite?.id || websites[0]?.id || '';
     const uploadSite = websites.find((w) => w.id === uploadSiteId) || websites[0];
 
     try {
@@ -1658,9 +1678,9 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
     }
 
     const baseBlog = initialBlogRef.current || existingBlog;
-    const targetSiteId = (selectedWebsiteId && selectedWebsiteId !== 'site-cloud' && selectedWebsiteId !== 'all')
+    const targetSiteId = (selectedWebsiteId && selectedWebsiteId !== 'all')
       ? selectedWebsiteId
-      : (baseBlog?.websiteId || websites[0]?.id || 'site-jupsoft-test');
+      : (baseBlog?.websiteId || websites[0]?.id || '');
     const isCurrentlyPublished = baseBlog?.status === 'Published' || status === 'Published';
     const isNewDraft = !baseBlog?.id || baseBlog.id.startsWith('new-') || baseBlog.id.startsWith('temp-') || baseBlog.id.startsWith('draft-');
     const id = isNewDraft ? `new-${Date.now()}` : baseBlog.id;
@@ -2937,7 +2957,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. cloud erp, school erp"
+                    placeholder="e.g. technology, enterprise"
                     value={activeTrans.seo.focusKeyword}
                     onChange={(e) => updateActiveSeoField('focusKeyword', e.target.value)}
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-slate-400"
@@ -2968,7 +2988,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                   </label>
                   <input
                     type="text"
-                    placeholder="erp, cloud, saas, school, enterprise"
+                    placeholder="insights, guide, trends, news, technology"
                     value={activeTrans.seo.metaKeywords || ''}
                     onChange={(e) => updateActiveSeoField('metaKeywords', e.target.value)}
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:border-slate-400"
@@ -3296,7 +3316,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                           setAuthorName(e.target.value);
                           setHasUnsavedChanges(true);
                         }}
-                        placeholder="e.g. DigifyNext Team, Editorial Desk, Guest Author"
+                        placeholder="e.g. Editorial Desk, Guest Author, Staff Writer"
                         className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-slate-400"
                       />
                       <p className="text-[10px] text-slate-400 dark:text-slate-500">
@@ -4003,7 +4023,7 @@ export const BlogEditor: React.FC<BlogEditorProps> = ({ blogId }) => {
                       type="url"
                       value={customImageUrl}
                       onChange={(e) => setCustomImageUrl(e.target.value)}
-                      placeholder="https://images.unsplash.com/... or https://cdn.jupsoft.com/..."
+                      placeholder="https://images.unsplash.com/... or https://example.com/..."
                       className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                     />
                   </div>
