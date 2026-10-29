@@ -97,6 +97,12 @@ export class AnalyticsService implements OnModuleDestroy {
     since.setDate(since.getDate() - days);
     const isAll = !websiteId || websiteId === 'all';
 
+    const cacheKey = `admin:analytics:dashboard:${websiteId || 'all'}:${days}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const [lifetimeViewsAgg, totalTrackedViews, totalSiteUniqueRaw, events, uniqueRaw, referrers, blogs, dailyViewsRaw] = await Promise.all([
       // Total lifetime authentic views across all published blogs for this site (or all sites)
       this.prisma.blog.aggregate({
@@ -218,7 +224,7 @@ export class AnalyticsService implements OnModuleDestroy {
       };
     });
 
-    return {
+    const result = {
       success: true,
       period: { days, since: since.toISOString() },
       totalViews: effectivePageViews,
@@ -237,12 +243,21 @@ export class AnalyticsService implements OnModuleDestroy {
       topReferrers: referrers.map((r) => ({ referrer: r.referrer, count: r._count.id })),
       blogs: blogStats,
     };
+
+    await this.redis.set(cacheKey, result, 60);
+    return result;
   }
 
   /**
    * TRD §14: Per-blog analytics detail
    */
   async getBlogAnalytics(blogId: string, days = 30) {
+    const cacheKey = `admin:analytics:blog:${blogId}:${days}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const since = new Date();
     since.setDate(since.getDate() - days);
 
@@ -262,7 +277,7 @@ export class AnalyticsService implements OnModuleDestroy {
 
     const uniqueVisitors = Number(uniqueResult[0]?.uniqueCount) || 0;
 
-    return {
+    const result = {
       success: true,
       blogId,
       period: { days, since: since.toISOString() },
@@ -270,6 +285,9 @@ export class AnalyticsService implements OnModuleDestroy {
       uniqueVisitors,
       dailyViews: dailyViews.length,
     };
+
+    await this.redis.set(cacheKey, result, 60);
+    return result;
   }
 
   // ─── PERF-002: Batch View Count Persistence ────────────────────────────

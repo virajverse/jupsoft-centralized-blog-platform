@@ -465,31 +465,47 @@ export class BlogsService {
         },
       });
 
-      // Sync join tables from categoryIds / tagIds arrays (Fix 7: keep M:N tables in sync with FK validation)
-      if (dto.categoryIds && dto.categoryIds.length > 0) {
-        const validCategories = await tx.category.findMany({
-          where: { id: { in: dto.categoryIds } },
-          select: { id: true },
-        });
+      // Sync join tables from categoryIds / tagIds arrays (Concurrent validation & batching)
+      const hasCategories = dto.categoryIds && dto.categoryIds.length > 0;
+      const hasTags = dto.tagIds && dto.tagIds.length > 0;
+      if (hasCategories || hasTags) {
+        const [validCategories, validTags] = await Promise.all([
+          hasCategories
+            ? tx.category.findMany({
+                where: { id: { in: dto.categoryIds } },
+                select: { id: true },
+              })
+            : Promise.resolve([]),
+          hasTags
+            ? tx.tag.findMany({
+                where: { id: { in: dto.tagIds } },
+                select: { id: true },
+              })
+            : Promise.resolve([]),
+        ]);
+
         const validCatIds = validCategories.map((c) => c.id);
-        if (validCatIds.length > 0) {
-          await tx.blogCategory.createMany({
-            data: validCatIds.map((cid) => ({ blogId: createdBlog.id, categoryId: cid })),
-            skipDuplicates: true,
-          });
-        }
-      }
-      if (dto.tagIds && dto.tagIds.length > 0) {
-        const validTags = await tx.tag.findMany({
-          where: { id: { in: dto.tagIds } },
-          select: { id: true },
-        });
         const validTagIds = validTags.map((t) => t.id);
+
+        const joinOps: Promise<any>[] = [];
+        if (validCatIds.length > 0) {
+          joinOps.push(
+            tx.blogCategory.createMany({
+              data: validCatIds.map((cid) => ({ blogId: createdBlog.id, categoryId: cid })),
+              skipDuplicates: true,
+            }),
+          );
+        }
         if (validTagIds.length > 0) {
-          await tx.blogTag.createMany({
-            data: validTagIds.map((tid) => ({ blogId: createdBlog.id, tagId: tid })),
-            skipDuplicates: true,
-          });
+          joinOps.push(
+            tx.blogTag.createMany({
+              data: validTagIds.map((tid) => ({ blogId: createdBlog.id, tagId: tid })),
+              skipDuplicates: true,
+            }),
+          );
+        }
+        if (joinOps.length > 0) {
+          await Promise.all(joinOps);
         }
       }
 
@@ -736,37 +752,54 @@ export class BlogsService {
         });
       }
 
-      // Sync join tables (Fix 7: with FK validation)
-      if (dto.categoryIds !== undefined) {
-        await tx.blogCategory.deleteMany({ where: { blogId: id } });
-        if (dto.categoryIds.length > 0) {
-          const validCategories = await tx.category.findMany({
-            where: { id: { in: dto.categoryIds } },
-            select: { id: true },
-          });
-          const validCatIds = validCategories.map((c) => c.id);
-          if (validCatIds.length > 0) {
-            await tx.blogCategory.createMany({
+      // Sync join tables (Fix 7: with FK validation & concurrent batch execution)
+      const updateCats = dto.categoryIds !== undefined;
+      const updateTags = dto.tagIds !== undefined;
+      if (updateCats || updateTags) {
+        const deleteOps: Promise<any>[] = [];
+        if (updateCats) deleteOps.push(tx.blogCategory.deleteMany({ where: { blogId: id } }));
+        if (updateTags) deleteOps.push(tx.blogTag.deleteMany({ where: { blogId: id } }));
+        if (deleteOps.length > 0) {
+          await Promise.all(deleteOps);
+        }
+
+        const [validCategories, validTags] = await Promise.all([
+          updateCats && dto.categoryIds!.length > 0
+            ? tx.category.findMany({
+                where: { id: { in: dto.categoryIds } },
+                select: { id: true },
+              })
+            : Promise.resolve([]),
+          updateTags && dto.tagIds!.length > 0
+            ? tx.tag.findMany({
+                where: { id: { in: dto.tagIds } },
+                select: { id: true },
+              })
+            : Promise.resolve([]),
+        ]);
+
+        const validCatIds = validCategories.map((c) => c.id);
+        const validTagIds = validTags.map((t) => t.id);
+
+        const insertOps: Promise<any>[] = [];
+        if (validCatIds.length > 0) {
+          insertOps.push(
+            tx.blogCategory.createMany({
               data: validCatIds.map((cid) => ({ blogId: id, categoryId: cid })),
               skipDuplicates: true,
-            });
-          }
+            }),
+          );
         }
-      }
-      if (dto.tagIds !== undefined) {
-        await tx.blogTag.deleteMany({ where: { blogId: id } });
-        if (dto.tagIds.length > 0) {
-          const validTags = await tx.tag.findMany({
-            where: { id: { in: dto.tagIds } },
-            select: { id: true },
-          });
-          const validTagIds = validTags.map((t) => t.id);
-          if (validTagIds.length > 0) {
-            await tx.blogTag.createMany({
+        if (validTagIds.length > 0) {
+          insertOps.push(
+            tx.blogTag.createMany({
               data: validTagIds.map((tid) => ({ blogId: id, tagId: tid })),
               skipDuplicates: true,
-            });
-          }
+            }),
+          );
+        }
+        if (insertOps.length > 0) {
+          await Promise.all(insertOps);
         }
       }
 

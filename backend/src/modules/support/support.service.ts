@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import { RedisProvider } from '../../common/providers/redis.provider';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { AuthenticatedUser } from '../../common/interfaces/auth-user.interface';
@@ -22,6 +23,7 @@ export class SupportService {
   constructor(
     private prisma: PrismaService,
     private configService: ConfigService,
+    private redis: RedisProvider,
   ) {
     const region = this.configService.get<string>('AWS_REGION') || 'ap-south-1';
     const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID') || '';
@@ -159,6 +161,7 @@ export class SupportService {
     }).catch(() => {});
 
     this.logger.log(`New Support Ticket created: #${ticketNumber} (${ticket.subject}) for website [${websiteId}] by ${ticket.userName}`);
+    await this.redis.delPattern('admin:support:*').catch(() => {});
     return ticket;
   }
 
@@ -175,6 +178,12 @@ export class SupportService {
     const page = Math.max(1, query.page || 1);
     const limit = Math.min(100, Math.max(1, query.limit || 25));
     const skip = (page - 1) * limit;
+
+    const cacheKey = `admin:support:list:${query.websiteId || 'all'}:${query.status || 'all'}:${query.search || ''}:${page}:${limit}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) {
+      return cached;
+    }
 
     const where: any = {};
 
@@ -212,7 +221,7 @@ export class SupportService {
       }),
     ]);
 
-    return {
+    const result = {
       data: tickets,
       pagination: {
         total,
@@ -221,6 +230,9 @@ export class SupportService {
         totalPages: Math.ceil(total / limit),
       },
     };
+
+    await this.redis.set(cacheKey, result, 60);
+    return result;
   }
 
   /**
@@ -230,6 +242,12 @@ export class SupportService {
   async findMyTickets(user: AuthenticatedUser) {
     if (!user) return [];
 
+    const cacheKey = `admin:support:my:${user.id || user.email}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const where: any = {
       OR: [
         { userId: user.id },
@@ -237,7 +255,7 @@ export class SupportService {
       ],
     };
 
-    return this.prisma.supportTicket.findMany({
+    const tickets = await this.prisma.supportTicket.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       include: {
@@ -246,12 +264,21 @@ export class SupportService {
         },
       },
     });
+
+    await this.redis.set(cacheKey, tickets, 30);
+    return tickets;
   }
 
   /**
    * Get aggregate counts for header badges & dashboard stats
    */
   async getStats(websiteId?: string) {
+    const cacheKey = `admin:support:stats:${websiteId || 'all'}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const where: any = {};
     if (websiteId && websiteId !== 'all') {
       where.websiteId = websiteId;
@@ -265,13 +292,16 @@ export class SupportService {
       this.prisma.supportTicket.count({ where: { ...where, status: 'CLOSED' } }),
     ]);
 
-    return {
+    const result = {
       total,
       open,
       inProgress,
       resolved,
       closed,
     };
+
+    await this.redis.set(cacheKey, result, 60);
+    return result;
   }
 
   /**
@@ -336,6 +366,7 @@ export class SupportService {
       },
     }).catch(() => {});
 
+    await this.redis.delPattern('admin:support:*').catch(() => {});
     return updated;
   }
 
@@ -344,6 +375,8 @@ export class SupportService {
    */
   async remove(id: string) {
     await this.findOne(id);
-    return this.prisma.supportTicket.delete({ where: { id } });
+    const res = await this.prisma.supportTicket.delete({ where: { id } });
+    await this.redis.delPattern('admin:support:*').catch(() => {});
+    return res;
   }
 }
