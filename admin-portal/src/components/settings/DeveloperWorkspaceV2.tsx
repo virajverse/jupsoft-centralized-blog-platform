@@ -85,7 +85,7 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
   const websiteId = activeSite?.id || 'site-jupsoft-test';
   const siteDomain = activeSite?.domain || 'jupsoft.com';
   const apiKey = (canViewApiKey && activeSite?.apiKey) ? activeSite.apiKey : 'jup_live_sec_your_api_key';
-  const apiBaseUrl = 'https://blogary.jupsoft.com/v1';
+  const apiBaseUrl = 'https://blogary.jupsoft.com';
 
   // Published blogs for realistic slug testing
   const publishedBlogs = useMemo(() => {
@@ -421,9 +421,23 @@ export const DeveloperWorkspaceV2: React.FC<DeveloperWorkspaceV2Props> = ({
 
   // Generate dynamic request snippets
   const snippetUrl = useMemo(() => {
-    const base = `${apiBaseUrl}${selectedEndpoint.path.replace(':slug', activeSlug)}`;
-    if (selectedEndpoint.id === 'health-check') return base;
-    return `${base}?website=${encodeURIComponent(websiteId)}`;
+    const cleanBase = apiBaseUrl.endsWith('/v1')
+      ? apiBaseUrl.replace(/\/v1$/, '')
+      : apiBaseUrl.replace(/\/+$/, '');
+    let cleanPath = selectedEndpoint.path.replace(':slug', activeSlug);
+    if (!cleanPath.startsWith('/')) cleanPath = '/' + cleanPath;
+    
+    // Safety deduplication: ensure /v1 isn't duplicated
+    const pathWithoutV1 = cleanPath.startsWith('/v1/') ? cleanPath.replace(/^\/v1/, '') : cleanPath;
+    const fullUrl = `${cleanBase}/v1${pathWithoutV1}`;
+
+    if (selectedEndpoint.id === 'health-check') return fullUrl;
+
+    let url = `${fullUrl}?website=${encodeURIComponent(websiteId)}`;
+    if (selectedEndpoint.id === 'search-blogs') {
+      url += '&q=school';
+    }
+    return url;
   }, [apiBaseUrl, selectedEndpoint, activeSlug, websiteId]);
 
   const curlSnippet = useMemo(() => {
