@@ -127,6 +127,7 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
     if (path.startsWith('/analytics')) return 'analytics';
     if (path.startsWith('/users')) return 'users';
     if (path.startsWith('/settings')) return 'settings';
+    if (path.startsWith('/docs')) return 'settings';
     if (path.startsWith('/plugins')) return 'plugins';
     if (path.startsWith('/support')) return 'support';
     if (path.startsWith('/dashboard') || path === '/') return 'dashboard';

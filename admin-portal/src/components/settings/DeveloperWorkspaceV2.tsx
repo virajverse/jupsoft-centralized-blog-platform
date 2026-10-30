@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { Website, Blog } from '../../types';
 import { 
   KeyRound, 
@@ -26,7 +27,8 @@ import {
   Palette,
   Layout,
   CheckSquare,
-  Sparkles
+  Sparkles,
+  BookOpen
 } from 'lucide-react';
 
 export interface DeveloperWorkspaceV2Props {
@@ -738,6 +740,15 @@ console.log(data);`;
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             REST API credentials, route specifications, and frontend UI/UX integration guidelines for consuming websites.
           </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/docs${activeSite?.id ? '?site=' + activeSite.id : ''}`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-semibold transition cursor-pointer"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>Integration Guide &amp; Blueprints &rarr;</span>
+          </Link>
         </div>
 
         {websites.length > 1 && onSelectSite && (

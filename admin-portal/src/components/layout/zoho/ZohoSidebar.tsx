@@ -22,7 +22,8 @@ import {
   RefreshCw,
   X,
   Code,
-  LifeBuoy
+  LifeBuoy,
+  BookOpen
 } from 'lucide-react';
 
 export const ZohoSidebar: React.FC = () => {
@@ -179,6 +180,15 @@ export const ZohoSidebar: React.FC = () => {
       isActive: activeRole === 'Developer'
         ? pathname === '/settings'
         : (pathname === '/settings' && tabParam !== 'developer'),
+    },
+    {
+      href: `/docs${siteQuery}`,
+      basePath: '/docs',
+      module: 'settings',
+      shortLabel: 'Docs',
+      fullLabel: 'Integration Guide',
+      icon: BookOpen,
+      isActive: pathname.startsWith('/docs'),
     },
     {
       href: `/support${siteQuery}`,
