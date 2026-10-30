@@ -72,9 +72,6 @@ const ROLE_MODULE_PERMISSIONS: Record<UserRole, AppModule[]> = {
     'support',
   ],
   'Developer': [
-    'dashboard',
-    'blogs',
-    'redirects',
     'settings',
     'support',
   ],

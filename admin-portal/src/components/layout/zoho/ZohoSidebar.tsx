@@ -168,13 +168,17 @@ export const ZohoSidebar: React.FC = () => {
       isActive: pathname === '/users',
     },
     {
-      href: `/settings${siteQuery}`,
+      href: activeRole === 'Developer'
+        ? `/settings?tab=developer${siteQuery ? '&' + siteQuery.slice(1) : ''}`
+        : `/settings${siteQuery}`,
       basePath: '/settings',
       module: 'settings',
-      shortLabel: 'Settings',
-      fullLabel: 'Website Settings',
-      icon: Settings,
-      isActive: pathname === '/settings' && tabParam !== 'developer',
+      shortLabel: activeRole === 'Developer' ? 'Dev API' : 'Settings',
+      fullLabel: activeRole === 'Developer' ? 'Developer Setting' : 'Website Settings',
+      icon: activeRole === 'Developer' ? Code : Settings,
+      isActive: activeRole === 'Developer'
+        ? pathname === '/settings'
+        : (pathname === '/settings' && tabParam !== 'developer'),
     },
     {
       href: `/support${siteQuery}`,
@@ -315,7 +319,7 @@ export const ZohoSidebar: React.FC = () => {
 
           {/* Bottom Actions: Sticky Developer Setting & Mobile Close */}
           <div className="w-full flex flex-col items-center gap-1 pt-1.5 border-t border-slate-800/80">
-            {canAccessModule(activeRole, 'settings', currentUser?.customModules) && (() => {
+            {(activeRole as string) !== 'Developer' && canAccessModule(activeRole, 'settings', currentUser?.customModules) && (() => {
               const isDevActive = pathname === '/settings' && tabParam === 'developer';
               const isDevPending = navigatingTo === '/settings-developer';
               const devHref = `/settings?tab=developer${siteQuery ? '&' + siteQuery.slice(1) : ''}`;
