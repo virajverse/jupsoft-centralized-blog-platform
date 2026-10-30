@@ -5,7 +5,8 @@ export type UserRole =
   | 'Editor' 
   | 'Content Writer' 
   | 'Publisher' 
-  | 'SEO Manager';
+  | 'SEO Manager'
+  | 'Developer';
 
 export type BlogStatus = 'Draft' | 'Under Review' | 'Approved' | 'Scheduled' | 'Published' | 'Archived';
 

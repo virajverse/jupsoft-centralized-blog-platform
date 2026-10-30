@@ -81,6 +81,7 @@ const ALL_ROLES: UserRole[] = [
   'Content Writer',
   'Publisher',
   'SEO Manager',
+  'Developer',
 ];
 
 interface RBACPermission {
@@ -381,6 +382,10 @@ _Please log in and update your password on your first sign-in._`;
 
   const handleInviteRoleChange = (newRole: UserRole | '') => {
     setInviteRole(newRole);
+    if (newRole === 'Developer') {
+      setInviteReportsTo('Website Admin');
+      setInviteReportsToCustom('');
+    }
     if (newRole === 'Super Admin') {
       setInviteWebsiteId('all');
       setInviteReportsTo('—');
@@ -767,6 +772,8 @@ _Please log in and update your password on your first sign-in._`;
         return 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
       case 'SEO Manager':
         return 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800';
+      case 'Developer':
+        return 'bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800';
       default:
         return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700';
     }

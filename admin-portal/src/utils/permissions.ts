@@ -71,6 +71,13 @@ const ROLE_MODULE_PERMISSIONS: Record<UserRole, AppModule[]> = {
     'analytics',
     'support',
   ],
+  'Developer': [
+    'dashboard',
+    'blogs',
+    'redirects',
+    'settings',
+    'support',
+  ],
 };
 
 export function getDefaultRoleModules(role: UserRole | string | undefined): AppModule[] {
@@ -161,6 +168,7 @@ export const ROLE_HIERARCHY: Record<UserRole, number> = {
   'Editor': 40,
   'Publisher': 30,
   'SEO Manager': 30,
+  'Developer': 25,
   'Content Writer': 20,
 };
 
@@ -262,6 +270,7 @@ export function getAllowedInviteRoles(
       'Content Writer',
       'Publisher',
       'SEO Manager',
+      'Developer',
     ];
   }
   if (currentRole === 'Website Admin') {
@@ -271,6 +280,7 @@ export function getAllowedInviteRoles(
       'Content Writer',
       'Publisher',
       'SEO Manager',
+      'Developer',
     ];
   }
   if (currentRole === 'Role Admin') {

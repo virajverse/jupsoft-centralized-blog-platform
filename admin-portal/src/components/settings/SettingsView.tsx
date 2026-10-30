@@ -92,9 +92,9 @@ export const SettingsView: React.FC = () => {
 
   const canViewApiKeyForTenant = (siteId: string) => {
     if (isSuperAdmin) return true;
-    if (currentUser?.roleAssignments?.[siteId] === 'Website Admin') return true;
-    if (currentUser?.roleAssignments?.['all'] === 'Website Admin') return true;
-    if (activeWebsiteId === siteId && activeRole === 'Website Admin') return true;
+    const roleOnSite = currentUser?.roleAssignments?.[siteId] || currentUser?.roleAssignments?.['all'];
+    if (roleOnSite === 'Website Admin' || roleOnSite === 'Developer') return true;
+    if (activeWebsiteId === siteId && (activeRole === 'Website Admin' || activeRole === 'Developer')) return true;
     return false;
   };
 
@@ -129,7 +129,7 @@ export const SettingsView: React.FC = () => {
   const rawTabParam = searchParams.get('tab') as SettingsTab;
   const activeTab: SettingsTab = (rawTabParam && ['all', 'general', 'developer', 'redirects', 'webhook', 'audit'].includes(rawTabParam))
     ? ((!isSuperAdmin && rawTabParam === 'all') ? 'general' : rawTabParam)
-    : (isSuperAdmin ? 'all' : 'general');
+    : (isSuperAdmin ? 'all' : (activeRole === 'Developer' ? 'developer' : 'general'));
 
   // Derive target site directly from URL state
   const targetSiteId = (tenantParam && websites.some((w) => w.id === tenantParam))
@@ -539,20 +539,20 @@ export const SettingsView: React.FC = () => {
       )}
 
       {/* Section Tabs - Zoho Enterprise Styling */}
-      {activeTab !== 'developer' && (
-        <div className="flex items-center gap-1 bg-white dark:bg-[#0c1322] p-1 rounded-lg border border-slate-200 dark:border-slate-800 shadow-2xs overflow-x-auto scrollbar-none w-full sm:w-fit max-w-full">
-          {isSuperAdmin && (
-            <button
-              onClick={() => handleTabChange('all')}
-              className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                activeTab === 'all'
-                  ? 'bg-red-600 text-white font-bold shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              All Websites
-            </button>
-          )}
+      <div className="flex items-center gap-1 bg-white dark:bg-[#0c1322] p-1 rounded-lg border border-slate-200 dark:border-slate-800 shadow-2xs overflow-x-auto scrollbar-none w-full sm:w-fit max-w-full">
+        {isSuperAdmin && (
+          <button
+            onClick={() => handleTabChange('all')}
+            className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'all'
+                ? 'bg-red-600 text-white font-bold shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            All Websites
+          </button>
+        )}
+        {activeRole !== 'Developer' && (
           <button
             onClick={() => handleTabChange('general')}
             className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
@@ -563,39 +563,54 @@ export const SettingsView: React.FC = () => {
           >
             Identity &amp; API Key
           </button>
-          <button
-            onClick={() => handleTabChange('redirects')}
-            className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
-              activeTab === 'redirects'
-                ? 'bg-red-600 text-white font-bold shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <ArrowRightLeft className="w-3.5 h-3.5" />
-            <span>Old Link Redirects (301)</span>
-          </button>
-          <button
-            onClick={() => handleTabChange('webhook')}
-            className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-              activeTab === 'webhook'
-                ? 'bg-red-600 text-white font-bold shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Website Refresh &amp; Sync
-          </button>
-          <button
-            onClick={() => handleTabChange('audit')}
-            className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-              activeTab === 'audit'
-                ? 'bg-red-600 text-white font-bold shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Activity Log ({auditLogs.length})
-          </button>
-        </div>
-      )}
+        )}
+        <button
+          onClick={() => handleTabChange('developer')}
+          className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+            activeTab === 'developer'
+              ? 'bg-red-600 text-white font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Code className="w-3.5 h-3.5" />
+          <span>Developer Setting</span>
+        </button>
+        <button
+          onClick={() => handleTabChange('redirects')}
+          className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+            activeTab === 'redirects'
+              ? 'bg-red-600 text-white font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <ArrowRightLeft className="w-3.5 h-3.5" />
+          <span>Old Link Redirects (301)</span>
+        </button>
+        {activeRole !== 'Developer' && (
+          <>
+            <button
+              onClick={() => handleTabChange('webhook')}
+              className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                activeTab === 'webhook'
+                  ? 'bg-red-600 text-white font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Website Refresh &amp; Sync
+            </button>
+            <button
+              onClick={() => handleTabChange('audit')}
+              className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                activeTab === 'audit'
+                  ? 'bg-red-600 text-white font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Activity Log ({auditLogs.length})
+            </button>
+          </>
+        )}
+      </div>
 
       {/* TAB: ALL TENANTS OVERVIEW */}
       {activeTab === 'all' && (
