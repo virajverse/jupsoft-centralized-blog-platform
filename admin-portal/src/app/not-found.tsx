@@ -1,8 +1,112 @@
-import React from 'react';
+'use client';
+
+import React, { useMemo } from 'react';
 import Link from 'next/link';
-import { Home, FileText, Image as ImageIcon, ArrowLeft, ShieldAlert, Settings } from 'lucide-react';
+import { 
+  Home, 
+  FileText, 
+  Image as ImageIcon, 
+  ShieldAlert, 
+  Settings, 
+  Code2, 
+  ArrowRightLeft, 
+  Users, 
+  LifeBuoy, 
+  FolderTree, 
+  LogIn 
+} from 'lucide-react';
+import { useBlogStore } from '../store/useBlogStore';
+import { useShallow } from 'zustand/react/shallow';
+import { UserRole } from '../types';
 
 export default function NotFound() {
+  const { isAuthenticated, activeRole, currentUser } = useBlogStore(
+    useShallow((s) => ({
+      isAuthenticated: s.isAuthenticated,
+      activeRole: s.activeRole,
+      currentUser: s.currentUser,
+    }))
+  );
+
+  // Dynamic quick navigation links tailored strictly to user's assigned role
+  const dynamicLinks = useMemo(() => {
+    if (!isAuthenticated) {
+      return [
+        { label: 'Login to CMS', href: '/login', icon: LogIn },
+        { label: 'Forgot Password', href: '/forgot-password', icon: LifeBuoy },
+      ];
+    }
+
+    switch (activeRole as UserRole) {
+      case 'Developer':
+        return [
+          { label: 'Developer Setting', href: '/settings?tab=developer', icon: Code2, primary: true },
+          { label: 'Old Link Redirects (301)', href: '/settings?tab=redirects', icon: ArrowRightLeft },
+          { label: 'Browse Articles', href: '/blogs', icon: FileText },
+          { label: 'Support Desk', href: '/support', icon: LifeBuoy },
+          { label: 'Dashboard', href: '/dashboard', icon: Home },
+        ];
+
+      case 'Content Writer':
+        return [
+          { label: 'Dashboard', href: '/dashboard', icon: Home },
+          { label: 'Write New Blog', href: '/blogs/new', icon: FileText, primary: true },
+          { label: 'My Articles', href: '/blogs', icon: FileText },
+          { label: 'Media Library', href: '/media', icon: ImageIcon },
+          { label: 'Support Desk', href: '/support', icon: LifeBuoy },
+        ];
+
+      case 'Editor':
+        return [
+          { label: 'Dashboard', href: '/dashboard', icon: Home },
+          { label: 'Editorial Review', href: '/workflow', icon: FileText, primary: true },
+          { label: 'Browse Articles', href: '/blogs', icon: FileText },
+          { label: 'Media Library', href: '/media', icon: ImageIcon },
+          { label: 'Categories & Tags', href: '/taxonomy', icon: FolderTree },
+        ];
+
+      case 'SEO Manager':
+        return [
+          { label: 'Dashboard', href: '/dashboard', icon: Home },
+          { label: 'Old Link Redirects (301)', href: '/settings?tab=redirects', icon: ArrowRightLeft, primary: true },
+          { label: 'Taxonomy & SEO', href: '/taxonomy', icon: FolderTree },
+          { label: 'Article Directory', href: '/blogs', icon: FileText },
+          { label: 'Analytics', href: '/analytics', icon: Home },
+        ];
+
+      case 'Publisher':
+        return [
+          { label: 'Dashboard', href: '/dashboard', icon: Home },
+          { label: 'Publishing Queue', href: '/workflow', icon: FileText, primary: true },
+          { label: 'Published Articles', href: '/blogs', icon: FileText },
+          { label: 'Redirect Rules', href: '/settings?tab=redirects', icon: ArrowRightLeft },
+        ];
+
+      case 'Super Admin':
+      case 'Website Admin':
+      case 'Role Admin':
+      default:
+        return [
+          { label: 'Dashboard', href: '/dashboard', icon: Home, primary: true },
+          { label: 'Blogs & Articles', href: '/blogs', icon: FileText },
+          { label: 'Media Library', href: '/media', icon: ImageIcon },
+          { label: 'Team Roles & Permissions', href: '/users', icon: Users },
+          { label: 'Developer Setting', href: '/settings?tab=developer', icon: Code2 },
+          { label: 'Website Settings', href: '/settings', icon: Settings },
+        ];
+    }
+  }, [isAuthenticated, activeRole]);
+
+  const primaryAction = useMemo(() => {
+    if (!isAuthenticated) {
+      return { label: 'Go to Login', href: '/login', icon: LogIn };
+    }
+    if (activeRole === 'Developer') {
+      return { label: 'Go to Developer Setting', href: '/settings?tab=developer', icon: Code2 };
+    }
+    return { label: 'Return to Dashboard', href: '/dashboard', icon: Home };
+  }, [isAuthenticated, activeRole]);
+
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-slate-50 dark:bg-[#070b14] px-4 py-12 antialiased select-none">
       <div className="w-full max-w-lg text-center space-y-8">
@@ -37,65 +141,52 @@ export default function NotFound() {
               Page or Resource Does Not Exist
             </h2>
 
+            {/* Dynamic Role Indicator */}
+            {isAuthenticated && activeRole && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                <span>Active Account:</span>
+                <span className="font-bold text-slate-900 dark:text-white">{currentUser?.name || 'User'}</span>
+                <span className="text-slate-400">&bull;</span>
+                <span className="font-bold text-indigo-600 dark:text-indigo-400">{activeRole}</span>
+              </div>
+            )}
+
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-sm mx-auto">
-              The page you are looking for might have been moved, deleted, or you might not have authorization to view this resource.
+              The page you are looking for might have been moved, deleted, or does not exist on this CMS tenant.
             </p>
 
-            {/* Primary Action Buttons */}
+            {/* Primary Action Button */}
             <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link
-                href="/dashboard"
+                href={primaryAction.href}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md shadow-red-600/20 hover:shadow-lg hover:shadow-red-600/30 transition-all cursor-pointer"
               >
-                <Home className="w-4 h-4" />
-                <span>Return to Dashboard</span>
-              </Link>
-
-              <Link
-                href="/blogs"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs transition-colors cursor-pointer"
-              >
-                <FileText className="w-4 h-4" />
-                <span>Browse Blogs</span>
+                <primaryAction.icon className="w-4 h-4" />
+                <span>{primaryAction.label}</span>
               </Link>
             </div>
           </div>
         </div>
 
-        {/* Quick Module Shortcuts */}
+        {/* Dynamic Quick Module Shortcuts based on user role */}
         <div className="space-y-2">
           <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            Quick Navigation
+            {isAuthenticated ? `Available Modules for ${activeRole || 'Your Role'}` : 'Quick Navigation'}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-            >
-              <Home className="w-3.5 h-3.5" />
-              <span>Dashboard</span>
-            </Link>
-            <Link
-              href="/blogs"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Blogs</span>
-            </Link>
-            <Link
-              href="/media"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-            >
-              <ImageIcon className="w-3.5 h-3.5" />
-              <span>Media Library</span>
-            </Link>
-            <Link
-              href="/settings"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-            >
-              <Settings className="w-3.5 h-3.5" />
-              <span>Settings</span>
-            </Link>
+            {dynamicLinks.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-900/50 transition-colors shadow-2xs"
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
           </div>
         </div>
 
