@@ -20,8 +20,7 @@ import {
   Server, 
   LifeBuoy, 
   FileCode2, 
-  Palette,
-  BookOpen
+  Palette 
 } from 'lucide-react';
 import { Website, UserAccount } from '../../types';
 
@@ -154,14 +153,6 @@ console.log(data);`,
             >
               <Code2 className="w-4 h-4" />
               <span>Launch API Explorer &amp; Live Tester</span>
-              <ArrowRight className="w-3.5 h-3.5 ml-1" />
-            </Link>
-            <Link
-              href={`/docs${websiteId ? '?site=' + websiteId : ''}`}
-              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
-            >
-              <BookOpen className="w-4 h-4" />
-              <span>Integration Guide &amp; Code</span>
               <ArrowRight className="w-3.5 h-3.5 ml-1" />
             </Link>
           </div>

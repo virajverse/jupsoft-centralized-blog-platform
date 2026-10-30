@@ -246,7 +246,6 @@ export const JupsoftNavbar: React.FC = () => {
     if (pathname.startsWith('/analytics')) return { title: 'Analytics', path: 'Reports / Traffic' };
     if (pathname.startsWith('/users')) return { title: 'Team Roles & Permissions', path: 'Access / Roles' };
     if (pathname.startsWith('/settings')) return { title: 'Settings', path: 'Websites / Config' };
-    if (pathname.startsWith('/docs')) return { title: 'Integration Guide', path: 'Developer / SDK & Blueprints' };
     return { title: 'Dashboard', path: 'Workspace / Overview' };
   };
 

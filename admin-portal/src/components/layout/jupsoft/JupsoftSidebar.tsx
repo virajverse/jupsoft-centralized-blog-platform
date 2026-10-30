@@ -21,8 +21,7 @@ import {
   X,
   HelpCircle,
   Code,
-  LifeBuoy,
-  BookOpen
+  LifeBuoy
 } from 'lucide-react';
 
 export const JupsoftSidebar: React.FC = () => {
@@ -177,15 +176,6 @@ export const JupsoftSidebar: React.FC = () => {
       isActive: activeRole === 'Developer'
         ? pathname === '/settings'
         : (pathname === '/settings' && tabParam !== 'developer'),
-    },
-    {
-      href: `/docs${siteQuery}`,
-      basePath: '/docs',
-      module: 'settings',
-      shortLabel: 'Docs',
-      fullLabel: 'Integration Guide',
-      icon: BookOpen,
-      isActive: pathname.startsWith('/docs'),
     },
     {
       href: `/support${siteQuery}`,
