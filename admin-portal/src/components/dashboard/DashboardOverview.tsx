@@ -6,6 +6,7 @@ import { useBlogStore } from '../../store/useBlogStore';
 import { useShallow } from 'zustand/react/shallow';
 import { isGlobalScopeRole } from '../../utils/permissions';
 import { JupsoftDashboardView } from './JupsoftDashboardView';
+import { DeveloperDashboardView } from './DeveloperDashboardView';
 
 export const DashboardOverview: React.FC = () => {
   const searchParams = useSearchParams();
@@ -133,6 +134,16 @@ export const DashboardOverview: React.FC = () => {
       totalWords: words,
     };
   }, [displayedBlogs]);
+
+  if (activeRole === 'Developer') {
+    return (
+      <DeveloperDashboardView
+        activeSite={activeSite}
+        websites={websites}
+        currentUser={currentUser}
+      />
+    );
+  }
 
   return (
     <JupsoftDashboardView

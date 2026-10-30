@@ -118,13 +118,6 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
     return null;
   }
 
-  // Developer direct routing to Developer Setting workspace
-  useEffect(() => {
-    if (activeRole === 'Developer' && (pathname === '/dashboard' || pathname === '/')) {
-      router.replace('/settings?tab=developer');
-    }
-  }, [activeRole, pathname, router]);
-
   const getModuleForPath = (path: string): AppModule | null => {
     if (path.startsWith('/blogs')) return 'blogs';
     if (path.startsWith('/workflow')) return 'workflow';
