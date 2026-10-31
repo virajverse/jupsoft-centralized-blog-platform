@@ -107,6 +107,11 @@ export function canAccessModule(
   if (role === 'Super Admin') return true;
   if (module === 'dashboard' || module === 'support') return true;
 
+  // Strict role isolation: Developer can ONLY access dashboard, settings, and support
+  if (role === 'Developer') {
+    return module === 'settings';
+  }
+
   // If custom module permissions are configured for this user, they strictly dictate access (both ON and OFF)
   if (customModules && Array.isArray(customModules) && customModules.length > 0) {
     return customModules.includes(module);
